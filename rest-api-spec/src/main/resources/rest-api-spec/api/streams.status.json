@@ -1,0 +1,32 @@
+{
+  "streams.status": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/streams-status.html",
+      "description": "Return the current status of the streams feature for each streams type"
+    },
+    "stability": "stable",
+    "visibility": "feature_flag",
+    "feature_flag": "logs_stream",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_streams/status",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "mater_timeout": {
+        "type": "time",
+        "description": "Period to wait for a response. If no response is received before the timeout expires, the request fails and returns an error."
+      }
+    }
+  }
+}

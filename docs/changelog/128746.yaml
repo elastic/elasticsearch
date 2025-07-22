@@ -1,0 +1,5 @@
+pr: 128746
+summary: Fix computation of last block size in Azure concurrent multipart uploads
+area: Snapshot/Restore
+type: bug
+issues: []

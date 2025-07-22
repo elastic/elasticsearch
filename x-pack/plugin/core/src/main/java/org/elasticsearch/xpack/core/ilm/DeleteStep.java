@@ -13,10 +13,10 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -33,10 +33,10 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Void> listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
         String policyName = indexMetadata.getLifecyclePolicyName();
         String indexName = indexMetadata.getIndex().getName();
-        IndexAbstraction indexAbstraction = currentState.metadata().getProject().getIndicesLookup().get(indexName);
+        IndexAbstraction indexAbstraction = currentProject.getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
 
@@ -56,7 +56,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                     MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
                     dataStream.getName()
                 );
-                getClient().execute(
+                getClient(currentProject.id()).execute(
                     DeleteDataStreamAction.INSTANCE,
                     deleteReq,
                     listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
@@ -78,7 +78,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
             }
         }
 
-        getClient().admin()
+        getClient(currentProject.id()).admin()
             .indices()
             .delete(
                 new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE),

@@ -1,0 +1,13 @@
+pr: 129546
+summary: Upgrade to Lucene 10.2.2
+area: Search
+type: upgrade
+issues: []
+highlight:
+  title: Upgrade to lucene 10.2.2
+  body: |-
+    * Reduce NeighborArray on-heap memory during HNSW graph building
+    * Fix IndexSortSortedNumericDocValuesRangeQuery for integer sorting
+    * ValueSource.fromDoubleValuesSource(dvs).getSortField() would throw errors when used if the DoubleValuesSource needed scores
+    ----
+  notable: true

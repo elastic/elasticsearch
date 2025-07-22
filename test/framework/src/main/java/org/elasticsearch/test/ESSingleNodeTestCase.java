@@ -536,4 +536,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             )
         );
     }
+
+    protected void updateClusterSettings(Settings settings) {
+        safeGet(clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).setPersistentSettings(settings).execute());
+    }
 }

@@ -124,10 +124,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count())) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
-                for (int i = 0; i < docs.count(); i++) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < lastDoc) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -173,9 +173,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count())) {
-                for (int i = 0; i < docs.count(); i++) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < this.docID) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -259,10 +259,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count())) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
-                for (int i = 0; i < docs.count(); i++) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < lastDoc) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -308,9 +308,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count())) {
-                for (int i = 0; i < docs.count(); i++) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < this.docID) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -408,10 +408,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
-                for (int i = 0; i < docs.count(); i++) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < lastDoc) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -461,9 +461,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
-                for (int i = 0; i < docs.count(); i++) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < this.docID) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -544,10 +544,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
             // Doubles from doc values ensures that the values are in order
-            try (BlockLoader.FloatBuilder builder = factory.denseVectors(docs.count(), dimensions)) {
-                for (int i = 0; i < docs.count(); i++) {
+            try (BlockLoader.FloatBuilder builder = factory.denseVectors(docs.count() - offset, dimensions)) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < iterator.docID()) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -645,19 +645,19 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (ordinals.advanceExact(docId)) {
                 BytesRef v = ordinals.lookupOrd(ordinals.ordValue());
                 // the returned BytesRef can be reused
-                return factory.constantBytes(BytesRef.deepCopyOf(v));
+                return factory.constantBytes(BytesRef.deepCopyOf(v), 1);
             } else {
-                return factory.constantNulls();
+                return factory.constantNulls(1);
             }
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            if (docs.count() == 1) {
-                return readSingleDoc(factory, docs.get(0));
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            if (docs.count() - offset == 1) {
+                return readSingleDoc(factory, docs.get(offset));
             }
-            try (BlockLoader.SingletonOrdinalsBuilder builder = factory.singletonOrdinalsBuilder(ordinals, docs.count())) {
-                for (int i = 0; i < docs.count(); i++) {
+            try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < ordinals.docID()) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -700,14 +700,30 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BytesRefBuilder builder = factory.bytesRefsFromDocValues(docs.count())) {
-                for (int i = 0; i < docs.count(); i++) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            if (docs.count() - offset == 1) {
+                return readSingleDoc(factory, docs.get(offset));
+            }
+            try (var builder = factory.sortedSetOrdinalsBuilder(ordinals, docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < ordinals.docID()) {
                         throw new IllegalStateException("docs within same block must be in order");
                     }
-                    read(doc, builder);
+                    if (ordinals.advanceExact(doc) == false) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    int count = ordinals.docValueCount();
+                    if (count == 1) {
+                        builder.appendOrd(Math.toIntExact(ordinals.nextOrd()));
+                    } else {
+                        builder.beginPositionEntry();
+                        for (int c = 0; c < count; c++) {
+                            builder.appendOrd(Math.toIntExact(ordinals.nextOrd()));
+                        }
+                        builder.endPositionEntry();
+                    }
                 }
                 return builder.build();
             }
@@ -716,6 +732,26 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             read(docId, (BytesRefBuilder) builder);
+        }
+
+        private BlockLoader.Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (ordinals.advanceExact(docId) == false) {
+                return factory.constantNulls(1);
+            }
+            int count = ordinals.docValueCount();
+            if (count == 1) {
+                BytesRef v = ordinals.lookupOrd(ordinals.nextOrd());
+                return factory.constantBytes(BytesRef.deepCopyOf(v), 1);
+            }
+            try (var builder = factory.bytesRefsFromDocValues(count)) {
+                builder.beginPositionEntry();
+                for (int c = 0; c < count; c++) {
+                    BytesRef v = ordinals.lookupOrd(ordinals.nextOrd());
+                    builder.appendBytesRef(v);
+                }
+                builder.endPositionEntry();
+                return builder.build();
+            }
         }
 
         private void read(int docId, BytesRefBuilder builder) throws IOException {
@@ -780,9 +816,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count())) {
-                for (int i = 0; i < docs.count(); i++) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < docID) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -879,9 +915,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.FloatBuilder builder = factory.denseVectors(docs.count(), dimensions)) {
-                for (int i = 0; i < docs.count(); i++) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.FloatBuilder builder = factory.denseVectors(docs.count() - offset, dimensions)) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < docID) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -963,10 +999,10 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count())) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count() - offset)) {
                 int lastDoc = -1;
-                for (int i = 0; i < docs.count(); i++) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < lastDoc) {
                         throw new IllegalStateException("docs within same block must be in order");
@@ -1012,9 +1048,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count())) {
-                for (int i = 0; i < docs.count(); i++) {
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.BooleanBuilder builder = factory.booleansFromDocValues(docs.count() - offset)) {
+                for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
                     if (doc < this.docID) {
                         throw new IllegalStateException("docs within same block must be in order");

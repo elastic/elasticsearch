@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -20,6 +21,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -37,6 +39,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
@@ -55,13 +58,26 @@ public class SageMakerService implements InferenceService {
     private final SageMakerSchemas schemas;
     private final ThreadPool threadPool;
     private final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration;
+    private final ClusterService clusterService;
 
     public SageMakerService(
         SageMakerModelBuilder modelBuilder,
         SageMakerClient client,
         SageMakerSchemas schemas,
         ThreadPool threadPool,
-        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap
+        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(modelBuilder, client, schemas, threadPool, configurationMap, context.clusterService());
+    }
+
+    public SageMakerService(
+        SageMakerModelBuilder modelBuilder,
+        SageMakerClient client,
+        SageMakerSchemas schemas,
+        ThreadPool threadPool,
+        CheckedSupplier<Map<String, SettingsConfiguration>, RuntimeException> configurationMap,
+        ClusterService clusterService
     ) {
         this.modelBuilder = modelBuilder;
         this.client = client;
@@ -74,6 +90,7 @@ public class SageMakerService implements InferenceService {
                 .setConfigurations(configurationMap.get())
                 .build()
         );
+        this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     @Override

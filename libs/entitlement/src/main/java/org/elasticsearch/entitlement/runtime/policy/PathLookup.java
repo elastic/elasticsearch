@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.PathUtils;
+
 import java.nio.file.Path;
 import java.util.stream.Stream;
 
@@ -16,6 +18,8 @@ import java.util.stream.Stream;
  * Resolves paths for known directories checked by entitlements.
  */
 public interface PathLookup {
+    Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();
+
     enum BaseDir {
         USER_HOME,
         CONFIG,
@@ -32,7 +36,11 @@ public interface PathLookup {
 
     Stream<Path> getBaseDirPaths(BaseDir baseDir);
 
-    Stream<Path> resolveRelativePaths(BaseDir baseDir, Path relativePath);
-
+    /**
+     * @return all paths obtained by resolving all values of the given setting under all
+     * paths of the given {@code baseDir}.
+     */
     Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName);
+
+    boolean isPathOnDefaultFilesystem(Path path);
 }

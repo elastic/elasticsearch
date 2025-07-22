@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
@@ -42,8 +42,8 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        IndexMetadata indexMetadata = currentState.metadata().index(index);
         if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
@@ -55,16 +55,16 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
 
         // We only want to make progress if all shards of the shrunk index are
         // active
-        boolean indexExists = clusterState.metadata().getProject().index(shrunkenIndexName) != null;
+        boolean indexExists = currentState.metadata().index(shrunkenIndexName) != null;
         if (indexExists == false) {
             return new Result(false, new Info(false, -1, false));
         }
         boolean allShardsActive = ActiveShardCount.ALL.enoughShardsActive(
-            clusterState.metadata().getProject(),
-            clusterState.routingTable(),
+            currentState.metadata(),
+            currentState.routingTable(),
             shrunkenIndexName
         );
-        int numShrunkIndexShards = clusterState.metadata().getProject().index(shrunkenIndexName).getNumberOfShards();
+        int numShrunkIndexShards = currentState.metadata().index(shrunkenIndexName).getNumberOfShards();
         if (allShardsActive) {
             return new Result(true, null);
         } else {

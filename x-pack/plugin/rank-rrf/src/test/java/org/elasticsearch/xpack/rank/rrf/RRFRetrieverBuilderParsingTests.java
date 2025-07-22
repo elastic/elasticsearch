@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
@@ -45,13 +46,22 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         if (randomBoolean()) {
             rankConstant = randomIntBetween(1, 1000000);
         }
-        var ret = new RRFRetrieverBuilder(rankWindowSize, rankConstant);
+
+        List<String> fields = null;
+        String query = null;
+        if (randomBoolean()) {
+            fields = randomList(1, 10, () -> randomAlphaOfLengthBetween(1, 10));
+            query = randomAlphaOfLengthBetween(1, 10);
+        }
+
         int retrieverCount = randomIntBetween(2, 50);
+        List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = new ArrayList<>(retrieverCount);
         while (retrieverCount > 0) {
-            ret.addChild(TestRetrieverBuilder.createRandomTestRetrieverBuilder());
+            innerRetrievers.add(CompoundRetrieverBuilder.RetrieverSource.from(TestRetrieverBuilder.createRandomTestRetrieverBuilder()));
             --retrieverCount;
         }
-        return ret;
+
+        return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant);
     }
 
     @Override
@@ -94,28 +104,32 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
     }
 
     public void testRRFRetrieverParsing() throws IOException {
-        String restContent = "{"
-            + "  \"retriever\": {"
-            + "    \"rrf\": {"
-            + "      \"retrievers\": ["
-            + "        {"
-            + "          \"test\": {"
-            + "            \"value\": \"foo\""
-            + "          }"
-            + "        },"
-            + "        {"
-            + "          \"test\": {"
-            + "            \"value\": \"bar\""
-            + "          }"
-            + "        }"
-            + "      ],"
-            + "      \"rank_window_size\": 100,"
-            + "      \"rank_constant\": 10,"
-            + "      \"min_score\": 20.0,"
-            + "      \"_name\": \"foo_rrf\""
-            + "    }"
-            + "  }"
-            + "}";
+        String restContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {
+                      "test": {
+                        "value": "foo"
+                      }
+                    },
+                    {
+                      "test": {
+                        "value": "bar"
+                      }
+                    }
+                  ],
+                  "fields": ["field1", "field2"],
+                  "query": "baz",
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
         try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
             SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);

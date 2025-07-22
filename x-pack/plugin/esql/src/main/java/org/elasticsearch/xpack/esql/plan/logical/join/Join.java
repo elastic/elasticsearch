@@ -37,7 +37,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
-import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOC_DATA_TYPE;
@@ -72,7 +71,6 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         COUNTER_LONG,
         COUNTER_INTEGER,
         COUNTER_DOUBLE,
-        DATE_NANOS,
         OBJECT,
         SOURCE,
         DATE_PERIOD,
@@ -85,10 +83,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     private final JoinConfig config;
     private List<Attribute> lazyOutput;
+    // Does this join involve remote indices? This is relevant only on the coordinating node, thus transient.
+    private transient boolean isRemote = false;
 
     public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
+        this(source, left, right, config, false);
+    }
+
+    public Join(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config, boolean isRemote) {
         super(source, left, right);
         this.config = config;
+        this.isRemote = isRemote;
     }
 
     public Join(
@@ -160,6 +165,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         return Expressions.references(config().rightFields());
     }
 
+    /**
+     * The output fields obtained from the right child.
+     */
     public List<Attribute> rightOutputFields() {
         AttributeSet leftInputs = left().outputSet();
 
@@ -233,17 +241,17 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     }
 
     public Join withConfig(JoinConfig config) {
-        return new Join(source(), left(), right(), config);
+        return new Join(source(), left(), right(), config, isRemote);
     }
 
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
-        return new Join(source(), left, right, config);
+        return new Join(source(), left, right, config, isRemote);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config, left(), right());
+        return Objects.hash(config, left(), right(), isRemote);
     }
 
     @Override
@@ -256,7 +264,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         }
 
         Join other = (Join) obj;
-        return config.equals(other.config) && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
+        return config.equals(other.config)
+            && Objects.equals(left(), other.left())
+            && Objects.equals(right(), other.right())
+            && isRemote == other.isRemote;
     }
 
     @Override
@@ -293,5 +304,9 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
             return commonType(leftType, rightType) != null;
         }
         return leftType.noText() == rightType.noText();
+    }
+
+    public boolean isRemote() {
+        return isRemote;
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
@@ -18,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -75,7 +77,8 @@ public class GoogleVertexAiService extends SenderService {
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.RERANK,
-        TaskType.CHAT_COMPLETION
+        TaskType.CHAT_COMPLETION,
+        TaskType.COMPLETION
     );
 
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
@@ -87,17 +90,25 @@ public class GoogleVertexAiService extends SenderService {
         InputType.INTERNAL_SEARCH
     );
 
-    private final ResponseHandler COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
+    public static final ResponseHandler COMPLETION_HANDLER = new GoogleVertexAiUnifiedChatCompletionResponseHandler(
         "Google VertexAI chat completion"
     );
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(TaskType.CHAT_COMPLETION);
+        return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
     }
 
-    public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public GoogleVertexAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -358,7 +369,7 @@ public class GoogleVertexAiService extends SenderService {
                 context
             );
 
-            case CHAT_COMPLETION -> new GoogleVertexAiChatCompletionModel(
+            case CHAT_COMPLETION, COMPLETION -> new GoogleVertexAiChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -396,10 +407,11 @@ public class GoogleVertexAiService extends SenderService {
 
                 configurationMap.put(
                     LOCATION,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION)).setDescription(
-                        "Please provide the GCP region where the Vertex AI API(s) is enabled. "
-                            + "For more information, refer to the {geminiVertexAIDocs}."
-                    )
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION, TaskType.COMPLETION))
+                        .setDescription(
+                            "Please provide the GCP region where the Vertex AI API(s) is enabled. "
+                                + "For more information, refer to the {geminiVertexAIDocs}."
+                        )
                         .setLabel("GCP Region")
                         .setRequired(true)
                         .setSensitive(false)

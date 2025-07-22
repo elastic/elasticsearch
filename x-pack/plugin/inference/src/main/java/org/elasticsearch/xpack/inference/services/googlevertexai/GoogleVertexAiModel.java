@@ -24,7 +24,7 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
 
     private final GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings;
 
-    protected URI uri;
+    protected URI nonStreamingUri;
 
     public GoogleVertexAiModel(
         ModelConfigurations configurations,
@@ -39,14 +39,14 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
     public GoogleVertexAiModel(GoogleVertexAiModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
 
-        uri = model.uri();
+        nonStreamingUri = model.nonStreamingUri();
         rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
     public GoogleVertexAiModel(GoogleVertexAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
 
-        uri = model.uri();
+        nonStreamingUri = model.nonStreamingUri();
         rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
@@ -56,17 +56,8 @@ public abstract class GoogleVertexAiModel extends RateLimitGroupingModel {
         return rateLimitServiceSettings;
     }
 
-    public URI uri() {
-        return uri;
-    }
-
-    @Override
-    public int rateLimitGroupingHash() {
-        // In VertexAI rate limiting is scoped to the project, region and model. URI already has this information so we are using that.
-        // API Key does not affect the quota
-        // https://ai.google.dev/gemini-api/docs/rate-limits
-        // https://cloud.google.com/vertex-ai/docs/quotas
-        return Objects.hash(uri);
+    public URI nonStreamingUri() {
+        return nonStreamingUri;
     }
 
     @Override

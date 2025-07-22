@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -70,14 +69,13 @@ public class MigrationResultsUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) throws Exception {
-        FeatureMigrationResults currentResults = currentState.metadata().getProject().custom(FeatureMigrationResults.TYPE);
+        final var project = currentState.metadata().getProject();
+        FeatureMigrationResults currentResults = project.custom(FeatureMigrationResults.TYPE);
         if (currentResults == null) {
             currentResults = new FeatureMigrationResults(new HashMap<>());
         }
         FeatureMigrationResults newResults = currentResults.withResult(featureName, status);
-        final Metadata newMetadata = Metadata.builder(currentState.metadata()).putCustom(FeatureMigrationResults.TYPE, newResults).build();
-        final ClusterState newState = ClusterState.builder(currentState).metadata(newMetadata).build();
-        return newState;
+        return currentState.copyAndUpdateProject(project.id(), builder -> builder.putCustom(FeatureMigrationResults.TYPE, newResults));
     }
 
     @Override

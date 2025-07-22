@@ -34,6 +34,9 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.read.TimeSeriesExtractFieldOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverStatus;
@@ -134,7 +137,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
         assertThat(status.tsidLoaded(), equalTo((long) numTimeSeries));
         assertThat(status.rowsEmitted(), equalTo((long) numTimeSeries * numSamplesPerTS));
         assertThat(status.documentsFound(), equalTo((long) numTimeSeries * numSamplesPerTS));
-        assertThat(status.valuesLoaded(), equalTo((long) numTimeSeries * numSamplesPerTS * 3));
+        assertThat(status.valuesLoaded(), equalTo((long) numTimeSeries * numSamplesPerTS));
 
         String expected = String.format(
             Locale.ROOT,
@@ -224,8 +227,6 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
         var timeSeriesFactory = createTimeSeriesSourceOperator(
             directory,
             r -> this.reader = r,
-            true,
-            List.of(new ExtractField(metricField, ElementType.LONG)),
             limit,
             maxPageSize,
             randomBoolean(),
@@ -243,7 +244,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
             TestDriverFactory.create(
                 driverContext,
                 timeSeriesFactory.get(driverContext),
-                List.of(),
+                List.of(extractFieldsFactory(reader, List.of(new ExtractField(metricField, ElementType.LONG))).get(driverContext)),
                 new TestResultPageSinkOperator(results::add)
             )
         );
@@ -307,9 +308,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
                     Integer.MAX_VALUE,
                     randomIntBetween(1, 1024),
                     1,
-                    randomBoolean(),
                     List.of(ctx),
-                    List.of(),
                     unused -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of()))
                 );
                 var driverContext = driverContext();
@@ -329,7 +328,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, randomBoolean(), List.of(), 1, 1, false, writer -> {
+        return createTimeSeriesSourceOperator(directory, r -> this.reader = r, 1, 1, true, writer -> {
             long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2024-01-01T00:00:00Z");
             writeTS(writer, timestamp, new Object[] { "hostname", "host-01" }, new Object[] { "voltage", 2 });
             return 1;
@@ -372,11 +371,13 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
     ) {
         var voltageField = new NumberFieldMapper.NumberFieldType("voltage", NumberFieldMapper.NumberType.LONG);
         var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
+        var extractFields = List.of(
+            new ExtractField(voltageField, ElementType.LONG),
+            new ExtractField(hostnameField, ElementType.BYTES_REF)
+        );
         var timeSeriesFactory = createTimeSeriesSourceOperator(
             directory,
             indexReader -> this.reader = indexReader,
-            true,
-            List.of(new ExtractField(voltageField, ElementType.LONG), new ExtractField(hostnameField, ElementType.BYTES_REF)),
             limit,
             maxPageSize,
             forceMerge,
@@ -396,7 +397,7 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
         return TestDriverFactory.create(
             driverContext,
             timeSeriesFactory.get(driverContext),
-            List.of(),
+            List.of(extractFieldsFactory(reader, extractFields).get(driverContext)),
             new TestResultPageSinkOperator(consumer)
         );
     }
@@ -408,8 +409,6 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
     public static TimeSeriesSourceOperatorFactory createTimeSeriesSourceOperator(
         Directory directory,
         Consumer<IndexReader> readerConsumer,
-        boolean emitDocIds,
-        List<ExtractField> extractFields,
         int limit,
         int maxPageSize,
         boolean forceMerge,
@@ -438,32 +437,11 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0) {
-            @Override
-            public MappedFieldType fieldType(String name) {
-                for (ExtractField e : extractFields) {
-                    if (e.ft.name().equals(name)) {
-                        return e.ft;
-                    }
-                }
-                throw new IllegalArgumentException("Unknown field [" + name + "]");
-            }
-        };
+        var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
             new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of())
         );
-
-        var fieldInfos = extractFields.stream()
-            .map(
-                f -> new ValuesSourceReaderOperator.FieldInfo(
-                    f.ft.name(),
-                    f.elementType,
-                    n -> f.ft.blockLoader(ValuesSourceReaderOperatorTests.blContext())
-                )
-            )
-            .toList();
-
-        return TimeSeriesSourceOperatorFactory.create(limit, maxPageSize, 1, emitDocIds, List.of(ctx), fieldInfos, queryFunction);
+        return TimeSeriesSourceOperatorFactory.create(limit, maxPageSize, 1, List.of(ctx), queryFunction);
     }
 
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {
@@ -493,5 +471,29 @@ public class TimeSeriesSourceOperatorTests extends AnyOperatorTestCase {
             new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef())
         );
         iw.addDocument(fields);
+    }
+
+    TimeSeriesExtractFieldOperator.Factory extractFieldsFactory(IndexReader reader, List<ExtractField> extractFields) {
+        var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0) {
+            @Override
+            public MappedFieldType fieldType(String name) {
+                for (ExtractField e : extractFields) {
+                    if (e.ft.name().equals(name)) {
+                        return e.ft;
+                    }
+                }
+                throw new IllegalArgumentException("Unknown field [" + name + "]");
+            }
+        };
+        var fieldInfos = extractFields.stream()
+            .map(
+                f -> new ValuesSourceReaderOperator.FieldInfo(
+                    f.ft.name(),
+                    f.elementType,
+                    n -> f.ft.blockLoader(ValuesSourceReaderOperatorTests.blContext())
+                )
+            )
+            .toList();
+        return new TimeSeriesExtractFieldOperator.Factory(fieldInfos, List.of(ctx));
     }
 }

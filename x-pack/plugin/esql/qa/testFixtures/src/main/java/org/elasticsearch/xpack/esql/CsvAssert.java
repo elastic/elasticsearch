@@ -285,7 +285,7 @@ public final class CsvAssert {
         fail(description + System.lineSeparator() + describeFailures(dataFailures) + actual + expected);
     }
 
-    private static final int MAX_ROWS = 25;
+    private static final int MAX_ROWS = 50;
 
     private static String pipeTable(
         String description,
@@ -328,7 +328,7 @@ public final class CsvAssert {
         if (values.size() > rows) {
             result.append("...").append(System.lineSeparator());
         }
-        return result.toString();
+        return result.toString().replaceAll("\\s+" + System.lineSeparator(), System.lineSeparator());
     }
 
     private static String header(String name, Type type) {

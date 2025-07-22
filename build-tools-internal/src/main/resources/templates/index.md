@@ -28,16 +28,17 @@ for(bundle in changelogBundles) {
     def nonNotableHighlights = bundle.nonNotableHighlights
     def unqualifiedVersion = bundle.unqualifiedVersion
     def coming = !bundle.bundle.released
-
-    if (coming) {
-        print "\n"
-        print "```{applies_to}\n"
-        print "stack: coming ${version}\n"
-        print "```"
-    }
 %>
 ## ${unqualifiedVersion} [elasticsearch-${versionForIds}-release-notes]
 <%
+
+if (coming) {
+    print "```{applies_to}\n"
+    print "stack: coming ${version}\n"
+    print "```"
+    print "\n"
+}
+
 if (!notableHighlights.isEmpty() || !nonNotableHighlights.isEmpty()) {
     print "\n### Highlights [elasticsearch-${versionForIds}-highlights]\n"
 }

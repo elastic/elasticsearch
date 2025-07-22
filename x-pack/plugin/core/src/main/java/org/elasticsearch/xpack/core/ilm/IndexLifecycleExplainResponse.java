@@ -51,10 +51,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField PREVIOUS_STEP_INFO_FIELD = new ParseField("previous_step_info");
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
     private static final ParseField AGE_FIELD = new ParseField("age");
+    private static final ParseField AGE_IN_MILLIS_FIELD = new ParseField("age_in_millis");
     private static final ParseField TIME_SINCE_INDEX_CREATION_FIELD = new ParseField("time_since_index_creation");
     private static final ParseField REPOSITORY_NAME = new ParseField("repository_name");
     private static final ParseField SHRINK_INDEX_NAME = new ParseField("shrink_index_name");
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
+    private static final ParseField SKIP_NAME = new ParseField("skip");
 
     public static final ConstructingObjectParser<IndexLifecycleExplainResponse, Void> PARSER = new ConstructingObjectParser<>(
         "index_lifecycle_explain_response",
@@ -78,9 +80,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             (String) a[18],
             (BytesReference) a[11],
             (BytesReference) a[21],
-            (PhaseExecutionInfo) a[12]
+            (PhaseExecutionInfo) a[12],
+            Objects.requireNonNullElse((Boolean) a[22], false)
             // a[13] == "age"
             // a[20] == "time_since_index_creation"
+            // a[23] = "age_in_millis"
         )
     );
     static {
@@ -118,6 +122,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             builder.copyCurrentStructure(p);
             return BytesReference.bytes(builder);
         }, PREVIOUS_STEP_INFO_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SKIP_NAME);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), AGE_IN_MILLIS_FIELD);
     }
 
     private final String index;
@@ -140,6 +146,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private final String repositoryName;
     private final String snapshotName;
     private final String shrinkIndexName;
+    private final boolean skip;
 
     Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
 
@@ -162,7 +169,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         String shrinkIndexName,
         BytesReference stepInfo,
         BytesReference previousStepInfo,
-        PhaseExecutionInfo phaseExecutionInfo
+        PhaseExecutionInfo phaseExecutionInfo,
+        boolean skip
     ) {
         return new IndexLifecycleExplainResponse(
             index,
@@ -184,7 +192,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             shrinkIndexName,
             stepInfo,
             previousStepInfo,
-            phaseExecutionInfo
+            phaseExecutionInfo,
+            skip
         );
     }
 
@@ -209,7 +218,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             null,
             null,
             null,
-            null
+            null,
+            false
         );
     }
 
@@ -233,7 +243,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         String shrinkIndexName,
         BytesReference stepInfo,
         BytesReference previousStepInfo,
-        PhaseExecutionInfo phaseExecutionInfo
+        PhaseExecutionInfo phaseExecutionInfo,
+        boolean skip
     ) {
         if (managedByILM) {
             if (policyName == null) {
@@ -301,6 +312,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         this.repositoryName = repositoryName;
         this.snapshotName = snapshotName;
         this.shrinkIndexName = shrinkIndexName;
+        this.skip = skip;
     }
 
     public IndexLifecycleExplainResponse(StreamInput in) throws IOException {
@@ -333,6 +345,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             } else {
                 previousStepInfo = null;
             }
+            if (in.getTransportVersion().isPatchFrom(TransportVersions.ILM_ADD_SKIP_SETTING_8_19)
+                || in.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
+                skip = in.readBoolean();
+            } else {
+                skip = false;
+            }
         } else {
             policyName = null;
             lifecycleDate = null;
@@ -352,6 +370,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             snapshotName = null;
             shrinkIndexName = null;
             indexCreationDate = null;
+            skip = false;
         }
     }
 
@@ -381,6 +400,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeOptionalBytesReference(previousStepInfo);
+            }
+            if (out.getTransportVersion().isPatchFrom(TransportVersions.ILM_ADD_SKIP_SETTING_8_19)
+                || out.getTransportVersion().onOrAfter(TransportVersions.ILM_ADD_SKIP_SETTING)) {
+                out.writeBoolean(skip);
             }
         }
     }
@@ -481,6 +504,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return shrinkIndexName;
     }
 
+    public boolean getSkip() {
+        return skip;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -505,7 +532,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                     LIFECYCLE_DATE_FIELD.getPreferredName(),
                     lifecycleDate
                 );
-                builder.field(AGE_FIELD.getPreferredName(), getAge(nowSupplier).toHumanReadableString(2));
+
+                final TimeValue ageNow = getAge(nowSupplier);
+                builder.field(AGE_FIELD.getPreferredName(), ageNow.toHumanReadableString(2));
+                builder.field(AGE_IN_MILLIS_FIELD.getPreferredName(), ageNow.getMillis());
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);
@@ -564,6 +594,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             if (phaseExecutionInfo != null) {
                 builder.field(PHASE_EXECUTION_INFO.getPreferredName(), phaseExecutionInfo);
             }
+            builder.field(SKIP_NAME.getPreferredName(), skip);
         }
         builder.endObject();
         return builder;
@@ -591,7 +622,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             shrinkIndexName,
             stepInfo,
             previousStepInfo,
-            phaseExecutionInfo
+            phaseExecutionInfo,
+            skip
         );
     }
 
@@ -623,7 +655,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             && Objects.equals(shrinkIndexName, other.shrinkIndexName)
             && Objects.equals(stepInfo, other.stepInfo)
             && Objects.equals(previousStepInfo, other.previousStepInfo)
-            && Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo);
+            && Objects.equals(phaseExecutionInfo, other.phaseExecutionInfo)
+            && Objects.equals(skip, other.skip);
     }
 
     @Override

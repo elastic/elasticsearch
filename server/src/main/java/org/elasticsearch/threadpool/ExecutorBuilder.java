@@ -41,6 +41,8 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
 
     protected static int applyHardSizeLimit(final Settings settings, final String name) {
         if (name.equals("bulk")
+            || name.equals(ThreadPool.Names.WRITE_COORDINATION)
+            || name.equals(ThreadPool.Names.SYSTEM_WRITE_COORDINATION)
             || name.equals(ThreadPool.Names.WRITE)
             || name.equals(ThreadPool.Names.SYSTEM_WRITE)
             || name.equals(ThreadPool.Names.SYSTEM_CRITICAL_WRITE)) {

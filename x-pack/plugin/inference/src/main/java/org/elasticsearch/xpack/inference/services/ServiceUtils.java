@@ -17,12 +17,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
-import org.elasticsearch.xpack.inference.services.settings.SerializableSecureString;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -305,6 +305,12 @@ public final class ServiceUtils {
         return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
     }
 
+    public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
+        String parsedUrl = extractRequiredString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+    }
+
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
             return createOptionalUri(url);
@@ -400,6 +406,18 @@ public final class ServiceUtils {
         return requiredField;
     }
 
+    public static String extractOptionalEmptyString(Map<String, Object> map, String settingName, ValidationException validationException) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        String optionalField = ServiceUtils.removeAsType(map, settingName, String.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
+
+        return optionalField;
+    }
+
     public static String extractOptionalString(
         Map<String, Object> map,
         String settingName,
@@ -423,6 +441,35 @@ public final class ServiceUtils {
         }
 
         return optionalField;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> List<T> extractOptionalList(
+        Map<String, Object> map,
+        String settingName,
+        Class<T> type,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        var optionalField = ServiceUtils.removeAsType(map, settingName, List.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (optionalField != null) {
+            for (Object o : optionalField) {
+                if (o.getClass().equals(type) == false) {
+                    validationException.addValidationError(ServiceUtils.invalidTypeErrorMsg(settingName, o, "String"));
+                }
+            }
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return (List<T>) optionalField;
     }
 
     public static Integer extractRequiredPositiveInteger(
@@ -652,7 +699,7 @@ public final class ServiceUtils {
         }
     }
 
-    public static Map<String, SerializableSecureString> convertMapStringsToSecureString(
+    public static Map<String, SecureString> convertMapStringsToSecureString(
         Map<String, ?> map,
         String settingName,
         ValidationException validationException
@@ -661,11 +708,11 @@ public final class ServiceUtils {
             return Map.of();
         }
 
-        validateMapStringValues(map, settingName, validationException, true);
+        var validatedMap = validateMapStringValues(map, settingName, validationException, true);
 
-        return map.entrySet()
+        return validatedMap.entrySet()
             .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> new SerializableSecureString((String) e.getValue())));
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new SecureString(e.getValue().toCharArray())));
     }
 
     /**
@@ -1042,6 +1089,12 @@ public final class ServiceUtils {
             validationException.addValidationError(
                 org.elasticsearch.common.Strings.format("Input type [%s] is not supported for [%s]", inputType, name)
             );
+        }
+    }
+
+    public static void checkByteBounds(short value) {
+        if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
         }
     }
 

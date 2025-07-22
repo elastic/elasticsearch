@@ -11,7 +11,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelTests;
 
 import java.io.IOException;
@@ -40,7 +39,7 @@ public class Ai21ChatCompletionRequestTests extends ESTestCase {
         String input = randomAlphaOfLength(5);
         var request = createRequest("secret", input, "model", true);
         var truncatedRequest = request.truncate();
-        assertThat(request.getURI().toString(), is(Ai21ChatCompletionModel.API_COMPLETIONS_PATH));
+        assertThat(request.getURI().toString(), is("https://api.ai21.com/studio/v1/chat/completions"));
 
         var httpRequest = truncatedRequest.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));

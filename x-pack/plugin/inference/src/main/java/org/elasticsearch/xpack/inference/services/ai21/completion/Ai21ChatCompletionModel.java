@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ai21.completion;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -17,9 +18,9 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ai21.Ai21Model;
 import org.elasticsearch.xpack.inference.services.ai21.action.Ai21ActionVisitor;
+import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ApiConstants;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
@@ -28,8 +29,6 @@ import java.util.Map;
  * This class extends RateLimitGroupingModel to handle rate limiting based on model and API key.
  */
 public class Ai21ChatCompletionModel extends Ai21Model {
-    public static final String API_COMPLETIONS_PATH = "https://api.ai21.com/studio/v1/chat/completions";
-
     /**
      * Constructor for Ai21ChatCompletionModel.
      *
@@ -106,7 +105,15 @@ public class Ai21ChatCompletionModel extends Ai21Model {
 
     private void setEndpointUrl() {
         try {
-            this.uri = new URI(API_COMPLETIONS_PATH);
+            this.uri = new URIBuilder().setScheme("https")
+                .setHost(Ai21ApiConstants.HOST)
+                .setPathSegments(
+                    Ai21ApiConstants.STUDIO_PATH,
+                    Ai21ApiConstants.VERSION_1,
+                    Ai21ApiConstants.CHAT_PATH,
+                    Ai21ApiConstants.COMPLETIONS_PATH
+                )
+                .build();
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }

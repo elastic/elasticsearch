@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -74,6 +76,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
+import org.elasticsearch.xpack.esql.expression.function.vector.ExactNN;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -179,6 +182,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.LT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.LTE;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceKnnWithNoPushedDownFilters.EXACT_SCORE_ATTR_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -8027,15 +8031,97 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertTrue(secondKnnFilters.contains(firstOr.right()));
     }
 
-    public void testKnnInDisjunctions() {
+    public void testKnnInWithNonPushablePrefiltersNoScoring() {
         assumeTrue("requires KNN", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
         // Disjunctions with pushable conditions are allowed
-        planTypes("from types | where (knn(dense_vector, [0.1, 0.2, 0.3], 10) or match(text, \"hello\")) " + "and keyword == \"prod\"");
-        planTypes(
-            "from types | where ((knn(dense_vector, [0.1, 0.2, 0.3], 10) and match(text, \"hello\")) or keyword == \"hello\")"
-                + "and (keyword ==\"prod\" or long == 50)"
-        );
+        var plan = planTypes("""
+            from types
+            | where knn(dense_vector, [0.1, 0.2, 0.3], 5) and match(text, "hello") and length(keyword) > 10
+            """);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+
+        // Next: Filter[$$knn_score$0 > 0.0]
+        var filter = as(limit.child(), Filter.class);
+        var gt = as(filter.condition(), GreaterThan.class);
+        ReferenceAttribute scoreAttr = as(gt.left(), ReferenceAttribute.class);
+        assertThat(scoreAttr.toString(), containsString(EXACT_SCORE_ATTR_NAME));
+        assertThat(gt.right().fold(FoldContext.small()), equalTo(0.0));
+
+        // Next: TopN[..., 10]
+        var topN = as(filter.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
+        assertThat(topN.order().getFirst().child(), equalTo(scoreAttr));
+
+        // Next: Eval[SCORE(EXACTNN(...)) AS $$knn_score$...]
+        var eval = as(topN.child(), Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        assertThat(alias.name(), equalTo(scoreAttr.name()));
+        var score = as(alias.child(), Score.class);
+        var exactNN = as(score.children().getFirst(), ExactNN.class);
+        var field = as(exactNN.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("dense_vector"));
+        assertThat(exactNN.query().toString(), equalTo("[0.1, 0.2, 0.3]"));
+
+        var prefilter = as(eval.child(), Filter.class);
+        var and = as(prefilter.condition(), And.class);
+        as(and.left(), Match.class);
+        var lenGt = as(and.right(), GreaterThan.class);
+        assertThat(Expressions.name(lenGt.left()), containsString("length(keyword)"));
+        assertThat(lenGt.right().fold(FoldContext.small()), equalTo(10));
+
+        // Next: EsRelation[types]
+        var esRelation = as(prefilter.child(), EsRelation.class);
+    }
+
+    public void testKnnInWithNonPushablePrefiltersScoring() {
+        assumeTrue("requires KNN", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        // Disjunctions with pushable conditions are allowed
+        var plan = planTypes("""
+            from types metadata _score
+            | where knn(dense_vector, [0.1, 0.2, 0.3], 5) and match(text, "hello") and length(keyword) > 10
+            """);
+
+        // Top-level: Limit[1000[INTEGER],false]
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(FoldContext.small()), equalTo(1000));
+
+        // Next: Filter[_score > 0.0]
+        var filter = as(limit.child(), Filter.class);
+        var gt = as(filter.condition(), GreaterThan.class);
+        MetadataAttribute scoreAttr = as(gt.left(), MetadataAttribute.class);
+        assertThat(scoreAttr.name(), equalTo("_score"));
+        assertThat(gt.right().fold(FoldContext.small()), equalTo(0.0));
+
+        // Next: TopN[..., 5]
+        var topN = as(filter.child(), TopN.class);
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
+        assertThat(topN.order().getFirst().child(), equalTo(scoreAttr));
+
+        // Next: Filter[EXACTNN(...) AND MATCH(...) AND LENGTH(keyword) > 10]
+        var innerFilter = as(topN.child(), Filter.class);
+        var and1 = as(innerFilter.condition(), And.class);
+        var and2 = as(and1.left(), And.class);
+
+        var exactNN = as(and2.left(), ExactNN.class);
+        var field = as(exactNN.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("dense_vector"));
+        assertThat(exactNN.query().toString(), equalTo("[0.1, 0.2, 0.3]"));
+        var match = as(and2.right(), Match.class);
+        var lenGt = as(and1.right(), GreaterThan.class);
+
+        assertThat(Expressions.name(lenGt.left()), containsString("length(keyword)"));
+        assertThat(lenGt.right().fold(FoldContext.small()), equalTo(10));
+
+        // Next: EsRelation[types]
+        var esRelation = as(innerFilter.child(), EsRelation.class);
+    }
+
+    public void testKnnInDisjunctionsWithNonPushablePrefilters() {
+        assumeTrue("requires KNN", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
 
         // Disjunctions with non-pushable conditions as a prefilter must fail
         assertThat(

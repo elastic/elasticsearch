@@ -31,7 +31,6 @@ old lace   | 60563.0
  required_capability: dot_product_vector_similarity_function
  
  from colors
- | where color != "black" 
  | eval score = round((1 + v_dot_product(rgb_vector, [0, 255, 255]) / 2), 3) 
  | sort score desc, color asc 
  | limit 10

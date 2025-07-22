@@ -231,7 +231,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     }
                 }
 
-                updatedNodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
+                updatedNodeStats.sort(Comparator.comparing(n -> n.getNode() != null ? n.getNode().getId() : ""));
                 updatedAssignmentStats.add(
                     new AssignmentStats(
                         stat.getDeploymentId(),
@@ -270,7 +270,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     );
                 }
 
-                nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
+                nodeStats.sort(Comparator.comparing(n -> n.getNode() != null ? n.getNode().getId() : ""));
 
                 updatedAssignmentStats.add(
                     new AssignmentStats(

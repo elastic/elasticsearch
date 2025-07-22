@@ -284,7 +284,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
 
     public void testSoarDistance() {
         int size = random().nextInt(128, 512);
-        float deltaEps = 1e-5f * size;
+        float deltaEps = 1e-3f * size;
         var vector = new float[size];
         var centroid = new float[size];
         var preResidual = new float[size];

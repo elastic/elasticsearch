@@ -14,7 +14,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -23,7 +22,7 @@ import java.util.List;
 /**
  * Test that index enough data to trigger the creation of Cuckoo filters.
  */
-public class RareTermsIT extends ESRestTestCase {
+public class RareTermsIT extends AbstractMixedClusterTest {
 
     private static final String index = "idx";
 

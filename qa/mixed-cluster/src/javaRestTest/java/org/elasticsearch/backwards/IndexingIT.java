@@ -9,6 +9,7 @@
 package org.elasticsearch.backwards;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -20,11 +21,17 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,7 +46,38 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
 
 public class IndexingIT extends ESRestTestCase {
-    private static final String BWC_NODES_VERSION = System.getProperty("tests.bwc_nodes_version");
+    private static final String BWC_NODES_VERSION = System.getProperty("tests.old_cluster_version");
+
+    public static TemporaryFolder repo = new TemporaryFolder();
+
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .withNode(n -> n.version(System.getProperty("tests.old_cluster_version")))
+        .withNode(n -> n.version(System.getProperty("tests.old_cluster_version")))
+        .withNode(n -> n.version(Version.CURRENT.toString()))
+        .withNode(n -> n.version(Version.CURRENT.toString()))
+        .setting("path.repo", () -> repo.getRoot().getAbsolutePath())
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.license.self_generated.type", "trial")
+        // There is a chance we have more master changes than "normal", so to avoid this test from failing, we increase the
+        // threshold (as this purpose of this test isn't to test that specific indicator).
+        .setting("health.master_history.no_master_transitions_threshold", () -> "10", s -> s.getVersion().onOrAfter("8.4.0"))
+        .apply(c -> {
+            if (Version.fromString(System.getProperty("tests.old_cluster_version")).before(Version.fromString("8.18.0"))) {
+                c.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper").jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+            }
+        })
+        .feature(FeatureFlag.TIME_SERIES_MODE)
+        .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
+        .build();
+
+    @ClassRule
+    public static RuleChain ruleChain = RuleChain.outerRule(repo).around(cluster);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
@@ -234,7 +272,7 @@ public class IndexingIT extends ESRestTestCase {
                     .field("type", "fs")
                     .startObject("settings")
                     .field("compress", randomBoolean())
-                    .field("location", System.getProperty("tests.path.repo"))
+                    .field("location", repo.getRoot().getAbsolutePath())
                     .endObject()
                     .endObject()
             )

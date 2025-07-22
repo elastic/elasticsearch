@@ -8,18 +8,14 @@
  */
 
 
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
-import org.elasticsearch.gradle.testclusters.TestClusterValueSource
-import org.elasticsearch.gradle.testclusters.TestClustersRegistry
-import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.bwc-test'
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   restTestConfig project(path: ':modules:aggregations', configuration: 'restTests')
@@ -71,64 +67,27 @@ excludeList.add('aggregations/percentiles_hdr_metric/Negative values test')
 // sync_id is removed in 9.0
 excludeList.add("cat.shards/10_basic/Help")
 
-def clusterPath = getPath()
-
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
-  if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
-    /* This project runs the core REST tests against a 4 node cluster where two of
-     the nodes has a different minor.  */
-    def baseCluster = testClusters.register(baseName) {
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 4
-      setting 'path.repo', "${layout.buildDirectory.asFile.get()}/cluster/shared/repo/${baseName}"
-      setting 'xpack.security.enabled', 'false'
-      setting "xpack.license.self_generated.type", "trial"
-      /* There is a chance we have more master changes than "normal", so to avoid this test from failing,
-       we increase the threshold (as this purpose of this test isn't to test that specific indicator). */
-      if (bwcVersion.onOrAfter(Version.fromString("8.4.0"))) {
-        setting 'health.master_history.no_master_transitions_threshold', '10'
-      }
-      requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-      requiresFeature 'sub_objects_auto', Version.fromString("8.16.0")
-      if (bwcVersion.before(Version.fromString("8.18.0"))) {
-        jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
-        jvmArgs '-da:org.elasticsearch.index.mapper.MapperService'
-      }
+  registerTestTask(project, sourceSets.yamlRestTest, "v${bwcVersion}#yamlBwcTest", StandaloneRestIntegTestTask).configure {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    if (excludeList.isEmpty() == false) {
+      systemProperty 'tests.rest.blacklist', excludeList.join(',')
     }
+  }
 
-    tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
-      useCluster baseCluster
-      mustRunAfter("precommit")
-      def baseInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
-      def baseInfoAfterOneNodeUpdate = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
-      def baseInfoAfterTwoNodesUpdate = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
-      def sharedRepoFolder = layout.buildDirectory.file("cluster/shared/repo/${baseName}").get().asFile
-      doFirst {
-        delete(sharedRepoFolder)
-        // Getting the endpoints causes a wait for the cluster
-        println "Test cluster endpoints are: ${-> baseInfo.get().join(",")}"
-        println "Upgrading one node to create a mixed cluster"
-        getRegistry().get().nextNodeToNextVersion(baseCluster)
+  registerTestTask(project, sourceSets.javaRestTest, "v${bwcVersion}#javaBwcTest", StandaloneRestIntegTestTask).configure {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+  }
 
-        // Getting the endpoints causes a wait for the cluster
-        println "Upgrade complete, endpoints are: ${-> baseInfoAfterOneNodeUpdate.get()}"
-        println "Upgrading another node to create a mixed cluster"
-        getRegistry().get().nextNodeToNextVersion(baseCluster)
-      }
-      if (excludeList.isEmpty() == false) {
-        systemProperty 'tests.rest.blacklist', excludeList.join(',')
-      }
-      nonInputProperties.systemProperty('tests.rest.cluster', baseInfoAfterTwoNodesUpdate)
-      nonInputProperties.systemProperty('tests.clustername', baseName)
-      systemProperty 'tests.path.repo', "${layout.buildDirectory.file("cluster/shared/repo/${baseName}").get().asFile}"
-      systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-      systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
-      def bwcEnabled = project.bwc_tests_enabled
-      onlyIf("BWC tests disabled") { bwcEnabled }
-    }
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "v${bwcVersion}#yamlBwcTest", "v${bwcVersion}#javaBwcTest"
+  }
 
-    tasks.register(bwcTaskName(bwcVersion)) {
-      dependsOn "${baseName}#mixedClusterTest"
-    }
+  tasks.withType(Test).configureEach {
+    boolean bwcEnabled = project.bwc_tests_enabled
+    onlyIf("BWC tests enabled") { bwcEnabled }
+    nonInputProperties.systemProperty 'tests.bwc', 'true'
   }
 }

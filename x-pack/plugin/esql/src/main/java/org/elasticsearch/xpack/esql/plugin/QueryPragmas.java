@@ -138,7 +138,8 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
-     * Returns the maximum number of maxOutstandingBulkRequests for enrich lookup. A higher number of maxOutstandingBulkRequests reduces latency but increases cluster load.
+     * Returns the maximum number of maxOutstandingBulkRequests for enrich lookup. A higher number of maxOutstandingBulkRequests
+     * reduces latency but increases cluster load.
      * Defaults to 1.
      */
     public int enrichMaxWorkers() {

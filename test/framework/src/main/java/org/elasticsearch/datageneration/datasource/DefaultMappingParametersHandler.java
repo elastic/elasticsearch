@@ -15,7 +15,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.script.field.Field;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -23,7 +22,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -281,7 +279,10 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return Map.of("subfield_" + childType, childValue);
     }
 
-    private Supplier<Map<String, Object>> matchOnlyTextMapping(boolean hasParent, DataSourceRequest.LeafMappingParametersGenerator request) {
+    private Supplier<Map<String, Object>> matchOnlyTextMapping(
+        boolean hasParent,
+        DataSourceRequest.LeafMappingParametersGenerator request
+    ) {
         return () -> {
             var mapping = new HashMap<String, Object>();
             if (hasParent == false && ESTestCase.randomDouble() <= 0.2) {

@@ -511,10 +511,6 @@ public class ESONSource {
             this.arrayValues = arrayValues;
         }
 
-        public Supplier<Values> arrayValues() {
-            return arrayValues;
-        }
-
         public Iterator<?> iterator(boolean shouldMaterialize) {
             if (shouldMaterialize) {
                 return super.iterator();

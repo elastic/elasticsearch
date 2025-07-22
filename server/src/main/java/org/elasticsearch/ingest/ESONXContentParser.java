@@ -357,7 +357,9 @@ public class ESONXContentParser extends AbstractXContentParser {
                 streamInput.skip(varValue.position());
                 streamInput.read(rawBytes);
             }
-            return new Text(new XContentString.UTF8Bytes(rawBytes, offset, length));
+
+            // TODO: Fix
+            return new Text(new XContentString.UTF8Bytes(rawBytes, offset, length), length);
         }
 
         // Fallback: materialize value and convert to bytes

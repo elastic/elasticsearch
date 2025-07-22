@@ -8026,4 +8026,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(secondKnnFilters.size(), equalTo(1));
         assertTrue(secondKnnFilters.contains(firstOr.right()));
     }
+
+    public void testKnnInDisjunctions() {
+        assumeTrue("requires KNN", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
+
+        // Disjunctions with pushable conditions are allowed
+        planTypes("from types | where (knn(dense_vector, [0.1, 0.2, 0.3], 10) or match(text, \"hello\")) " + "and keyword == \"prod\"");
+        planTypes(
+            "from types | where ((knn(dense_vector, [0.1, 0.2, 0.3], 10) and match(text, \"hello\")) or keyword == \"hello\")"
+                + "and (keyword ==\"prod\" or long == 50)"
+        );
+
+        // Disjunctions with non-pushable conditions as a prefilter must fail
+        assertThat(
+            typesError(
+                "from types | where (knn(dense_vector, [0.1, 0.2, 0.3], 10) or match(text, \"hello\")) " + "and length(keyword) > 10"
+            ),
+            containsString(
+                "knn function [knn(dense_vector, [0.1, 0.2, 0.3], 10)] cannot be used in an OR clause "
+                    + "when it is being filtered with the following AND conditions: length(keyword) > 10."
+            )
+        );
+
+        assertThat(
+            typesError(
+                "from types | where ((knn(dense_vector, [0.1, 0.2, 0.3], 10) and match(text, \"hello\")) or keyword == \"hello\")"
+                    + "and (length(keyword) > 10 or long == 50)"
+            ),
+            containsString(
+                "knn function [knn(dense_vector, [0.1, 0.2, 0.3], 10)] cannot be used in an OR clause "
+                    + "when it is being filtered with the following AND conditions: length(keyword) > 10 or long == 50."
+            )
+        );
+    }
 }

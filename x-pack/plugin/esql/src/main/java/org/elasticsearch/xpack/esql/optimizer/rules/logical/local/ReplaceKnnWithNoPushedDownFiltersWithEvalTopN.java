@@ -128,7 +128,7 @@ public class ReplaceKnnWithNoPushedDownFiltersWithEvalTopN extends OptimizerRule
     }
 
     private static Expression replaceNonPushableKnnByTrue(Knn knn, Holder<List<Knn>> replaced) {
-        if (knn.hasNonPushableFilters() == false) {
+        if (knn.nonPushableFilters().isEmpty()) {
             return knn;
         }
         replaced.get().add(knn);

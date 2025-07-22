@@ -11,8 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -35,25 +34,30 @@ import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
+import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -66,7 +70,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
-public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction, PostAnalysisPlanVerificationAware {
+public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationPlanVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
@@ -260,8 +264,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         for (Expression filterExpression : filterExpressions()) {
             if (filterExpression instanceof TranslationAware translationAware) {
                 // We can only translate filter expressions that are translatable. In case any is not translatable,
-                // Knn won't be pushed down as it will not be translatable so it's safe not to translate all filters and check them
-                // when creating an evaluator for the non-pushed down query
+                // Knn won't be pushed down so it's safe not to translate all filters and check them when creating an evaluator
+                // for the non-pushed down query
                 if (translationAware.translatable(pushdownPredicates) == Translatable.YES) {
                     filterQueries.add(handler.asQuery(pushdownPredicates, filterExpression).toQueryBuilder());
                 }
@@ -275,8 +279,16 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         return new Knn(source(), field(), query(), k(), options(), queryBuilder(), filterExpressions);
     }
 
-    public boolean hasNonPushableFilters() {
-        return filterExpressions().size() > ((KnnVectorQueryBuilder) queryBuilder()).filterQueries().size();
+    public Collection<Expression> nonPushableFilters() {
+        List<Expression> nonPushableFilters = new ArrayList<>();
+        for (Expression filterExpression : filterExpressions()) {
+            if (filterExpression instanceof TranslationAware translationAware) {
+                if (translationAware.translatable(LucenePushdownPredicates.DEFAULT) == Translatable.NO) {
+                    nonPushableFilters.add(filterExpression);
+                }
+            }
+        }
+        return nonPushableFilters;
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
@@ -292,6 +304,30 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         return (plan, failures) -> {
             super.postAnalysisPlanVerification().accept(plan, failures);
             fieldVerifier(plan, this, field, failures);
+        };
+    }
+
+    @Override
+    public BiConsumer<LogicalPlan, Failures> postOptimizationVerification() {
+        return (plan, failures) -> {
+            if (plan instanceof Filter f) {
+                f.condition().forEachDown(Or.class, or -> {
+                    or.forEachDown(Knn.class, knn -> {
+                        Collection<Expression> nonPushableFilters = knn.nonPushableFilters();
+                        if (nonPushableFilters.isEmpty() == false) {
+                            failures.add(
+                                fail(
+                                    plan,
+                                    "knn function [{}] cannot be used in an OR clause when it is being filtered with "
+                                        + "the following AND conditions: {}.",
+                                    knn.sourceText(),
+                                    nonPushableFilters.stream().map(Expression::sourceText).collect(Collectors.joining(", "))
+                                )
+                            );
+                        }
+                    });
+                });
+            }
         };
     }
 

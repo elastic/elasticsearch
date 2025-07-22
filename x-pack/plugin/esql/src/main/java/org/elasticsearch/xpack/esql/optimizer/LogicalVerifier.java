@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.PlanConsistencyChecker;
@@ -38,10 +39,14 @@ public final class LogicalVerifier {
             if (failures.hasFailures() == false) {
                 if (p instanceof PostOptimizationVerificationAware pova) {
                     pova.postOptimizationVerification(failures);
+                } else if (p instanceof PostOptimizationPlanVerificationAware popva) {
+                    popva.postOptimizationVerification().accept(p, failures);
                 }
                 p.forEachExpression(ex -> {
                     if (ex instanceof PostOptimizationVerificationAware va) {
                         va.postOptimizationVerification(failures);
+                    } else if (ex instanceof PostOptimizationPlanVerificationAware pva) {
+                        pva.postOptimizationVerification().accept(p, failures);
                     }
                 });
             }

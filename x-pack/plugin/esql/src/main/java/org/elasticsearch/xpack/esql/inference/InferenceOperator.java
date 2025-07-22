@@ -15,7 +15,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
@@ -69,8 +68,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      */
     @Override
     protected void performAsync(Page input, ActionListener<OngoingInferenceResult> listener) {
-        LogManager.getLogger(InferenceOperator.class)
-            .info("Received input page in performAsync: {} {}", input.getBlockCount(), input.getPositionCount());
         try {
             BulkInferenceRequestIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);

@@ -12,7 +12,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
@@ -37,7 +36,6 @@ public class TextEmbeddingOperatorRequestIterator implements BulkInferenceReques
      * @param inferenceId The ID of the inference model to invoke.
      */
     public TextEmbeddingOperatorRequestIterator(BytesRefBlock inputTextBlock, String inferenceId) {
-        LogManager.getLogger(TextEmbeddingOperatorRequestIterator.class).info("inputTextBlock size {}", inputTextBlock.getPositionCount());
         this.inputTextReader = new inputTextReader(inputTextBlock);
         this.size = inputTextBlock.getPositionCount();
         this.inferenceId = inferenceId;
@@ -50,14 +48,11 @@ public class TextEmbeddingOperatorRequestIterator implements BulkInferenceReques
 
     @Override
     public InferenceAction.Request next() {
-
-        LogManager.getLogger(TextEmbeddingOperatorRequestIterator.class).info("has next {}", hasNext());
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
         String inputText = inputTextReader.read(currentPos++);
-        LogManager.getLogger(TextEmbeddingOperatorRequestIterator.class).info("Input text {}", inputText);
         return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputText)).build();
     }
 

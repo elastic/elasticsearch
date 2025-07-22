@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator;
  * into a {@link BytesRefBlock}.
  */
 public class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
+
     private final Page inputPage;
     private final BytesRefBlock.Builder outputBlockBuilder;
     private final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();

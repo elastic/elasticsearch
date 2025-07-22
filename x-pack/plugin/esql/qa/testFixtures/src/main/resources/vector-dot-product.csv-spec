@@ -71,7 +71,7 @@ similarity:double
  ;
 
 avg:double | min:double | max:double
-39519.02  | 0.5        | 65025.5
+39519.017  | 0.5        | 65025.5
 ;
 
 # TODO Need to implement a conversion function to convert a non-foldable row to a dense_vector

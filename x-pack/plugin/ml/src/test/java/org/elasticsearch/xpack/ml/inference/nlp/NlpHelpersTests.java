@@ -119,29 +119,29 @@ public class NlpHelpersTests extends ESTestCase {
         assertEquals(1, scoreAndIndices[3].index);
     }
 
-    public void testCalculateSpladeValue() {
+    public void testSpladeSaturation() {
         // Test case 1: Positive value
         double input1 = 2.0;
         double expected1 = Math.log(1 + 2.0);
-        double result1 = NlpHelpers.calculateSpladeValue(input1);
+        double result1 = NlpHelpers.spladeSaturation(input1);
         assertThat(result1, closeTo(expected1, 0.000001));
 
         // Test case 2: Zero value
         double input2 = 0.0;
         double expected2 = 0.0;
-        double result2 = NlpHelpers.calculateSpladeValue(input2);
+        double result2 = NlpHelpers.spladeSaturation(input2);
         assertThat(result2, closeTo(expected2, 0.000001));
 
         // Test case 3: Negative value
         double input3 = -1.0;
         double expected3 = 0.0; // Negative values are clamped to 0
-        double result3 = NlpHelpers.calculateSpladeValue(input3);
+        double result3 = NlpHelpers.spladeSaturation(input3);
         assertThat(result3, closeTo(expected3, 0.000001));
 
         // Test case 4: Small positive value
         double input4 = 0.01;
         double expected4 = Math.log(1 + 0.01);
-        double result4 = NlpHelpers.calculateSpladeValue(input4);
+        double result4 = NlpHelpers.spladeSaturation(input4);
         assertThat(result4, closeTo(expected4, 0.000001));
     }
 

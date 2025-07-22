@@ -249,18 +249,6 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        TransportVersion that = (TransportVersion) o;
-        return id == that.id;
-    }
-
-    @Override
-    public int hashCode() {
-        return id;
-    }
-
-    @Override
     public String toString() {
         return Integer.toString(id);
     }
@@ -329,11 +317,11 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 throw new UncheckedIOException("latest transport version file not found at [" + latestLocation + "]", ioe);
             }
 
-            String manifestLocation = "/transport/constant/constant-transport-versions-files-manifest.txt";
+            String manifestLocation = "/transport/constant/manifest.txt";
             List<String> versionFileNames = null;
             if (latestId > -1) {
                 try (InputStream inputStream = TransportVersion.class.getResourceAsStream(manifestLocation)) {
-                    if (inputStream == null) {
+                    if (inputStream != null) {
                         BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
                         versionFileNames = reader.lines().filter(line -> line.isBlank() == false).toList();
                     }

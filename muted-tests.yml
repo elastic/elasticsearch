@@ -499,6 +499,9 @@ tests:
 - class: org.elasticsearch.search.SearchWithIndexBlocksIT
   method: testSearchShardsOnIndicesWithIndexRefreshBlocks
   issue: https://github.com/elastic/elasticsearch/issues/131662
+- class: org.elasticsearch.search.SearchWithIndexBlocksIT
+  method: testSearchIndicesWithIndexRefreshBlocks
+  issue: https://github.com/elastic/elasticsearch/issues/131693
 
 # Examples:
 #

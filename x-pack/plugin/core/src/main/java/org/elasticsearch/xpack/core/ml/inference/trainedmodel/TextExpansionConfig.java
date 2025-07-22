@@ -166,7 +166,9 @@ public class TextExpansionConfig implements NlpConfig {
         return resultsField;
     }
 
-    public String getExpansionType() { return expansionType; }
+    public String getExpansionType() {
+        return expansionType;
+    }
 
     @Override
     public VocabularyConfig getVocabularyConfig() {

@@ -30,10 +30,7 @@ public class TextExpansionConfigTests extends InferenceConfigItemTestCase<TextEx
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean() ? null : tokenization,
             randomBoolean() ? null : randomAlphaOfLength(5),
-            randomFrom(
-                TextExpansionConfig.EXPANSION_TYPE_ELSER,
-                TextExpansionConfig.EXPANSION_TYPE_SPLADE
-            )
+            randomFrom(TextExpansionConfig.EXPANSION_TYPE_ELSER, TextExpansionConfig.EXPANSION_TYPE_SPLADE)
         );
     }
 

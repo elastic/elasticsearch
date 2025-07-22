@@ -65,7 +65,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -2002,10 +2001,6 @@ public final class RestoreService implements ClusterStateApplier {
                 if (Objects.equals(snapshotUuid, otherSnapshotUuid) == false) {
                     continue; // other index is backed by a different snapshot, skip
                 }
-                @FixForMultiProject(
-                    description = "Repo UUID might be null and repo name is not sufficiently unique. "
-                        + "But searchable snapshots may not be supported in multi-project. See also ES-12138"
-                )
                 final String otherRepositoryUuid = otherSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
                 final String otherRepositoryName = otherSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
                 if (matchRepository(repositoryUuid, repositoryName, otherRepositoryUuid, otherRepositoryName) == false) {

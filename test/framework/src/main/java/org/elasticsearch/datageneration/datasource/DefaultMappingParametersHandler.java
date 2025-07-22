@@ -263,14 +263,6 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     }
 
     private Map<String, Object> stringSubField(FieldType parent, DataSourceRequest.LeafMappingParametersGenerator request) {
-        /**
-         * text -> keyword, wildcard
-         * match_only_text -> keyword, wildcard
-         * patterned_text -> keyword, wildcard
-         * keyword -> text, match_only_text, patterned_tet, wildcard
-         * wildcard -> keyword, text, match_only_text, patterned_text
-         *
-         */
         var subFields = new HashMap<FieldType, Supplier<Map<String, Object>>>();
         subFields.put(FieldType.KEYWORD, () -> {
             var mapping = keywordMapping(true, request).get();

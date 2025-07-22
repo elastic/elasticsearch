@@ -110,6 +110,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
+            Map.of(),
             Map.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
@@ -179,6 +180,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             leastAvailableUsages,
             mostAvailableUsage,
             Map.of("[test][0][p]", shardSize),
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of(),
@@ -328,6 +330,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             shardSizes,
             Map.of(),
             shardRoutingMap,
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of()

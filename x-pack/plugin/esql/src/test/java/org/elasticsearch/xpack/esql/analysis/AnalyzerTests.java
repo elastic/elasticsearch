@@ -2362,6 +2362,13 @@ public class AnalyzerTests extends ESTestCase {
             checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(vector, [0.342, 0.164, 0.234])", List.of(0.342f, 0.164f, 0.234f));
             checkDenseVectorImplicitCastingSimilarityFunction("v_cosine(vector, [1, 2, 3])", List.of(1f, 2f, 3f));
         }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkDenseVectorImplicitCastingSimilarityFunction(
+                "v_dot_product(vector, [0.342, 0.164, 0.234])",
+                List.of(0.342f, 0.164f, 0.234f)
+            );
+            checkDenseVectorImplicitCastingSimilarityFunction("v_dot_product(vector, [1, 2, 3])", List.of(1f, 2f, 3f));
+        }
     }
 
     private void checkDenseVectorImplicitCastingSimilarityFunction(String similarityFunction, List<Number> expectedElems) {
@@ -2384,6 +2391,9 @@ public class AnalyzerTests extends ESTestCase {
     public void testNoDenseVectorFailsSimilarityFunction() {
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkNoDenseVectorFailsSimilarityFunction("v_cosine([0, 1, 2], 0.342)");
+        }
+        if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkNoDenseVectorFailsSimilarityFunction("v_dot_product([0, 1, 2], 0.342)");
         }
     }
 

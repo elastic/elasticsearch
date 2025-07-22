@@ -341,9 +341,13 @@ public class MultiClustersIT extends ESRestTestCase {
         assertThat(
             remoteClusterShards,
             matchesMap().entry("total", greaterThanOrEqualTo(0))
-                .entry("successful", remoteClusterShards.get("total"))
+                .entry("successful", greaterThanOrEqualTo(0))
                 .entry("skipped", greaterThanOrEqualTo(0))
                 .entry("failed", 0)
+        );
+        assertThat(
+            (int) remoteClusterShards.get("successful") + (int) remoteClusterShards.get("skipped"),
+            equalTo(remoteClusterShards.get("total"))
         );
 
         if (remoteOnly == false) {
@@ -359,9 +363,13 @@ public class MultiClustersIT extends ESRestTestCase {
             assertThat(
                 localClusterShards,
                 matchesMap().entry("total", greaterThanOrEqualTo(0))
-                    .entry("successful", localClusterShards.get("total"))
+                    .entry("successful", greaterThanOrEqualTo(0))
                     .entry("skipped", greaterThanOrEqualTo(0))
                     .entry("failed", 0)
+            );
+            assertThat(
+                (int) localClusterShards.get("successful") + (int) localClusterShards.get("skipped"),
+                equalTo(localClusterShards.get("total"))
             );
         }
     }

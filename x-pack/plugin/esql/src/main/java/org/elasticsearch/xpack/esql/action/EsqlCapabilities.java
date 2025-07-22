@@ -93,6 +93,11 @@ public class EsqlCapabilities {
         AGG_VALUES_SPATIAL,
 
         /**
+         * Accept unsigned longs on MAX and MIN aggregations.
+         */
+        AGG_MAX_MIN_UNSIGNED_LONG,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,

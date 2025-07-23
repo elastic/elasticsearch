@@ -20,6 +20,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInpu
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
+import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEnd
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModelTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -78,31 +81,20 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
     }
 
     public void testEmbeddingsRequestAction() throws IOException {
-        var senderFactory = new HttpRequestSender.Factory(
+        final var senderFactory = new HttpRequestSender.Factory(
             ServiceComponentsTests.createWithEmptySettings(threadPool),
             clientManager,
             mockClusterServiceEmpty()
         );
 
-        var timeoutSettings = buildSettingsWithRetryFields(
-            TimeValue.timeValueMillis(1),
-            TimeValue.timeValueMinutes(1),
-            TimeValue.timeValueSeconds(0)
-        );
-
-        var serviceComponents = new ServiceComponents(
-            threadPool,
-            mock(ThrottlerManager.class),
-            timeoutSettings,
-            TruncatorTests.createTruncator()
-        );
+        final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
             sender.start();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingsTokenResponseJson));
 
-            var model = AzureAiStudioEmbeddingsModelTests.createModel(
+            final var model = AzureAiStudioEmbeddingsModelTests.createModel(
                 "id",
                 "http://will-be-replaced.local",
                 AzureAiStudioProvider.OPENAI,
@@ -111,21 +103,18 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             );
             model.setURI(getUrl(webServer));
 
-            var creator = new AzureAiStudioActionCreator(sender, serviceComponents);
-            var action = creator.create(model, Map.of());
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var inputType = InputTypeTests.randomSearchAndIngestWithNull();
+            final var creator = new AzureAiStudioActionCreator(sender, serviceComponents);
+            final var action = creator.create(model, Map.of());
+            final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            final var inputType = InputTypeTests.randomSearchAndIngestWithNull();
             action.execute(new EmbeddingsInput(List.of("abc"), null, inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
-            var result = listener.actionGet(TIMEOUT);
+            final var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
+            assertWebServerRequest(API_KEY_HEADER, "apikey");
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            final var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), is(InputType.isSpecified(inputType) ? 2 : 1));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             if (InputType.isSpecified(inputType)) {
@@ -136,27 +125,15 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
     }
 
     public void testChatCompletionRequestAction() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        var timeoutSettings = buildSettingsWithRetryFields(
-            TimeValue.timeValueMillis(1),
-            TimeValue.timeValueMinutes(1),
-            TimeValue.timeValueSeconds(0)
-        );
-
-        var serviceComponents = new ServiceComponents(
-            threadPool,
-            mock(ThrottlerManager.class),
-            timeoutSettings,
-            TruncatorTests.createTruncator()
-        );
+        final var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        final var serviceComponents = getServiceComponents();
 
         try (var sender = createSender(senderFactory)) {
             sender.start();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testCompletionTokenResponseJson));
-            var webserverUrl = getUrl(webServer);
-            var model = AzureAiStudioChatCompletionModelTests.createModel(
+            final var webserverUrl = getUrl(webServer);
+            final var model = AzureAiStudioChatCompletionModelTests.createModel(
                 "id",
                 "http://will-be-replaced.local",
                 AzureAiStudioProvider.COHERE,
@@ -165,30 +142,101 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             );
             model.setURI(webserverUrl);
 
-            var creator = new AzureAiStudioActionCreator(sender, serviceComponents);
-            var action = creator.create(model, Map.of());
+            final var creator = new AzureAiStudioActionCreator(sender, serviceComponents);
+            final var action = creator.create(model, Map.of());
 
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
-            var result = listener.actionGet(TIMEOUT);
+            final var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("test input string"))));
-            assertThat(webServer.requests(), hasSize(1));
 
-            MockRequest request = webServer.requests().get(0);
+            assertWebServerRequest(HttpHeaders.AUTHORIZATION, "apikey");
 
-            assertNull(request.getUri().getQuery());
-            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("apikey"));
-
-            var requestMap = entityAsMap(request.getBody());
+            final MockRequest request = webServer.requests().get(0);
+            final var requestMap = entityAsMap(request.getBody());
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
         }
     }
 
-    private static String testEmbeddingsTokenResponseJson = """
+    public void testRerankRequestAction() throws IOException {
+        final var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        final var serviceComponents = getServiceComponents();
+
+        try (var sender = createSender(senderFactory)) {
+            sender.start();
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testRerankTokenResponseJson));
+            final var webserverUrl = getUrl(webServer);
+            final var model = AzureAiStudioRerankModelTests.createModel(
+                "id",
+                "http://will-be-replaced.local",
+                AzureAiStudioProvider.COHERE,
+                AzureAiStudioEndpointType.TOKEN,
+                "apikey"
+            );
+            model.setURI(webserverUrl);
+
+            final var topN = 2;
+            final var returnDocuments = false;
+            final var query = "query";
+            final var documents = List.of("document 1", "document 2", "document 3");
+
+            final var creator = new AzureAiStudioActionCreator(sender, serviceComponents);
+            final var action = creator.create(model, Map.of());
+
+            final PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(
+                new QueryAndDocsInputs(query, documents, returnDocuments, topN, false),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            final var result = listener.actionGet(TIMEOUT);
+
+            assertThat(
+                result.asMap(),
+                equalTo(
+                    RankedDocsResultsTests.buildExpectationRerank(
+                        List.of(
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 0, "relevance_score", 0.1111111f)),
+                            new RankedDocsResultsTests.RerankExpectation(Map.of("index", 1, "relevance_score", 0.2222222f))
+                        )
+                    )
+                )
+            );
+
+            assertWebServerRequest(HttpHeaders.AUTHORIZATION, "apikey");
+
+            final var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+
+            assertThat(requestMap.size(), is(4));
+            assertThat(requestMap.get("documents"), is(documents));
+            assertThat(requestMap.get("query"), is(query));
+            assertThat(requestMap.get("top_n"), is(topN));
+            assertThat(requestMap.get("return_documents"), is(returnDocuments));
+        }
+    }
+
+    private void assertWebServerRequest(String authorization, String authorizationHeaderValue) {
+        assertThat(webServer.requests(), hasSize(1));
+        assertNull(webServer.requests().get(0).getUri().getQuery());
+        assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+        assertThat(webServer.requests().get(0).getHeader(authorization), equalTo(authorizationHeaderValue));
+    }
+
+    private ServiceComponents getServiceComponents() {
+        final var timeoutSettings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        return new ServiceComponents(threadPool, mock(ThrottlerManager.class), timeoutSettings, TruncatorTests.createTruncator());
+    }
+
+    private final String testEmbeddingsTokenResponseJson = """
         {
           "object": "list",
           "data": [
@@ -209,7 +257,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
         }
         """;
 
-    private static String testCompletionTokenResponseJson = """
+    private final String testCompletionTokenResponseJson = """
         {
             "choices": [
                 {
@@ -233,4 +281,27 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             }
         }""";
 
+    private final String testRerankTokenResponseJson = """
+        {
+            "id": "ff2feb42-5d3a-45d7-ba29-c3dabf59988b",
+            "results": [
+                {
+                    "index": 0,
+                    "relevance_score": 0.1111111
+                },
+                {
+                    "index": 1,
+                    "relevance_score": 0.2222222
+                }
+            ],
+            "meta": {
+                "api_version": {
+                    "version": "1"
+                },
+                "billed_units": {
+                    "search_units": 1
+                }
+            }
+        }
+        """;
 }

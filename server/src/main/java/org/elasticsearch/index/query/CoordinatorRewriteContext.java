@@ -73,6 +73,11 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
         }
 
         @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getTierPreference();
+        }
+
+        @Override
         public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException("field exists query is not supported on the coordinator node");
         }

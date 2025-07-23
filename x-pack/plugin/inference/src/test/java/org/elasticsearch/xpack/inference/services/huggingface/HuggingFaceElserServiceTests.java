@@ -81,7 +81,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
     public void testChunkedInfer_CallsInfer_Elser_ConvertsFloatResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 [
@@ -137,7 +137,8 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
         try (
             var service = new HuggingFaceElserService(
                 HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
-                createWithEmptySettings(threadPool)
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
             )
         ) {
             String content = XContentHelper.stripWhitespace("""

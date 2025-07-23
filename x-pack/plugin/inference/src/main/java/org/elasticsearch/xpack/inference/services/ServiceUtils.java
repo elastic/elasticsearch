@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -302,6 +303,12 @@ public final class ServiceUtils {
 
     public static String invalidSettingError(String settingName, String scope) {
         return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
+    }
+
+    public static URI extractUri(Map<String, Object> map, String fieldName, ValidationException validationException) {
+        String parsedUrl = extractRequiredString(map, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        return convertToUri(parsedUrl, fieldName, ModelConfigurations.SERVICE_SETTINGS, validationException);
     }
 
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
@@ -1082,6 +1089,12 @@ public final class ServiceUtils {
             validationException.addValidationError(
                 org.elasticsearch.common.Strings.format("Input type [%s] is not supported for [%s]", inputType, name)
             );
+        }
+    }
+
+    public static void checkByteBounds(short value) {
+        if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
+            throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
         }
     }
 

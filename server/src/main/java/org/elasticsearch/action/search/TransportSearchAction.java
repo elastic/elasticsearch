@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -167,6 +168,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final Client client;
     private final UsageService usageService;
     private final boolean collectTelemetry;
+    private final TimeValue forceConnectTimeoutSecs;
 
     @Inject
     public TransportSearchAction(
@@ -215,6 +217,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchResponseMetrics = searchResponseMetrics;
         this.client = client;
         this.usageService = usageService;
+        forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -445,7 +448,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             projectState,
                             clusters,
                             searchPhaseProvider.apply(l)
-                        )
+                        ),
+                        transportService,
+                        forceConnectTimeoutSecs
                     );
                 } else {
                     final SearchContextId searchContext = resolvedIndices.getSearchContextId();
@@ -505,7 +510,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 clusters,
                                 searchPhaseProvider.apply(finalDelegate)
                             );
-                        })
+                        }),
+                        forceConnectTimeoutSecs
                     );
                 }
             }
@@ -634,6 +640,40 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     /**
+     * Return a subscribable listener with optional timeout depending on force reconnect setting is registered or
+     * not.
+     * @param forceConnectTimeoutSecs Timeout in seconds that determines how long we'll wait to establish a connection
+     *                                to a remote.
+     * @param threadPool The thread pool that'll be used for the timeout.
+     * @param timeoutExecutor The executor that should be used for the timeout.
+     * @return SubscribableListener A listener with optionally added timeout.
+     */
+    private static SubscribableListener<Transport.Connection> getListenerWithOptionalTimeout(
+        TimeValue forceConnectTimeoutSecs,
+        ThreadPool threadPool,
+        Executor timeoutExecutor
+    ) {
+        var subscribableListener = new SubscribableListener<Transport.Connection>();
+        if (forceConnectTimeoutSecs != null) {
+            subscribableListener.addTimeout(forceConnectTimeoutSecs, threadPool, timeoutExecutor);
+        }
+
+        return subscribableListener;
+    }
+
+    /**
+     * The default disconnected strategy for Elasticsearch is RECONNECT_UNLESS_SKIP_UNAVAILABLE. So we either force
+     * connect if required (like in CPS) or when skip unavailable is false for a cluster.
+     * @param forceConnectTimeoutSecs The timeout value from the force connect setting.
+     *                                If it is set, use it as it takes precedence.
+     * @param skipUnavailable The usual skip unavailable setting.
+     * @return boolean If we should always force reconnect.
+     */
+    private static boolean shouldEstablishConnection(TimeValue forceConnectTimeoutSecs, boolean skipUnavailable) {
+        return forceConnectTimeoutSecs != null || skipUnavailable == false;
+    }
+
+    /**
      * Handles ccs_minimize_roundtrips=true
      */
     static void ccsRemoteReduce(
@@ -647,7 +687,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         RemoteClusterService remoteClusterService,
         ThreadPool threadPool,
         ActionListener<SearchResponse> listener,
-        BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer
+        BiConsumer<SearchRequest, ActionListener<SearchResponse>> localSearchConsumer,
+        TransportService transportService,
+        TimeValue forceConnectTimeoutSecs
     ) {
         final var remoteClientResponseExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         if (resolvedIndices.getLocalIndices() == null && resolvedIndices.getRemoteClusterIndices().size() == 1) {
@@ -665,12 +707,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 timeProvider.absoluteStartMillis(),
                 true
             );
-            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                clusterAlias,
-                remoteClientResponseExecutor,
-                RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
-            );
-            remoteClusterClient.execute(TransportSearchAction.REMOTE_TYPE, ccsSearchRequest, new ActionListener<>() {
+
+            var connectionListener = getListenerWithOptionalTimeout(forceConnectTimeoutSecs, threadPool, remoteClientResponseExecutor);
+            var searchListener = new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     // overwrite the existing cluster entry with the updated one
@@ -713,7 +752,25 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         listener.onFailure(wrapRemoteClusterFailure(clusterAlias, e));
                     }
                 }
-            });
+            };
+
+            connectionListener.addListener(
+                searchListener.delegateFailure(
+                    (responseListener, connection) -> transportService.sendRequest(
+                        connection,
+                        TransportSearchAction.TYPE.name(),
+                        ccsSearchRequest,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(responseListener, SearchResponse::new, remoteClientResponseExecutor)
+                    )
+                )
+            );
+
+            remoteClusterService.maybeEnsureConnectedAndGetConnection(
+                clusterAlias,
+                shouldEstablishConnection(forceConnectTimeoutSecs, skipUnavailable),
+                connectionListener
+            );
         } else {
             SearchResponseMerger searchResponseMerger = createSearchResponseMerger(
                 searchRequest.source(),
@@ -748,12 +805,30 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task.getProgressListener(),
                     listener
                 );
-                final var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
-                    clusterAlias,
-                    remoteClientResponseExecutor,
-                    RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+
+                SubscribableListener<Transport.Connection> connectionListener = getListenerWithOptionalTimeout(
+                    forceConnectTimeoutSecs,
+                    threadPool,
+                    remoteClientResponseExecutor
                 );
-                remoteClusterClient.execute(TransportSearchAction.REMOTE_TYPE, ccsSearchRequest, ccsListener);
+
+                connectionListener.addListener(
+                    ccsListener.delegateFailure(
+                        (responseListener, connection) -> transportService.sendRequest(
+                            connection,
+                            TransportSearchAction.REMOTE_TYPE.name(),
+                            ccsSearchRequest,
+                            TransportRequestOptions.EMPTY,
+                            new ActionListenerResponseHandler<>(responseListener, SearchResponse::new, remoteClientResponseExecutor)
+                        )
+                    )
+                );
+
+                remoteClusterService.maybeEnsureConnectedAndGetConnection(
+                    clusterAlias,
+                    shouldEstablishConnection(forceConnectTimeoutSecs, skipUnavailable),
+                    connectionListener
+                );
             }
             if (resolvedIndices.getLocalIndices() != null) {
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
@@ -819,7 +894,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchTimeProvider timeProvider,
         TransportService transportService,
-        ActionListener<Map<String, SearchShardsResponse>> listener
+        ActionListener<Map<String, SearchShardsResponse>> listener,
+        TimeValue forceConnectTimeoutSecs
     ) {
         RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
@@ -848,49 +924,59 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     return searchShardsResponses;
                 }
             };
+
+            var threadPool = transportService.getThreadPool();
+            var connectionListener = getListenerWithOptionalTimeout(
+                forceConnectTimeoutSecs,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
+            );
+
+            connectionListener.addListener(singleListener.delegateFailure((responseListener, connection) -> {
+                final String[] indices = entry.getValue().indices();
+                final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
+                // TODO: support point-in-time
+                if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                    SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
+                        indices,
+                        indicesOptions,
+                        query,
+                        routing,
+                        preference,
+                        allowPartialResults,
+                        clusterAlias
+                    );
+                    transportService.sendRequest(
+                        connection,
+                        TransportSearchShardsAction.TYPE.name(),
+                        searchShardsRequest,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(responseListener, SearchShardsResponse::new, responseExecutor)
+                    );
+                } else {
+                    // does not do a can-match
+                    ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
+                        MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                        indices
+                    ).indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
+                    transportService.sendRequest(
+                        connection,
+                        TransportClusterSearchShardsAction.TYPE.name(),
+                        searchShardsRequest,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(
+                            singleListener.map(SearchShardsResponse::fromLegacyResponse),
+                            ClusterSearchShardsResponse::new,
+                            responseExecutor
+                        )
+                    );
+                }
+            }));
+
             remoteClusterService.maybeEnsureConnectedAndGetConnection(
                 clusterAlias,
-                skipUnavailable == false,
-                singleListener.delegateFailureAndWrap((delegate, connection) -> {
-                    final String[] indices = entry.getValue().indices();
-                    final Executor responseExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION);
-                    // TODO: support point-in-time
-                    if (searchContext == null && connection.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                        SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
-                            indices,
-                            indicesOptions,
-                            query,
-                            routing,
-                            preference,
-                            allowPartialResults,
-                            clusterAlias
-                        );
-                        transportService.sendRequest(
-                            connection,
-                            TransportSearchShardsAction.TYPE.name(),
-                            searchShardsRequest,
-                            TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(delegate, SearchShardsResponse::new, responseExecutor)
-                        );
-                    } else {
-                        // does not do a can-match
-                        ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(
-                            MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                            indices
-                        ).indicesOptions(indicesOptions).local(true).preference(preference).routing(routing);
-                        transportService.sendRequest(
-                            connection,
-                            TransportClusterSearchShardsAction.TYPE.name(),
-                            searchShardsRequest,
-                            TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(
-                                delegate.map(SearchShardsResponse::fromLegacyResponse),
-                                ClusterSearchShardsResponse::new,
-                                responseExecutor
-                            )
-                        );
-                    }
-                })
+                shouldEstablishConnection(forceConnectTimeoutSecs, skipUnavailable),
+                connectionListener
             );
         }
     }
@@ -1864,6 +1950,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Set<ResolvedExpression> indicesAndAliases,
         String[] concreteIndices
     ) {
+        concreteIndices = ignoreBlockedIndices(projectState, concreteIndices);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(
             projectState.metadata(),
             searchRequest.routing(),
@@ -1894,6 +1981,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);
+    }
+
+    static String[] ignoreBlockedIndices(ProjectState projectState, String[] concreteIndices) {
+        // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
+        boolean hasIndexBlocks = projectState.blocks().indices(projectState.projectId()).isEmpty() == false;
+        if (hasIndexBlocks) {
+            return Arrays.stream(concreteIndices)
+                .filter(
+                    index -> projectState.blocks()
+                        .hasIndexBlock(projectState.projectId(), index, IndexMetadata.INDEX_REFRESH_BLOCK) == false
+                )
+                .toArray(String[]::new);
+        }
+        return concreteIndices;
     }
 
     private interface TelemetryListener {

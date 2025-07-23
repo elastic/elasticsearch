@@ -9,36 +9,11 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-final class CentroidAssignments {
+record CentroidAssignments(int numCentroids, float[][] centroids, int[] assignments, int[] overspillAssignments) {
 
-    private final int numCentroids;
-    private final float[][] cachedCentroids;
-    private final int[][] assignmentsByCluster;
-
-    private CentroidAssignments(int numCentroids, float[][] cachedCentroids, int[][] assignmentsByCluster) {
-        this.numCentroids = numCentroids;
-        this.cachedCentroids = cachedCentroids;
-        this.assignmentsByCluster = assignmentsByCluster;
-    }
-
-    CentroidAssignments(float[][] centroids, int[][] assignmentsByCluster) {
-        this(centroids.length, centroids, assignmentsByCluster);
-    }
-
-    CentroidAssignments(int numCentroids, int[][] assignmentsByCluster) {
-        this(numCentroids, null, assignmentsByCluster);
-    }
-
-    // Getters and setters
-    public int numCentroids() {
-        return numCentroids;
-    }
-
-    public float[][] cachedCentroids() {
-        return cachedCentroids;
-    }
-
-    public int[][] assignmentsByCluster() {
-        return assignmentsByCluster;
+    CentroidAssignments(float[][] centroids, int[] assignments, int[] overspillAssignments) {
+        this(centroids.length, centroids, assignments, overspillAssignments);
+        assert assignments.length == overspillAssignments.length || overspillAssignments.length == 0
+            : "assignments and overspillAssignments must have the same length";
     }
 }

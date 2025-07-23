@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -33,7 +34,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOptimizerTests {
 
     // Key is the predicate,
@@ -58,10 +59,11 @@ public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOpt
 
     private static final Map<String, Integer> evalRenamePredicatesWithDateTruncBucket = new HashMap<>(
         Map.ofEntries(
-            // ReplaceAliasingEvalWithProject replaces x with hire_date so that the date_trunc can be transformed to round_to
+            // ReplaceAliasingEvalWithProject replaces x with hire_date so that the DateTrunc can be transformed to RoundTo
             Map.entry(" | eval x = hire_date ", 4),
             // DateTrunc cannot be transformed to RoundTo if it references an expression
             Map.entry(" | eval x = hire_date + 1 year ", -1),
+            // PushDownEval replaces the reference(x) in DateTrunc with the corresponding field hire_date
             Map.entry(" | rename hire_date as x ", 4),
             Map.entry(" | rename hire_date as a, a as x ", 4),
             Map.entry(" | rename hire_date as x, x as hire_date ", 4),

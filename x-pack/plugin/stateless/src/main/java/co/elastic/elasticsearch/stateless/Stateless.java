@@ -761,7 +761,7 @@ public class Stateless extends Plugin
         splitTargetService.set(new SplitTargetService(settings, client, clusterService, reshardIndexService));
         var splitSourceService = setAndGet(
             this.splitSourceService,
-            new SplitSourceService(client, clusterService, indicesService, objectStoreService, reshardIndexService)
+            new SplitSourceService(client, clusterService, indicesService, commitService, objectStoreService, reshardIndexService)
         );
         components.add(splitSourceService);
 

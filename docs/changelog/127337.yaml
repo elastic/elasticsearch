@@ -1,6 +1,0 @@
-pr: 127337
-summary: Http proxy support in JWT realm
-area: Authentication
-type: enhancement
-issues:
- - 114956

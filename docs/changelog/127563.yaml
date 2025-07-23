@@ -1,6 +1,0 @@
-pr: 127563
-summary: "ESQL: Avoid unintended attribute removal"
-area: ES|QL
-type: bug
-issues:
-  - 127468

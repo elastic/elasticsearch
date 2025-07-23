@@ -1054,7 +1054,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                    (WHERE true) (WHERE true) (WHERE true) (WHERE true)
             """;
         var e = expectThrows(ParsingException.class, () -> run(query));
-        assertTrue(e.getMessage().contains("Fork supports up to  8 branches"));
+        assertTrue(e.getMessage().contains("Fork supports up to 8 branches"));
 
     }
 

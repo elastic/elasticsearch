@@ -19,15 +19,15 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MaxErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class MinOverTimeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(MaxTests.parameters());
+        return paramsToSuppliers(MinOverTimeTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Max(source, args.get(0));
+        return new MinOverTime(source, args.get(0));
     }
 
     @Override

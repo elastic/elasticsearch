@@ -94,14 +94,7 @@ class RoundTo$Type$ {
     }
 
     @Evaluator(extraName = "5")
-    static $type$ process(
-        $type$ field,
-        @Fixed $type$ p0,
-        @Fixed $type$ p1,
-        @Fixed $type$ p2,
-        @Fixed $type$ p3,
-        @Fixed $type$ p4
-    ) {
+    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4) {
         if (field < p2) {
             if (field < p1) {
                 return p0;

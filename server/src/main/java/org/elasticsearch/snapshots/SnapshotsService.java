@@ -3738,8 +3738,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             () -> changedCount++,
                             () -> startedCount++
                         );
+                        return entry.withShardStates(shardsBuilder.build());
+                    } else {
+                        return entry;
                     }
-                    return entry;
                 }
             }
 

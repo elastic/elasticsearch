@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
+package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,15 +19,15 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MvMinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class MinOverTimeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(MvMinTests.parameters());
+        return paramsToSuppliers(MinOverTimeTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvMin(source, args.get(0));
+        return new MinOverTime(source, args.get(0));
     }
 
     @Override
@@ -37,7 +37,7 @@ public class MvMinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "boolean, date, ip, string, version or numeric except counter types"
+                (v, p) -> "boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types"
             )
         );
     }

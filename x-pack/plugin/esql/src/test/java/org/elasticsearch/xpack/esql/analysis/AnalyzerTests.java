@@ -2008,18 +2008,14 @@ public class AnalyzerTests extends ESTestCase {
               row x = to_unsigned_long(\"10\")
               | stats  avg(x), count_distinct(x), max(x), median(x), median_absolute_deviation(x), min(x), percentile(x, 10), sum(x)
             """, """
-            Found 8 problems
+            Found 6 problems
             line 2:12: argument of [avg(x)] must be [aggregate_metric_double or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
-            line 2:39: argument of [max(x)] must be [representable except unsigned_long and spatial types],\
-             found value [x] type [unsigned_long]
             line 2:47: argument of [median(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
-             found value [x] type [unsigned_long]
-            line 2:88: argument of [min(x)] must be [representable except unsigned_long and spatial types],\
              found value [x] type [unsigned_long]
             line 2:96: first argument of [percentile(x, 10)] must be [numeric except unsigned_long],\
              found value [x] type [unsigned_long]

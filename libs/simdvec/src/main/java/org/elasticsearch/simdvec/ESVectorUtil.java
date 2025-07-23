@@ -158,31 +158,41 @@ public class ESVectorUtil {
     /**
      * Calculate the loss for optimized-scalar quantization for the given parameteres
      * @param target The vector being quantized, assumed to be centered
-     * @param interval The interval for which to calculate the loss
+     * @param lowerInterval The lower interval value for which to calculate the loss
+     * @param upperInterval The upper interval value for which to calculate the loss
      * @param points the quantization points
      * @param norm2 The norm squared of the target vector
      * @param lambda The lambda parameter for controlling anisotropic loss calculation
+     * @param quantize array to store the computed quantize vector.
+     *
      * @return The loss for the given parameters
      */
-    public static float calculateOSQLoss(float[] target, float[] interval, int points, float norm2, float lambda) {
-        assert interval.length == 2;
-        float step = ((interval[1] - interval[0]) / (points - 1.0F));
+    public static float calculateOSQLoss(
+        float[] target,
+        float lowerInterval,
+        float upperInterval,
+        int points,
+        float norm2,
+        float lambda,
+        int[] quantize
+    ) {
+        assert upperInterval >= lowerInterval;
+        float step = ((upperInterval - lowerInterval) / (points - 1.0F));
         float invStep = 1f / step;
-        return IMPL.calculateOSQLoss(target, interval, step, invStep, norm2, lambda);
+        return IMPL.calculateOSQLoss(target, lowerInterval, upperInterval, step, invStep, norm2, lambda, quantize);
     }
 
     /**
      * Calculate the grid points for optimized-scalar quantization
      * @param target The vector being quantized, assumed to be centered
-     * @param interval The interval for which to calculate the grid points
+     * @param quantize The quantize vector which should have at least the target vector length
      * @param points the quantization points
      * @param pts The array to store the grid points, must be of length 5
      */
-    public static void calculateOSQGridPoints(float[] target, float[] interval, int points, float[] pts) {
-        assert interval.length == 2;
+    public static void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
+        assert target.length <= quantize.length;
         assert pts.length == 5;
-        float invStep = (points - 1.0F) / (interval[1] - interval[0]);
-        IMPL.calculateOSQGridPoints(target, interval, points, invStep, pts);
+        IMPL.calculateOSQGridPoints(target, quantize, points, pts);
     }
 
     /**

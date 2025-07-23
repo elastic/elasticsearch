@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference.rerank;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -17,8 +18,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
-
-import java.util.stream.IntStream;
 
 /**
  * {@link RerankOperator} is an inference operator that compute scores for rows using a reranking model.
@@ -78,8 +77,7 @@ public class RerankOperator extends InferenceOperator {
      */
     @Override
     protected RerankOperatorRequestIterator requests(Page inputPage) {
-        int inputBlockChannel = inputPage.getBlockCount() - 1;
-        return new RerankOperatorRequestIterator(inputPage.getBlock(inputBlockChannel), inferenceId(), queryText, batchSize);
+        return new RerankOperatorRequestIterator((BytesRefBlock) rowEncoder.eval(inputPage), inferenceId(), queryText, batchSize);
     }
 
     /**
@@ -88,11 +86,7 @@ public class RerankOperator extends InferenceOperator {
     @Override
     protected RerankOperatorOutputBuilder outputBuilder(Page input) {
         DoubleBlock.Builder outputBlockBuilder = blockFactory().newDoubleBlockBuilder(input.getPositionCount());
-        return new RerankOperatorOutputBuilder(
-            outputBlockBuilder,
-            input.projectBlocks(IntStream.range(0, input.getBlockCount() - 1).toArray()),
-            scoreChannel
-        );
+        return new RerankOperatorOutputBuilder(outputBlockBuilder, input, scoreChannel);
     }
 
     /**

@@ -35,7 +35,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * permit system. When all permits are exhausted, additional requests are queued and
  * executed as permits become available.
  * </p>
-
  */
 class ThrottledInferenceRunner implements InferenceRunner {
 
@@ -43,6 +42,10 @@ class ThrottledInferenceRunner implements InferenceRunner {
     private final ExecutorService executorService;
     private final BlockingQueue<AbstractRunnable> pendingRequestsQueue;
     private final Semaphore permits;
+
+    // We want to make sure there is no concurrency on responding inference requests.
+    // This caused all sort of bugs in the past, especially with circuit breaker being not thread-safe.
+    private final Object responseLock = new Object();
 
     /**
      * Constructs a new throttled inference runner with the specified configuration.
@@ -64,8 +67,8 @@ class ThrottledInferenceRunner implements InferenceRunner {
      * @param listener The listener to notify on response or failure.
      */
     public void execute(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-        enqueueTask(request, listener);
-        executePendingRequests();
+        enqueueInferenceRequest(request, listener);
+        executePendingInferenceRequests();
     }
 
     /**
@@ -112,7 +115,7 @@ class ThrottledInferenceRunner implements InferenceRunner {
                     r -> bulkExecutionState.onInferenceResponse(seqNo, r),
                     e -> bulkExecutionState.onInferenceException(seqNo, e)
                 ),
-                responseHandler::persistPendingResponses
+                () -> persistPendingResponses(responseHandler)
             );
 
             if (request == null) {
@@ -120,6 +123,12 @@ class ThrottledInferenceRunner implements InferenceRunner {
             } else {
                 execute(request, inferenceResponseListener);
             }
+        }
+    }
+
+    private void persistPendingResponses(BulkResponseHandler responseHandler) {
+        synchronized (responseLock) {
+            responseHandler.persistPendingResponses();
         }
     }
 
@@ -131,7 +140,7 @@ class ThrottledInferenceRunner implements InferenceRunner {
     /**
      * Attempts to execute as many pending inference tasks as possible, limited by available permits.
      */
-    private void executePendingRequests() {
+    private void executePendingInferenceRequests() {
         while (permits.tryAcquire()) {
             AbstractRunnable task = pendingRequestsQueue.poll();
 
@@ -155,9 +164,9 @@ class ThrottledInferenceRunner implements InferenceRunner {
      * @param request  The inference request.
      * @param listener The listener to notify on response or failure.
      */
-    private void enqueueTask(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
+    private void enqueueInferenceRequest(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
         try {
-            pendingRequestsQueue.put(createTask(request, listener));
+            pendingRequestsQueue.put(createInferenceExecutionTask(request, listener));
         } catch (Exception e) {
             listener.onFailure(new IllegalStateException("An error occurred while adding the inference request to the queue", e));
         }
@@ -171,10 +180,13 @@ class ThrottledInferenceRunner implements InferenceRunner {
      * @param listener The listener to notify on completion.
      * @return A runnable task encapsulating the request.
      */
-    private AbstractRunnable createTask(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
+    private AbstractRunnable createInferenceExecutionTask(
+        InferenceAction.Request request,
+        ActionListener<InferenceAction.Response> listener
+    ) {
         final ActionListener<InferenceAction.Response> completionListener = ActionListener.runAfter(listener, () -> {
             permits.release();
-            executePendingRequests();
+            executePendingInferenceRequests();
         });
 
         return new AbstractRunnable() {

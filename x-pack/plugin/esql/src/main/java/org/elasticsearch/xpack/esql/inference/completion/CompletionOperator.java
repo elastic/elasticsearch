@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
-import java.util.stream.IntStream;
-
 /**
  * {@link CompletionOperator} is an {@link InferenceOperator} that performs inference using prompt-based model (e.g., text completion).
  * It evaluates a prompt expression for each input row, constructs inference requests, and emits the model responses as output.
@@ -49,16 +47,6 @@ public class CompletionOperator extends InferenceOperator {
         return "CompletionOperator[inference_id=[" + inferenceId() + "]]";
     }
 
-    @Override
-    public void addInput(Page input) {
-        try {
-            super.addInput(input.appendBlock(promptEvaluator.eval(input)));
-        } catch (Exception e) {
-            releasePageOnAnyThread(input);
-            throw e;
-        }
-    }
-
     /**
      * Constructs the completion inference requests iterator for the given input page by evaluating the prompt expression.
      *
@@ -66,8 +54,7 @@ public class CompletionOperator extends InferenceOperator {
      */
     @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
-        int inputBlockChannel = inputPage.getBlockCount() - 1;
-        return new CompletionOperatorRequestIterator(inputPage.getBlock(inputBlockChannel), inferenceId());
+        return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
     }
 
     /**
@@ -78,10 +65,7 @@ public class CompletionOperator extends InferenceOperator {
     @Override
     protected CompletionOperatorOutputBuilder outputBuilder(Page input) {
         BytesRefBlock.Builder outputBlockBuilder = blockFactory().newBytesRefBlockBuilder(input.getPositionCount());
-        return new CompletionOperatorOutputBuilder(
-            outputBlockBuilder,
-            input.projectBlocks(IntStream.range(0, input.getBlockCount() - 1).toArray())
-        );
+        return new CompletionOperatorOutputBuilder(outputBlockBuilder, input);
     }
 
     /**

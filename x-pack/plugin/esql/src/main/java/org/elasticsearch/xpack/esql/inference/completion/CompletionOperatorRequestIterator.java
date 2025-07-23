@@ -119,7 +119,7 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
 
         @Override
         public void close() {
-
+            Releasables.closeExpectNoException(promptBlock);
         }
     }
 }

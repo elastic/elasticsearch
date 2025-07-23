@@ -576,15 +576,26 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             assert super.lock.isHeldByCurrentThread();
             Tuple<MergeTask, Long> head = enqueuedByBudget.peek();
             if (head != null && head.v2() > availableBudget) {
-                LOGGER.warn("There are merge tasks enqueued but there's insufficient disk space available to execute them");
+                LOGGER.warn(
+                    String.format(
+                        Locale.ROOT,
+                        "There are merge tasks enqueued but there's insufficient disk space available to execute them "
+                            + "(the smallest merge task requires [%d] bytes, but the available disk space is only [%d] bytes)",
+                        head.v2(),
+                        availableBudget
+                    )
+                );
                 if (LOGGER.isDebugEnabled()) {
                     if (unreleasedBudgetPerElement.isEmpty()) {
                         LOGGER.debug(
                             String.format(
                                 Locale.ROOT,
                                 "There are no merge tasks currently running, "
-                                    + "but there are [%d] enqueued ones that are blocked because of insufficient disk space",
-                                enqueuedByBudget.size()
+                                    + "but there are [%d] enqueued ones that are blocked because of insufficient disk space "
+                                    + "(the smallest merge task requires [%d] bytes, but the available disk space is only [%d] bytes)",
+                                enqueuedByBudget.size(),
+                                head.v2(),
+                                availableBudget
                             )
                         );
                     } else {
@@ -599,6 +610,13 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                             "], and there are ["
                                 + enqueuedByBudget.size()
                                 + "] additional enqueued ones that are blocked because of insufficient disk space"
+                        );
+                        messageBuilder.append(
+                            " (the smallest merge task requires ["
+                                + head.v2()
+                                + "] bytes, but the available disk space is only ["
+                                + availableBudget
+                                + "] bytes)"
                         );
                     }
                 }
@@ -687,7 +705,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             }
         }
 
-        void postBudgetUpdate() {};
+        void postBudgetUpdate() {
+            assert lock.isHeldByCurrentThread();
+        };
 
         private void updateBudgetOfEnqueuedElementsAndReorderQueue() {
             assert this.lock.isHeldByCurrentThread();

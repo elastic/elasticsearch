@@ -862,6 +862,14 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean isDocumentInLiveVersionMap(BytesRef uid) {
+        try (Releasable ignore = versionMap.acquireLock(uid)) {
+            final var versionValue = getVersionFromMap(uid);
+            return versionValue != null;
+        }
+    }
+
+    @Override
     public GetResult get(
         Get get,
         MappingLookup mappingLookup,

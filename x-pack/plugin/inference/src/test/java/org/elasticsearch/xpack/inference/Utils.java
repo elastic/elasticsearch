@@ -81,8 +81,6 @@ public final class Utils {
             ElasticInferenceServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toSet());
 
-        registeredSettings.add(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
-
         var cSettings = new ClusterSettings(settings, registeredSettings);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
 

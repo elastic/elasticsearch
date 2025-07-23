@@ -1328,6 +1328,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 shards.put(shardId, failedState);
                 knownFailures.put(shardSnapshotEntry.getKey(), failedState);
             } else if (shardStatus.state().completed() == false && shardStatus.nodeId() != null) {
+                // TODO: This branch applies to assigned-queued shards. It seems OK since it applies to INIT as well. Double check it.
                 if (nodes.nodeExists(shardStatus.nodeId())) {
                     shards.put(shardId, shardStatus);
                 } else {
@@ -2847,7 +2848,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             // Check whether we can start any assigned-queued shard snapshots in other repositories. They may have been
             // limited because the deleted entry took all node capacity.
-            // TODO: deduplicate the code for starting queued-with-gen shards across repos
+            // TODO: deduplicate the code for starting assigned-queued shards across repos
             final var snapshotsInProgress = SnapshotsInProgress.get(updatedState);
             final var perNodeShardSnapshotCounter = new PerNodeShardSnapshotCounter(
                 shardSnapshotPerNodeLimit,
@@ -3570,7 +3571,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             // Also check snapshots in other repositories since they might have been limited earlier due to shard snapshots running
             // from repositories currently seeing updates
-            // TODO: deduplicate the code for starting queued-with-gen shards across repos
+            // TODO: deduplicate the code for starting assigned-queued shards across repos
             for (var notUpdatedRepo : Sets.difference(existing.repos(), updatesByRepo.keySet())) {
                 if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode() == false) {
                     break;

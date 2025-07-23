@@ -603,21 +603,18 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                         messageBuilder.append("The following merge tasks are currently running [");
                         for (var runningMergeTask : super.unreleasedBudgetPerElement.entrySet()) {
                             messageBuilder.append(runningMergeTask.getKey().element().toString());
-                            messageBuilder.append(" with disk space budgets in bytes " + runningMergeTask.getValue() + " , ");
+                            messageBuilder.append(" with disk space budgets in bytes ").append(runningMergeTask.getValue()).append(" , ");
                         }
                         messageBuilder.delete(messageBuilder.length() - 3, messageBuilder.length());
-                        messageBuilder.append(
-                            "], and there are ["
-                                + enqueuedByBudget.size()
-                                + "] additional enqueued ones that are blocked because of insufficient disk space"
-                        );
-                        messageBuilder.append(
-                            " (the smallest merge task requires ["
-                                + head.v2()
-                                + "] bytes, but the available disk space is only ["
-                                + availableBudget
-                                + "] bytes)"
-                        );
+                        messageBuilder.append("], and there are [")
+                            .append(enqueuedByBudget.size())
+                            .append("] additional enqueued ones that are blocked because of insufficient disk space");
+                        messageBuilder.append(" (the smallest merge task requires [")
+                            .append(head.v2())
+                            .append("] bytes, but the available disk space is only [")
+                            .append(availableBudget)
+                            .append("] bytes)");
+                        LOGGER.debug(messageBuilder.toString());
                     }
                 }
             }

@@ -93,6 +93,11 @@ public class EsqlCapabilities {
         AGG_VALUES_SPATIAL,
 
         /**
+         * Accept unsigned longs on MAX and MIN aggregations.
+         */
+        AGG_MAX_MIN_UNSIGNED_LONG,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,
@@ -1282,6 +1287,11 @@ public class EsqlCapabilities {
         COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Fixed some profile serialization issues
+         */
+        FIXED_PROFILE_SERIALIZATION,
+
+        /**
          * Dot product vector similarity function
          */
         DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
@@ -1289,7 +1299,12 @@ public class EsqlCapabilities {
         /**
          * Support for the options field of CATEGORIZE.
          */
-        CATEGORIZE_OPTIONS;
+        CATEGORIZE_OPTIONS,
+
+        /**
+         * Support correct counting of skipped shards.
+         */
+        CORRECT_SKIPPED_SHARDS_COUNT;
 
         private final boolean enabled;
 

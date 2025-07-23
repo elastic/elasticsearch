@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.junit.Before;
 import org.junit.ClassRule;
 

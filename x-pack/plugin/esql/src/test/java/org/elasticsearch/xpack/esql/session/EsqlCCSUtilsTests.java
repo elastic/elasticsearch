@@ -37,18 +37,20 @@ import org.elasticsearch.xpack.esql.type.EsFieldTests;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.checkForCcsLicense;
+import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.initCrossClusterState;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.shouldIgnoreRuntimeError;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -696,87 +698,72 @@ public class EsqlCCSUtilsTests extends ESTestCase {
         assertThat(EsqlCCSUtils.concreteIndexRequested("*"), equalTo(false));
     }
 
-    public void testCheckForCcsLicense() {
+    public void testInitCrossClusterState() {
         final TestIndicesExpressionGrouper indicesGrouper = new TestIndicesExpressionGrouper();
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
 
-        // this seems to be used only for tracking usage of features, not for checking if a license is expired
-        final LongSupplier currTime = () -> System.currentTimeMillis();
-
-        XPackLicenseState enterpriseLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.ENTERPRISE));
-        XPackLicenseState trialLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.TRIAL));
-        XPackLicenseState platinumLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.PLATINUM));
-        XPackLicenseState goldLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.GOLD));
-        XPackLicenseState basicLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.BASIC));
-        XPackLicenseState standardLicenseValid = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.STANDARD));
-        XPackLicenseState missingLicense = new XPackLicenseState(currTime, activeLicenseStatus(License.OperationMode.MISSING));
-        XPackLicenseState nullLicense = null;
-
-        final XPackLicenseStatus enterpriseStatus = inactiveLicenseStatus(License.OperationMode.ENTERPRISE);
-        XPackLicenseState enterpriseLicenseInactive = new XPackLicenseState(currTime, enterpriseStatus);
-        XPackLicenseState trialLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.TRIAL));
-        XPackLicenseState platinumLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.PLATINUM));
-        XPackLicenseState goldLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.GOLD));
-        XPackLicenseState basicLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.BASIC));
-        XPackLicenseState standardLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.STANDARD));
-        XPackLicenseState missingLicenseInactive = new XPackLicenseState(currTime, inactiveLicenseStatus(License.OperationMode.MISSING));
-
-        // local only search does not require an enterprise license
+        // local only search works with any license state
         {
-            List<IndexPattern> indices = List.of(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*")));
+            var localOnly = List.of(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*")));
 
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), platinumLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), goldLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), trialLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), basicLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), standardLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), missingLicense);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), nullLicense);
-
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), platinumLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), goldLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), trialLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), basicLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), standardLicenseInactive);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), missingLicenseInactive);
+            assertLicenseCheckPasses(indicesGrouper, null, localOnly, "");
+            for (var mode : License.OperationMode.values()) {
+                assertLicenseCheckPasses(indicesGrouper, activeLicenseStatus(mode), localOnly, "");
+                assertLicenseCheckPasses(indicesGrouper, inactiveLicenseStatus(mode), localOnly, "");
+            }
         }
 
         // cross-cluster search requires a valid (active, non-expired) enterprise license OR a valid trial license
         {
-            List<IndexPattern> indices = new ArrayList<>();
-            final String indexExprWithRemotes = randomFrom("remote:idx", "idx1,remote:idx2*,remote:logs,c*:idx4");
-            if (randomBoolean()) {
-                indices.add(new IndexPattern(EMPTY, indexExprWithRemotes));
-            } else {
-                indices.add(new IndexPattern(EMPTY, randomFrom("idx", "idx1,idx2*")));
-                indices.add(new IndexPattern(EMPTY, indexExprWithRemotes));
+            var remote = List.of(new IndexPattern(EMPTY, randomFrom("idx,remote:idx", "idx1,remote:idx2*,remote:logs")));
+
+            var supportedLicenses = EnumSet.of(License.OperationMode.TRIAL, License.OperationMode.ENTERPRISE);
+            var unsupportedLicenses = EnumSet.complementOf(supportedLicenses);
+
+            assertLicenseCheckFails(indicesGrouper, null, remote, "none");
+            for (var mode : supportedLicenses) {
+                assertLicenseCheckPasses(indicesGrouper, activeLicenseStatus(mode), remote, "", "remote");
+                assertLicenseCheckFails(indicesGrouper, inactiveLicenseStatus(mode), remote, "expired " + nameOf(mode) + " license");
             }
-
-            // licenses that work
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), enterpriseLicenseValid);
-            checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), trialLicenseValid);
-
-            // all others fail ---
-
-            // active non-expired non-Enterprise non-Trial licenses
-            assertLicenseCheckFails(indices, indicesGrouper, platinumLicenseValid, "active platinum license");
-            assertLicenseCheckFails(indices, indicesGrouper, goldLicenseValid, "active gold license");
-            assertLicenseCheckFails(indices, indicesGrouper, basicLicenseValid, "active basic license");
-            assertLicenseCheckFails(indices, indicesGrouper, standardLicenseValid, "active standard license");
-            assertLicenseCheckFails(indices, indicesGrouper, missingLicense, "active missing license");
-            assertLicenseCheckFails(indices, indicesGrouper, nullLicense, "none");
-
-            // inactive/expired licenses
-            assertLicenseCheckFails(indices, indicesGrouper, enterpriseLicenseInactive, "expired enterprise license");
-            assertLicenseCheckFails(indices, indicesGrouper, trialLicenseInactive, "expired trial license");
-            assertLicenseCheckFails(indices, indicesGrouper, platinumLicenseInactive, "expired platinum license");
-            assertLicenseCheckFails(indices, indicesGrouper, goldLicenseInactive, "expired gold license");
-            assertLicenseCheckFails(indices, indicesGrouper, basicLicenseInactive, "expired basic license");
-            assertLicenseCheckFails(indices, indicesGrouper, standardLicenseInactive, "expired standard license");
-            assertLicenseCheckFails(indices, indicesGrouper, missingLicenseInactive, "expired missing license");
+            for (var mode : unsupportedLicenses) {
+                assertLicenseCheckFails(indicesGrouper, activeLicenseStatus(mode), remote, "active " + nameOf(mode) + " license");
+                assertLicenseCheckFails(indicesGrouper, inactiveLicenseStatus(mode), remote, "expired " + nameOf(mode) + " license");
+            }
         }
+    }
+
+    private static String nameOf(License.OperationMode mode) {
+        return mode.name().toLowerCase(Locale.ROOT);
+    }
+
+    private static XPackLicenseState createLicenseState(XPackLicenseStatus status) {
+        return status != null ? new XPackLicenseState(System::currentTimeMillis, status) : null;
+    }
+
+    private void assertLicenseCheckPasses(
+        TestIndicesExpressionGrouper indicesGrouper,
+        XPackLicenseStatus status,
+        List<IndexPattern> patterns,
+        String... expectedRemotes
+    ) {
+        var executionInfo = new EsqlExecutionInfo(true);
+        initCrossClusterState(indicesGrouper, createLicenseState(status), patterns, executionInfo);
+        assertThat(executionInfo.clusterAliases(), containsInAnyOrder(expectedRemotes));
+    }
+
+    private void assertLicenseCheckFails(
+        TestIndicesExpressionGrouper indicesGrouper,
+        XPackLicenseStatus licenseStatus,
+        List<IndexPattern> patterns,
+        String expectedErrorMessageSuffix
+    ) {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            equalTo(
+                "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
+            ),
+            () -> initCrossClusterState(indicesGrouper, createLicenseState(licenseStatus), patterns, new EsqlExecutionInfo(true))
+        );
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
     }
 
     public void testShouldIgnoreRuntimeError() {
@@ -814,26 +801,6 @@ public class EsqlCCSUtilsTests extends ESTestCase {
 
     private XPackLicenseStatus inactiveLicenseStatus(License.OperationMode operationMode) {
         return new XPackLicenseStatus(operationMode, false, "License Expired 123");
-    }
-
-    private void assertLicenseCheckFails(
-        List<IndexPattern> indices,
-        TestIndicesExpressionGrouper indicesGrouper,
-        XPackLicenseState licenseState,
-        String expectedErrorMessageSuffix
-    ) {
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> checkForCcsLicense(executionInfo, indices, indicesGrouper, Set.of(), licenseState)
-        );
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "A valid Enterprise license is required to run ES|QL cross-cluster searches. License found: " + expectedErrorMessageSuffix
-            )
-        );
     }
 
     static class TestIndicesExpressionGrouper implements IndicesExpressionGrouper {

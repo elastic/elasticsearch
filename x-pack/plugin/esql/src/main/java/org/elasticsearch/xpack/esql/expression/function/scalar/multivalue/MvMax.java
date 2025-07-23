@@ -69,7 +69,18 @@ public class MvMax extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), t -> isSpatial(t) == false && isRepresentable(t), sourceText(), null, "representableNonSpatial");
+        return isType(
+            field(),
+            t -> isSpatial(t) == false && isRepresentable(t),
+            sourceText(),
+            null,
+            "boolean",
+            "date",
+            "ip",
+            "string",
+            "version",
+            "numeric except counter types"
+        );
     }
 
     @Override

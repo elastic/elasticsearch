@@ -49,7 +49,7 @@ public final class FieldPermissionsCache {
             .build();
     }
 
-    public Cache.Stats getCacheStats() {
+    public Cache.CacheStats getCacheStats() {
         return cache.stats();
     }
 

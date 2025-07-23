@@ -137,7 +137,7 @@ public final class EnrichCache {
     }
 
     public EnrichStatsAction.Response.CacheStats getStats(String localNodeId) {
-        Cache.Stats stats = cache.stats();
+        Cache.CacheStats stats = cache.stats();
         return new EnrichStatsAction.Response.CacheStats(
             localNodeId,
             cache.count(),

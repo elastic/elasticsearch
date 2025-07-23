@@ -746,8 +746,8 @@ public class LRUCache<K, V> implements Cache<K, V> {
      *
      * @return the current cache statistics
      */
-    public Stats stats() {
-        return new Stats(hits.sum(), misses.sum(), evictions.sum());
+    public CacheStats stats() {
+        return new CacheStats(hits.sum(), misses.sum(), evictions.sum());
     }
 
     private void promote(Entry<K, V> entry, long now) {

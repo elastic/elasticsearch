@@ -290,7 +290,7 @@ public abstract class DocsV3Support {
         @Override
         public void write(Path dir, String name, String extension, String str, boolean kibana) throws IOException {
             Path file = dir.resolve(name + "." + extension);
-            assertTrue(file + " exists", Files.exists(file));
+            assertTrue("rerun test for " + name + ". " + file + " is missing", Files.exists(file));
             List<String> found = Files.readAllLines(file);
             List<String> renderedLines = str.lines().toList();
             int length = Math.min(found.size(), renderedLines.size());
@@ -301,24 +301,31 @@ public abstract class DocsV3Support {
                 }
                 String f = found.get(i);
                 if (r.equals(f) == false) {
-                    assertEquals("existing generated docs don't match " + file + ":" + (i + 1), r, f);
+                    assertEquals(errorMessage(name, file, i) + ": mismatch", r, f);
                 }
             }
             if (renderedLines.size() > found.size()) {
-                fail("rendered extra line " + file + ":" + renderedLines.size() + ": " + renderedLines.get(found.size()));
+                fail(errorMessage(name, file, found.size()) + ": rendered extra line: " + renderedLines.get(found.size()));
             }
             if (renderedLines.size() < found.size()) {
-                if (renderedLines.size() + 1 == found.size() && found.get(renderedLines.size()).isEmpty()) {
-                    // trailing newline, whatever
-                } else {
-                    fail("found extra line " + file + ":" + found.size() + ": " + found.get(renderedLines.size()));
-                }
+                fail(errorMessage(name, file, found.size()) + ": found extra line: "  + found.get(renderedLines.size()));
             }
+        }
+
+        private String errorMessage(String name, Path file, int i) {
+            return "rerun tests for " + name + ". Generated docs out of date in " + file + ":" + (i + 1);
         }
 
         @Override
         public boolean supportsRendering() {
-            // CI doesn't always support rendering the svgs. And we hack them anyway so they don't match.
+            /*
+             * Our svg rendering stuff needs the OS it's running on to have
+             * some gui support. Why?! Svg is just xml. And we should be fine
+             * making that. And we are! But we also need to get the sizing
+             * of some fonts and *that* has to render the word. And *that*
+             * needs the gui. Which is wild. And we shouldn't need it. Svg
+             * is a vector format. But that is a problem for another time.
+             */
             return false;
         }
     }

@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatternList;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -31,6 +32,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdow
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -176,5 +179,22 @@ public class WildcardLikeList extends RegexMatch<WildcardPatternList> {
      */
     private Query translateField(String targetFieldName) {
         return new ExpressionQuery(source(), targetFieldName, this);
+    }
+
+    /**
+     * Pushes down string casing optimization by filtering patterns using the provided predicate.
+     * Returns a new RegexMatch or a Literal.FALSE if none match.
+     */
+    @Override
+    public Expression optimizeStringCasingWithInsensitiveRegexMatch(Expression unwrappedField, Predicate<String> matchesCaseFn) {
+        List<WildcardPattern> filtered = pattern().patternList()
+            .stream()
+            .filter(p -> matchesCaseFn.test(p.pattern()))
+            .collect(Collectors.toList());
+        // none of the patterns matches the case of the field, return false
+        if (filtered.isEmpty()) {
+            return Literal.of(this, Boolean.FALSE);
+        }
+        return new WildcardLikeList(source(), unwrappedField, new WildcardPatternList(filtered), true);
     }
 }

@@ -1182,6 +1182,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return result;
     }
 
+    public static Double randomOptionalDouble() {
+        return randomFrom(randomDouble(), null);
+    }
+
     public static long randomLong() {
         return random().nextLong();
     }

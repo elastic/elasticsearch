@@ -611,7 +611,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
         String name = visitFunctionName(ctx.functionName());
-        List<Expression> args = expressions(ctx.booleanExpression());
+        List<Expression> args = new ArrayList<>(expressions(ctx.booleanExpression()));
         if (ctx.mapExpression() != null) {
             MapExpression mapArg = visitMapExpression(ctx.mapExpression());
             args.add(mapArg);
@@ -656,7 +656,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             if (names.contains(key)) {
                 throw new ParsingException(source(ctx), "Duplicated function arguments with the same name [{}] is not supported", key);
             }
-            Expression value = expression(entry.constant());
+            Expression value = expression(entry.value.constant() != null ? entry.value.constant() : entry.value.mapExpression());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
                 if (l.dataType() == NULL) {
@@ -665,6 +665,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
                 names.add(key);
+            } else if (value instanceof MapExpression) {
+                namedArgs.add(Literal.keyword(source(stringCtx), key));
+                namedArgs.add(value);
             } else {
                 throw new ParsingException(
                     source(ctx),

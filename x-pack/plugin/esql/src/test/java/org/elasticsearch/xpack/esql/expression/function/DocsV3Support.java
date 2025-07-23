@@ -314,7 +314,7 @@ public abstract class DocsV3Support {
                 fail(errorMessage(name, file, found.size()) + ": rendered extra line: " + renderedLines.get(found.size()));
             }
             if (renderedLines.size() < found.size()) {
-                fail(errorMessage(name, file, found.size()) + ": found extra line: "  + found.get(renderedLines.size()));
+                fail(errorMessage(name, file, found.size()) + ": found extra line: " + found.get(renderedLines.size()));
             }
         }
 

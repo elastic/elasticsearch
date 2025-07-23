@@ -12,16 +12,14 @@ package org.elasticsearch.gradle.internal.transport;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
-public class GenerateTransportVersionDataPlugin implements Plugin<Project> {
-
+public class ValidateTransportVersionDataFilesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        project.getTasks().register("generateTransportVersionData", GenerateTransportVersionDataTask.class, t -> {
-            t.setDescription("Generate transport version data"); // todo update this to be more descriptive
-            t.setGroup("Transport Versions"); // todo
-            t.getDataFileDirectory().set(project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/transport/"));
-            t.getTVSetName().set("FOO"); // todo
-            t.getReleaseVersionForTV().set("9.2"); // todo
+        final var task = project.getTasks().register("validateTransportVersionDataFiles", ValidateTransportVersionsTask.class, t -> {
+            t.getTransportVersionSetNamesFile().set(
+                project.getLayout().getBuildDirectory().file(AggregateTransportVersionDeclarationsPlugin.ALL_TRANSPORT_VERSION_NAMES_FILE));
+            t.getDataFileDirectory().set(
+                project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/transport/"));
         });
     }
 }

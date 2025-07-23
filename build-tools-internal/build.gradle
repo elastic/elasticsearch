@@ -236,9 +236,13 @@ gradlePlugin {
       id = 'elasticsearch.validate-transport-versions'
       implementationClass = 'org.elasticsearch.gradle.internal.transport.ValidateTransportVersionsPlugin'
     }
-    aggregateTransportVersionDeclarationsPlugin{
+    aggregateTransportVersionDeclarationsPlugin {
       id = 'elasticsearch.aggregate-transport-versionDeclarations-plugin'
       implementationClass = 'org.elasticsearch.gradle.internal.transport.AggregateTransportVersionDeclarationsPlugin'
+    }
+    validateTransportVersionDataFilesPlugin {
+      id = 'elasticsearch.validate-transport-version-data-files'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.ValidateTransportVersionDataFilesPlugin'
     }
   }
 }

@@ -17,6 +17,7 @@ apply plugin: 'elasticsearch.generate-transport-version-manifest'
 apply plugin: 'elasticsearch.generate-transport-version-data'
 apply plugin: 'elasticsearch.validate-transport-versions'
 apply plugin: 'elasticsearch.aggregate-transport-versionDeclarations-plugin'
+apply plugin: 'elasticsearch.validate-transport-version-data-files'
 
 publishing {
   publications {

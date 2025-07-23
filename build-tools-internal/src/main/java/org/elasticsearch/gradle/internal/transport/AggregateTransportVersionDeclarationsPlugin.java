@@ -15,6 +15,8 @@ import org.gradle.api.Project;
 import java.util.Map;
 
 public class AggregateTransportVersionDeclarationsPlugin implements Plugin<Project> {
+    public static final String ALL_TRANSPORT_VERSION_NAMES_FILE = "generated-transport-info/all-transport-version-names.txt";
+
     @Override
     public void apply(Project project) {
         // need to have this task depend on all the tasks with BaseInternalPluginBuildPlugin registered
@@ -37,7 +39,7 @@ public class AggregateTransportVersionDeclarationsPlugin implements Plugin<Proje
                 t.dependsOn(configuration); // this task can only run after this config is resolved
                 t.getTransportVersionNameDeclarationsFiles().setFrom(configuration);
                 t.getOutputFile().set(project.getLayout().getBuildDirectory()
-                    .file("generated-transport-info/all-transport-version-names.txt"));
+                    .file(ALL_TRANSPORT_VERSION_NAMES_FILE));
             });
 
     }

@@ -101,7 +101,8 @@ public class CommandLicenseTests extends ESTestCase {
             CommandLicenseTests.class,
             command,
             licenseState,
-            observabilityTier
+            observabilityTier,
+            DocsV3Support.callbacksFromSystemProperty()
         );
         docs.renderDocs();
     }

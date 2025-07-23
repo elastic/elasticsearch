@@ -1086,7 +1086,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [min(network.bytes_in)] must be"
-                    + " [representable except unsigned_long and spatial types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1095,7 +1095,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [max(network.bytes_in)] must be"
-                    + " [representable except unsigned_long and spatial types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );

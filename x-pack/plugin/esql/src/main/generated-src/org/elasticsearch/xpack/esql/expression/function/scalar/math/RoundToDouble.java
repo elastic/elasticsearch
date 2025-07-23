@@ -49,21 +49,6 @@ class RoundToDouble {
         };
     };
 
-    /**
-     * Search the points array for the match linearly. This is faster for smaller arrays even
-     * when finding a position late in the array. Presumably because this is super-SIMD-able.
-     */
-    @Evaluator(extraName = "LinearSearch")
-    static double processLinear(double field, @Fixed(includeInToString = false) double[] points) {
-        // points is always longer than 3 or we use one of the specialized methods below
-        for (int i = 1; i < points.length; i++) {
-            if (field < points[i]) {
-                return points[i - 1];
-            }
-        }
-        return points[points.length - 1];
-    }
-
     @Evaluator(extraName = "BinarySearch")
     static double process(double field, @Fixed(includeInToString = false) double[] points) {
         int idx = Arrays.binarySearch(points, field);

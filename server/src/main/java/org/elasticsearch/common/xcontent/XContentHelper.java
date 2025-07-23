@@ -120,7 +120,7 @@ public class XContentHelper {
     public static XContentParser createParser(XContentParserConfiguration config, BytesReference bytes, XContentType xContentType)
         throws IOException {
         Objects.requireNonNull(xContentType);
-        Compressor compressor = CompressorFactory.compressorForUnknownXContentType(bytes);
+        Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
             return XContentFactory.xContent(xContentType).createParser(config, compressor.threadLocalInputStream(bytes.streamInput()));
         } else {

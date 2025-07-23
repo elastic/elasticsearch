@@ -428,7 +428,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         if (result.unresolved()) {
             return result;
         }
-        result = resolveTypeQuery(query(), sourceText());
+        result = resolveTypeQuery(query(), sourceText(), null);
         if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
             return result;
         }

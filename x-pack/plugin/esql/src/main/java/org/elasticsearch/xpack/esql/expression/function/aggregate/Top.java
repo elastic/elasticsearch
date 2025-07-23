@@ -166,7 +166,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
             return result;
         }
-        result = resolveTypeOrder();
+        result = resolveTypeOrder(null);
         if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
             return result;
         }
@@ -175,35 +175,60 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
 
     /**
      * We check that the limit is not null and that if it is a literal, it is a positive integer
-     * We will do a more thorough check in the postOptimizationVerification once folding is done.
+     * During postOptimizationVerification folding is already done, so we also verify that it is definitively a literal
      */
     private TypeResolution resolveTypeLimit() {
-        return FunctionUtils.resolveTypeLimit(limitField(), sourceText());
+        return FunctionUtils.resolveTypeLimit(limitField(), sourceText(), null);
     }
 
     /**
      * We check that the order is not null and that if it is a literal, it is one of the two valid values: "asc" or "desc".
-     * We will do a more thorough check in the postOptimizationVerification once folding is done.
+     * During postOptimizationVerification folding is already done, so we also verify that it is definitively a literal
      */
-    private TypeResolution resolveTypeOrder() {
+    private Expression.TypeResolution resolveTypeOrder(Failures failures) {
+        FunctionUtils.TypeResolutionValidator validator = new FunctionUtils.TypeResolutionValidator(orderField(), failures);
         Expression order = orderField();
         if (order == null) {
-            return new TypeResolution(format(null, "Order must be a valid string in [{}], found [{}]", sourceText(), order));
-        }
-        if (order instanceof Literal literal) {
+            validator.reportPreFoldingFailure(
+                new TypeResolution(format(null, "Order must be a valid string in [{}], found [{}]", sourceText(), order))
+            );
+        } else if (order instanceof Literal literal) {
             if (literal.value() == null) {
-                return new TypeResolution(
-                    format(null, "Invalid order value in [{}], expected [{}, {}] but got [{}]", sourceText(), ORDER_ASC, ORDER_DESC, order)
+                validator.reportPreFoldingFailure(
+                    new TypeResolution(
+                        format(
+                            null,
+                            "Invalid order value in [{}], expected [{}, {}] but got [{}]",
+                            sourceText(),
+                            ORDER_ASC,
+                            ORDER_DESC,
+                            order
+                        )
+                    )
                 );
+            } else {
+                String value = BytesRefs.toString(literal.value());
+                if (value == null || value.equalsIgnoreCase(ORDER_ASC) == false && value.equalsIgnoreCase(ORDER_DESC) == false) {
+                    validator.reportPreFoldingFailure(
+                        new TypeResolution(
+                            format(
+                                null,
+                                "Invalid order value in [{}], expected [{}, {}] but got [{}]",
+                                sourceText(),
+                                ORDER_ASC,
+                                ORDER_DESC,
+                                order
+                            )
+                        )
+                    );
+                }
             }
-            String value = BytesRefs.toString(literal.value());
-            if (value == null || value.equalsIgnoreCase(ORDER_ASC) == false && value.equalsIgnoreCase(ORDER_DESC) == false) {
-                return new TypeResolution(
-                    format(null, "Invalid order value in [{}], expected [{}, {}] but got [{}]", sourceText(), ORDER_ASC, ORDER_DESC, order)
-                );
-            }
+        } else {
+            // it is expected that the expression is a literal after folding
+            // we fail if it is not a literal
+            validator.reportPostFoldingFailure(fail(order, "Order must be a valid string in [{}], found [{}]", sourceText(), order));
         }
-        return TypeResolution.TYPE_RESOLVED;
+        return validator.getResolvedType();
     }
 
     @Override
@@ -213,26 +238,11 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     private void postOptimizationVerificationLimit(Failures failures) {
-        FunctionUtils.postOptimizationVerificationLimit(failures, limitField(), sourceText());
+        FunctionUtils.resolveTypeLimit(limitField(), sourceText(), failures);
     }
 
     private void postOptimizationVerificationOrder(Failures failures) {
-        Expression order = orderField();
-        if (order == null) {
-            failures.add(fail(order, "Order must be a valid string in [{}], found [{}]", sourceText(), order));
-        }
-        if (order instanceof Literal literal) {
-            String value = BytesRefs.toString(literal.value());
-            if (value == null || value.equalsIgnoreCase(ORDER_ASC) == false && value.equalsIgnoreCase(ORDER_DESC) == false) {
-                failures.add(
-                    fail(order, "Invalid order value in [{}], expected [{}, {}] but got [{}]", sourceText(), ORDER_ASC, ORDER_DESC, order)
-                );
-            }
-        } else {
-            // it is expected that the expression is a literal after folding
-            // we fail if it is not a literal
-            failures.add(fail(order, "Order must be a valid string in [{}], found [{}]", sourceText(), order));
-        }
+        resolveTypeOrder(failures);
     }
 
     @Override

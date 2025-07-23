@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -16,6 +18,43 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 public class FunctionUtils {
+    /**
+     * A utility class to validate the type resolution of expressions before and after folding.
+     * If null is passed for Failures to the constructor, it means we are only type resolution.
+     * This is usually called when doing pre-folding validation.
+     * If a {@link Failures} instance is passed, it means we are doing post-folding validation as well.
+     * This is usually called after folding is done, from during {@link org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware} verification
+     */
+    public static class TypeResolutionValidator {
+
+        Expression.TypeResolution typeResolution = Expression.TypeResolution.TYPE_RESOLVED;
+        @Nullable
+        private final Failures postFoldingFailures; // null means we are doing pre-folding validation only
+        private final Expression field;
+
+        public TypeResolutionValidator(Expression field, Failures failures) {
+            this.field = field;
+            this.postFoldingFailures = failures;
+        }
+
+        public void reportPostFoldingFailure(Failure failure) {
+            if (postFoldingFailures != null) {
+                postFoldingFailures.add(failure);
+            }
+        }
+
+        public void reportPreFoldingFailure(Expression.TypeResolution message) {
+            typeResolution = message;
+            if (postFoldingFailures != null) {
+                postFoldingFailures.add(fail(field, message.message()));
+            }
+        }
+
+        public Expression.TypeResolution getResolvedType() {
+            return typeResolution;
+        }
+    }
+
     public static Integer limitValue(Expression limitField, String sourceText) {
         if (limitField instanceof Literal literal) {
             Object value = literal.value();
@@ -28,71 +67,63 @@ public class FunctionUtils {
 
     /**
      * We check that the limit is not null and that if it is a literal, it is a positive integer
-     * We will do a more thorough check in the postOptimizationVerification once folding is done.
+     * During postOptimizationVerification folding is already done, so we also verify that it is definitively a literal
      */
-    public static Expression.TypeResolution resolveTypeLimit(Expression limitField, String sourceText) {
+    public static Expression.TypeResolution resolveTypeLimit(Expression limitField, String sourceText, Failures failures) {
+        TypeResolutionValidator validator = new TypeResolutionValidator(limitField, failures);
         if (limitField == null) {
-            return new Expression.TypeResolution(
-                format(null, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField)
+            validator.reportPreFoldingFailure(
+                new Expression.TypeResolution(format(null, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField))
+            );
+        } else if (limitField instanceof Literal literal) {
+            if (literal.value() == null) {
+                validator.reportPreFoldingFailure(
+                    new Expression.TypeResolution(
+                        format(null, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField)
+                    )
+                );
+            } else {
+                int value = (Integer) literal.value();
+                if (value <= 0) {
+                    validator.reportPreFoldingFailure(
+                        new Expression.TypeResolution(format(null, "Limit must be greater than 0 in [{}], found [{}]", sourceText, value))
+                    );
+                }
+            }
+        } else {
+            // it is expected that the expression is a literal after folding
+            // we fail if it is not a literal
+            validator.reportPostFoldingFailure(
+                fail(limitField, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField)
             );
         }
-        if (limitField instanceof Literal literal) {
-            if (literal.value() == null) {
-                return new Expression.TypeResolution(
-                    format(null, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField)
-                );
-            }
-            int value = (Integer) literal.value();
-            if (value <= 0) {
-                return new Expression.TypeResolution(format(null, "Limit must be greater than 0 in [{}], found [{}]", sourceText, value));
-            }
-        }
-        return Expression.TypeResolution.TYPE_RESOLVED;
+        return validator.getResolvedType();
     }
 
-    public static void postOptimizationVerificationLimit(Failures failures, Expression limitField, String sourceText) {
-        if (limitField == null) {
-            failures.add(fail(limitField, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField));
-        }
-        if (limitField instanceof Literal literal) {
-            int value = (Integer) literal.value();
-            if (value <= 0) {
-                failures.add(fail(limitField, "Limit must be greater than 0 in [{}], found [{}]", sourceText, value));
+    /**
+     * We check that the query is not null and that if it is a literal, it is a string
+     * During postOptimizationVerification folding is already done, so we also verify that it is definitively a literal
+     */
+    public static Expression.TypeResolution resolveTypeQuery(Expression queryField, String sourceText, Failures failures) {
+        TypeResolutionValidator validator = new TypeResolutionValidator(queryField, failures);
+        if (queryField == null) {
+            validator.reportPreFoldingFailure(
+                new Expression.TypeResolution(format(null, "Query must be a valid string in [{}], found [{}]", sourceText, queryField))
+            );
+        } else if (queryField instanceof Literal literal) {
+            if (literal.value() == null) {
+                validator.reportPreFoldingFailure(
+                    new Expression.TypeResolution(format(null, "Query value cannot be null in [{}], but got [{}]", sourceText, queryField))
+                );
             }
         } else {
             // it is expected that the expression is a literal after folding
             // we fail if it is not a literal
-            failures.add(fail(limitField, "Limit must be a constant integer in [{}], found [{}]", sourceText, limitField));
+            validator.reportPostFoldingFailure(
+                fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField)
+            );
         }
-    }
-
-    public static Expression.TypeResolution resolveTypeQuery(Expression queryField, String sourceText) {
-        if (queryField == null) {
-            return new Expression.TypeResolution(format(null, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
-        }
-        if (queryField instanceof Literal literal) {
-            if (literal.value() == null) {
-                return new Expression.TypeResolution(
-                    format(null, "Query value cannot be null in [{}], but got [{}]", sourceText, queryField)
-                );
-            }
-        }
-        return Expression.TypeResolution.TYPE_RESOLVED;
-    }
-
-    public static void postOptimizationVerificationQuery(Failures failures, Expression queryField, String sourceText) {
-        if (queryField == null) {
-            failures.add(fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
-        }
-        if (queryField instanceof Literal literal) {
-            if (literal.value() == null) {
-                failures.add(fail(queryField, "Invalid query value in [{}], found [{}]", sourceText, literal.value()));
-            }
-        } else {
-            // it is expected that the expression is a literal after folding
-            // we fail if it is not a literal
-            failures.add(fail(queryField, "Query must be a valid string in [{}], found [{}]", sourceText, queryField));
-        }
+        return validator.getResolvedType();
     }
 
     public static Object queryAsObject(Expression queryField, String sourceText) {

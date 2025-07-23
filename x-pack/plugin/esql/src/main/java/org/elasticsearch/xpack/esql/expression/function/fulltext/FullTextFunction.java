@@ -56,7 +56,6 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.postOptimizationVerificationQuery;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
 
 /**
@@ -114,7 +113,7 @@ public abstract class FullTextFunction extends Function
         if (result.unresolved()) {
             return result;
         }
-        result = resolveTypeQuery(query(), sourceText());
+        result = resolveTypeQuery(query(), sourceText(), null);
         if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
             return result;
         }
@@ -420,6 +419,6 @@ public abstract class FullTextFunction extends Function
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        postOptimizationVerificationQuery(failures, query(), sourceText());
+        resolveTypeQuery(query(), sourceText(), failures);
     }
 }

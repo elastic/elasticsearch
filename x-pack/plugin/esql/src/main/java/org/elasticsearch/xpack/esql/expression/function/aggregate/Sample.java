@@ -39,7 +39,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.postOptimizationVerificationLimit;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeLimit;
 
 public class Sample extends AggregateFunction implements ToAggregator, PostOptimizationVerificationAware {
@@ -118,7 +117,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
         if (typeResolution.unresolved()) {
             return typeResolution;
         }
-        TypeResolution result = resolveTypeLimit(limitField(), sourceText());
+        TypeResolution result = resolveTypeLimit(limitField(), sourceText(), null);
         if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
             return result;
         }
@@ -176,6 +175,6 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
 
     @Override
     public void postOptimizationVerification(Failures failures) {
-        postOptimizationVerificationLimit(failures, limitField(), sourceText());
+        FunctionUtils.resolveTypeLimit(limitField(), sourceText(), failures);
     }
 }

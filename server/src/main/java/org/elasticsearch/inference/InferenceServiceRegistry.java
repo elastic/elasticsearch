@@ -9,7 +9,6 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 
 import java.io.Closeable;

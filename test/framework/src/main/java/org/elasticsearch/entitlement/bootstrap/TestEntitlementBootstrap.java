@@ -13,11 +13,11 @@ import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
@@ -85,17 +85,16 @@ public class TestEntitlementBootstrap {
         if (policyManager == null) {
             return;
         }
-        var homeDir = homeDir(settings);
-        var configDir = configDir(configPath, homeDir);
-        var sharedDataDir = sharedDataDir(settings);
-        var dataDirs = dataDirs(settings, homeDir);
-        var repoDirs = repoDirs(settings);
+
+        Path homeDir = homeDir(settings);
+        Path configDir = configDir(configPath, homeDir);
+        Collection<Path> dataDirs = dataDirs(settings, homeDir);
+        Collection<Path> sharedDataDir = sharedDataDir(settings);
+        Collection<Path> repoDirs = repoDirs(settings);
         logger.debug("Registering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.add(configDir)));
-        if (sharedDataDir != null) {
-            baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.add(sharedDataDir)));
-        }
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.addAll(dataDirs)));
+        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.addAll(sharedDataDir)));
         baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.addAll(repoDirs)));
         policyManager.clearModuleEntitlementsCache();
     }
@@ -104,17 +103,16 @@ public class TestEntitlementBootstrap {
         if (policyManager == null) {
             return;
         }
-        var homeDir = homeDir(settings);
-        var configDir = configDir(configPath, homeDir);
-        var sharedDataDir = sharedDataDir(settings);
-        var dataDirs = dataDirs(settings, homeDir);
-        var repoDirs = repoDirs(settings);
+
+        Path homeDir = homeDir(settings);
+        Path configDir = configDir(configPath, homeDir);
+        Collection<Path> dataDirs = dataDirs(settings, homeDir);
+        Collection<Path> sharedDataDir = sharedDataDir(settings);
+        Collection<Path> repoDirs = repoDirs(settings);
         logger.debug("Unregistering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.remove(configDir)));
-        if (sharedDataDir != null) {
-            baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.remove(sharedDataDir)));
-        }
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.removeAll(dataDirs)));
+        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.removeAll(sharedDataDir)));
         baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.removeAll(repoDirs)));
         policyManager.clearModuleEntitlementsCache();
     }
@@ -134,9 +132,9 @@ public class TestEntitlementBootstrap {
             : dataDirs.stream().map(TestEntitlementBootstrap::absolutePath).toList();
     }
 
-    private static Path sharedDataDir(Settings settings) {
+    private static Collection<Path> sharedDataDir(Settings settings) {
         String sharedDataDir = PATH_SHARED_DATA_SETTING.get(settings);
-        return sharedDataDir.isEmpty() ? null : TestEntitlementBootstrap.absolutePath(sharedDataDir);
+        return Strings.hasText(sharedDataDir) ? List.of(absolutePath(sharedDataDir)) : List.of();
     }
 
     private static Collection<Path> repoDirs(Settings settings) {

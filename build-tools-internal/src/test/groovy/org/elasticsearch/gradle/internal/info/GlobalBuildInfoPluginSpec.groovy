@@ -14,7 +14,6 @@ import spock.lang.Specification
 import spock.lang.TempDir
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BwcVersions
 import org.gradle.api.Project
 import org.gradle.api.provider.Provider
@@ -22,7 +21,6 @@ import org.gradle.api.provider.ProviderFactory
 import org.gradle.testfixtures.ProjectBuilder
 
 import java.nio.file.Path
-import java.util.concurrent.Callable
 
 class GlobalBuildInfoPluginSpec extends Specification {
 
@@ -39,6 +37,18 @@ class GlobalBuildInfoPluginSpec extends Specification {
         project = Spy(project)
         project.getRootProject() >> project
 
+        File buildToolsInternalDir = new File(projectRoot, "build-tools-internal")
+        buildToolsInternalDir.mkdirs()
+        new File(buildToolsInternalDir, "version.properties").text = """
+            elasticsearch     = 9.1.0
+            lucene            = 10.2.2
+
+            bundled_jdk_vendor = openjdk
+            bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
+            minimumJdkVersion = 21
+            minimumRuntimeJava = 21
+            minimumCompilerJava = 21
+        """
         File versionFileDir = new File(projectRoot, "server/src/main/java/org/elasticsearch")
         versionFileDir.mkdirs()
         new File(versionFileDir, "Version.java").text = """
@@ -55,8 +65,8 @@ class GlobalBuildInfoPluginSpec extends Specification {
                 public static final Version V_9_0_2 = new Version(9_00_02_99);
                 public static final Version V_9_0_3 = new Version(9_00_03_99);
                 public static final Version V_9_1_0 = new Version(9_01_00_99);
-                public static final Version V_9_2_0 = new Version(9_02_00_99);
-                public static final Version CURRENT = V_9_2_0;
+                public static final Version CURRENT = V_9_1_0;
+
             }
         """
     }

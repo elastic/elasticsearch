@@ -16,24 +16,24 @@ import org.elasticsearch.gradle.internal.BwcVersions.UnreleasedVersionInfo
 import org.elasticsearch.gradle.internal.info.DevelopmentBranch
 
 class BwcVersionsSpec extends Specification {
-    List<String> versionLines = []
+    List<Version> versions = []
 
     def "current version is next major"() {
         given:
-        addVersion('7.17.10', '8.9.0')
-        addVersion('8.14.0', '9.9.0')
-        addVersion('8.14.1', '9.9.0')
-        addVersion('8.14.2', '9.9.0')
-        addVersion('8.15.0', '9.9.0')
-        addVersion('8.15.1', '9.9.0')
-        addVersion('8.15.2', '9.9.0')
-        addVersion('8.16.0', '9.10.0')
-        addVersion('8.16.1', '9.10.0')
-        addVersion('8.17.0', '9.10.0')
-        addVersion('9.0.0', '10.0.0')
+        addVersion('7.17.10')
+        addVersion('8.14.0')
+        addVersion('8.14.1')
+        addVersion('8.14.2')
+        addVersion('8.15.0')
+        addVersion('8.15.1')
+        addVersion('8.15.2')
+        addVersion('8.16.0')
+        addVersion('8.16.1')
+        addVersion('8.17.0')
+        addVersion('9.0.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('9.0.0'), [
+        def bwc = new BwcVersions(v('9.0.0'), versions, [
             branch('main', '9.0.0'),
             branch('8.x', '8.17.0'),
             branch('8.16', '8.16.1'),
@@ -55,21 +55,21 @@ class BwcVersionsSpec extends Specification {
 
     def "current version is next major with staged minor"() {
         given:
-        addVersion('7.17.10', '8.9.0')
-        addVersion('8.14.0', '9.9.0')
-        addVersion('8.14.1', '9.9.0')
-        addVersion('8.14.2', '9.9.0')
-        addVersion('8.15.0', '9.9.0')
-        addVersion('8.15.1', '9.9.0')
-        addVersion('8.15.2', '9.9.0')
-        addVersion('8.16.0', '9.10.0')
-        addVersion('8.16.1', '9.10.0')
-        addVersion('8.17.0', '9.10.0')
-        addVersion('8.18.0', '9.10.0')
-        addVersion('9.0.0', '10.0.0')
+        addVersion('7.17.10')
+        addVersion('8.14.0')
+        addVersion('8.14.1')
+        addVersion('8.14.2')
+        addVersion('8.15.0')
+        addVersion('8.15.1')
+        addVersion('8.15.2')
+        addVersion('8.16.0')
+        addVersion('8.16.1')
+        addVersion('8.17.0')
+        addVersion('8.18.0')
+        addVersion('9.0.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('9.0.0'), [
+        def bwc = new BwcVersions(v('9.0.0'), versions, [
             branch('main', '9.0.0'),
             branch('8.x', '8.18.0'),
             branch('8.17', '8.17.0'),
@@ -93,22 +93,22 @@ class BwcVersionsSpec extends Specification {
 
     def "current version is next major with two staged minors"() {
         given:
-        addVersion('7.17.10', '8.9.0')
-        addVersion('8.15.0', '9.9.0')
-        addVersion('8.15.1', '9.9.0')
-        addVersion('8.15.2', '9.9.0')
-        addVersion('8.16.0', '9.10.0')
-        addVersion('8.16.1', '9.10.0')
-        addVersion('8.16.2', '9.10.0')
-        addVersion('8.17.0', '9.10.0')
-        addVersion('8.17.1', '9.10.0')
-        addVersion('8.18.0', '9.10.0')
-        addVersion('8.19.0', '9.10.0')
-        addVersion('9.0.0', '10.0.0')
-        addVersion('9.1.0', '10.1.0')
+        addVersion('7.17.10')
+        addVersion('8.15.0')
+        addVersion('8.15.1')
+        addVersion('8.15.2')
+        addVersion('8.16.0')
+        addVersion('8.16.1')
+        addVersion('8.16.2')
+        addVersion('8.17.0')
+        addVersion('8.17.1')
+        addVersion('8.18.0')
+        addVersion('8.19.0')
+        addVersion('9.0.0')
+        addVersion('9.1.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('9.1.0'), [
+        def bwc = new BwcVersions(v('9.1.0'), versions, [
             branch('main', '9.1.0'),
             branch('9.0', '9.0.0'),
             branch('8.x', '8.19.0'),
@@ -134,16 +134,16 @@ class BwcVersionsSpec extends Specification {
 
     def "current version is first new minor in major series"() {
         given:
-        addVersion('7.17.10', '8.9.0')
-        addVersion('8.16.0', '9.10.0')
-        addVersion('8.16.1', '9.10.0')
-        addVersion('8.17.0', '9.10.0')
-        addVersion('8.18.0', '9.10.0')
-        addVersion('9.0.0', '10.0.0')
-        addVersion('9.1.0', '10.0.0')
+        addVersion('7.17.10')
+        addVersion('8.16.0')
+        addVersion('8.16.1')
+        addVersion('8.17.0')
+        addVersion('8.18.0')
+        addVersion('9.0.0')
+        addVersion('9.1.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('9.1.0'), [
+        def bwc = new BwcVersions(v('9.1.0'), versions, [
             branch('main','9.1.0'),
             branch('9.0', '9.0.0'),
             branch('8.18', '8.18.0')
@@ -162,17 +162,17 @@ class BwcVersionsSpec extends Specification {
 
     def "current version is new minor with single bugfix"() {
         given:
-        addVersion('7.17.10', '8.9.0')
-        addVersion('8.16.0', '9.10.0')
-        addVersion('8.16.1', '9.10.0')
-        addVersion('8.17.0', '9.10.0')
-        addVersion('8.18.0', '9.10.0')
-        addVersion('9.0.0', '10.0.0')
-        addVersion('9.0.1', '10.0.0')
-        addVersion('9.1.0', '10.0.0')
+        addVersion('7.17.10')
+        addVersion('8.16.0')
+        addVersion('8.16.1')
+        addVersion('8.17.0')
+        addVersion('8.18.0')
+        addVersion('9.0.0')
+        addVersion('9.0.1')
+        addVersion('9.1.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('9.1.0'), [
+        def bwc = new BwcVersions(v('9.1.0'), versions, [
             branch('main','9.1.0'),
             branch('9.0','9.0.1'),
             branch('8.18','8.18.0')
@@ -191,18 +191,18 @@ class BwcVersionsSpec extends Specification {
 
     def "current version is new minor with single bugfix and staged minor"() {
         given:
-        addVersion('7.17.10', '8.9.0')
-        addVersion('8.16.0', '9.10.0')
-        addVersion('8.16.1', '9.10.0')
-        addVersion('8.17.0', '9.10.0')
-        addVersion('8.18.0', '9.10.0')
-        addVersion('9.0.0', '10.0.0')
-        addVersion('9.0.1', '10.0.0')
-        addVersion('9.1.0', '10.0.0')
-        addVersion('9.2.0', '10.0.0')
+        addVersion('7.17.10')
+        addVersion('8.16.0')
+        addVersion('8.16.1')
+        addVersion('8.17.0')
+        addVersion('8.18.0')
+        addVersion('9.0.0')
+        addVersion('9.0.1')
+        addVersion('9.1.0')
+        addVersion('9.2.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('9.2.0'), [
+        def bwc = new BwcVersions(v('9.2.0'), versions, [
             branch('main','9.2.0'),
             branch('9.1','9.1.0'),
             branch('9.0','9.0.1'),
@@ -223,23 +223,23 @@ class BwcVersionsSpec extends Specification {
 
     def "current version is next minor"() {
         given:
-        addVersion('7.16.3', '8.9.0')
-        addVersion('7.17.0', '8.9.0')
-        addVersion('7.17.1', '8.9.0')
-        addVersion('8.14.0', '9.9.0')
-        addVersion('8.14.1', '9.9.0')
-        addVersion('8.14.2', '9.9.0')
-        addVersion('8.15.0', '9.9.0')
-        addVersion('8.15.1', '9.9.0')
-        addVersion('8.15.2', '9.9.0')
-        addVersion('8.16.0', '9.10.0')
-        addVersion('8.16.1', '9.10.0')
-        addVersion('8.17.0', '9.10.0')
-        addVersion('8.17.1', '9.10.0')
-        addVersion('8.18.0', '9.10.0')
+        addVersion('7.16.3')
+        addVersion('7.17.0')
+        addVersion('7.17.1')
+        addVersion('8.14.0')
+        addVersion('8.14.1')
+        addVersion('8.14.2')
+        addVersion('8.15.0')
+        addVersion('8.15.1')
+        addVersion('8.15.2')
+        addVersion('8.16.0')
+        addVersion('8.16.1')
+        addVersion('8.17.0')
+        addVersion('8.17.1')
+        addVersion('8.18.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.18.0'),[
+        def bwc = new BwcVersions(v('8.18.0'), versions, [
             branch('main', '9.1.0'),
             branch('9.0', '9.0.1'),
             branch('8.x', '8.18.0'),
@@ -262,22 +262,22 @@ class BwcVersionsSpec extends Specification {
 
     def "current version is new minor with staged minor"() {
         given:
-        addVersion('7.16.3', '8.9.0')
-        addVersion('7.17.0', '8.9.0')
-        addVersion('7.17.1', '8.9.0')
-        addVersion('8.14.0', '9.9.0')
-        addVersion('8.14.1', '9.9.0')
-        addVersion('8.14.2', '9.9.0')
-        addVersion('8.15.0', '9.9.0')
-        addVersion('8.15.1', '9.9.0')
-        addVersion('8.15.2', '9.9.0')
-        addVersion('8.16.0', '9.10.0')
-        addVersion('8.16.1', '9.10.0')
-        addVersion('8.17.0', '9.10.0')
-        addVersion('8.18.0', '9.10.0')
+        addVersion('7.16.3')
+        addVersion('7.17.0')
+        addVersion('7.17.1')
+        addVersion('8.14.0')
+        addVersion('8.14.1')
+        addVersion('8.14.2')
+        addVersion('8.15.0')
+        addVersion('8.15.1')
+        addVersion('8.15.2')
+        addVersion('8.16.0')
+        addVersion('8.16.1')
+        addVersion('8.17.0')
+        addVersion('8.18.0')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.18.0'), [
+        def bwc = new BwcVersions(v('8.18.0'), versions, [
             branch('main', '9.0.0'),
             branch('8.x', '8.18.0'),
             branch('8.17', '8.17.0'),
@@ -301,20 +301,20 @@ class BwcVersionsSpec extends Specification {
 
     def "current version is first bugfix"() {
         given:
-        addVersion('7.16.3', '8.9.0')
-        addVersion('7.17.0', '8.9.0')
-        addVersion('7.17.1', '8.9.0')
-        addVersion('8.14.0', '9.9.0')
-        addVersion('8.14.1', '9.9.0')
-        addVersion('8.14.2', '9.9.0')
-        addVersion('8.15.0', '9.9.0')
-        addVersion('8.15.1', '9.9.0')
-        addVersion('8.15.2', '9.9.0')
-        addVersion('8.16.0', '9.10.0')
-        addVersion('8.16.1', '9.10.0')
+        addVersion('7.16.3')
+        addVersion('7.17.0')
+        addVersion('7.17.1')
+        addVersion('8.14.0')
+        addVersion('8.14.1')
+        addVersion('8.14.2')
+        addVersion('8.15.0')
+        addVersion('8.15.1')
+        addVersion('8.15.2')
+        addVersion('8.16.0')
+        addVersion('8.16.1')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.16.1'), [
+        def bwc = new BwcVersions(v('8.16.1'), versions, [
             branch('main','9.0.1'),
             branch('8.x','8.18.0'),
             branch('8.17','8.17.0'),
@@ -336,18 +336,18 @@ class BwcVersionsSpec extends Specification {
 
     def "current version is second bugfix"() {
         given:
-        addVersion('7.16.3', '8.9.0')
-        addVersion('7.17.0', '8.9.0')
-        addVersion('7.17.1', '8.9.0')
-        addVersion('8.14.0', '9.9.0')
-        addVersion('8.14.1', '9.9.0')
-        addVersion('8.14.2', '9.9.0')
-        addVersion('8.15.0', '9.9.0')
-        addVersion('8.15.1', '9.9.0')
-        addVersion('8.15.2', '9.9.0')
+        addVersion('7.16.3')
+        addVersion('7.17.0')
+        addVersion('7.17.1')
+        addVersion('8.14.0')
+        addVersion('8.14.1')
+        addVersion('8.14.2')
+        addVersion('8.15.0')
+        addVersion('8.15.1')
+        addVersion('8.15.2')
 
         when:
-        def bwc = new BwcVersions(versionLines, v('8.15.2'), [
+        def bwc = new BwcVersions(v('8.15.2'), versions, [
             branch('main', '9.0.1'),
             branch('8.x', '8.18.1'),
             branch('8.17', '8.17.2'),
@@ -366,10 +366,8 @@ class BwcVersionsSpec extends Specification {
         bwc.indexCompatible == [v('7.16.3'), v('7.17.0'), v('7.17.1'), v('8.14.0'), v('8.14.1'), v('8.14.2'), v('8.15.0'), v('8.15.1'), v('8.15.2')]
     }
 
-    private void addVersion(String elasticsearch, String lucene) {
-        def es = Version.fromString(elasticsearch)
-        def l = Version.fromString(lucene)
-        versionLines << "    public static final Version V_${es.major}_${es.minor}_${es.revision} = new Version(0000000, org.apache.lucene.util.Version.LUCENE_${l.major}_${l.minor}_${l.revision});".toString()
+    private void addVersion(String elasticsearch) {
+        versions.add(Version.fromString(elasticsearch))
     }
 
     private Version v(String version) {

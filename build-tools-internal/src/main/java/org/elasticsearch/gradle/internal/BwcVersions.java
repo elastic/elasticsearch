@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.DevelopmentBranch;
 
 import java.io.Serializable;
@@ -25,8 +24,6 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.reverseOrder;
@@ -67,18 +64,11 @@ import static java.util.Comparator.comparing;
 
 public class BwcVersions implements Serializable {
 
-    private static final Pattern LINE_PATTERN = Pattern.compile(
-        "\\W+public static final Version V_(\\d+)_(\\d+)_(\\d+)(_alpha\\d+|_beta\\d+|_rc\\d+)?.*\\);"
-    );
     private static final String GLIBC_VERSION_ENV_VAR = "GLIBC_VERSION";
 
     private final Version currentVersion;
     private final transient List<Version> versions;
     private final Map<Version, UnreleasedVersionInfo> unreleased;
-
-    public BwcVersions(List<String> versionLines, List<DevelopmentBranch> developmentBranches) {
-        this(versionLines, Version.fromString(VersionProperties.getElasticsearch()), developmentBranches);
-    }
 
     public BwcVersions(Version currentVersionProperty, List<Version> allVersions, List<DevelopmentBranch> developmentBranches) {
         if (allVersions.isEmpty()) {
@@ -90,20 +80,6 @@ public class BwcVersions implements Serializable {
         assertCurrentVersionMatchesParsed(currentVersionProperty);
 
         this.unreleased = computeUnreleased(developmentBranches);
-    }
-
-    // Visible for testing
-    BwcVersions(List<String> versionLines, Version currentVersionProperty, List<DevelopmentBranch> developmentBranches) {
-        this(currentVersionProperty, parseVersionLines(versionLines), developmentBranches);
-    }
-
-    private static List<Version> parseVersionLines(List<String> versionLines) {
-        return versionLines.stream()
-            .map(LINE_PATTERN::matcher)
-            .filter(Matcher::matches)
-            .map(match -> new Version(Integer.parseInt(match.group(1)), Integer.parseInt(match.group(2)), Integer.parseInt(match.group(3))))
-            .sorted()
-            .toList();
     }
 
     private void assertCurrentVersionMatchesParsed(Version currentVersionProperty) {

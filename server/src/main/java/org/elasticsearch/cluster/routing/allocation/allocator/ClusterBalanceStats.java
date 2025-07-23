@@ -77,8 +77,8 @@ public record ClusterBalanceStats(
 
     public static ClusterBalanceStats readFrom(StreamInput in) throws IOException {
         return new ClusterBalanceStats(
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
+            in.readVInt(),
+            in.readVInt(),
             in.readImmutableMap(TierBalanceStats::readFrom),
             in.readImmutableMap(NodeBalanceStats::readFrom)
         );
@@ -86,10 +86,8 @@ public record ClusterBalanceStats(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeVInt(shards);
-            out.writeVInt(undesiredShardAllocations);
-        }
+        out.writeVInt(shards);
+        out.writeVInt(undesiredShardAllocations);
         out.writeMap(tiers, StreamOutput::writeWriteable);
         out.writeMap(nodes, StreamOutput::writeWriteable);
     }
@@ -125,9 +123,7 @@ public record ClusterBalanceStats(
         public static TierBalanceStats readFrom(StreamInput in) throws IOException {
             return new TierBalanceStats(
                 MetricStats.readFrom(in),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
-                    ? MetricStats.readFrom(in)
-                    : new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
+                MetricStats.readFrom(in),
                 MetricStats.readFrom(in),
                 MetricStats.readFrom(in),
                 MetricStats.readFrom(in)
@@ -137,9 +133,7 @@ public record ClusterBalanceStats(
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardCount.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                undesiredShardAllocations.writeTo(out);
-            }
+            undesiredShardAllocations.writeTo(out);
             forecastWriteLoad.writeTo(out);
             forecastShardSize.writeTo(out);
             actualShardSize.writeTo(out);

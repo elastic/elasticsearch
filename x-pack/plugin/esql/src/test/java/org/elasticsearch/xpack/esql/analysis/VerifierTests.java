@@ -2508,6 +2508,10 @@ public class VerifierTests extends ESTestCase {
             checkVectorSimilarityFunctionsNullArgs("v_dot_product(null, vector)", "first");
             checkVectorSimilarityFunctionsNullArgs("v_dot_product(vector, null)", "second");
         }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(null, vector)", "first");
+            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(vector, null)", "second");
+        }
     }
 
     private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation, String argOrdinal) throws Exception {

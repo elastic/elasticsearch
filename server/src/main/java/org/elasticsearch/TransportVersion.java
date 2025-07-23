@@ -40,6 +40,14 @@ import java.util.stream.Collectors;
 /**
  * Represents the version of the wire protocol used to communicate between a pair of ES nodes.
  * <p>
+ * Note: We are currently transitioning to a file-based system to load and maintain transport versions. These file-based transport
+ * versions are named and are referred to as named transport versions. Named transport versions also maintain a linked list of their
+ * own patch versions to simplify transport version compatibility checks. Transport versions that continue to be loaded through
+ * {@link TransportVersions} are referred to as unnamed transport versions. Unnamed transport versions will continue being used
+ * over the wire as we only need the id for compatibility checks even against named transport versions. There are changes
+ * throughout {@link TransportVersion} that are for this transition. For now, continue to use the existing system of adding unnamed
+ * transport versions to {@link TransportVersions}.
+ * <p>
  * Prior to 8.8.0, the release {@link Version} was used everywhere. This class separates the wire protocol version from the release version.
  * <p>
  * Each transport version constant has an id number, which for versions prior to 8.9.0 is the same as the release version for backwards
@@ -71,6 +79,13 @@ import java.util.stream.Collectors;
  */
 public record TransportVersion(String name, int id, TransportVersion nextPatchVersion) implements VersionId<TransportVersion> {
 
+    /**
+     * Constructs an unnamed transport version.
+     */
+    public TransportVersion(int id) {
+        this(null, id, null);
+    }
+
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField IDS = new ParseField("ids");
 
@@ -98,6 +113,11 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         PARSER.declareIntArray(ConstructingObjectParser.constructorArg(), IDS);
     }
 
+    /**
+     * Constructs a named transport version along with its set of compatible patch versions from x-content.
+     * This method takes in the parameter {@code latest} which is the highest valid transport version id
+     * supported by this node. Versions newer than the current transport version id for this node are discarded.
+     */
     public static TransportVersion fromXContent(InputStream inputStream, Integer latest) {
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream)) {
             return PARSER.apply(parser, latest);
@@ -122,9 +142,18 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             return known;
         }
         // this is a version we don't otherwise know about - just create a placeholder
-        return new TransportVersion(null, id, null);
+        return new TransportVersion(id);
     }
 
+    /**
+     * Finds a {@link TransportVersion} by its name. The parameter {@code name} must be a {@link String}
+     * direct value or validation checks will fail. {@code TransportVersion.fromName("direct_value")}.
+     * <p>
+     * This will only return the latest known named transport version for a given name and not its
+     * patch versions. Patch versions are constructed as a linked list internally and may be found by
+     * cycling through them in a loop using {@link TransportVersion#nextPatchVersion()}.
+     *
+     */
     public static TransportVersion fromName(String name) {
         TransportVersion known = VersionsHolder.ALL_VERSIONS_BY_NAME.get(name);
         if (known == null) {
@@ -226,6 +255,43 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         return onOrAfter(version) && id < version.id + 100 - (version.id % 100);
     }
 
+    /**
+     * Supports is used to determine if a named transport version is supported
+     * by a caller transport version. This will check both the latest id
+     * and all of its patch ids for compatibility. This replaces the pattern
+     * of {@code wireTV.onOrAfter(TV_FEATURE) || wireTV.isPatchFrom(TV_FEATURE_BACKPORT) || ...}
+     * for unnamed transport versions with {@code wireTV.supports(TV_FEATURE)} for named
+     * transport versions (since named versions know about their own patch versions).
+     * <p>
+     * The recommended use of this method is to declare a static final {@link TransportVersion}
+     * as part of the file that it's used in. This constant is then used in conjunction with
+     * this method to check transport version compatability.
+     * <p>
+     * An example:
+     * {@code
+     * public class ExampleClass {
+     * ...
+     *     TransportVersion TV_FEATURE = TransportVersion.fromName("tv_feature");
+     *     ...
+     *     public static ExampleClass readFrom(InputStream in) {
+     *         ...
+     *         if (in.getTransportVersion().supports(TV_FEATURE) {
+     *             // read newer values
+     *         }
+     *         ...
+     *     }
+     *     ...
+     *     public void writeTo(OutputStream out) {
+     *         ...
+     *         if (out.getTransportVersion().supports(TV_FEATURE) {
+     *             // write newer values
+     *         }
+     *         ...
+     *     }
+     *     ...
+     * }
+     * }
+     */
     public boolean supports(TransportVersion version) {
         if (onOrAfter(version)) {
             return true;
@@ -253,6 +319,12 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         return Integer.toString(id);
     }
 
+    /**
+     * This class holds various data structures for looking up known transport versions both
+     * named and unnamed. While we transition to named transport versions, this class will
+     * load and merge unnamed transport versions from {@link TransportVersions} along with
+     * named transport versions specified in a manifest file in resources.
+     */
     private static class VersionsHolder {
 
         private static final List<TransportVersion> ALL_VERSIONS;

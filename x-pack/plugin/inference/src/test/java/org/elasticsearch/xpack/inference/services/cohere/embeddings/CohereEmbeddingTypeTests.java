@@ -17,21 +17,21 @@ import static org.hamcrest.Matchers.is;
 public class CohereEmbeddingTypeTests extends ESTestCase {
     public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingByte() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BYTE, new TransportVersion(null, 8_613_00_0, null)),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BYTE, new TransportVersion(8_613_00_0)),
             is(CohereEmbeddingType.INT8)
         );
     }
 
     public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingInt8() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.INT8, new TransportVersion(null, 8_613_00_0, null)),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.INT8, new TransportVersion(8_613_00_0)),
             is(CohereEmbeddingType.INT8)
         );
     }
 
     public void testTranslateToVersion_ReturnsFloat_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingFloat() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, new TransportVersion(null, 8_613_00_0, null)),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, new TransportVersion(8_613_00_0)),
             is(CohereEmbeddingType.FLOAT)
         );
     }
@@ -52,14 +52,14 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
 
     public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAdditionPatch_WhenSpecifyingBit() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(null, 8_840_0_00, null)),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(8_840_0_00)),
             is(CohereEmbeddingType.INT8)
         );
     }
 
     public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAddition_WhenSpecifyingBit() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(null, 9_000_0_00, null)),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(9_000_0_00)),
             is(CohereEmbeddingType.INT8)
         );
     }

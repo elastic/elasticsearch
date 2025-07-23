@@ -53,16 +53,16 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public static class CorrectFakeVersion {
-        public static final TransportVersion V_0_00_01 = new TransportVersion(null, 199, null);
-        public static final TransportVersion V_0_000_002 = new TransportVersion(null, 2, null);
-        public static final TransportVersion V_0_000_003 = new TransportVersion(null, 3, null);
-        public static final TransportVersion V_0_000_004 = new TransportVersion(null, 4, null);
+        public static final TransportVersion V_0_00_01 = new TransportVersion(199);
+        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
+        public static final TransportVersion V_0_000_003 = new TransportVersion(3);
+        public static final TransportVersion V_0_000_004 = new TransportVersion(4);
     }
 
     public static class DuplicatedIdFakeVersion {
-        public static final TransportVersion V_0_000_001 = new TransportVersion(null, 1, null);
-        public static final TransportVersion V_0_000_002 = new TransportVersion(null, 2, null);
-        public static final TransportVersion V_0_000_003 = new TransportVersion(null, 2, null);
+        public static final TransportVersion V_0_000_001 = new TransportVersion(1);
+        public static final TransportVersion V_0_000_002 = new TransportVersion(2);
+        public static final TransportVersion V_0_000_003 = new TransportVersion(2);
     }
 
     public void testStaticTransportVersionChecks() {

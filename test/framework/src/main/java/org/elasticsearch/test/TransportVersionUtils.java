@@ -103,7 +103,7 @@ public class TransportVersionUtils {
         if (higher == null) {
             if (createIfNecessary) {
                 // create a new transport version one greater than specified
-                return new TransportVersion(null, version.id() + 1, null);
+                return new TransportVersion(version.id() + 1);
             } else {
                 throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
             }

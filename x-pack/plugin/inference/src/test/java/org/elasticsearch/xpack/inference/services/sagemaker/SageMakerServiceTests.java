@@ -207,6 +207,41 @@ public class SageMakerServiceTests extends ESTestCase {
         assertEquals(configuredTimeout, capturedTimeout.get());
     }
 
+    @SuppressWarnings("unchecked")
+    public void test_providedTimeoutPropagateProperly() {
+        var model = mockModel();
+        when(schemas.schemaFor(model)).thenReturn(mock());
+
+        var providedTimeout = TimeValue.timeValueSeconds(45);
+        var clusterService = mockClusterService(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(15)).build()
+        );
+
+        var service = new SageMakerService(modelBuilder, client, schemas, mock(ThreadPool.class), Map::of, clusterService);
+
+        var capturedTimeout = new AtomicReference<TimeValue>();
+        doAnswer(ans -> {
+            capturedTimeout.set(ans.getArgument(2));
+            ((ActionListener<InvokeEndpointResponse>) ans.getArgument(3)).onResponse(InvokeEndpointResponse.builder().build());
+            return null;
+        }).when(client).invoke(any(), any(), any(), any());
+
+        service.infer(
+            model,
+            QUERY,
+            null,
+            null,
+            INPUT,
+            false,
+            null,
+            InputType.SEARCH,
+            providedTimeout,
+            assertNoFailureListener(ignored -> {})
+        );
+
+        assertEquals(providedTimeout, capturedTimeout.get());
+    }
+
     private SageMakerModel mockModel() {
         SageMakerModel model = mock();
         when(model.override(null)).thenReturn(model);

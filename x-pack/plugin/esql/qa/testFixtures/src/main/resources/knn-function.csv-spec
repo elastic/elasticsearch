@@ -283,16 +283,16 @@ from colors metadata _score
 ;
 
 color:text
-olive
-purple
-indigo
-sienna
 brown
-peru
+coral
+gold
 maroon
-navy
-tomato
+olive
 orange
+peru
+salmon
+sienna
+tomato
 ;
 
 testKnnInStatsNonPushable

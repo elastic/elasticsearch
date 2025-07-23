@@ -94,7 +94,14 @@ class RoundTo$Type$ {
     }
 
     @Evaluator(extraName = "5")
-    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4) {
+    static $type$ process(
+        $type$ field,
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4
+    ) {
         if (field < p2) {
             if (field < p1) {
                 return p0;
@@ -111,7 +118,15 @@ class RoundTo$Type$ {
     }
 
     @Evaluator(extraName = "6")
-    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5) {
+    static $type$ process(
+        $type$ field,
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4,
+        @Fixed $type$ p5
+    ) {
         if (field < p2) {
             if (field < p1) {
                 return p0;
@@ -131,7 +146,16 @@ class RoundTo$Type$ {
     }
 
     @Evaluator(extraName = "7")
-    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6) {
+    static $type$ process(
+        $type$ field,
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4,
+        @Fixed $type$ p5,
+        @Fixed $type$ p6
+    ) {
         if (field < p3) {
             if (field < p1) {
                 return p0;
@@ -154,7 +178,17 @@ class RoundTo$Type$ {
     }
 
     @Evaluator(extraName = "8")
-    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6, @Fixed $type$ p7) {
+    static $type$ process(
+        $type$ field,
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4,
+        @Fixed $type$ p5,
+        @Fixed $type$ p6,
+        @Fixed $type$ p7
+    ) {
         if (field < p3) {
             if (field < p1) {
                 return p0;
@@ -180,7 +214,18 @@ class RoundTo$Type$ {
     }
 
     @Evaluator(extraName = "9")
-    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6, @Fixed $type$ p7, @Fixed $type$ p8) {
+    static $type$ process(
+        $type$ field,
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4,
+        @Fixed $type$ p5,
+        @Fixed $type$ p6,
+        @Fixed $type$ p7,
+        @Fixed $type$ p8
+    ) {
         if (field < p4) {
             if (field < p1) {
                 return p0;
@@ -208,7 +253,19 @@ class RoundTo$Type$ {
         return p8;
     }
     @Evaluator(extraName = "10")
-    static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4, @Fixed $type$ p5, @Fixed $type$ p6, @Fixed $type$ p7, @Fixed $type$ p8, @Fixed $type$ p9) {
+    static $type$ process(
+        $type$ field,
+        @Fixed $type$ p0,
+        @Fixed $type$ p1,
+        @Fixed $type$ p2,
+        @Fixed $type$ p3,
+        @Fixed $type$ p4,
+        @Fixed $type$ p5,
+        @Fixed $type$ p6,
+        @Fixed $type$ p7,
+        @Fixed $type$ p8,
+        @Fixed $type$ p9
+    ) {
         if (field < p4) {
             if (field < p1) {
                 return p0;

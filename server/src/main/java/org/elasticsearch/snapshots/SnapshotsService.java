@@ -3721,6 +3721,23 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 } else if (clonesBuilder != null) {
                     return entry.withClones(clonesBuilder.build());
                 } else {
+                    // If this snapshot sees no update, we still need to check whether we can start any assigned-queued shard snapshots
+                    // because all currently running shard snapshots may all belong to snapshots after this one. In this case, no future
+                    // completion of shard snapshot can kick off an assigned-queued shard snapshot for this entry if we don't do it here.
+                    if (entry.isClone() == false
+                        && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()
+                        && entry.shards().values().stream().anyMatch(ShardSnapshotStatus::isAssignedQueued)) {
+                        maybeStartAssignedQueuedShardSnapshots(
+                            initialState,
+                            entry,
+                            nodeIdRemovalPredicate,
+                            shardsBuilder(),
+                            perNodeShardSnapshotCounter,
+                            shardStatusUpdateConsumer,
+                            () -> changedCount++,
+                            () -> startedCount++
+                        );
+                    }
                     return entry;
                 }
             }

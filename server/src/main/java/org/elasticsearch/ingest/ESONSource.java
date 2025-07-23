@@ -318,13 +318,21 @@ public class ESONSource {
             };
         }
 
-        // TODO: test remove
         @Override
         public Set<Entry<String, Object>> entrySet() {
             return entrySet(true);
         }
 
+        public Set<Entry<String, Object>> entrySetNullInsteadOfRawValues() {
+            return entrySet(true, false);
+        }
+
         public Set<Entry<String, Object>> entrySet(boolean shouldComputeValue) {
+            return entrySet(shouldComputeValue, false);
+        }
+
+        // TODO: test remove
+        private Set<Entry<String, Object>> entrySet(boolean shouldComputeValue, boolean nullForRawValues) {
             return new AbstractSet<>() {
                 @Override
                 public Iterator<Entry<String, Object>> iterator() {
@@ -339,7 +347,7 @@ public class ESONSource {
                         @Override
                         public Entry<String, Object> next() {
                             Map.Entry<String, Type> mapEntry = mapIterator.next();
-                            return new LazyEntry(mapEntry.getKey(), mapEntry.getValue(), shouldComputeValue);
+                            return new LazyEntry(mapEntry.getKey(), mapEntry.getValue(), shouldComputeValue, nullForRawValues);
                         }
 
                         @Override
@@ -427,18 +435,24 @@ public class ESONSource {
             private final String key;
             private final Type type;
             private final boolean shouldComputeValue;
+            private final boolean nullForRawValues;
             private Object cachedValue;
             private boolean valueComputed = false;
 
-            LazyEntry(String key, Type type, boolean shouldComputeValue) {
+            LazyEntry(String key, Type type, boolean shouldComputeValue, boolean nullForRawValues) {
                 this.key = key;
                 this.type = type;
                 this.shouldComputeValue = shouldComputeValue;
+                this.nullForRawValues = nullForRawValues;
             }
 
             @Override
             public String getKey() {
                 return key;
+            }
+
+            public boolean isRawValue() {
+                return type instanceof FixedValue || type instanceof VariableValue;
             }
 
             @Override
@@ -452,7 +466,11 @@ public class ESONSource {
                     } else if (type instanceof Mutation mutation) {
                         cachedValue = mutation.object();
                     } else {
-                        cachedValue = convertTypeToValue(type);
+                        if (nullForRawValues && isRawValue()) {
+                            cachedValue = null;
+                        } else {
+                            cachedValue = convertTypeToValue(type);
+                        }
                     }
                     valueComputed = true;
                 }
@@ -511,11 +529,42 @@ public class ESONSource {
             this.arrayValues = arrayValues;
         }
 
-        public Iterator<?> iterator(boolean shouldMaterialize) {
+        public Iterator<Object> iteratorNullInsteadOfRawValues() {
+            Iterator<Type> typeIterator = elements.iterator();
+            return new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return typeIterator.hasNext();
+                }
+
+                @Override
+                public Object next() {
+                    Type next = typeIterator.next();
+                    if (next instanceof VariableValue || next instanceof FixedValue) {
+                        return null;
+                    } else {
+                        return next;
+                    }
+                }
+            };
+        }
+
+        public Iterator<Object> iterator(boolean shouldMaterialize) {
             if (shouldMaterialize) {
                 return super.iterator();
             } else {
-                return elements.iterator();
+                Iterator<Type> typeIterator = elements.iterator();
+                return new Iterator<>() {
+                    @Override
+                    public boolean hasNext() {
+                        return typeIterator.hasNext();
+                    }
+
+                    @Override
+                    public Object next() {
+                        return typeIterator.next();
+                    }
+                };
             }
         }
 

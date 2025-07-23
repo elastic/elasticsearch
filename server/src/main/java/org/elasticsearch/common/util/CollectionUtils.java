@@ -10,6 +10,7 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.ingest.ESONSource;
 
 import java.nio.file.Path;
 import java.util.AbstractList;
@@ -126,7 +127,9 @@ public class CollectionUtils {
 
     private static void ensureNoSelfReferences(final Map<?, ?> reference, final Set<Object> ancestors, final String messageHint) {
         addToAncestorsOrThrow(reference, ancestors, messageHint);
-        for (Map.Entry<?, ?> e : reference.entrySet()) {
+        for (Map.Entry<?, ?> e : reference instanceof ESONSource.ESONObject object
+            ? object.entrySetNullInsteadOfRawValues()
+            : reference.entrySet()) {
             ensureNoSelfReferences(e.getKey(), ancestors, messageHint);
             ensureNoSelfReferences(e.getValue(), ancestors, messageHint);
         }
@@ -140,7 +143,8 @@ public class CollectionUtils {
         final String messageHint
     ) {
         addToAncestorsOrThrow(reference, ancestors, messageHint);
-        for (Object o : iterable) {
+        Iterable<?> converted = iterable instanceof ESONSource.ESONArray array ? array::iteratorNullInsteadOfRawValues : iterable;
+        for (Object o : converted) {
             ensureNoSelfReferences(o, ancestors, messageHint);
         }
         ancestors.remove(reference);

@@ -46,7 +46,8 @@ public class CountTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, IncludingAltitude.YES),
-            MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, IncludingAltitude.YES),
+            MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 1000, IncludingAltitude.YES),
+            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 1000, IncludingAltitude.YES),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.KEYWORD),
             MultiRowTestCaseSupplier.stringCases(1, 1000, DataType.TEXT)
         ).flatMap(List::stream).map(CountTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));

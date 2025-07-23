@@ -37,6 +37,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Sample extends AggregateFunction implements ToAggregator {
@@ -56,6 +57,7 @@ public class Sample extends AggregateFunction implements ToAggregator {
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         description = "Collects sample values for a field.",
         type = FunctionType.AGGREGATE,
@@ -78,6 +80,7 @@ public class Sample extends AggregateFunction implements ToAggregator {
                 "ip",
                 "keyword",
                 "long",
+                "unsigned_long",
                 "text",
                 "version" },
             description = "The field to collect sample values for."
@@ -109,7 +112,7 @@ public class Sample extends AggregateFunction implements ToAggregator {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        var typeResolution = isType(field(), dt -> dt != DataType.UNSIGNED_LONG, sourceText(), FIRST, "any type except unsigned_long").and(
+        var typeResolution = isRepresentableExceptCounters(field(), sourceText(), FIRST).and(
             isNotNullAndFoldable(limitField(), sourceText(), SECOND)
         ).and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
         if (typeResolution.unresolved()) {

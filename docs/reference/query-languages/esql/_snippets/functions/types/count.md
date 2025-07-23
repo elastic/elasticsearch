@@ -6,9 +6,11 @@
 | --- | --- |
 | boolean | long |
 | cartesian_point | long |
+| cartesian_shape | long |
 | date | long |
 | double | long |
 | geo_point | long |
+| geo_shape | long |
 | integer | long |
 | ip | long |
 | keyword | long |

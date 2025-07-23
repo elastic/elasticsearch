@@ -41,7 +41,7 @@ import static org.elasticsearch.test.ESTestCase.randomSecretKey;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate the EC2 IMDS endpoint")
 public class Ec2ImdsHttpHandler implements HttpHandler {
 
-    private static final String IMDS_SECURITY_CREDENTIALS_PATH = "/transport/latest/meta-data/iam/security-credentials/";
+    private static final String IMDS_SECURITY_CREDENTIALS_PATH = "/latest/meta-data/iam/security-credentials/";
 
     private final Ec2ImdsVersion ec2ImdsVersion;
     private final Set<String> validImdsTokens = ConcurrentCollections.newConcurrentSet();
@@ -90,7 +90,7 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
             final var path = exchange.getRequestURI().getPath();
             final var requestMethod = exchange.getRequestMethod();
 
-            if ("PUT".equals(requestMethod) && "/transport/latest/api/token".equals(path)) {
+            if ("PUT".equals(requestMethod) && "/latest/api/token".equals(path)) {
                 switch (ec2ImdsVersion) {
                     case V1 -> exchange.sendResponseHeaders(RestStatus.METHOD_NOT_ALLOWED.getStatus(), -1);
                     case V2 -> {
@@ -125,11 +125,11 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     validCredentialsEndpoints.add(IMDS_SECURITY_CREDENTIALS_PATH + profileName);
                     sendStringResponse(exchange, profileName);
                     return;
-                } else if (path.equals("/transport/latest/meta-data/placement/availability-zone")) {
+                } else if (path.equals("/latest/meta-data/placement/availability-zone")) {
                     final var availabilityZone = availabilityZoneSupplier.get();
                     sendStringResponse(exchange, availabilityZone);
                     return;
-                } else if (instanceIdentityDocument != null && path.equals("/transport/latest/dynamic/instance-identity/document")) {
+                } else if (instanceIdentityDocument != null && path.equals("/latest/dynamic/instance-identity/document")) {
                     sendStringResponse(exchange, Strings.toString(instanceIdentityDocument));
                     return;
                 } else if (validCredentialsEndpoints.contains(path)) {

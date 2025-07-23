@@ -44,7 +44,7 @@ public class DiscoveryEc2RegularNetworkAddressesIT extends DiscoveryEc2NetworkAd
             final var bindTransportException = asInstanceOf(BindTransportException.class, executionException.getCause());
             assertEquals("Failed to resolve publish address", bindTransportException.getMessage());
             final var ioException = asInstanceOf(IOException.class, bindTransportException.getCause());
-            assertThat(ioException.getMessage(), containsString("/transport/latest/meta-data/local-ipv4"));
+            assertThat(ioException.getMessage(), containsString("/latest/meta-data/local-ipv4"));
         }
     }
 }

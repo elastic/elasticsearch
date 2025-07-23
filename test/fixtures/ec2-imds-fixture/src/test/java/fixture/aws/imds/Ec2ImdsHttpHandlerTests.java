@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 
 public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
-    private static final String SECURITY_CREDENTIALS_URI = "/transport/latest/meta-data/iam/security-credentials/";
+    private static final String SECURITY_CREDENTIALS_URI = "/latest/meta-data/iam/security-credentials/";
 
     public void testImdsV1() throws IOException {
         final Map<String, String> generatedCredentials = new HashMap<>();
@@ -64,7 +64,7 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
     public void testImdsV2Disabled() {
         assertEquals(
             RestStatus.METHOD_NOT_ALLOWED,
-            handleRequest(new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).buildHandler(), "PUT", "/transport/latest/api/token").status()
+            handleRequest(new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).buildHandler(), "PUT", "/latest/api/token").status()
         );
     }
 
@@ -73,7 +73,7 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
         final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).newCredentialsConsumer(generatedCredentials::put).buildHandler();
 
-        final var tokenResponse = handleRequest(handler, "PUT", "/transport/latest/api/token");
+        final var tokenResponse = handleRequest(handler, "PUT", "/latest/api/token");
         assertEquals(RestStatus.OK, tokenResponse.status());
         assertEquals(List.of("86400" /* seconds in a day */), tokenResponse.responseHeaders().get("x-aws-ec2-metadata-token-ttl-seconds"));
         final var token = tokenResponse.body().utf8ToString();
@@ -101,7 +101,7 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
             return newAvailabilityZone;
         }).buildHandler();
 
-        final var availabilityZoneResponse = handleRequest(handler, "GET", "/transport/latest/meta-data/placement/availability-zone");
+        final var availabilityZoneResponse = handleRequest(handler, "GET", "/latest/meta-data/placement/availability-zone");
         assertEquals(RestStatus.OK, availabilityZoneResponse.status());
         final var availabilityZone = availabilityZoneResponse.body().utf8ToString();
 
@@ -148,7 +148,7 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
             return builder.field("region", newRegion);
         }).buildHandler();
 
-        final var instanceIdentityResponse = handleRequest(handler, "GET", "/transport/latest/dynamic/instance-identity/document");
+        final var instanceIdentityResponse = handleRequest(handler, "GET", "/latest/dynamic/instance-identity/document");
         assertEquals(RestStatus.OK, instanceIdentityResponse.status());
         final var instanceIdentityString = instanceIdentityResponse.body().utf8ToString();
 

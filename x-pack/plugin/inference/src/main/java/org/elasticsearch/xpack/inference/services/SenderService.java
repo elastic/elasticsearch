@@ -73,7 +73,7 @@ public abstract class SenderService implements InferenceService {
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        timeout = InferenceTimeoutUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
+        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, clusterService);
         init();
         var chunkInferenceInput = input.stream().map(i -> new ChunkInferenceInput(i, null)).toList();
         var inferenceInput = createInput(this, model, chunkInferenceInput, inputType, query, returnDocuments, topN, stream);

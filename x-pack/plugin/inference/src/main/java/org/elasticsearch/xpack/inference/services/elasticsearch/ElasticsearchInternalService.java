@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.InferenceTimeoutUtils;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.ArrayList;
@@ -614,7 +613,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        timeout = InferenceTimeoutUtils.resolveInferenceTimeout(timeout, inputType, getClusterService());
+        timeout = ServiceUtils.resolveInferenceTimeout(timeout, inputType, getClusterService());
         if (model instanceof ElasticsearchInternalModel esModel) {
             var taskType = model.getConfigurations().getTaskType();
             if (TaskType.TEXT_EMBEDDING.equals(taskType)) {

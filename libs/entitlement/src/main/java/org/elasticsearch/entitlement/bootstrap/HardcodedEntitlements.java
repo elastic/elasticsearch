@@ -123,7 +123,7 @@ class HardcodedEntitlements {
                     new FilesEntitlement(
                         List.of(
                             FilesEntitlement.FileData.ofBaseDirPath(CONFIG, READ),
-                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ),
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
                             FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )

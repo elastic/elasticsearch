@@ -24,7 +24,7 @@ import java.util.Objects;
  * tree and then resolve them into other {@link Attribute} subclasses during
  * analysis.
  * <p>
- *     For example, ff they reference the data directly from lucene they'll be
+ *     For example, if they reference the data directly from lucene they'll be
  *     {@link FieldAttribute}s. If they reference the results of another calculation
  *     they will be {@link ReferenceAttribute}s.
  * </p>

@@ -1,6 +1,6 @@
 ---
 applies_to:
-  ess: unavailable 9.0.0
+  ess: unavailable 9.0, preview 9.1
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-native-connectors.html
 ---

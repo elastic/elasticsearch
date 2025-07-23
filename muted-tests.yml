@@ -508,6 +508,9 @@ tests:
 - class: org.elasticsearch.search.SearchWithIndexBlocksIT
   method: testMultiSearchIndicesWithIndexRefreshBlocks
   issue: https://github.com/elastic/elasticsearch/issues/131698
+- class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
+  method: testTimeoutSetting
+  issue: https://github.com/elastic/elasticsearch/issues/131656
 
 # Examples:
 #

@@ -75,11 +75,11 @@ public final class TypeResolutions {
     /**
      * @see DataType#isRepresentable(DataType)
      */
-    public static TypeResolution isRepresentable(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isRepresentableExceptCounters(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, DataType::isRepresentable, operationName, paramOrd, "any type except counter types");
     }
 
-    public static TypeResolution isRepresentableNotSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
+    public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, (t) -> isSpatial(t) == false && DataType.isRepresentable(t), operationName, paramOrd, "any type except counter and spatial types");
     }
 

@@ -8,10 +8,8 @@
 package org.elasticsearch.xpack.esql.inference.rerank;
 
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 
@@ -46,7 +44,7 @@ public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuil
     /**
      * Extracts the ranked document results from the inference response and appends their relevance scores to the score block builder.
      * <p>
-     * If the response is not of type {@link ChatCompletionResults} an {@link IllegalStateException} is thrown.
+     * If the response is not of type {@link RankedDocsResults} an {@link IllegalStateException} is thrown.
      * </p>
      * <p>
      * The responses must be added in the same order as the corresponding inference requests were generated.

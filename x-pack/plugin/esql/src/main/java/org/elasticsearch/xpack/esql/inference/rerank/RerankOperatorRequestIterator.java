@@ -81,6 +81,7 @@ public class RerankOperatorRequestIterator implements BulkInferenceRequestIterat
 
     @Override
     public void close() {
+        inputBlock.allowPassingToDifferentDriver();
         Releasables.closeExpectNoException(inputBlock);
     }
 }

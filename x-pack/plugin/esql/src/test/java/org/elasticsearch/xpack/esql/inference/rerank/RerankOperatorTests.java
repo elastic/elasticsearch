@@ -10,15 +10,18 @@ package org.elasticsearch.xpack.esql.inference.rerank;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -28,9 +31,30 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
     private static final String SIMPLE_INFERENCE_ID = "test_reranker";
     private static final String SIMPLE_QUERY = "query text";
 
+    private int inputChannel;
+
+    private int scoreChannel;
+
+    @Before
+    public void initCompletionChannel() {
+        inputChannel = randomFrom(
+            IntStream.range(0, elementTypes.length).filter(i -> elementTypes[i] == ElementType.BYTES_REF).boxed().toList()
+        );
+        scoreChannel = randomInt(elementTypes.length);
+        if (scoreChannel == inputChannel) {
+            scoreChannel++;
+        }
+    }
+
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new RerankOperator.Factory(mockedInferenceRunnerFactory(), SIMPLE_INFERENCE_ID, SIMPLE_QUERY, evaluatorFactory(0), 1);
+        return new RerankOperator.Factory(
+            mockedInferenceRunnerFactory(),
+            SIMPLE_INFERENCE_ID,
+            SIMPLE_QUERY,
+            evaluatorFactory(inputChannel),
+            scoreChannel
+        );
     }
 
     @Override
@@ -42,21 +66,20 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             Page resultPage = resultPages.get(pageId);
 
             assertThat(resultPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
-            assertThat(resultPage.getBlockCount(), equalTo(Integer.max(2, inputPage.getBlockCount())));
+            assertThat(resultPage.getBlockCount(), equalTo(Integer.max(scoreChannel + 1, inputPage.getBlockCount())));
 
             for (int channel = 0; channel < inputPage.getBlockCount(); channel++) {
-                Block inputBlock = inputPage.getBlock(channel);
                 Block resultBlock = resultPage.getBlock(channel);
+                if (channel != scoreChannel) {
+                    Block inputBlock = inputPage.getBlock(channel);
+                    assertThat(resultBlock.getPositionCount(), equalTo(resultPage.getPositionCount()));
+                    assertThat(resultBlock.elementType(), equalTo(inputBlock.elementType()));
 
-                assertThat(resultBlock.getPositionCount(), equalTo(resultPage.getPositionCount()));
-                assertThat(resultBlock.elementType(), equalTo(inputBlock.elementType()));
-
-                if (channel != 1) {
-                    assertBlockContentEquals(inputBlock, resultBlock);
-                }
-
-                if (channel == 0) {
-                    assertExpectedScore((BytesRefBlock) inputBlock, resultPage.getBlock(1));
+                    if (channel != 1) {
+                        assertBlockContentEquals(inputBlock, resultBlock);
+                    }
+                } else {
+                    assertExpectedScore(inputPage.getBlock(inputChannel), (DoubleBlock) resultBlock);
                 }
             }
         }
@@ -79,7 +102,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
-            "RerankOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "], query=[" + SIMPLE_QUERY + "], score_channel=[" + 1 + "]]"
+            "RerankOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "], query=[" + SIMPLE_QUERY + "], score_channel=[" + scoreChannel + "]]"
         );
     }
 

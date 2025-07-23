@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -46,12 +47,16 @@ import org.junit.Before;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.compute.test.RandomBlock.randomBlock;
+import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
+
     protected ThreadPool threadPool;
+    protected ElementType[] elementTypes;
 
     @Before
     public void setThreadPool() {
@@ -66,6 +71,23 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
+    }
+
+    @Before
+    public void initChannels() {
+        int channelCount = between(1, 10);
+        boolean hasTextInput = false;
+
+        elementTypes = new ElementType[channelCount];
+
+        for (int i = 0; i < channelCount; i++) {
+            elementTypes[i] = randomElementType();
+            hasTextInput = hasTextInput || elementTypes[i] == ElementType.BYTES_REF;
+
+            if (hasTextInput == false && i == channelCount - 1) {
+                elementTypes[i] = ElementType.BYTES_REF;
+            }
+        }
     }
 
     @After
@@ -88,18 +110,13 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             @Override
             protected Page createPage(int positionOffset, int length) {
                 length = Integer.min(length, remaining());
-                try (var builder = blockFactory.newBytesRefBlockBuilder(length)) {
-                    for (int i = 0; i < length; i++) {
-                        if (randomInt() % 100 == 0) {
-                            builder.appendNull();
-                        } else {
-                            builder.appendBytesRef(new BytesRef(randomAlphaOfLength(10)));
-                        }
-
-                    }
-                    currentPosition += length;
-                    return new Page(builder.build());
+                Block[] blocks = new Block[elementTypes.length];
+                for (int i = 0; i < blocks.length; i++) {
+                    blocks[i] = randomBlock(blockFactory, elementTypes[i], length, false, false, 0, 1, 0, 0).block();
                 }
+
+                currentPosition += length;
+                return new Page(blocks);
             }
         };
     }

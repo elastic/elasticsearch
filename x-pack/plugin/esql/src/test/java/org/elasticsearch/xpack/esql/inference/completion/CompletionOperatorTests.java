@@ -10,16 +10,19 @@ package org.elasticsearch.xpack.esql.inference.completion;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -27,9 +30,18 @@ import static org.hamcrest.Matchers.hasSize;
 public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompletionResults> {
     private static final String SIMPLE_INFERENCE_ID = "test_completion";
 
+    private int inputChannel;
+
+    @Before
+    public void initCompletionChannel() {
+        inputChannel = randomFrom(
+            IntStream.range(0, elementTypes.length).filter(i -> elementTypes[i] == ElementType.BYTES_REF).boxed().toList()
+        );
+    }
+
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CompletionOperator.Factory(mockedInferenceRunnerFactory(), SIMPLE_INFERENCE_ID, evaluatorFactory(0));
+        return new CompletionOperator.Factory(mockedInferenceRunnerFactory(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
     }
 
     @Override
@@ -54,7 +66,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
     }
 
     private void assertCompletionResults(Page inputPage, Page resultPage) {
-        BytesRefBlock inputBlock = resultPage.getBlock(0);
+        BytesRefBlock inputBlock = resultPage.getBlock(inputChannel);
         BytesRefBlock resultBlock = resultPage.getBlock(inputPage.getBlockCount());
 
         BytesRef scratch = new BytesRef();

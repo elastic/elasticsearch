@@ -8,6 +8,7 @@ mapped_pages:
 
 The `semantic` query type enables you to perform [semantic search](docs-content://solutions/search/semantic-search.md) on data stored in a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field.
 
+
 ## Example request [semantic-query-example]
 
 ```console
@@ -21,6 +22,7 @@ GET my-index-000001/_search
   }
 }
 ```
+
 
 ## Top-level parameters for `semantic` [semantic-query-params]
 

@@ -455,7 +455,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
         Tuple<Map<ShardId, ShardAssignment>, Map<String, Long>> assignmentsAndShardCounts = computeAssignmentsAndShardCounts(state);
         Map<ShardId, ShardAssignment> assignments = assignmentsAndShardCounts.v1();
 
-        return new DesiredBalance(1, assignments, new HashMap<>(), DesiredBalance.ComputationFinishReason.CONVERGED);
+        return new DesiredBalance(1, assignments, Map.of(), DesiredBalance.ComputationFinishReason.CONVERGED);
     }
 
     private static Tuple<Map<ShardId, ShardAssignment>, Map<String, Long>> computeAssignmentsAndShardCounts(ClusterState state) {
@@ -471,7 +471,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
             }
         }
 
-        return shardAssignmentAndCount(assignments, shardCounts);
+        return Tuple.tuple(assignments, shardCounts);
     }
 
     private static Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> computeNodeWeights(
@@ -528,13 +528,6 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
 
     private static Tuple<String, long[]> indexSizes(String name, long... sizes) {
         return Tuple.tuple(name, sizes);
-    }
-
-    private static Tuple<Map<ShardId, ShardAssignment>, Map<String, Long>> shardAssignmentAndCount(
-        Map<ShardId, ShardAssignment> shardAssignments,
-        Map<String, Long> shardCounts
-    ) {
-        return Tuple.tuple(shardAssignments, shardCounts);
     }
 
     private static double stdDev(double... data) {

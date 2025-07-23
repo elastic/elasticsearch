@@ -390,6 +390,31 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         };
     }
 
+    /**
+     * Marks the target shard as splitting.
+     * Any commit uploaded while the shard is splitting will be copied to the provided target shard before completing the upload.
+     * A source shard can be split into more than one target shard, so multiple targets may be copied concurrently. Each target
+     * runs independently, and will call this function for itself.
+     * @param sourceShardId the source shard ID. Commits uploaded from this shard will be copied to the target shard.
+     * @param targetShardId the target shard ID.
+     */
+    public void markSplitting(ShardId sourceShardId, ShardId targetShardId) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
+        commitState.markSplitting(targetShardId);
+    }
+
+    /**
+     * Marks the target shard as completing a split.
+     * Once the target shard has reached handoff, commits from the source are guaranteed not to contain documents belonging
+     * to the target, and so we can stop copying commits.
+     * @param sourceShardId the source shard ID.
+     * @param targetShardId the target shard ID.
+     */
+    public void markSplitCompleting(ShardId sourceShardId, ShardId targetShardId) {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, sourceShardId);
+        commitState.markSplitCompleting(targetShardId);
+    }
+
     public void readVirtualBatchedCompoundCommitChunk(final GetVirtualBatchedCompoundCommitChunkRequest request, final StreamOutput output)
         throws IOException {
         ShardCommitState commitState = getSafe(shardsCommitsStates, request.getShardId());
@@ -716,6 +741,51 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
+    private ActionListener<BatchedCompoundCommit> copyToTarget(
+        ActionListener<BatchedCompoundCommit> afterCopyListener,
+        ShardId targetShardId,
+        VirtualBatchedCompoundCommit virtualBcc
+    ) {
+        // ES-12456 This listener is called by the upload task and holds its thread.
+        // This means we aren't running multiple copies concurrently but also we aren't starving other shard
+        // uploads. We may want to revisit this.
+        return new ActionListener<BatchedCompoundCommit>() {
+            @Override
+            public void onResponse(BatchedCompoundCommit batchedCompoundCommit) {
+                try {
+                    objectStoreService.copyCommit(virtualBcc, targetShardId);
+                    afterCopyListener.onResponse(batchedCompoundCommit);
+                } catch (IOException e) {
+                    logger.warn("failed to copy target batched compound commit", e);
+                    afterCopyListener.onFailure(e);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof IndexNotFoundException || e instanceof ShardNotFoundException) {
+                    // The shard was closed, we can ignore this exception.
+                    logger.trace(() -> "shard closed while copying target", e);
+                } else {
+                    assert false : e;
+                    logger.warn("unexpected exception while copying target", e);
+                }
+                afterCopyListener.onFailure(e);
+            }
+        };
+    }
+
+    private ActionListener<BatchedCompoundCommit> copyToTargets(
+        ActionListener<BatchedCompoundCommit> afterCopyListener,
+        ShardCommitState commitState,
+        VirtualBatchedCompoundCommit virtualBcc
+    ) {
+        for (final ShardId targetShardId : commitState.getSplitTargets()) {
+            afterCopyListener = copyToTarget(afterCopyListener, targetShardId, virtualBcc);
+        }
+        return afterCopyListener;
+    }
+
     private void createAndRunCommitUpload(
         ShardCommitState commitState,
         VirtualBatchedCompoundCommit virtualBcc,
@@ -743,7 +813,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             commitState::runUploadWhenCommitIsReady,
             virtualBcc,
             TimeValue.timeValueMillis(50),
-            ActionListener.runAfter(new ActionListener<>() {
+            ActionListener.runAfter(copyToTargets(new ActionListener<>() {
                 @Override
                 public void onResponse(BatchedCompoundCommit uploadedBcc) {
                     try {
@@ -807,7 +877,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         || e instanceof ShardNotFoundException : closed + " vs " + e;
                     return true;
                 }
-            }, () -> {
+            }, commitState, virtualBcc), () -> {
                 IOUtils.closeWhileHandlingException(virtualBcc);
                 blobReference.decRef();
             })
@@ -1054,6 +1124,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // on the target node
         @Nullable
         private Map<PrimaryTermAndGeneration, Set<String>> trackedSearchNodesPerCommitOnRelocationTarget = null;
+
+        private final Set<ShardId> copyTargets = ConcurrentHashMap.newKeySet();
 
         // Visible for testing
         ShardCommitState(
@@ -2164,6 +2236,20 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             addListenerForUploadedGeneration(toWaitFor, listener);
+        }
+
+        private void markSplitting(ShardId targetShardId) {
+            var absent = copyTargets.add(targetShardId);
+            assert absent : "target shard " + targetShardId + " already marked as splitting from " + shardId;
+        }
+
+        private void markSplitCompleting(ShardId targetShardId) {
+            var present = copyTargets.remove(targetShardId);
+            assert present : "target shard " + targetShardId + " not currently splitting from " + shardId;
+        }
+
+        private Set<ShardId> getSplitTargets() {
+            return Collections.unmodifiableSet(copyTargets);
         }
 
         /**

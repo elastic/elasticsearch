@@ -84,6 +84,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -1020,15 +1021,45 @@ public class ObjectStoreService extends AbstractLifecycleComponent implements Cl
             Map<String, BlobMetadata> blobs = sourceContainerForTerm.listBlobs(OperationPurpose.INDICES);
             var destinationContainerForTerm = getProjectBlobContainer(destination, blobContainerWithTerm.v1());
             for (BlobMetadata blob : blobs.values()) {
-                destinationContainerForTerm.copyBlob(
-                    OperationPurpose.INDICES,
-                    sourceContainerForTerm,
-                    blob.name(),
-                    blob.name(),
-                    blob.length()
-                );
+                // this may race with ongoing deletes as old commits become unreferenced. This is safe because we're
+                // already copying new commits, so we can swallow missing file exceptions here
+                try {
+                    logger.debug(
+                        "CopyShard copying {} from {} to {}",
+                        blob.name(),
+                        sourceContainerForTerm.path(),
+                        destinationContainerForTerm.path()
+                    );
+                    destinationContainerForTerm.copyBlob(
+                        OperationPurpose.INDICES,
+                        sourceContainerForTerm,
+                        blob.name(),
+                        blob.name(),
+                        blob.length()
+                    );
+                } catch (NoSuchFileException ignored) {
+                    logger.warn("missing blob during copyShard, assuming benign race [{}]", blob.name());
+                }
             }
         }
+    }
+
+    /**
+     * Copy the given commit from the source shard to the destination shard.
+     */
+    public void copyCommit(VirtualBatchedCompoundCommit virtualBcc, ShardId destination) throws IOException {
+        var commit = virtualBcc.getFrozenBatchedCompoundCommit();
+        var source = commit.shardId();
+        assert projectResolver.supportsMultipleProjects() == false || assertShardsAreInSameProject(source, destination);
+
+        var primaryTerm = commit.primaryTermAndGeneration().primaryTerm();
+        Function<BlobContainer, BlobContainer> termContainer = (blobContainer) -> objectStore.blobStore()
+            .blobContainer(blobContainer.path().add(String.valueOf(primaryTerm)));
+        var sourceContainer = termContainer.apply(getProjectBlobContainer(source));
+        var destContainer = termContainer.apply(getProjectBlobContainer(destination));
+        var blobName = virtualBcc.getBlobName();
+        logger.debug("CopyCommit copying {} from [{}] to [{}]", blobName, sourceContainer.path(), destContainer.path());
+        destContainer.copyBlob(OperationPurpose.INDICES, sourceContainer, blobName, blobName, virtualBcc.getTotalSizeInBytes());
     }
 
     private boolean assertShardsAreInSameProject(ShardId source, ShardId destination) {

@@ -90,10 +90,10 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
     public static TransportVersion fromInputStream(String path, InputStream stream, Integer latest) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
             String line = reader.readLine();
-            String[] parts = line.replaceAll("\\s+","").split("\\|");
+            String[] parts = line.replaceAll("\\s+", "").split("\\|");
             String check;
             while ((check = reader.readLine()) != null) {
-                if (check.replaceAll("\\s+","").isEmpty() == false) {
+                if (check.replaceAll("\\s+", "").isEmpty() == false) {
                     throw new IllegalArgumentException("invalid transport version file format [" + path + "]");
                 }
             }

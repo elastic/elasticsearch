@@ -26,8 +26,11 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -43,7 +46,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * - user.realm: The realm of the original user on the querying cluster (e.g., "default_native")
  * - For run-as: Both authenticating and effective users from querying cluster
  */
-public class CcsSlowLogRestIT extends AbstractRemoteClusterSecurityTestCase {
+public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
 
@@ -323,7 +326,7 @@ public class CcsSlowLogRestIT extends AbstractRemoteClusterSecurityTestCase {
         assertBusy(() -> {
             try (var slowLog = fulfillingCluster.getNodeLog(0, LogType.SEARCH_SLOW)) {
                 final List<String> lines = Streams.readAllLines(slowLog);
-                assert (!lines.isEmpty());
+                assertThat(lines, not(empty()));
 
                 // Get the most recent slow log entry
                 String lastLogLine = lines.get(lines.size() - 1);

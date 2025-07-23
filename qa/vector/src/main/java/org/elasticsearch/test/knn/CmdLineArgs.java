@@ -29,7 +29,7 @@ import java.util.Locale;
  * This class encapsulates all the parameters required to run the KNN index tests.
  */
 record CmdLineArgs(
-    Path docVectors,
+    List<Path> docVectors,
     Path queryVectors,
     int numDocs,
     int numQueries,
@@ -88,7 +88,7 @@ record CmdLineArgs(
     static final ObjectParser<CmdLineArgs.Builder, Void> PARSER = new ObjectParser<>("cmd_line_args", true, Builder::new);
 
     static {
-        PARSER.declareString(Builder::setDocVectors, DOC_VECTORS_FIELD);
+        PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
         PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS_FIELD);
         PARSER.declareInt(Builder::setNumDocs, NUM_DOCS_FIELD);
         PARSER.declareInt(Builder::setNumQueries, NUM_QUERIES_FIELD);
@@ -118,7 +118,8 @@ record CmdLineArgs(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (docVectors != null) {
-            builder.field(DOC_VECTORS_FIELD.getPreferredName(), docVectors.toString());
+            List<String> docVectorsStrings = docVectors.stream().map(Path::toString).toList();
+            builder.field(DOC_VECTORS_FIELD.getPreferredName(), docVectorsStrings);
         }
         if (queryVectors != null) {
             builder.field(QUERY_VECTORS_FIELD.getPreferredName(), queryVectors.toString());
@@ -154,7 +155,7 @@ record CmdLineArgs(
     }
 
     static class Builder {
-        private Path docVectors;
+        private List<Path> docVectors;
         private Path queryVectors;
         private int numDocs = 1000;
         private int numQueries = 100;
@@ -179,8 +180,12 @@ record CmdLineArgs(
         private float filterSelectivity = 1f;
         private long seed = 1751900822751L;
 
-        public Builder setDocVectors(String docVectors) {
-            this.docVectors = PathUtils.get(docVectors);
+        public Builder setDocVectors(List<String> docVectors) {
+            if (docVectors == null || docVectors.isEmpty()) {
+                throw new IllegalArgumentException("Document vectors path must be provided");
+            }
+            // Convert list of strings to list of Paths
+            this.docVectors = docVectors.stream().map(PathUtils::get).toList();
             return this;
         }
 

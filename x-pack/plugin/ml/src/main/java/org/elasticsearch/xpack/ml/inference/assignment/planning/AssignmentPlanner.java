@@ -115,6 +115,7 @@ public class AssignmentPlanner {
             .map(
                 m -> new AssignmentPlan.Deployment(
                     m.deploymentId(),
+                    m.modelId(),
                     m.memoryBytes(),
                     1,
                     m.threadsPerAllocation(),
@@ -148,6 +149,7 @@ public class AssignmentPlanner {
                 : Map.of();
             return new AssignmentPlan.Deployment(
                 m.deploymentId(),
+                m.modelId(),
                 m.memoryBytes(),
                 m.allocations(),
                 m.threadsPerAllocation(),

@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -144,6 +145,7 @@ public class EsqlSession {
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
     private final EsqlFunctionRegistry functionRegistry;
+    private final LogicalPlanPreOptimizer logicalPlanPreOptimizer;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
     private final PreMapper preMapper;
 
@@ -164,6 +166,7 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
+        LogicalPlanPreOptimizer logicalPlanPreOptimizer,
         EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
@@ -177,6 +180,7 @@ public class EsqlSession {
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
+        this.logicalPlanPreOptimizer = logicalPlanPreOptimizer;
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
         this.mapper = mapper;
@@ -208,11 +212,10 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                LogicalPlan optimizedPlan = optimizedPlan(analyzedPlan);
-                preMapper.preMapper(
-                    optimizedPlan,
-                    listener.delegateFailureAndWrap((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
-                );
+                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
+                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
+                    .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
+                    .addListener(listener);
             }
         });
     }
@@ -1015,12 +1018,16 @@ public class EsqlSession {
     }
 
     public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
-        if (logicalPlan.analyzed() == false) {
-            throw new IllegalStateException("Expected analyzed plan");
+        if (logicalPlan.preOptimized() == false) {
+            throw new IllegalStateException("Expected pre-optimized plan");
         }
         var plan = logicalPlanOptimizer.optimize(logicalPlan);
         LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
         return plan;
+    }
+
+    public void preOptimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
+        logicalPlanPreOptimizer.preOptimize(logicalPlan, listener);
     }
 
     public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {

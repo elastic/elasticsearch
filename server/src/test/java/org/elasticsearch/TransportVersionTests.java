@@ -254,15 +254,15 @@ public class TransportVersionTests extends ESTestCase {
         TransportVersion test0 = TransportVersion.fromName("test-0");
         assertThat(new TransportVersion(null, 2003000, null).supports(test0), is(false));
         assertThat(new TransportVersion(null, 3001000, null).supports(test0), is(true));
-        assertThat(new TransportVersion(null, 4001001, null).supports(test0), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test0), is(true));
 
         TransportVersion test1 = TransportVersion.fromName("test-1");
         assertThat(new TransportVersion(null, 2003000, null).supports(test1), is(false));
         assertThat(new TransportVersion(null, 3001000, null).supports(test1), is(false));
         assertThat(new TransportVersion(null, 3001001, null).supports(test1), is(false));
         assertThat(new TransportVersion(null, 3002000, null).supports(test1), is(true));
-        assertThat(new TransportVersion(null, 4001000, null).supports(test1), is(true));
-        assertThat(new TransportVersion(null, 4001001, null).supports(test1), is(true));
+        assertThat(new TransportVersion(null, 100001000, null).supports(test1), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test1), is(true));
 
         TransportVersion test2 = TransportVersion.fromName("test-2");
         assertThat(new TransportVersion(null, 1001000, null).supports(test2), is(false));
@@ -281,8 +281,8 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 3003001, null).supports(test2), is(true));
         assertThat(new TransportVersion(null, 3003002, null).supports(test2), is(true));
         assertThat(new TransportVersion(null, 3003003, null).supports(test2), is(true));
-        assertThat(new TransportVersion(null, 4001000, null).supports(test2), is(true));
-        assertThat(new TransportVersion(null, 4001001, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 100001000, null).supports(test2), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test2), is(true));
 
         TransportVersion test3 = TransportVersion.fromName("test-3");
         assertThat(new TransportVersion(null, 1001001, null).supports(test3), is(false));
@@ -302,8 +302,8 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 3003002, null).supports(test3), is(true));
         assertThat(new TransportVersion(null, 3003003, null).supports(test3), is(true));
         assertThat(new TransportVersion(null, 3004000, null).supports(test3), is(true));
-        assertThat(new TransportVersion(null, 4001000, null).supports(test3), is(true));
-        assertThat(new TransportVersion(null, 4001001, null).supports(test3), is(true));
+        assertThat(new TransportVersion(null, 100001000, null).supports(test3), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test3), is(true));
 
         TransportVersion test4 = TransportVersion.fromName("test-4");
         assertThat(new TransportVersion(null, 1001001, null).supports(test4), is(false));
@@ -325,7 +325,7 @@ public class TransportVersionTests extends ESTestCase {
         assertThat(new TransportVersion(null, 3003003, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 3003004, null).supports(test4), is(true));
         assertThat(new TransportVersion(null, 3004000, null).supports(test4), is(true));
-        assertThat(new TransportVersion(null, 4001000, null).supports(test4), is(true));
-        assertThat(new TransportVersion(null, 4001001, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 100001000, null).supports(test4), is(true));
+        assertThat(new TransportVersion(null, 100001001, null).supports(test4), is(true));
     }
 }

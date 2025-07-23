@@ -11,6 +11,7 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
@@ -289,11 +290,6 @@ class ValuesBytesRefAggregator {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
-        @Override
-        public void enableGroupIdTracking(SeenGroupIds seen) {
-            // we figure out seen values from firstValues since ordinals are non-negative
-        }
-
         void addValueOrdinal(int groupId, int valueOrdinal) {
             if (groupId < firstValues.size()) {
                 int current = firstValues.get(groupId) - 1;
@@ -311,6 +307,11 @@ class ValuesBytesRefAggregator {
         void addValue(int groupId, BytesRef v) {
             int valueOrdinal = Math.toIntExact(BlockHash.hashOrdToGroup(bytes.add(v)));
             addValueOrdinal(groupId, valueOrdinal);
+        }
+
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
+            // we figure out seen values from firstValues since ordinals are non-negative
         }
 
         /**

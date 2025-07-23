@@ -11,6 +11,7 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
@@ -232,18 +233,18 @@ class ValuesDoubleAggregator {
      * The first value in each group is collected in the {@code firstValues}
      * array, and subsequent values for each group are collected in {@code nextValues}.
      */
-    public static class GroupingState extends AbstractArrayState {
+    public static class GroupingState implements GroupingAggregatorState {
         private final BlockFactory blockFactory;
         DoubleArray firstValues;
+        private BitArray seen;
         private int maxGroupId = -1;
         private final NextValues nextValues;
 
         private GroupingState(DriverContext driverContext) {
-            super(driverContext.bigArrays());
             DoubleArray _firstValues = null;
             NextValues _nextValues = null;
             try {
-                _firstValues = driverContext.bigArrays().newDoubleArray(1, true);
+                _firstValues = driverContext.bigArrays().newDoubleArray(1, false);
                 _nextValues = new NextValues(driverContext.blockFactory());
 
                 this.firstValues = _firstValues;
@@ -265,6 +266,12 @@ class ValuesDoubleAggregator {
             if (groupId > maxGroupId) {
                 firstValues = blockFactory.bigArrays().grow(firstValues, groupId + 1);
                 firstValues.set(groupId, v);
+                if (seen == null && groupId > maxGroupId + 1) {
+                    seen = new BitArray(groupId + 1, blockFactory.bigArrays());
+                    if (maxGroupId >= 0) {
+                        seen.fill(0, maxGroupId, true);
+                    }
+                }
                 trackGroupId(groupId);
                 maxGroupId = groupId;
             } else if (hasValue(groupId) == false) {
@@ -273,6 +280,21 @@ class ValuesDoubleAggregator {
             } else if (firstValues.get(groupId) != v) {
                 nextValues.addValue(groupId, v);
             }
+        }
+
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
+            // we track the seen values manually
+        }
+
+        private void trackGroupId(int groupId) {
+            if (seen != null) {
+                seen.set(groupId);
+            }
+        }
+
+        private boolean hasValue(int groupId) {
+            return seen == null || seen.get(groupId);
         }
 
         /**
@@ -319,7 +341,7 @@ class ValuesDoubleAggregator {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(super::close, firstValues, nextValues);
+            Releasables.closeExpectNoException(seen, firstValues, nextValues);
         }
     }
 }

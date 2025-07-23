@@ -11,6 +11,7 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
@@ -346,13 +347,14 @@ $endif$
      * The first value in each group is collected in the {@code firstValues}
      * array, and subsequent values for each group are collected in {@code nextValues}.
      */
-    public static class GroupingState $if(BytesRef)$implements GroupingAggregatorState$else$extends AbstractArrayState$endif$ {
+    public static class GroupingState implements GroupingAggregatorState {
         private final BlockFactory blockFactory;
 $if(BytesRef)$
         BytesRefHash bytes;
         private IntArray firstValues;
 $else$
         $Type$Array firstValues;
+        private BitArray seen;
         private int maxGroupId = -1;
 $endif$
         private final NextValues nextValues;
@@ -362,7 +364,6 @@ $if(BytesRef)$
             BytesRefHash _bytes = null;
             IntArray _firstValues = null;
 $else$
-            super(driverContext.bigArrays());
             $Type$Array _firstValues = null;
 $endif$
             NextValues _nextValues = null;
@@ -371,7 +372,7 @@ $if(BytesRef)$
                 _bytes = new BytesRefHash(1, driverContext.bigArrays());
                 _firstValues = driverContext.bigArrays().newIntArray(1, true);
 $else$
-                _firstValues = driverContext.bigArrays().new$Type$Array(1, true);
+                _firstValues = driverContext.bigArrays().new$Type$Array(1, false);
 $endif$
                 _nextValues = new NextValues(driverContext.blockFactory());
 
@@ -395,11 +396,6 @@ $endif$
         }
 
 $if(BytesRef)$
-        @Override
-        public void enableGroupIdTracking(SeenGroupIds seen) {
-            // we figure out seen values from firstValues since ordinals are non-negative
-        }
-
         void addValueOrdinal(int groupId, int valueOrdinal) {
             if (groupId < firstValues.size()) {
                 int current = firstValues.get(groupId) - 1;
@@ -423,6 +419,12 @@ $else$
             if (groupId > maxGroupId) {
                 firstValues = blockFactory.bigArrays().grow(firstValues, groupId + 1);
                 firstValues.set(groupId, v);
+                if (seen == null && groupId > maxGroupId + 1) {
+                    seen = new BitArray(groupId + 1, blockFactory.bigArrays());
+                    if (maxGroupId >= 0) {
+                        seen.fill(0, maxGroupId, true);
+                    }
+                }
                 trackGroupId(groupId);
                 maxGroupId = groupId;
             } else if (hasValue(groupId) == false) {
@@ -434,6 +436,29 @@ $else$
 $endif$
         }
 
+$if(BytesRef)$
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
+            // we figure out seen values from firstValues since ordinals are non-negative
+        }
+
+$else$
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
+            // we track the seen values manually
+        }
+
+        private void trackGroupId(int groupId) {
+            if (seen != null) {
+                seen.set(groupId);
+            }
+        }
+
+        private boolean hasValue(int groupId) {
+            return seen == null || seen.get(groupId);
+        }
+
+$endif$
         /**
          * Builds a {@link Block} with the unique values collected for the {@code #selected}
          * groups. This is the implementation of the final and intermediate results of the agg.
@@ -545,7 +570,7 @@ $endif$
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException($if(BytesRef)$bytes$else$super::close$endif$, firstValues, nextValues);
+            Releasables.closeExpectNoException($if(BytesRef)$bytes$else$seen$endif$, firstValues, nextValues);
         }
     }
 }

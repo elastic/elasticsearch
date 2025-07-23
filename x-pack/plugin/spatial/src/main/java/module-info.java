@@ -6,7 +6,7 @@
  */
 
 /** Elasticsearch X-Pack Spatial Plugin. */
-module org.elasticsearch.xpack.spatial {
+module org.elasticsearch.spatial {
     requires org.elasticsearch.base;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.h3;

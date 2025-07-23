@@ -6,7 +6,7 @@
  */
 
 /** Elasticsearch X-Pack Constant Keyword Mapper Plugin. */
-module org.elasticsearch.xpack.constantkeyword {
+module org.elasticsearch.constantkeyword {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.painless.spi;

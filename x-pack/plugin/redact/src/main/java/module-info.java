@@ -6,7 +6,7 @@
  */
 
 /** Elasticsearch Redact Plugin. */
-module org.elasticsearch.xpack.redact {
+module org.elasticsearch.redact {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.grok;

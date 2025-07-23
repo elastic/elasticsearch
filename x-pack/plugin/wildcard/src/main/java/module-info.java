@@ -6,7 +6,7 @@
  */
 
 /** Elasticsearch X-Pack Wildcard Plugin. */
-module org.elasticsearch.xpack.wildcard {
+module org.elasticsearch.wildcard {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.painless.spi;

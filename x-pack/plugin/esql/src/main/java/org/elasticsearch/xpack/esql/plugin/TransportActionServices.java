@@ -15,8 +15,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceResolver;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 
 public class TransportActionServices {
@@ -28,7 +28,7 @@ public class TransportActionServices {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final UsageService usageService;
     private final InferenceResolver.Factory inferenceResolverFactory;
-    private final InferenceRunner.Factory inferenceRunnerFactory;
+    private final BulkInferenceRunner.Factory inferenceRunnerFactory;
 
     public TransportActionServices(
         TransportService transportService,
@@ -39,7 +39,7 @@ public class TransportActionServices {
         IndexNameExpressionResolver indexNameExpressionResolver,
         UsageService usageService,
         InferenceResolver.Factory inferenceResolverFactory,
-        InferenceRunner.Factory inferenceRunnerFactory
+        BulkInferenceRunner.Factory inferenceRunnerFactory
     ) {
         this.transportService = transportService;
         this.searchService = searchService;
@@ -95,7 +95,7 @@ public class TransportActionServices {
      *
      * @return The factory for creating inference runners
      */
-    public InferenceRunner.Factory inferenceRunnerFactory() {
+    public BulkInferenceRunner.Factory inferenceRunnerFactory() {
         return inferenceRunnerFactory;
     }
 
@@ -104,7 +104,7 @@ public class TransportActionServices {
      *
      * @return A configured inference runner capable of executing inference requests
      */
-    public InferenceRunner inferenceRunner() {
+    public BulkInferenceRunner inferenceRunner() {
         return inferenceRunner(InferenceRunnerConfig.DEFAULT);
     }
 
@@ -114,7 +114,7 @@ public class TransportActionServices {
      * @param inferenceRunnerConfig Configuration specifying concurrency limits and execution parameters
      * @return A configured inference runner capable of executing inference requests
      */
-    public InferenceRunner inferenceRunner(InferenceRunnerConfig inferenceRunnerConfig) {
+    public BulkInferenceRunner inferenceRunner(InferenceRunnerConfig inferenceRunnerConfig) {
         return inferenceRunnerFactory.create(inferenceRunnerConfig);
     }
 }

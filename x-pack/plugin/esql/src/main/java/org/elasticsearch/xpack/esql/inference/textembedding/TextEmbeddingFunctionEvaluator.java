@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
+import org.elasticsearch.xpack.esql.inference.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
@@ -39,7 +39,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
  */
 public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluator {
 
-    private final InferenceRunner.Factory inferenceRunnerFactory;
+    private final BulkInferenceRunner.Factory inferenceRunnerFactory;
 
     private final TextEmbedding f;
 
@@ -49,7 +49,7 @@ public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluato
      * @param f The text embedding function to evaluate
      * @param inferenceRunnerFactory Factory for creating inference runners
      */
-    public TextEmbeddingFunctionEvaluator(TextEmbedding f, InferenceRunner.Factory inferenceRunnerFactory) {
+    public TextEmbeddingFunctionEvaluator(TextEmbedding f, BulkInferenceRunner.Factory inferenceRunnerFactory) {
         this.inferenceRunnerFactory = inferenceRunnerFactory;
         this.f = f;
     }

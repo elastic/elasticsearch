@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.expression.function.inference.InferenceFunction;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
@@ -42,7 +42,7 @@ import java.util.Map;
  * </pre>
  */
 public class InferenceFunctionConstantFolding implements PreOptimizerRule {
-    private final InferenceRunner.Factory inferenceRunnerFactory;
+    private final BulkInferenceRunner.Factory inferenceRunnerFactory;
     private final FoldContext foldContext;
 
     /**
@@ -52,7 +52,7 @@ public class InferenceFunctionConstantFolding implements PreOptimizerRule {
      * @param preOptimizerContext the pre-optimizer context containing folding configuration
      */
     public InferenceFunctionConstantFolding(
-        InferenceRunner.Factory inferenceRunnerFactory,
+        BulkInferenceRunner.Factory inferenceRunnerFactory,
         LogicalPreOptimizerContext preOptimizerContext
     ) {
         this.inferenceRunnerFactory = inferenceRunnerFactory;

@@ -24,29 +24,34 @@ import java.util.List;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
- * An abstract asynchronous operator that performs throttled bulk inference execution using an {@link InferenceRunner}.
+ * An abstract asynchronous operator that performs throttled bulk inference execution using a {@link BulkInferenceRunner}.
  * <p>
- * The {@code InferenceOperator} integrates with the compute framework  supports throttled bulk execution of inference requests. It
+ * The {@code InferenceOperator} integrates with the compute framework and supports throttled bulk execution of inference requests. It
  * transforms input {@link Page} into inference requests, asynchronously executes them, and converts the responses into a new {@link Page}.
  * </p>
  */
 public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.OngoingInferenceResult> {
     private final String inferenceId;
     private final BlockFactory blockFactory;
-    private final InferenceRunner inferenceRunner;
+    private final BulkInferenceRunner bulkInferenceRunner;
 
     /**
      * Constructs a new {@code InferenceOperator}.
      *
      * @param driverContext       The driver context.
-     * @param inferenceRunner     Inference runner used to execute inference requests.
+     * @param bulkInferenceRunner     Inference runner used to execute inference requests.
      * @param inferenceId         The ID of the inference model to use.
      * @param maxOutstandingPages The number of concurrent pages to process in parallel.
      */
-    public InferenceOperator(DriverContext driverContext, InferenceRunner inferenceRunner, String inferenceId, int maxOutstandingPages) {
-        super(driverContext, inferenceRunner.threadPool().getThreadContext(), maxOutstandingPages);
+    public InferenceOperator(
+        DriverContext driverContext,
+        BulkInferenceRunner bulkInferenceRunner,
+        String inferenceId,
+        int maxOutstandingPages
+    ) {
+        super(driverContext, bulkInferenceRunner.threadPool().getThreadContext(), maxOutstandingPages);
         this.blockFactory = driverContext.blockFactory();
-        this.inferenceRunner = inferenceRunner;
+        this.bulkInferenceRunner = bulkInferenceRunner;
         this.inferenceId = inferenceId;
     }
 
@@ -72,7 +77,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         try {
             BulkInferenceRequestIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);
-            inferenceRunner.executeBulk(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
+            bulkInferenceRunner.executeBulk(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
         } catch (Exception e) {
             listener.onFailure(e);
         }

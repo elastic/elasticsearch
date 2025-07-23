@@ -8,7 +8,11 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
@@ -23,8 +27,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
+import org.elasticsearch.xpack.esql.inference.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
@@ -38,7 +41,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
@@ -212,45 +214,26 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
      * @param textEmbeddingModel the embedding model to use
      * @return a mock inference runner
      */
-    protected InferenceRunner.Factory mockedInferenceRunnerFactory(TestEmbeddingModel textEmbeddingModel) {
-        return (inferenceExecutionConfig) -> new InferenceRunner() {
+    protected BulkInferenceRunner.Factory mockedInferenceRunnerFactory(TestEmbeddingModel textEmbeddingModel) {
+        return (inferenceExecutionConfig) -> new BulkInferenceRunner(new NoOpClient(threadPool) {
             @Override
-            public void execute(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-                try {
-                    runWithDelay(
-                        () -> listener.onResponse(
-                            new InferenceAction.Response(
-                                TEST_EMBEDDING_MODELS.get(textEmbeddingModel).embeddingResults(request.getInput().getFirst())
-                            )
-                        )
-                    );
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            }
-
-            @Override
-            public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
-                execute(requests.next(), listener.map(r -> List.of(r)));
-            }
-
-            @Override
-            public void executeBulk(
-                BulkInferenceRequestIterator requests,
-                Consumer<InferenceAction.Response> responseConsumer,
-                ActionListener<Void> completionListener
+            @SuppressWarnings("unchecked")
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
             ) {
-                execute(requests.next(), completionListener.delegateFailureAndWrap((l, r) -> {
-                    responseConsumer.accept(r);
-                    l.onResponse(null);
-                }));
-            }
+                if (action == InferenceAction.INSTANCE && request instanceof InferenceAction.Request inferenceRequest) {
+                    InferenceAction.Response infernceResponse = new InferenceAction.Response(
+                        TEST_EMBEDDING_MODELS.get(textEmbeddingModel).embeddingResults(inferenceRequest.getInput().getFirst())
+                    );
+                    listener.onResponse((Response) infernceResponse);
+                    return;
+                }
 
-            @Override
-            public ThreadPool threadPool() {
-                return threadPool;
+                fail("Unexpected action: " + action);
             }
-        };
+        }, between(1, 10));
     }
 
     protected LogicalPreOptimizerContext preOptimizerContext() {

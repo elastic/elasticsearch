@@ -86,7 +86,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -159,7 +159,7 @@ public class LocalExecutionPlanner {
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
-    private final InferenceRunner.Factory inferenceRunnerFactory;
+    private final BulkInferenceRunner.Factory inferenceRunnerFactory;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final List<ShardContext> shardContexts;
 
@@ -175,7 +175,7 @@ public class LocalExecutionPlanner {
         Supplier<ExchangeSink> exchangeSinkSupplier,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
-        InferenceRunner.Factory inferenceRunnerFactory,
+        BulkInferenceRunner.Factory inferenceRunnerFactory,
         PhysicalOperationProviders physicalOperationProviders,
         List<ShardContext> shardContexts
     ) {

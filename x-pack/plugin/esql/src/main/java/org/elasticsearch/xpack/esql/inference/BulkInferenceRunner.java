@@ -29,19 +29,25 @@ import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
- * Implementation of {@link InferenceRunner} that provides throttling and concurrency control.
+ * Implementation of bulk inference execution with throttling and concurrency control.
  * <p>
  * This runner limits the number of concurrent inference requests using a semaphore-based
  * permit system. When all permits are exhausted, additional requests are queued and
  * executed as permits become available.
  * </p>
+ * <p>
+ * Response processing is always executed in the ESQL worker thread pool to ensure
+ * consistent thread context and avoid thread safety issues with circuit breakers
+ * and other non-thread-safe components.
+ * </p>
  */
-class ThrottledInferenceRunner implements InferenceRunner {
+public class BulkInferenceRunner {
 
     private final Client client;
     private final ExecutorService executorService;
-    private final BlockingQueue<AbstractRunnable> pendingRequestsQueue;
     private final Semaphore permits;
+
+    private final BlockingQueue<AbstractRunnable> pendingRequestsQueue;
 
     // We want to make sure there is no concurrency on responding inference requests.
     // This caused all sort of bugs in the past, especially with circuit breaker being not thread-safe.
@@ -53,22 +59,11 @@ class ThrottledInferenceRunner implements InferenceRunner {
      * @param client          The Elasticsearch client for executing inference requests
      * @param maxRunningTasks The maximum number of concurrent inference requests allowed
      */
-    ThrottledInferenceRunner(Client client, int maxRunningTasks) {
+    public BulkInferenceRunner(Client client, int maxRunningTasks) {
         this.executorService = executorService(client.threadPool());
         this.permits = new Semaphore(maxRunningTasks);
         this.client = client;
         this.pendingRequestsQueue = new ArrayBlockingQueue<>(maxRunningTasks);
-    }
-
-    /**
-     * Schedules the inference task for execution. If a permit is available, the task runs immediately; otherwise, it is queued.
-     *
-     * @param request  The inference request.
-     * @param listener The listener to notify on response or failure.
-     */
-    public void execute(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-        enqueueInferenceRequest(request, listener);
-        executePendingInferenceRequests();
     }
 
     /**
@@ -80,6 +75,10 @@ class ThrottledInferenceRunner implements InferenceRunner {
     public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
         List<InferenceAction.Response> responses = new ArrayList<>(requests.estimatedSize());
         executeBulk(requests, responses::add, listener.map(ignored -> responses));
+    }
+
+    public ThreadPool threadPool() {
+        return client.threadPool();
     }
 
     /**
@@ -121,7 +120,8 @@ class ThrottledInferenceRunner implements InferenceRunner {
             if (request == null) {
                 inferenceResponseListener.onResponse(null);
             } else {
-                execute(request, inferenceResponseListener);
+                enqueueInferenceRequest(request, inferenceResponseListener);
+                executePendingInferenceRequests();
             }
         }
     }
@@ -130,11 +130,6 @@ class ThrottledInferenceRunner implements InferenceRunner {
         synchronized (responseLock) {
             responseHandler.persistPendingResponses();
         }
-    }
-
-    @Override
-    public ThreadPool threadPool() {
-        return client.threadPool();
     }
 
     /**
@@ -207,23 +202,30 @@ class ThrottledInferenceRunner implements InferenceRunner {
     }
 
     /**
-     * Returns the executor service for ESQL worker threads.
+     * Returns the executor service for ES|QL worker threads.
      *
      * @param threadPool Thread pool to use to run inference tasks
-     * @return The executor service for ESQL worker threads
+     * @return The executor service for ES|QL worker threads
      */
     private static ExecutorService executorService(ThreadPool threadPool) {
         return threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
     }
 
-    /**
-     * Factory for throttled inference runners.
-     */
-    record Factory(Client client) implements InferenceRunner.Factory {
+    public static Factory factory(Client client) {
+        return inferenceRunnerConfig -> new BulkInferenceRunner(client, inferenceRunnerConfig.maxOutstandingBulkRequests());
+    }
 
-        @Override
-        public InferenceRunner create(InferenceRunnerConfig inferenceRunnerConfig) {
-            return new ThrottledInferenceRunner(client, inferenceRunnerConfig.maxOutstandingRequests());
-        }
+    /**
+     * Factory interface for creating {@link BulkInferenceRunner} instances.
+     */
+    @FunctionalInterface
+    public interface Factory {
+        /**
+         * Creates a new inference runner with the specified execution configuration.
+         *
+         * @param inferenceRunnerConfig Configuration defining concurrency limits and execution parameters
+         * @return A configured inference runner implementation
+         */
+        BulkInferenceRunner create(InferenceRunnerConfig inferenceRunnerConfig);
     }
 }

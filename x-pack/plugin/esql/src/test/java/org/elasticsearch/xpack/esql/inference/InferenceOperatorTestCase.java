@@ -135,7 +135,11 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @SuppressWarnings("unchecked")
-    protected InferenceRunner.Factory mockedInferenceRunnerFactory() {
+    /**
+     * Creates a mocked BulkInferenceRunner.Factory for testing purposes.
+     * The factory creates runners that simulate inference responses using mockInferenceResult().
+     */
+    protected BulkInferenceRunner.Factory mockedInferenceRunnerFactory() {
         Client client = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -161,7 +165,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             }
         };
 
-        return InferenceRunner.factory(client);
+        return BulkInferenceRunner.factory(client);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);

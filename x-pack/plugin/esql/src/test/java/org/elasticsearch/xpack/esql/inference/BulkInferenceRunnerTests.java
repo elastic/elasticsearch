@@ -40,7 +40,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ThrottledInferenceRunnerTests extends ESTestCase {
+public class BulkInferenceRunnerTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
@@ -61,49 +61,6 @@ public class ThrottledInferenceRunnerTests extends ESTestCase {
     @After
     public void shutdownThreadPool() {
         terminate(threadPool);
-    }
-
-    public void testInferenceExecution() throws Exception {
-        InferenceAction.Request request = mockInferenceRequest();
-        InferenceAction.Response response = mockInferenceResponse();
-
-        Client client = mockClient(invocation -> {
-            runWithRandomDelay(() -> {
-                ActionListener<InferenceAction.Response> l = invocation.getArgument(2);
-                l.onResponse(response);
-            });
-            return null;
-        });
-
-        AtomicReference<InferenceAction.Response> output = new AtomicReference<>();
-        ActionListener<InferenceAction.Response> listener = ActionListener.wrap(output::set, r -> fail("Unexpected exception"));
-
-        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).execute(request, listener);
-
-        assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), equalTo(response))));
-    }
-
-    public void testInferenceExecutionFailure() throws Exception {
-        InferenceAction.Request request = mockInferenceRequest();
-        InferenceAction.Response response = mockInferenceResponse();
-
-        Client client = mockClient(invocation -> {
-            runWithRandomDelay(() -> {
-                ActionListener<InferenceAction.Response> listener = invocation.getArgument(2);
-                listener.onFailure(new RuntimeException("inference failure"));
-            });
-            return null;
-        });
-
-        AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<InferenceAction.Response> listener = ActionListener.wrap(r -> fail("Expected exception"), exception::set);
-
-        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).execute(request, listener);
-
-        assertBusy(() -> {
-            assertThat(exception.get(), notNullValue());
-            assertThat(exception.get().getMessage(), equalTo("inference failure"));
-        });
     }
 
     public void testSuccessfulBulkExecution() throws Exception {
@@ -187,8 +144,8 @@ public class ThrottledInferenceRunnerTests extends ESTestCase {
         });
     }
 
-    private InferenceRunner.Factory inferenceRunnerFactory(Client client) {
-        return InferenceRunner.factory(client);
+    private BulkInferenceRunner.Factory inferenceRunnerFactory(Client client) {
+        return BulkInferenceRunner.factory(client);
     }
 
     private InferenceAction.Request mockInferenceRequest() {

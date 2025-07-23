@@ -68,8 +68,8 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.inference.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceResolver;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
@@ -714,7 +714,7 @@ public class CsvTests extends ESTestCase {
             () -> exchangeSink.createExchangeSink(() -> {}),
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
-            mock(InferenceRunner.Factory.class),
+            mock(BulkInferenceRunner.Factory.class),
             physicalOperationProviders,
             List.of()
         );

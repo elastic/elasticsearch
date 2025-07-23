@@ -14,8 +14,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.inference.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 
@@ -29,11 +29,11 @@ public class TextEmbeddingOperator extends InferenceOperator {
 
     public TextEmbeddingOperator(
         DriverContext driverContext,
-        InferenceRunner inferenceRunner,
+        BulkInferenceRunner bulkInferenceRunner,
         String inferenceId,
         ExpressionEvaluator inputTextEvaluator
     ) {
-        super(driverContext, inferenceRunner, inferenceId, InferenceRunnerConfig.DEFAULT.maxOutstandingRequests());
+        super(driverContext, bulkInferenceRunner, inferenceId, InferenceRunnerConfig.DEFAULT.maxOutstandingRequests());
         this.inputTextEvaluator = inputTextEvaluator;
     }
 
@@ -65,12 +65,12 @@ public class TextEmbeddingOperator extends InferenceOperator {
     }
 
     public static class Factory implements Operator.OperatorFactory {
-        private final InferenceRunner.Factory inferenceRunnerFactory;
+        private final BulkInferenceRunner.Factory inferenceRunnerFactory;
         private final String inferenceId;
         private final ExpressionEvaluator.Factory inputTextEvaluatorFactory;
 
         public Factory(
-            InferenceRunner.Factory inferenceRunnerFactory,
+            BulkInferenceRunner.Factory inferenceRunnerFactory,
             String inferenceId,
             ExpressionEvaluator.Factory inputTextEvaluatorFactory
         ) {

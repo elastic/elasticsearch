@@ -40,6 +40,6 @@ public interface InferenceFunctionEvaluator {
          * @param inferenceRunnerFactory Factory for creating inference runners
          * @return A new evaluator instance
          */
-        InferenceFunctionEvaluator get(InferenceRunner.Factory inferenceRunnerFactory);
+        InferenceFunctionEvaluator get(BulkInferenceRunner.Factory inferenceRunnerFactory);
     }
 }

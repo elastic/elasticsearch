@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.inference.textembedding;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -47,6 +48,11 @@ public class TextEmbeddingOperator extends InferenceOperator {
     }
 
     @Override
+    protected Page addOutputBlock(Page input, Block outputblock) {
+        return input.appendBlock(outputblock);
+    }
+
+    @Override
     protected BulkInferenceRequestIterator requests(Page input) {
         return new TextEmbeddingOperatorRequestIterator((BytesRefBlock) inputTextEvaluator.eval(input), inferenceId());
     }
@@ -55,7 +61,7 @@ public class TextEmbeddingOperator extends InferenceOperator {
     protected OutputBuilder outputBuilder(Page input) {
         // TODO: get dimensions from the function
         var outputBlockBuilder = blockFactory().newFloatBlockBuilder(input.getPositionCount());
-        return new TextEmbeddingOperatorOutputBuilder(outputBlockBuilder, input);
+        return new TextEmbeddingOperatorOutputBuilder(outputBlockBuilder);
     }
 
     public static class Factory implements Operator.OperatorFactory {

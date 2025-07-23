@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
@@ -99,12 +100,14 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             for (InferenceAction.Response response : ongoingInferenceResult.responses) {
                 outputBuilder.addInferenceResponse(response);
             }
-            return outputBuilder.buildOutput();
+            return addOutputBlock(ongoingInferenceResult.inputPage, outputBuilder.buildOutput());
 
         } finally {
             releaseFetchedOnAnyThread(ongoingInferenceResult);
         }
     }
+
+    protected abstract Page addOutputBlock(Page input, Block outputblock);
 
     /**
      * Converts the given input page into a sequence of inference requests.
@@ -137,11 +140,11 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         void addInferenceResponse(InferenceAction.Response inferenceResponse);
 
         /**
-         * Builds the final output page from accumulated inference responses.
+         * Builds the final output block from accumulated inference responses.
          *
-         * @return The constructed output page.
+         * @return The constructed output block.
          */
-        Page buildOutput();
+        Block buildOutput();
 
         static <IR extends InferenceServiceResults> IR inferenceResults(InferenceAction.Response inferenceResponse, Class<IR> clazz) {
             InferenceServiceResults results = inferenceResponse.getResults();
@@ -152,10 +155,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             throw new IllegalStateException(
                 format("Inference result has wrong type. Got [{}] while expecting [{}]", results.getClass().getName(), clazz.getName())
             );
-        }
-
-        default void releasePageOnAnyThread(Page page) {
-            InferenceOperator.releasePageOnAnyThread(page);
         }
     }
 

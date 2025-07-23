@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.esql.inference.completion;
 
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
@@ -22,19 +20,16 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator;
  */
 public class CompletionOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
 
-    private final Page inputPage;
     private final BytesRefBlock.Builder outputBlockBuilder;
     private final BytesRefBuilder bytesRefBuilder = new BytesRefBuilder();
 
-    public CompletionOperatorOutputBuilder(BytesRefBlock.Builder outputBlockBuilder, Page inputPage) {
-        this.inputPage = inputPage;
+    public CompletionOperatorOutputBuilder(BytesRefBlock.Builder outputBlockBuilder) {
         this.outputBlockBuilder = outputBlockBuilder;
     }
 
     @Override
     public void close() {
         Releasables.close(outputBlockBuilder);
-        releasePageOnAnyThread(inputPage);
     }
 
     /**
@@ -73,13 +68,11 @@ public class CompletionOperatorOutputBuilder implements InferenceOperator.Output
     }
 
     /**
-     * Builds the final output page by appending the completion output block to a shallow copy of the input page.
+     * Builds the final completion output block.
      */
     @Override
-    public Page buildOutput() {
-        Block outputBlock = outputBlockBuilder.build();
-        assert outputBlock.getPositionCount() == inputPage.getPositionCount();
-        return inputPage.shallowCopy().appendBlock(outputBlock);
+    public BytesRefBlock buildOutput() {
+        return outputBlockBuilder.build();
     }
 
     private ChatCompletionResults inferenceResults(InferenceAction.Response inferenceResponse) {

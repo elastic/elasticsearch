@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.inference.textembedding;
 
 import org.elasticsearch.compute.data.FloatArrayBlock;
 import org.elasticsearch.compute.data.FloatBlock;
-import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
@@ -23,18 +22,15 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator;
  * {@link TextEmbeddingResults} into a {@link FloatArrayBlock}.
  */
 public class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.OutputBuilder {
-    private final Page inputPage;
     private final FloatBlock.Builder outputBlockBuilder;
 
-    public TextEmbeddingOperatorOutputBuilder(FloatBlock.Builder outputBlockBuilder, Page inputPage) {
-        this.inputPage = inputPage;
+    public TextEmbeddingOperatorOutputBuilder(FloatBlock.Builder outputBlockBuilder) {
         this.outputBlockBuilder = outputBlockBuilder;
     }
 
     @Override
     public void close() {
         Releasables.close(outputBlockBuilder);
-        releasePageOnAnyThread(inputPage);
     }
 
     /**
@@ -71,11 +67,11 @@ public class TextEmbeddingOperatorOutputBuilder implements InferenceOperator.Out
     }
 
     /**
-     * Builds the final output page by appending the embedding output block to a shallow copy of the input page.
+     * Builds the final text embedding output block.
      */
     @Override
-    public Page buildOutput() {
-        return new Page(outputBlockBuilder.build());
+    public FloatBlock buildOutput() {
+        return outputBlockBuilder.build();
     }
 
     private TextEmbeddingResults<?> inferenceResults(InferenceAction.Response inferenceResponse) {

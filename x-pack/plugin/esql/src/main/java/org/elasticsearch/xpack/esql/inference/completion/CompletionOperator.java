@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.inference.completion;
 
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -47,6 +48,11 @@ public class CompletionOperator extends InferenceOperator {
         return "CompletionOperator[inference_id=[" + inferenceId() + "]]";
     }
 
+    @Override
+    protected Page addOutputBlock(Page input, Block outputblock) {
+        return input.shallowCopy().appendBlock(outputblock);
+    }
+
     /**
      * Constructs the completion inference requests iterator for the given input page by evaluating the prompt expression.
      *
@@ -64,8 +70,7 @@ public class CompletionOperator extends InferenceOperator {
      */
     @Override
     protected CompletionOperatorOutputBuilder outputBuilder(Page input) {
-        BytesRefBlock.Builder outputBlockBuilder = blockFactory().newBytesRefBlockBuilder(input.getPositionCount());
-        return new CompletionOperatorOutputBuilder(outputBlockBuilder, input);
+        return new CompletionOperatorOutputBuilder(blockFactory().newBytesRefBlockBuilder(input.getPositionCount()));
     }
 
     /**

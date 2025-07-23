@@ -23,20 +23,19 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
 
-    public void testBuildSmallOutput() {
+    public void testBuildSmallOutput() throws Exception {
         assertBuildOutput(between(1, 100));
     }
 
-    public void testBuildLargeOutput() {
+    public void testBuildLargeOutput() throws Exception {
         assertBuildOutput(between(10_000, 100_000));
     }
 
-    private void assertBuildOutput(int size) {
+    private void assertBuildOutput(int size) throws Exception {
         final Page inputPage = randomInputPage(size, between(1, 20));
         try (
             CompletionOperatorOutputBuilder outputBuilder = new CompletionOperatorOutputBuilder(
-                blockFactory().newBytesRefBlockBuilder(size),
-                inputPage
+                blockFactory().newBytesRefBlockBuilder(size)
             )
         ) {
             for (int currentPos = 0; currentPos < inputPage.getPositionCount(); currentPos++) {
@@ -44,17 +43,16 @@ public class CompletionOperatorOutputBuilderTests extends ComputeTestCase {
                 outputBuilder.addInferenceResponse(new InferenceAction.Response(new ChatCompletionResults(results)));
             }
 
-            final Page outputPage = outputBuilder.buildOutput();
-            assertThat(outputPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
-            assertThat(outputPage.getBlockCount(), equalTo(inputPage.getBlockCount() + 1));
-            assertOutputContent(outputPage.getBlock(outputPage.getBlockCount() - 1));
+            final BytesRefBlock outputBlock = outputBuilder.buildOutput();
+            assertThat(outputBlock.getPositionCount(), equalTo(inputPage.getPositionCount()));
+            assertOutputContent(outputBlock);
 
-            outputPage.releaseBlocks();
-
+            Releasables.close(outputBlock);
         } finally {
             inputPage.releaseBlocks();
         }
 
+        allBreakersEmpty();
     }
 
     private void assertOutputContent(BytesRefBlock block) {

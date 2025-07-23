@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.inference.rerank;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -72,6 +71,22 @@ public class RerankOperator extends InferenceOperator {
         return "RerankOperator[inference_id=[" + inferenceId() + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
     }
 
+    @Override
+    protected Page addOutputBlock(Page inputPage, Block outputblock) {
+        int blockCount = Integer.max(inputPage.getBlockCount(), scoreChannel + 1);
+        Block[] blocks = new Block[blockCount];
+
+        for (int b = 0; b < blockCount; b++) {
+            if (b == scoreChannel) {
+                blocks[b] = outputblock;
+            } else {
+                blocks[b] = inputPage.getBlock(b);
+                blocks[b].incRef();
+            }
+        }
+        return new Page(blocks);
+    }
+
     /**
      * Returns the request iterator responsible for batching and converting input rows into inference requests.
      */
@@ -81,12 +96,11 @@ public class RerankOperator extends InferenceOperator {
     }
 
     /**
-     * Returns the output builder responsible for collecting inference responses and building the output page.
+     * Returns the output builder responsible for collecting inference responses and building the output block.
      */
     @Override
     protected RerankOperatorOutputBuilder outputBuilder(Page input) {
-        DoubleBlock.Builder outputBlockBuilder = blockFactory().newDoubleBlockBuilder(input.getPositionCount());
-        return new RerankOperatorOutputBuilder(outputBlockBuilder, input, scoreChannel);
+        return new RerankOperatorOutputBuilder(blockFactory().newDoubleBlockBuilder(input.getPositionCount()));
     }
 
     /**

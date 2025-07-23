@@ -289,6 +289,12 @@ public abstract class DocsV3Support {
     public static class AssertCallbacks implements Callbacks {
         @Override
         public void write(Path dir, String name, String extension, String str, boolean kibana) throws IOException {
+            /*
+             * If you've arrived in this method because a CI build is failing and
+             * rerunning the tests doesn't fix it then there is some bug with the
+             * docs generation assertion logic. You can run your REPRODUCE WITH
+             * line prefixed with `BUILDKITE_BUILD_URL=true`.
+             */
             Path file = dir.resolve(name + "." + extension);
             assertTrue("rerun test for " + name + ". " + file + " is missing", Files.exists(file));
             List<String> found = Files.readAllLines(file);

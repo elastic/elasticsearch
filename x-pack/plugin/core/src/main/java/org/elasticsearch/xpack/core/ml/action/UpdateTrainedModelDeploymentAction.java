@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.INFERENCE_UPDATE_ML;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.ADAPTIVE_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.MODEL_ID;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
@@ -74,6 +75,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         private Integer numberOfAllocations;
         private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
         private boolean isInternal;
+        private boolean fromInference;
 
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -96,6 +98,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
                 adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
                 isInternal = in.readBoolean();
             }
+            fromInference = in.getTransportVersion().onOrAfter(INFERENCE_UPDATE_ML) && in.readBoolean();
         }
 
         public final void setDeploymentId(String deploymentId) {
@@ -126,6 +129,15 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             this.isInternal = isInternal;
         }
 
+        public boolean fromInference() {
+            return fromInference;
+        }
+
+        public void setFromInference(boolean fromInference) {
+            this.fromInference = fromInference;
+            this.isInternal = fromInference;
+        }
+
         public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
             return adaptiveAllocationsSettings;
         }
@@ -140,6 +152,9 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
                 out.writeOptionalVInt(numberOfAllocations);
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
                 out.writeBoolean(isInternal);
+            }
+            if (out.getTransportVersion().onOrAfter(INFERENCE_UPDATE_ML)) {
+                out.writeBoolean(fromInference);
             }
         }
 
@@ -183,7 +198,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings, isInternal);
+            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings, isInternal, fromInference);
         }
 
         @Override
@@ -198,7 +213,8 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             return Objects.equals(deploymentId, other.deploymentId)
                 && Objects.equals(numberOfAllocations, other.numberOfAllocations)
                 && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings)
-                && isInternal == other.isInternal;
+                && isInternal == other.isInternal
+                && fromInference == other.fromInference;
         }
 
         @Override

@@ -1,0 +1,41 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.gradle.internal.transport;
+
+import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.Plugin;
+import org.gradle.api.Project;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.tasks.SourceSet;
+
+public class LocateTransportVersionsPlugin implements Plugin<Project> {
+    public static String TASK_NAME = "locateTransportVersions";
+    public static final String TRANSPORT_VERSION_NAMES_FILE = "generated-transport-info/transport-version-set-names.txt";
+
+    @Override
+    public void apply(Project project) {
+        var config = project.getConfigurations().create("locateTransportVersionsConfig");
+
+        final var checkTransportVersion = project.getTasks().register(TASK_NAME, LocateTransportVersionsTask.class, t -> {
+            SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            FileCollection dependencyJars = project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME);
+            FileCollection compiledPluginClasses = mainSourceSet.getOutput().getClassesDirs();
+            FileCollection clasDirs = dependencyJars.plus(compiledPluginClasses)
+                .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME));
+            t.getClassDirs().set(clasDirs);
+
+            t.getOutputFile().set(project.getLayout().getBuildDirectory().file(TRANSPORT_VERSION_NAMES_FILE));
+        });
+
+        project.getArtifacts().add(config.getName(), checkTransportVersion);
+    }
+}

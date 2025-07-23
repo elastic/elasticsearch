@@ -231,7 +231,7 @@ required_capability: knn_function_v4
 
 from colors metadata _score
 | eval composed_name = locate(color, " ") > 0 
-| where knn(rgb_vector, [128,128,0], 10) and composed_name == false
+| where knn(rgb_vector, [100,100,0], 10) and composed_name == false
 | sort _score desc, color asc
 | keep color
 ;
@@ -239,13 +239,13 @@ from colors metadata _score
 color:text
 olive
 sienna
-chocolate
-peru
 brown
-firebrick
-chartreuse
 green
 maroon
+firebrick
+chocolate
+peru
+gray
 ;
 
 testKnnWithNonPushableDisjunctions

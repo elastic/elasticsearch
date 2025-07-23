@@ -310,7 +310,9 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             );
         }
         // the max segments argument makes it a blocking call
-        ActionFuture<BroadcastResponse> forceMergeFuture = indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+        ActionFuture<BroadcastResponse> forceMergeBeforeRelocationFuture = indicesAdmin().prepareForceMerge(indexName)
+            .setMaxNumSegments(1)
+            .execute();
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = internalCluster().getInstance(IndicesService.class, node1)
             .getThreadPoolMergeExecutorService();
         TestTelemetryPlugin testTelemetryPlugin = getTelemetryPlugin(node1);
@@ -335,14 +337,16 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             assertThat(currentMergeCount, equalTo(0L));
         });
         // the force merge call is still blocked
-        assertFalse(forceMergeFuture.isCancelled());
-        assertFalse(forceMergeFuture.isDone());
+        assertFalse(forceMergeBeforeRelocationFuture.isCancelled());
+        assertFalse(forceMergeBeforeRelocationFuture.isDone());
         // merge executor still confirms merging is blocked due to insufficient disk space
         assertTrue(threadPoolMergeExecutorService.isMergingBlockedDueToInsufficientDiskSpace());
         IndicesSegmentResponse indicesSegmentResponseBeforeRelocation = indicesAdmin().prepareSegments(indexName).get();
         // the index should have more than 1 segments at this stage
-        assertThat(indicesSegmentResponseBeforeRelocation.getIndices().get(indexName).iterator().next().shards()[0].getSegments(),
-                iterableWithSize(greaterThan(1)));
+        assertThat(
+            indicesSegmentResponseBeforeRelocation.getIndices().get(indexName).iterator().next().shards()[0].getSegments(),
+            iterableWithSize(greaterThan(1))
+        );
         // start another node
         final String node2 = internalCluster().startNode();
         ensureStableCluster(2);
@@ -357,13 +361,19 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
         // the force merge call is now unblocked
         assertBusy(() -> {
-            assertTrue(forceMergeFuture.isDone());
-            assertFalse(forceMergeFuture.isCancelled());
+            assertTrue(forceMergeBeforeRelocationFuture.isDone());
+            assertFalse(forceMergeBeforeRelocationFuture.isCancelled());
         });
+        // there is some merging going on in the {@code PostRecoveryMerger} after the recovery, but we don't control that
+        // so let's trigger a force merge to 1 segment again
+        indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         IndicesSegmentResponse indicesSegmentResponseAfterRelocation = indicesAdmin().prepareSegments(indexName).get();
         // assert there's only one segment now
-        assertThat(indicesSegmentResponseAfterRelocation.getIndices().get(indexName).iterator().next().shards()[0].getSegments(), iterableWithSize(1));
-        // also assert that the shard was indeed moved
+        assertThat(
+            indicesSegmentResponseAfterRelocation.getIndices().get(indexName).iterator().next().shards()[0].getSegments(),
+            iterableWithSize(1)
+        );
+        // also assert that the shard was indeed moved to a different node
         assertThat(
             indicesSegmentResponseAfterRelocation.getIndices().get(indexName).iterator().next().shards()[0].getShardRouting()
                 .currentNodeId(),

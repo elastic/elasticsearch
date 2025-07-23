@@ -25,6 +25,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -43,6 +44,7 @@ public class SampleTests extends AbstractAggregationTestCase {
 
         for (var limitCaseSupplier : TestCaseSupplier.intCases(1, 100, false)) {
             Stream.of(
+                MultiRowTestCaseSupplier.nullCases(1, 1000),
                 MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
                 MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
                 MultiRowTestCaseSupplier.ulongCases(1, 1000, BigInteger.ZERO, UNSIGNED_LONG_MAX, true),
@@ -80,7 +82,7 @@ public class SampleTests extends AbstractAggregationTestCase {
             var limitTypedData = limitCaseSupplier.get().forceLiteral();
             var limit = (int) limitTypedData.getValue();
 
-            var rows = fieldTypedData.multiRowData();
+            var rows = fieldTypedData.multiRowData().stream().filter(Objects::nonNull).toList();
 
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData, limitTypedData),

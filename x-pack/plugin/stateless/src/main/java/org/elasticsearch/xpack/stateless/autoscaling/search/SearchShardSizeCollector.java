@@ -215,7 +215,11 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent
             public void onResponse(ShardSize shardSize) {
                 logger.debug("Detected size {} for shard {}", shardSize, shardId);
                 if (shardSize != null && pendingPublication.add(shardId, shardSize)) {
-                    publishDiffNow();
+                    // publish diff from new empty system context to not propagate any trace context
+                    // as this might be called in response to a new commit.
+                    try (var ignored = threadPool.getThreadContext().newEmptySystemContext()) {
+                        publishDiffNow();
+                    }
                 }
             }
 
@@ -303,15 +307,12 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent
     }
 
     private void completeTasks(long batchSize) {
-        // To be investigated where the trace context is (incorrectly) initialized.
-        // Prevent the propagation of the trace context here to not cause memory issues in APM agent.
-        // https://elasticco.atlassian.net/browse/ES-10969
-        try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
-            if (0L < publishTaskQueueLength.addAndGet(-batchSize)) {
-                executor.execute(publishTask);
-            } else {
-                scheduleFutureDiffPublication();
-            }
+        assert threadPool.getThreadContext().hasTraceContext() == false && threadPool.getThreadContext().hasParentTraceContext() == false
+            : "Self-rescheduling background task should not be traced";
+        if (0L < publishTaskQueueLength.addAndGet(-batchSize)) {
+            executor.execute(publishTask);
+        } else {
+            scheduleFutureDiffPublication();
         }
     }
 

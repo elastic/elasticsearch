@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -313,47 +313,52 @@ public class EsqlCCSUtils {
     }
 
     /**
-     * Checks the index expression for the presence of remote clusters. If found, it will ensure that the caller
-     * has a valid Enterprise (or Trial) license on the querying cluster.
-     * @param indices index expression requested by user
-     * @param indicesGrouper grouper of index expressions by cluster alias
-     * @param licenseState license state on the querying cluster
+     * Checks the index expression for the presence of remote clusters.
+     * If found, it will ensure that the caller has a valid Enterprise (or Trial) license on the querying cluster
+     * as well as initialize corresponding cluster state in execution info.
      * @throws org.elasticsearch.ElasticsearchStatusException if the license is not valid (or present) for ES|QL CCS search.
      */
-    public static void checkForCcsLicense(
-        EsqlExecutionInfo executionInfo,
-        List<IndexPattern> indices,
+    public static void initCrossClusterState(
         IndicesExpressionGrouper indicesGrouper,
-        Set<String> configuredClusters,
-        XPackLicenseState licenseState
-    ) {
-        for (IndexPattern index : indices) {
-            Map<String, OriginalIndices> groupedIndices;
-            try {
-                groupedIndices = indicesGrouper.groupIndices(configuredClusters, IndicesOptions.DEFAULT, index.indexPattern());
-            } catch (NoSuchRemoteClusterException e) {
-                if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
-                    throw e;
-                } else {
-                    throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
-                }
+        XPackLicenseState licenseState,
+        List<IndexPattern> patterns,
+        EsqlExecutionInfo executionInfo
+    ) throws ElasticsearchStatusException {
+        if (patterns.isEmpty()) {
+            return;
+        }
+        assert patterns.size() == 1 : "Only single index pattern is supported";
+        try {
+            var groupedIndices = indicesGrouper.groupIndices(
+                // indicesGrouper.getConfiguredClusters() might return mutable set that changes as clusters connect or disconnect.
+                // it is copied here so that we have the same resolution when request contains multiple remote cluster patterns with *
+                Set.copyOf(indicesGrouper.getConfiguredClusters()),
+                IndicesOptions.DEFAULT,
+                patterns.getFirst().indexPattern()
+            );
+
+            // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
+            // so that the CCS telemetry handler can recognize that this error is CCS-related
+            for (var entry : groupedIndices.entrySet()) {
+                final String clusterAlias = entry.getKey();
+                final String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
+                executionInfo.swapCluster(clusterAlias, (k, v) -> {
+                    assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
+                    return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
+                });
             }
+
             // check if it is a cross-cluster query
             if (groupedIndices.size() > 1 || groupedIndices.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false) {
                 if (EsqlLicenseChecker.isCcsAllowed(licenseState) == false) {
-                    // initialize the cluster entries in EsqlExecutionInfo before throwing the invalid license error
-                    // so that the CCS telemetry handler can recognize that this error is CCS-related
-                    for (Map.Entry<String, OriginalIndices> entry : groupedIndices.entrySet()) {
-                        executionInfo.swapCluster(
-                            entry.getKey(),
-                            (k, v) -> new EsqlExecutionInfo.Cluster(
-                                entry.getKey(),
-                                Strings.arrayToCommaDelimitedString(entry.getValue().indices())
-                            )
-                        );
-                    }
                     throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
                 }
+            }
+        } catch (NoSuchRemoteClusterException e) {
+            if (EsqlLicenseChecker.isCcsAllowed(licenseState)) {
+                throw e;
+            } else {
+                throw EsqlLicenseChecker.invalidLicenseForCcsException(licenseState);
             }
         }
     }

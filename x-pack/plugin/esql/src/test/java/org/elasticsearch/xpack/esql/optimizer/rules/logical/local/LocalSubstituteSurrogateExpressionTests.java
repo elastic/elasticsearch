@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
@@ -38,7 +39,7 @@ public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOpt
     // Key is the predicate,
     // Value is the number of items in the round_to function, if the number of item is 0, that means the min/max in predicates do not
     // overlap with SearchStats, so the substitution does not happen.
-    private static final Map<String, Integer> predicatesForDateTruncBucket = new HashMap<>(
+    private static final Map<String, Integer> predicatesWithDateTruncBucket = new HashMap<>(
         Map.ofEntries(
             Map.entry("", 4),
             Map.entry(" | where hire_date == \"2023-10-22\" ", 1),
@@ -55,11 +56,29 @@ public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOpt
         )
     );
 
+    private static final Map<String, Integer> evalRenamePredicatesWithDateTruncBucket = new HashMap<>(
+        Map.ofEntries(
+            // ReplaceAliasingEvalWithProject replaces x with hire_date so that the date_trunc can be transformed to round_to
+            Map.entry(" | eval x = hire_date ", 4),
+            // DateTrunc cannot be transformed to RoundTo if it references an expression
+            Map.entry(" | eval x = hire_date + 1 year ", -1),
+            Map.entry(" | rename hire_date as x ", 4),
+            Map.entry(" | rename hire_date as a, a as x ", 4),
+            Map.entry(" | rename hire_date as x, x as hire_date ", 4),
+            Map.entry(" | eval a = hire_date | rename a as x ", 4),
+            Map.entry(" | eval x = hire_date | where x >= \"2023-10-22\" ", 2),
+            Map.entry(" | rename hire_date as x | where x >= \"2023-10-20\" ", 4),
+            Map.entry(" | rename hire_date as a, a as x | where x <= \"2023-10-22\" ", 3),
+            Map.entry(" | rename hire_date as x, x as hire_date | where hire_date >= \"2023-10-21\" and hire_date <= \"2023-10-23\" ", 3),
+            Map.entry(" | eval a = hire_date | rename a as x | where x <= \"2023-10-22\" ", 3)
+        )
+    );
+
     // The date range of SearchStats is from 2023-10-20 to 2023-10-23.
     private static final SearchStats searchStats = searchStats();
 
     public void testSubstituteDateTruncInEvalWithRoundTo() {
-        for (Map.Entry<String, Integer> predicate : predicatesForDateTruncBucket.entrySet()) {
+        for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
             String predicateString = predicate.getKey();
             int roundToPointsSize = predicate.getValue();
             String query = LoggerMessageFormat.format(null, """
@@ -85,7 +104,7 @@ public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOpt
     }
 
     public void testSubstituteDateTruncInAggWithRoundTo() {
-        for (Map.Entry<String, Integer> predicate : predicatesForDateTruncBucket.entrySet()) {
+        for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
             String predicateString = predicate.getKey();
             int roundToPointsSize = predicate.getValue();
             String query = LoggerMessageFormat.format(null, """
@@ -108,7 +127,7 @@ public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOpt
     }
 
     public void testSubstituteBucketInAggWithRoundTo() {
-        for (Map.Entry<String, Integer> predicate : predicatesForDateTruncBucket.entrySet()) {
+        for (Map.Entry<String, Integer> predicate : predicatesWithDateTruncBucket.entrySet()) {
             String predicateString = predicate.getKey();
             int roundToPointsSize = predicate.getValue();
             String query = LoggerMessageFormat.format(null, """
@@ -130,6 +149,90 @@ public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOpt
         }
     }
 
+    public void testSubstituteDateTruncInEvalWithRoundToWithEvalRename() {
+        for (Map.Entry<String, Integer> predicate : evalRenamePredicatesWithDateTruncBucket.entrySet()) {
+            String predicateString = predicate.getKey();
+            int roundToPointsSize = predicate.getValue();
+            boolean hasWhere = predicateString.contains("where");
+            boolean renameBack = predicateString.contains("rename hire_date as x, x as hire_date");
+            boolean dateTruncOnExpression = predicateString.contains("hire_date + 1 year");
+            String fieldName = renameBack ? "hire_date" : "x";
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | sort hire_date
+                {}
+                | eval y = date_trunc(1 day, {})
+                | keep emp_no, {}, y
+                | limit 5
+                """, predicateString, fieldName, fieldName);
+            LogicalPlan localPlan = localPlan(query, searchStats);
+            Project project = as(localPlan, Project.class);
+            TopN topN = as(project.child(), TopN.class);
+            Eval eval = as(topN.child(), Eval.class);
+            List<Alias> fields = eval.fields();
+            assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
+            Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
+            assertEquals("y", a.name());
+            verifySubstitution(a, roundToPointsSize);
+            LogicalPlan subPlan = hasWhere ? eval.child() : eval;
+            EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
+    public void testSubstituteBucketInAggWithRoundToWithEvalRename() {
+        for (Map.Entry<String, Integer> predicate : evalRenamePredicatesWithDateTruncBucket.entrySet()) {
+            String predicateString = predicate.getKey();
+            int roundToPointsSize = predicate.getValue();
+            boolean hasWhere = predicateString.contains("where");
+            boolean renameBack = predicateString.contains("rename hire_date as x, x as hire_date");
+            boolean dateTruncOnExpression = predicateString.contains("hire_date + 1 year");
+            String fieldName = renameBack ? "hire_date" : "x";
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                {}
+                | stats count(*) by y = bucket({}, 1 day)
+                """, predicateString, fieldName);
+            LogicalPlan localPlan = localPlan(query, searchStats);
+            Limit limit = as(localPlan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Eval eval = as(aggregate.child(), Eval.class);
+            List<Alias> fields = eval.fields();
+            assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
+            Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
+            assertEquals("y", a.name());
+            verifySubstitution(a, roundToPointsSize);
+            LogicalPlan subPlan = hasWhere ? eval.child() : eval;
+            EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
+    public void testSubstituteDateTruncInAggWithRoundToWithEvalRename() {
+        for (Map.Entry<String, Integer> predicate : evalRenamePredicatesWithDateTruncBucket.entrySet()) {
+            String predicateString = predicate.getKey();
+            int roundToPointsSize = predicate.getValue();
+            boolean hasWhere = predicateString.contains("where");
+            boolean renameBack = predicateString.contains("rename hire_date as x, x as hire_date");
+            boolean dateTruncOnExpression = predicateString.contains("hire_date + 1 year");
+            String fieldName = renameBack ? "hire_date" : "x";
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                {}
+                | stats count(*) by y = date_trunc(1 day, {})
+                """, predicateString, fieldName);
+            LogicalPlan localPlan = localPlan(query, searchStats);
+            Limit limit = as(localPlan, Limit.class);
+            Aggregate aggregate = as(limit.child(), Aggregate.class);
+            Eval eval = as(aggregate.child(), Eval.class);
+            List<Alias> fields = eval.fields();
+            assertEquals(dateTruncOnExpression ? 2 : 1, fields.size());
+            Alias a = fields.get(dateTruncOnExpression ? 1 : 0);
+            assertEquals("y", a.name());
+            verifySubstitution(a, roundToPointsSize);
+            LogicalPlan subPlan = hasWhere ? eval.child() : eval;
+            EsRelation relation = as(subPlan.children().get(0), EsRelation.class);
+        }
+    }
+
     private void verifySubstitution(Alias a, int roundToPointsSize) {
         FieldAttribute fa = null;
         Expression e = a.child();
@@ -137,7 +240,7 @@ public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOpt
             RoundTo roundTo = as(e, RoundTo.class);
             fa = as(roundTo.field(), FieldAttribute.class);
             assertEquals(roundToPointsSize, roundTo.points().size());
-        } else {
+        } else if (roundToPointsSize == 0) {
             if (e instanceof DateTrunc dateTrunc) {
                 fa = as(dateTrunc.field(), FieldAttribute.class);
             } else if (e instanceof Bucket bucket) {
@@ -145,9 +248,19 @@ public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOpt
             } else {
                 fail(e.getClass() + " is not supported");
             }
+        } else {
+            if (e instanceof DateTrunc dateTrunc) {
+                assertTrue(dateTrunc.field() instanceof ReferenceAttribute);
+            } else if (e instanceof Bucket bucket) {
+                assertTrue(bucket.field() instanceof ReferenceAttribute);
+            } else {
+                fail(e.getClass() + " is not supported");
+            }
         }
-        assertEquals("hire_date", fa.name());
-        assertEquals(DATETIME, fa.dataType());
+        if (roundToPointsSize >= 0) {
+            assertEquals("hire_date", fa.name());
+            assertEquals(DATETIME, fa.dataType());
+        }
     }
 
     private LogicalPlan localPlan(String query, SearchStats searchStats) {

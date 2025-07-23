@@ -11,6 +11,10 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 
+/**
+ * A temporary interface meant to allow a plugin to provide remedial logic for index metadata being restored from a snapshot. This was
+ * added to address an allocation issue and will eventually be removed once any affected snapshots age out.
+ */
 public interface IndexMetadataRestoreTransformer {
     IndexMetadata updateIndexMetadata(IndexMetadata original);
 

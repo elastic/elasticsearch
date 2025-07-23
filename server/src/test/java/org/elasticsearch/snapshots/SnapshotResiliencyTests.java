@@ -40,10 +40,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
-import org.elasticsearch.action.admin.indices.get.GetIndexAction;
-import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.get.TransportGetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
@@ -130,7 +126,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -138,7 +133,6 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -240,7 +234,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
-import static org.elasticsearch.index.IndexSettings.INDEX_SEARCH_IDLE_AFTER;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.allOf;
@@ -371,15 +364,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 )
         );
 
-        final SubscribableListener<GetIndexResponse> getIndexResponseListener = new SubscribableListener<>();
+        final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
         continueOrDie(restoreSnapshotResponseListener, restoreSnapshotResponse -> {
             assertEquals(shards, restoreSnapshotResponse.getRestoreInfo().totalShards());
-            client().admin().indices().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index), getIndexResponseListener);
-        });
-
-        final SubscribableListener<SearchResponse> searchResponseListener = new SubscribableListener<>();
-        continueOrDie(getIndexResponseListener, getIndexResponse -> {
-            assertEquals(TimeValue.timeValueMinutes(2), INDEX_SEARCH_IDLE_AFTER.get(getIndexResponse.settings().get(index)));
             client().search(
                 new SearchRequest(index).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseListener
@@ -395,7 +382,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
         runUntil(documentCountVerified::get, TimeUnit.MINUTES.toMillis(5L));
         assertNotNull(safeResult(createSnapshotResponseListener));
         assertNotNull(safeResult(restoreSnapshotResponseListener));
-        assertNotNull(safeResult(getIndexResponseListener));
         assertTrue(documentCountVerified.get());
         assertTrue(SnapshotsInProgress.get(masterNode.clusterService.state()).isEmpty());
         final Repository repository = masterNode.repositoriesService.repository(repoName);
@@ -2639,20 +2625,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         DefaultProjectResolver.INSTANCE
                     )
                 );
-                actions.put(
-                    GetIndexAction.INSTANCE,
-                    new TransportGetIndexAction(
-                        transportService,
-                        clusterService,
-                        threadPool,
-                        new SettingsFilter(List.of()),
-                        actionFilters,
-                        indexNameExpressionResolver,
-                        indicesService,
-                        indexScopedSettings,
-                        DefaultProjectResolver.INSTANCE
-                    )
-                );
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
                 final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);
                 mappingUpdatedAction.setClient(client);
@@ -2731,15 +2703,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     indicesService,
                     mock(FileSettingsService.class),
                     threadPool,
-                    originalIndexMetadata -> IndexMetadata.builder(originalIndexMetadata)
-                        .settings(
-                            // Set a property to something mild, outside its default
-                            Settings.builder()
-                                .put(originalIndexMetadata.getSettings())
-                                .put(INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMinutes(2))
-                                .build()
-                        )
-                        .build()
+                    new IndexMetadataRestoreTransformer.NoOpRestoreTransformer()
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

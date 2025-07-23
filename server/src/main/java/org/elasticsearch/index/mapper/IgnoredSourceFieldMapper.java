@@ -160,7 +160,8 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
 
         for (NameValue nameValue : context.getIgnoredFieldValues()) {
-            nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
+            String fieldName = NAME + "." + nameValue.name;
+            nameValue.doc().add(new StoredField(fieldName, encode(nameValue)));
         }
     }
 
@@ -176,8 +177,12 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         return bytes;
     }
 
-    static NameValue decode(Object field) {
+    public static NameValue decode(Object field) {
         byte[] bytes = ((BytesRef) field).bytes;
+        return decode(bytes);
+    }
+
+    public static NameValue decode(byte[] bytes) {
         int encodedSize = ByteUtils.readIntLE(bytes, 0);
         int nameSize = encodedSize % PARENT_OFFSET_IN_NAME_OFFSET;
         int parentOffset = encodedSize / PARENT_OFFSET_IN_NAME_OFFSET;

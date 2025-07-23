@@ -211,7 +211,7 @@ public interface SourceLoader {
                     if (loader != null) {
                         loader.load(e.getValue());
                     }
-                    if (IgnoredSourceFieldMapper.NAME.equals(e.getKey())) {
+                    if (e.getKey().startsWith(IgnoredSourceFieldMapper.NAME)) {
                         for (Object value : e.getValue()) {
                             if (objectsWithIgnoredFields == null) {
                                 objectsWithIgnoredFields = new HashMap<>();

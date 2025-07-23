@@ -69,7 +69,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<RRFRetrieverBuilder, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
         NAME,
-        true, // Set to true to ignore unknown fields
+        false,
         args -> {
             List<RRFRetrieverComponent> retrieverComponents = args[0] == null ? List.of() : (List<RRFRetrieverComponent>) args[0];
             List<String> fields = (List<String>) args[1];

@@ -11,6 +11,7 @@ import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
 import org.redline_rpm.header.Flags
+import org.elasticsearch.gradle.Architecture
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -81,7 +82,7 @@ plugins {
 // Common configuration that is package dependent. This can't go in ospackage
 // since we have different templated files that need to be consumed, but the structure
 // is the same
-def commonPackageConfig(String type, String architecture) {
+def commonPackageConfig(String type, Architecture architecture) {
   return {
     onlyIf("not running on windows") {
       OS.current().equals(OS.WINDOWS) == false
@@ -89,23 +90,13 @@ def commonPackageConfig(String type, String architecture) {
     dependsOn "process${type.capitalize()}Files"
     packageName = "elasticsearch"
     if (type == 'deb') {
-      if (architecture == 'x64') {
-        arch = 'amd64'
-      } else {
-        assert architecture == 'aarch64': architecture
-        arch = 'arm64'
-      }
+      arch = architecture.debianClassifier
     } else {
       assert type == 'rpm': type
-      if (architecture == 'x64') {
-        arch = 'X86_64'
-      } else {
-        assert architecture == 'aarch64': architecture
-        arch = 'aarch64'
-      }
+      arch = architecture.rpmClassifier
     }
     // Follow elasticsearch's file naming convention
-    String prefix = "${architecture == 'aarch64' ? 'aarch64-' : ''}${type}"
+    String prefix = "${architecture.classifier}${type}"
     destinationDirectory = file("${prefix}/build/distributions")
     archiveFileName.value(project.provider({ "${packageName}-${project.version}-${archString}.${type}" }))
     String packagingFiles = "build/packaging/${type}"
@@ -121,7 +112,6 @@ def commonPackageConfig(String type, String architecture) {
 
     // top level "into" directive is not inherited from ospackage for some reason, so we must
     // specify it again explicitly for copying common files
-    String platform = 'linux-' + ((architecture == 'x64') ? 'x86_64' : architecture)
     into('/usr/share/elasticsearch') {
       into('bin') {
         with binFiles(type, false)
@@ -286,7 +276,6 @@ def commonPackageConfig(String type, String architecture) {
     with noticeFile(false)
   }
 }
-
 // this is package independent configuration
 ospackage {
   maintainer = 'Elasticsearch Team <info@elastic.co>'
@@ -350,8 +339,8 @@ tasks.register('buildAarch64Deb', Deb) {
   configure(commonDebConfig('aarch64'))
 }
 
-tasks.register('buildDeb', Deb) {
-  configure(commonDebConfig('x64'))
+tasks.register('buildAmd64Deb', Deb) {
+  configure(commonDebConfig('amd64'))
 }
 
 Closure commonRpmConfig(String architecture) {
@@ -383,8 +372,8 @@ tasks.register('buildAarch64Rpm', Rpm) {
   configure(commonRpmConfig('aarch64'))
 }
 
-tasks.register('buildRpm', Rpm) {
-  configure(commonRpmConfig('x64'))
+tasks.register('buildAmd64Rpm', Rpm) {
+  configure(commonRpmConfig('amd64'))
 }
 
 Closure dpkgExists = { it -> new File('/bin/dpkg-deb').exists() || new File('/usr/bin/dpkg-deb').exists() || new File('/usr/local/bin/dpkg-deb').exists() }

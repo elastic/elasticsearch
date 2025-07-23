@@ -9,18 +9,21 @@
 
 package org.elasticsearch.gradle.internal
 
+
+import spock.lang.Unroll
+
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
-
+@Unroll
 class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
-    def "resolves current version from local build"() {
+    def "resolves current #arch version from local build"() {
         given:
         internalBuild()
-        localDistroSetup()
+        localDistroSetup(arch)
         def distroVersion = VersionProperties.getElasticsearch()
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-download'
@@ -40,12 +43,14 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         """
 
         when:
-        def result = gradleRunner("setupDistro", '-g', gradleUserHome).build()
+        def result = gradleRunner("-Dos.arch=${arch.classifier}", "setupDistro", '-g', gradleUserHome).build()
 
         then:
-        result.task(":distribution:archives:${testArchiveProjectName}:buildExpanded").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:archives:${getTestArchiveProjectName(arch)}:buildExpanded").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated("build/distro", 'current-marker.txt')
+        where:
+        arch << [Architecture.AARCH64, Architecture.AMD64]
     }
 
     def "resolves expanded bwc versions from source"() {
@@ -74,8 +79,10 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         then:
         result.task(":distribution:bwc:minor:buildBwcExpandedTask").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertExtractedDistroIsCreated("distribution/bwc/minor/build/install/elastic-distro",
-                'bwc-marker.txt')
+        assertExtractedDistroIsCreated(
+            "distribution/bwc/minor/build/install/elastic-distro",
+            'bwc-marker.txt'
+        )
     }
 
     def "fails on resolving bwc versions with no bundled jdk"() {
@@ -101,8 +108,10 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         when:
         def result = gradleRunner("createExtractedTestDistro").buildAndFail()
         then:
-        assertOutputContains(result.output, "Configuring a snapshot bwc distribution ('test_distro') " +
-                "without a bundled JDK is not supported.")
+        assertOutputContains(
+            result.output, "Configuring a snapshot bwc distribution ('test_distro') " +
+            "without a bundled JDK is not supported."
+        )
     }
 
     private void bwcMinorProjectSetup() {
@@ -140,11 +149,12 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         """
     }
 
-    private void localDistroSetup() {
+    private void localDistroSetup(Architecture arch = Architecture.current()) {
+        def archiveProjectName = getTestArchiveProjectName(arch)
         settingsFile << """
-        include ":distribution:archives:${testArchiveProjectName}"
+        include ":distribution:archives:${ archiveProjectName}"
         """
-        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", testArchiveProjectName)
+        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", archiveProjectName)
         new File(bwcSubProjectFolder, 'current-marker.txt') << "current"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             import org.gradle.api.internal.artifacts.ArtifactAttributes;
@@ -174,10 +184,11 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         """
     }
 
-    String getTestArchiveProjectName() {
-        def archSuffix = Architecture.current() == Architecture.AARCH64 ? '-aarch64' : ''
+    String getTestArchiveProjectName(Architecture architecture = Architecture.current()) {
+        def archSuffix = '-' +  architecture.classifier
         return "linux${archSuffix}-tar"
     }
+
     boolean assertExtractedDistroIsCreated(String relativeDistroPath, String markerFileName) {
         File extractedFolder = new File(testProjectDir.root, relativeDistroPath)
         assert extractedFolder.exists()

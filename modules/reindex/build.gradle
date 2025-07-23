@@ -104,7 +104,7 @@ jdks {
     vendor = 'adoptium'
     version = '8u302+b08'
     platform = OS.current().name().toLowerCase()
-    architecture = Architecture.current().name().toLowerCase()
+    architecture = Architecture.current()
   }
 }
 

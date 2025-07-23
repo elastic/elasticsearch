@@ -65,8 +65,9 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
+import org.elasticsearch.xpack.esql.expression.function.vector.ExactNN;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -143,6 +144,7 @@ import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceKnnWithNoPushedDownFilters.EXACT_SCORE_ATTR_NAME;
 import static org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests.randomEstimatedRowSize;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
@@ -2022,19 +2024,59 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
-        var limit = as(plan, LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
-        var field = as(project.child(), FieldExtractExec.class);
-        var secondLimit = as(field.child(), LimitExec.class);
-        var filter = as(secondLimit.child(), FilterExec.class);
-        var and = as(filter.condition(), And.class);
-        var knn = as(and.left(), Knn.class);
-        assertEquals("(keyword == \"test\") or length(text) > 10", knn.filterExpressions().get(0).toString());
-        assertEquals("integer > 10", knn.filterExpressions().get(1).toString());
+        var project = as (plan, ProjectExec.class);
+        assertFalse(project.projections().stream().anyMatch(p -> p.toString().contains(EXACT_SCORE_ATTR_NAME)));
 
-        var fieldExtract = as(filter.child(), FieldExtractExec.class);
-        var queryExec = as(fieldExtract.child(), EsQueryExec.class);
+
+        // LimitExec
+        var limit = as(project.child(), LimitExec.class);
+        assertThat(as(limit.limit(), Literal.class).value(), is(1000));
+
+        // FilterExec on $$knn_score$0 > 0.0
+        var filter = as(limit.child(), FilterExec.class);
+        var gt = as(filter.condition(), GreaterThan.class);
+        ReferenceAttribute scoreAttr = as(gt.left(), ReferenceAttribute.class);
+        assertThat(scoreAttr.name(), containsString(EXACT_SCORE_ATTR_NAME));
+        assertThat(gt.right().fold(FoldContext.small()), is(0.0));
+
+        // TopNExec on $$knn_score$0 desc
+        var topN = as(filter.child(), TopNExec.class);
+        assertThat(as(topN.limit(), Literal.class).value(), is(10));
+        assertThat(Expressions.name(topN.order().getFirst().child()), equalTo(scoreAttr.name()));
+
+        // ExchangeExec
+        var exchange = as(topN.child(), ExchangeExec.class);
+
+        // ProjectExec (with score column)
+        var project2 = as(exchange.child(), ProjectExec.class);
+        assertTrue(project2.output().contains(scoreAttr));
+
+        var fieldExtract = as(project2.child(), FieldExtractExec.class);
+
+        var topN2 = as(fieldExtract.child(), TopNExec.class);
+
+        // EvalExec for score
+        var eval = as(topN2.child(), EvalExec.class);
+        var scoreAlias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(scoreAlias.name(), containsString(EXACT_SCORE_ATTR_NAME));
+        var score = as(scoreAlias.child(), Score.class);
+        var exactNN = as(score.children().getFirst(), ExactNN.class);
+        var field = as(exactNN.field(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("dense_vector"));
+        assertThat(exactNN.query().toString(), equalTo("[0.0, 1.0, 2.0]"));
+
+        // FieldExtractExec for dense_vector
+        var fieldExtract2 = as(eval.child(), FieldExtractExec.class);
+
+        // FilterExec for OR
+        var filter2 = as(fieldExtract2.child(), FilterExec.class);
+        var or = as(filter2.condition(), Or.class);
+
+        // FieldExtractExec for keyword, text
+        var fieldExtract3 = as(filter2.child(), FieldExtractExec.class);
+
+        // EsQueryExec for integer > 10
+        var esQuery = as(fieldExtract3.child(), EsQueryExec.class);
 
         // The query should only contain the pushable condition
         QueryBuilder integerGtQuery = wrapWithSingleQuery(
@@ -2044,7 +2086,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new Source(2, 47, "integer > 10")
         );
 
-        assertEquals(integerGtQuery.toString(), queryExec.query().toString());
+        assertEquals(integerGtQuery.toString(), esQuery.query().toString());
     }
 
     public void testPushDownComplexNegationsToKnnPrefilter() {

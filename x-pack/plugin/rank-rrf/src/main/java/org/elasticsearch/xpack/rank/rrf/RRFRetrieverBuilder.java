@@ -289,13 +289,10 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 localIndicesMetadata.values(),
                 r -> {
                     List<RetrieverSource> retrievers = new ArrayList<>(r.size());
-                    float[] weights = new float[r.size()];
-                    int i = 0;
                     for (var retriever : r) {
                         retrievers.add(retriever.retrieverSource());
-                        weights[i++] = retriever.weight();
                     }
-                    return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
+                    return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, null);
                 },
                 w -> {
                     if (w < 0) {

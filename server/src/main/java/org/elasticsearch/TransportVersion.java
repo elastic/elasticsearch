@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -314,7 +315,17 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         return VersionsHolder.VERSION_LOOKUP_BY_RELEASE.apply(id);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        TransportVersion that = (TransportVersion) o;
+        return id == that.id;
+    }
 
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(id);
+    }
 
     @Override
     public String toString() {
@@ -342,6 +353,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
             addTransportVersions(allVersionsByName.values(), allVersions).sort(TransportVersion::compareTo);
 
             // set version lookup by release before adding serverless versions
+            // serverless versions should not affect release version
             VERSION_LOOKUP_BY_RELEASE = ReleaseVersions.generateVersionsLookup(
                 TransportVersions.class,
                 allVersions.get(allVersions.size() - 1).id()
@@ -378,7 +390,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                     TransportVersion latest = fromXContent(inputStream, Integer.MAX_VALUE);
                     if (latest == null) {
                         throw new IllegalStateException(
-                            "invalid latest transport version for release version ["
+                            "invalid latest transport version for minor version ["
                                 + Version.CURRENT.major
                                 + "."
                                 + Version.CURRENT.minor

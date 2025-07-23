@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.concurrent.Callable;
-import java.util.function.Function;
 
 public class UnifiedChatCompletionErrorResponseUtils {
 
@@ -46,37 +45,27 @@ public class UnifiedChatCompletionErrorResponseUtils {
     public static UnifiedChatCompletionErrorParserContract createErrorParserWithObjectParser(
         ConstructingObjectParser<Optional<UnifiedChatCompletionErrorResponse>, Void> objectParser
     ) {
-        return new UnifiedChatCompletionErrorParser<>(
-            UnifiedChatCompletionErrorResponseUtils::createHttpResultXContentParserFunction,
-            UnifiedChatCompletionErrorResponseUtils::createStringXContentParserFunction,
-            (parser) -> objectParser.apply(parser, null)
-        );
+        return new UnifiedChatCompletionErrorParser<>((parser) -> objectParser.apply(parser, null));
     }
 
     public static <E extends Exception> UnifiedChatCompletionErrorParserContract createErrorParserWithGenericParser(
         CheckedFunction<XContentParser, Optional<UnifiedChatCompletionErrorResponse>, E> genericParser
     ) {
-        return new UnifiedChatCompletionErrorParser<>(
-            UnifiedChatCompletionErrorResponseUtils::createHttpResultXContentParserFunction,
-            UnifiedChatCompletionErrorResponseUtils::createStringXContentParserFunction,
-            genericParser
-        );
+        return new UnifiedChatCompletionErrorParser<>(genericParser);
     }
 
     private record UnifiedChatCompletionErrorParser<E extends Exception>(
-        Function<HttpResult, Callable<XContentParser>> httpResultXContentParsingFunctionCreator,
-        Function<String, Callable<XContentParser>> stringXContentParsingFunctionCreator,
         CheckedFunction<XContentParser, Optional<UnifiedChatCompletionErrorResponse>, E> genericParser
     ) implements UnifiedChatCompletionErrorParserContract {
 
         @Override
         public UnifiedChatCompletionErrorResponse parse(HttpResult result) {
-            return executeGenericParser(genericParser, httpResultXContentParsingFunctionCreator.apply(result));
+            return executeGenericParser(genericParser, createHttpResultXContentParserFunction(result));
         }
 
         @Override
         public UnifiedChatCompletionErrorResponse parse(String result) {
-            return executeGenericParser(genericParser, stringXContentParsingFunctionCreator.apply(result));
+            return executeGenericParser(genericParser, createStringXContentParserFunction(result));
         }
 
     }

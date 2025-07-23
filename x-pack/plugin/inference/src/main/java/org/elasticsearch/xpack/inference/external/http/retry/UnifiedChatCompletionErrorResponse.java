@@ -28,9 +28,9 @@ public class UnifiedChatCompletionErrorResponse extends ErrorResponse {
 
     static {
         ERROR_BODY_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("message"));
+        ERROR_BODY_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("type"));
         ERROR_BODY_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("code"));
         ERROR_BODY_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("param"));
-        ERROR_BODY_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("type"));
 
         CONSTRUCTING_OBJECT_PARSER.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),

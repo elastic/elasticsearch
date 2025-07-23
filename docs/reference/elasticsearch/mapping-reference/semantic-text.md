@@ -33,6 +33,23 @@ Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically.
 
+{applies_to}`stack: preview 9.1` If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service (ELSER on EIS), you can
+set up `semantic_text` with the following API request:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": ".elser-2-elastic"
+      }
+    }
+  }
+}
+```
+
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
 `semantic_text` with the following API request:
 

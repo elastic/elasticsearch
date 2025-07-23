@@ -226,6 +226,24 @@ public class StatelessMockRepository extends FsRepository {
             }
 
             @Override
+            public void copyBlob(
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                getStrategy().blobContainerCopyBlob(
+                    () -> super.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize),
+                    purpose,
+                    sourceBlobContainer,
+                    sourceBlobName,
+                    blobName,
+                    blobSize
+                );
+            }
+
+            @Override
             public void writeMetadataBlob(
                 OperationPurpose purpose,
                 String blobName,

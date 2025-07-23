@@ -17,9 +17,11 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexRequest;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexResponse;
 import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
+import co.elastic.elasticsearch.stateless.reshard.SplitSourceService;
 import co.elastic.elasticsearch.stateless.reshard.SplitTargetService;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardAction;
 import co.elastic.elasticsearch.stateless.reshard.TransportReshardSplitAction;
@@ -51,8 +53,11 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -68,6 +73,7 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -83,6 +89,7 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -143,9 +150,12 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         checkNumberOfShardsSetting(indexNode, indexName, targetNumShards);
     }
 
-    public void testReshardWillCopyDataAndRouteDocumentsToNewShard() throws Exception {
-        String indexNode = startMasterAndIndexNode();
-        String searchNode = startSearchNode();
+    @TestLogging(value = "co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService:DEBUG", reason = "debugging")
+    public void testReshardWillCopyDataAndRouteDocumentsToNewShard() {
+        String indexNode = startMasterAndIndexNode(
+            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+        );
+        startSearchNode();
 
         ensureStableCluster(2);
 
@@ -157,20 +167,64 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         checkNumberOfShardsSetting(indexNode, indexName, 1);
 
+        int[] shardDocs = new int[multiple];
+        Consumer<Integer> indexShardDocs = (numDocs) -> {
+            for (var item : indexDocs(indexName, numDocs).getItems()) {
+                var docShard = item.getResponse().getShardId().getId();
+                shardDocs[docShard]++;
+            }
+        };
+
         final int numDocs = randomIntBetween(10, 100);
-        indexDocs(indexName, numDocs);
+        indexShardDocs.accept(numDocs);
         int totalNumberOfDocumentsInIndex = numDocs;
 
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo((long) numDocs));
 
-        // We currently need to flush all indexed data in order for copy logic to see it.
-        // This will be included in later stages of resharding that currently don't exist.
+        // flushing here ensures that the initial copy phase does some work, rather than relying entirely on catching new commits after
+        // resharding has begun.
         var flushResponse = indicesAdmin().prepareFlush(indexName).setForce(true).setWaitIfOngoing(true).get();
         assertNoFailures(flushResponse);
 
         var initialIndexMetadata = clusterService().state().projectState().metadata().index(indexName);
         // before resharding there should be no resharding metadata
         assertNull(initialIndexMetadata.getReshardingMetadata());
+
+        // block handoff until we've indexed some more documents after resharding has started
+        CountDownLatch preHandoffLatch = new CountDownLatch(1);
+        // block ongoing copy until we've added some new commits that the first copy phase hasn't seen
+        CountDownLatch postCopyLatch = new CountDownLatch(1);
+        setNodeRepositoryStrategy(indexNode, new StatelessMockRepositoryStrategy() {
+            @Override
+            public void blobContainerCopyBlob(
+                CheckedRunnable<IOException> originalRunnable,
+                OperationPurpose purpose,
+                BlobContainer sourceBlobContainer,
+                String sourceBlobName,
+                String blobName,
+                long blobSize
+            ) throws IOException {
+                super.blobContainerCopyBlob(originalRunnable, purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                // Signal that we've started the initial copy. It won't see any new commits generated after this, so we know
+                // that the new ones come from ongoing copying.
+                postCopyLatch.countDown();
+            }
+        });
+
+        // used to wait for new documents to be indexed after we've started copy but before we enter handoff
+        // this introduces a special test-only sync point in SplitSourceService which is a little ugly. I suppose
+        // alternatively we could just have a thread running and doing indexing throughout the process, and probabilistically it
+        // will generate some in this window without explicit synchronization.
+        var splitSourceService = internalCluster().getInstance(SplitSourceService.class, indexNode);
+        splitSourceService.setPreHandoffHook(() -> {
+            try {
+                logger.info("waiting for prehandoff latch");
+                preHandoffLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+                logger.info("prehandoff latch released");
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
 
         // there should be split metadata at some point during resharding
         var splitState = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
@@ -188,38 +242,48 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         assert reshardingMetadata.shardCountBefore() == 1;
         assert reshardingMetadata.shardCountAfter() == multiple;
 
+        // wait for initial copy to start
+        try {
+            postCopyLatch.await(SAFE_AWAIT_TIMEOUT.seconds(), TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            logger.info("interrupted");
+            throw new RuntimeException(e);
+        }
+
+        // index some more documents and flush to generate new commits
+        final int postCopyDocs = randomIntBetween(10, 20);
+        indexShardDocs.accept(postCopyDocs);
+        totalNumberOfDocumentsInIndex += postCopyDocs;
+        logger.info("allowing handoff after post-copy index");
+        preHandoffLatch.countDown();
+
         reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
 
         // resharding metadata should eventually be removed after split executes
-        waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null).actionGet(
-            SAFE_AWAIT_TIMEOUT
-        );
+        var indexMetadata = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null)
+            .actionGet(SAFE_AWAIT_TIMEOUT)
+            .projectState()
+            .metadata()
+            .index(indexName);
 
         // index documents until all the new shards have received at least one document
-        final int[] docsPerShard = new int[multiple];
         int docsPerRequest = randomIntBetween(10, 100);
-        int shards = 0;
-        int numDocsRound2 = 0;
         do {
-            for (var item : indexDocs(indexName, docsPerRequest).getItems()) {
-                if (docsPerShard[item.getResponse().getShardId().getId()]++ == 0) {
-                    shards++;
-                }
-            }
-            numDocsRound2 += docsPerRequest;
-        } while (shards < multiple);
-
-        totalNumberOfDocumentsInIndex += numDocsRound2;
-
-        // include the original docs in the first shard
-        docsPerShard[0] += numDocs;
+            indexShardDocs.accept(docsPerRequest);
+            totalNumberOfDocumentsInIndex += docsPerRequest;
+        } while (Arrays.stream(shardDocs).filter(shard -> shard > 0).count() < multiple);
 
         // Verify that each shard id contains the expected number of documents indexed into it.
         // Note that stats won't include data copied from the source shard since they didn't go through the "normal" indexing logic.
         IndicesStatsResponse postReshardStatsResponse = client().admin().indices().prepareStats(indexName).execute().actionGet();
 
-        IntStream.range(0, multiple)
-            .forEach(shardId -> assertThat(getIndexCount(postReshardStatsResponse, shardId), equalTo((long) docsPerShard[shardId])));
+        IntStream.range(0, multiple).forEach(shardId -> {
+            assertThat(
+                "Shard " + shardId + " has unexpected number of documents",
+                getIndexCount(postReshardStatsResponse, shardId),
+                equalTo((long) shardDocs[shardId])
+            );
+        });
 
         // index more documents to verify that a search query returns all indexed documents thus far
         final int numDocsRound3 = randomIntBetween(10, 100);
@@ -227,11 +291,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         totalNumberOfDocumentsInIndex += numDocsRound3;
 
         refresh(indexName);
-
-        assertHitCount(
-            prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setTrackTotalHits(true),
-            totalNumberOfDocumentsInIndex
-        );
 
         // verify that the index metadata returned matches the expected multiple of shards
         GetSettingsResponse postReshardSettingsResponse = client().admin()
@@ -243,6 +302,21 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
             equalTo(multiple)
         );
+
+        var search = prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery())
+            .setSize(totalNumberOfDocumentsInIndex)
+            .setTrackTotalHits(true)
+            .get();
+        assertHitCount(search, totalNumberOfDocumentsInIndex);
+
+        // all documents should be on their owning shards
+        var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        assertTrue(
+            StreamSupport.stream(search.getHits().spliterator(), false)
+                .allMatch(hit -> hit.getShard().getShardId().getId() == indexRouting.indexShard(hit.getId(), null, null, null))
+        );
+
+        search.decRef();
     }
 
     public void testReshardEmptyIndex() {
@@ -1286,6 +1360,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         var plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(DataStreamsPlugin.class);
+        plugins.add(StatelessMockRepositoryPlugin.class);
         return plugins;
     }
 

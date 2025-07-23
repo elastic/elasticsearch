@@ -120,16 +120,22 @@ public class TransportReshardSplitAction extends TransportAction<TransportReshar
     private void handleStartSplitOnSource(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
         SubscribableListener.<Void>newForked(
             l -> splitSourceService.setupTargetShard(request.shardId, request.sourcePrimaryTerm, request.targetPrimaryTerm, l)
-        )
+        ).<Void>andThen((l, ignored) -> {
+            // at this point the base copy is done, so it is time to acquire permits, flush, and handoff
+            splitSourceService.prepareForHandoff(l, request.shardId);
+        })
             .<ActionResponse>andThen(
-                (l, ignored) -> transportService.sendChildRequest(
-                    request.targetNode,
-                    SPLIT_HANDOFF_ACTION_NAME,
-                    request,
-                    task,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(l, in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
-                )
+                // Finally, initiate handoff.
+                (l, ignored) -> {
+                    transportService.sendChildRequest(
+                        request.targetNode,
+                        SPLIT_HANDOFF_ACTION_NAME,
+                        request,
+                        task,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(l, in -> ActionResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                    );
+                }
             )
             // we are only interested in success/failure, the response is empty
             .addListener(listener.map(ignored -> ActionResponse.Empty.INSTANCE));

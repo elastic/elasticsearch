@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.reshard;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.logging.log4j.LogManager;
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -48,25 +50,48 @@ public class SplitSourceService {
     private final Client client;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
+    private final StatelessCommitService commitService;
     private final ObjectStoreService objectStoreService;
     private final ReshardIndexService reshardIndexService;
 
     private final ConcurrentHashMap<IndexShard, Split> onGoingSplits = new ConcurrentHashMap<>();
 
+    // ES-12460 for testing purposes, until pre-handoff logic (flush etc) is built out
+    @Nullable
+    private Runnable preHandoffHook;
+
     public SplitSourceService(
         Client client,
         ClusterService clusterService,
         IndicesService indicesService,
+        StatelessCommitService commitService,
         ObjectStoreService objectStoreService,
         ReshardIndexService reshardIndexService
     ) {
         this.client = client;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
+        this.commitService = commitService;
         this.objectStoreService = objectStoreService;
         this.reshardIndexService = reshardIndexService;
     }
 
+    /**
+     * Start populating a target shard that has been newly created by a resharding operation
+     * <p>
+     * A newly created shard starts in CLONE state and has no backing lucene index. This operation
+     * sets up a lucene index on the target shard by copying the source shard's lucene index to the target
+     * directory on the blob store, and arranging for any new commits to also be copied to the target until the
+     * target shard enters handoff state.
+     * <p>
+     * This function also registers a cluster state observer to trigger cleaning up the local shard when all
+     * targets have advanced to split, if one isn't already registered.
+     * @param targetShardId the id of the target shard to populate
+     * @param sourcePrimaryTerm the primary term of the source shard seen by the target when it requested population
+     * @param targetPrimaryTerm the primary term of the target shard when it requested population
+     *     These are used to ensure that the copy operation hasn't become stale due to advances on either side.
+     * @param listener called when the target shard has been set up
+     */
     public void setupTargetShard(ShardId targetShardId, long sourcePrimaryTerm, long targetPrimaryTerm, ActionListener<Void> listener) {
         Index index = targetShardId.getIndex();
 
@@ -156,10 +181,64 @@ public class SplitSourceService {
             setupSplitProgressTracking(sourceShard);
         }
 
+        // register new commits to be copied prior to copying existing data to avoid gaps.
+        commitService.markSplitting(sourceShardId, targetShardId);
+
         ActionListener.run(listener, l -> {
             objectStoreService.copyShard(sourceShardId, targetShardId, sourcePrimaryTerm);
             l.onResponse(null);
         });
+    }
+
+    public void setPreHandoffHook(Runnable preHandoffHook) {
+        assert this.preHandoffHook == null;
+        this.preHandoffHook = preHandoffHook;
+    }
+
+    /**
+     * Prepare to complete handoff to target shard
+     * Blocks indexing and flushes the source to synchronize the target with the latest changes,
+     * and turns off commit copying after the flush.
+     * @param listener a listener to be called when preparation has completed, to do the handoff or abort
+     * @param targetShardId the shardId of the target of the split operation that is ready for handoff.
+     */
+    public void prepareForHandoff(ActionListener<Void> listener, ShardId targetShardId) {
+        // testing hook, to be removed
+        if (preHandoffHook != null) {
+            preHandoffHook.run();
+        }
+
+        Index index = targetShardId.getIndex();
+        var indexService = indicesService.indexServiceSafe(index);
+        ShardId splitSource = getSplitSource(targetShardId);
+        var indexShard = indexService.getShard(splitSource.id());
+
+        indexShard.ensureMutable(listener.delegateFailureAndWrap((l, ignored) -> indexShard.withEngine(engine -> {
+            ActionListener.run(l, runListener -> {
+                // XXX acquire permits here (ref counted to handle multiple targets with concurrent handoff in flight)
+                // With permits acquired, flush whatever may be outstanding
+                engine.flush(/* force */ true, /* waitIfOngoing */ true, runListener.map(r -> null));
+                // and stop copying any new commits.
+                stopCopyingNewCommits(targetShardId);
+            });
+            return null;
+        })), false);
+        listener.onResponse(null);
+    }
+
+    public void stopCopyingNewCommits(ShardId targetShardId) {
+        commitService.markSplitCompleting(getSplitSource(targetShardId), targetShardId);
+    }
+
+    private ShardId getSplitSource(ShardId targetShardId) {
+        Index index = targetShardId.getIndex();
+
+        var indexMetadata = clusterService.state().metadata().projectFor(index).getIndexSafe(index);
+        var reshardingMetadata = indexMetadata.getReshardingMetadata();
+        assert reshardingMetadata != null && reshardingMetadata.isSplit() : "Unexpected resharding state";
+        int sourceShardIndex = reshardingMetadata.getSplit().sourceShard(targetShardId.getId());
+
+        return new ShardId(index, sourceShardIndex);
     }
 
     public void afterSplitSourceIndexShardRecovery(

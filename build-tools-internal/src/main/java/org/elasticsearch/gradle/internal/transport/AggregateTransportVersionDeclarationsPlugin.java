@@ -26,20 +26,26 @@ public class AggregateTransportVersionDeclarationsPlugin implements Plugin<Proje
         var configuration = project.getConfigurations().create("aggregateTransportVersionDeclarations");
         var deps = project.getDependencies();
 
-        project.getRootProject().getSubprojects().stream()
-            .filter(p -> p.getParent().getPath().equals(":modules") || p.getParent().getPath().equals(":plugins") || p.getParent().getPath().equals(":x-pack:plugin"))
+        project.getRootProject()
+            .getSubprojects()
+            .stream()
+            .filter(
+                p -> p.getParent().getPath().equals(":modules")
+                    || p.getParent().getPath().equals(":plugins")
+                    || p.getParent().getPath().equals(":x-pack:plugin")
+            )
             .forEach(p -> {
-                deps.add(configuration
-                        .getName(),
-                    deps.project(Map.of("path", p.getPath(), "configuration", "locateTransportVersionsConfig"))); // adding a dep to the config we created
+                deps.add(
+                    configuration.getName(),
+                    deps.project(Map.of("path", p.getPath(), "configuration", "locateTransportVersionsConfig"))
+                ); // adding a dep to the config we created
             });
 
         var aggregationTask = project.getTasks()
             .register("aggregateTransportVersionDeclarations", AggregateTransportVersionDeclarationsTask.class, t -> {
                 t.dependsOn(configuration); // this task can only run after this config is resolved
                 t.getTransportVersionNameDeclarationsFiles().setFrom(configuration);
-                t.getOutputFile().set(project.getLayout().getBuildDirectory()
-                    .file(ALL_TRANSPORT_VERSION_NAMES_FILE));
+                t.getOutputFile().set(project.getLayout().getBuildDirectory().file(ALL_TRANSPORT_VERSION_NAMES_FILE));
             });
 
     }

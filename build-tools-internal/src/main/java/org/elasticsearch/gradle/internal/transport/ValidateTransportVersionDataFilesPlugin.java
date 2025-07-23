@@ -16,10 +16,13 @@ public class ValidateTransportVersionDataFilesPlugin implements Plugin<Project> 
     @Override
     public void apply(Project project) {
         final var task = project.getTasks().register("validateTransportVersionDataFiles", ValidateTransportVersionsTask.class, t -> {
-            t.getTransportVersionSetNamesFile().set(
-                project.getLayout().getBuildDirectory().file(AggregateTransportVersionDeclarationsPlugin.ALL_TRANSPORT_VERSION_NAMES_FILE));
-            t.getDataFileDirectory().set(
-                project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/transport/"));
+            t.getTransportVersionSetNamesFile()
+                .set(
+                    project.getLayout()
+                        .getBuildDirectory()
+                        .file(AggregateTransportVersionDeclarationsPlugin.ALL_TRANSPORT_VERSION_NAMES_FILE)
+                );
+            t.getDataFileDirectory().set(project.getLayout().getProjectDirectory().file("src/main/resources/org/elasticsearch/transport/"));
         });
     }
 }

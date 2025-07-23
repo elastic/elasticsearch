@@ -106,7 +106,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             return fields;
         }, FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), QUERY_FIELD);
-        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RankBuilder.RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_CONSTANT_FIELD);
         PARSER.declareFloatArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);

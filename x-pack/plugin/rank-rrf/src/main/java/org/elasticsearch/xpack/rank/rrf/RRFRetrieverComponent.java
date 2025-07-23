@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -31,8 +32,7 @@ public class RRFRetrieverComponent implements ToXContentObject {
     final float weight;
 
     public RRFRetrieverComponent(RetrieverBuilder retrieverBuilder, Float weight) {
-        assert retrieverBuilder != null;
-        this.retriever = retrieverBuilder;
+        this.retriever = Objects.requireNonNull(retrieverBuilder, "retrieverBuilder must not be null");
         this.weight = weight == null ? DEFAULT_WEIGHT : weight;
         if (this.weight < 0) {
             throw new IllegalArgumentException("[weight] must be non-negative, found [" + this.weight + "]");

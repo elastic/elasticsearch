@@ -23,10 +23,8 @@ import java.util.AbstractCollection;
 import java.util.AbstractList;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -60,8 +58,7 @@ public class ESONSource {
             // Create a deferred Values supplier
             DeferredValuesSupplier deferredSupplier = new DeferredValuesSupplier();
 
-            // Use iterative parsing instead of recursive
-            ESONObject rootObject = parseIterative(parser, bytes, deferredSupplier);
+            ESONObject rootObject = parseObject(parser, bytes, deferredSupplier);
 
             // Now populate the deferred supplier with the final bytes
             BytesReference finalBytes = bytes.bytes();
@@ -71,84 +68,43 @@ public class ESONSource {
             return rootObject;
         }
 
-        // Iterative parsing using explicit stack to avoid recursion
-        private static ESONObject parseIterative(XContentParser parser, BytesStreamOutput bytes, Supplier<Values> valuesSupplier)
+        private static ESONObject parseObject(XContentParser parser, BytesStreamOutput bytes, Supplier<Values> valuesSupplier)
             throws IOException {
+            Map<String, Type> map = new HashMap<>();
 
-            // Stack to track parsing state
-            Deque<ParseFrame> stack = new ArrayDeque<>();
-
-            // Start with root object
-            Map<String, Type> rootMap = new HashMap<>();
-            stack.push(new ObjectFrame(rootMap));
-
-            while (stack.isEmpty() == false) {
-                ParseFrame currentFrame = stack.peek();
-
-                if (currentFrame instanceof ObjectFrame objFrame) {
-                    // Use Jackson's optimized nextFieldName() pattern
-                    String fieldName = parser.nextFieldName();
-
-                    if (fieldName == null) {
-                        // End of object
-                        stack.pop();
-                        continue;
-                    }
-
-                    // Immediately parse the value after getting field name
-                    XContentParser.Token valueToken = parser.nextToken();
-
-                    switch (valueToken) {
-                        case START_OBJECT -> {
-                            Map<String, Type> newMap = new HashMap<>();
-                            ESONObject newObj = new ESONObject(newMap, valuesSupplier);
-                            objFrame.map.put(fieldName, newObj);
-                            stack.push(new ObjectFrame(newMap));
-                        }
-                        case START_ARRAY -> {
-                            List<Type> newList = new ArrayList<>();
-                            ESONArray newArr = new ESONArray(newList, valuesSupplier);
-                            objFrame.map.put(fieldName, newArr);
-                            stack.push(new ArrayFrame(newList));
-                        }
-                        default -> {
-                            // Simple value - inline the parsing to avoid method call
-                            Type value = parseSimpleValue(parser, bytes, valueToken);
-                            objFrame.map.put(fieldName, value);
-                        }
-                    }
-
-                } else if (currentFrame instanceof ArrayFrame arrFrame) {
-                    XContentParser.Token token = parser.nextToken();
-
-                    if (token == XContentParser.Token.END_ARRAY) {
-                        stack.pop();
-                        continue;
-                    }
-
-                    switch (token) {
-                        case START_OBJECT -> {
-                            Map<String, Type> newMap = new HashMap<>();
-                            ESONObject newObj = new ESONObject(newMap, valuesSupplier);
-                            arrFrame.elements.add(newObj);
-                            stack.push(new ObjectFrame(newMap));
-                        }
-                        case START_ARRAY -> {
-                            List<Type> newList = new ArrayList<>();
-                            ESONArray newArr = new ESONArray(newList, valuesSupplier);
-                            arrFrame.elements.add(newArr);
-                            stack.push(new ArrayFrame(newList));
-                        }
-                        default -> {
-                            // Simple value
-                            Type value = parseSimpleValue(parser, bytes, token);
-                            arrFrame.elements.add(value);
-                        }
-                    }
-                }
+            String fieldName;
+            while ((fieldName = parser.nextFieldName()) != null) {
+                map.put(fieldName, parseValue(parser, bytes, valuesSupplier));
             }
 
-            return new ESONObject(rootMap, valuesSupplier);
+            return new ESONObject(map, valuesSupplier);
+        }
+
+        // Parse array recursively
+        private static ESONArray parseArray(XContentParser parser, BytesStreamOutput bytes, Supplier<Values> valuesSupplier)
+            throws IOException {
+            List<Type> elements = new ArrayList<>();
+
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                elements.add(switch (token) {
+                    case START_OBJECT -> parseObject(parser, bytes, valuesSupplier);
+                    case START_ARRAY -> parseArray(parser, bytes, valuesSupplier);
+                    default -> parseSimpleValue(parser, bytes, token);
+                });
+            }
+
+            return new ESONArray(elements, valuesSupplier);
+        }
+
+        private static Type parseValue(XContentParser parser, BytesStreamOutput bytes, Supplier<Values> valuesSupplier) throws IOException {
+            XContentParser.Token token = parser.nextToken();
+
+            return switch (token) {
+                case START_OBJECT -> parseObject(parser, bytes, valuesSupplier);
+                case START_ARRAY -> parseArray(parser, bytes, valuesSupplier);
+                default -> parseSimpleValue(parser, bytes, token);
+            };
         }
 
         // Parse non-container values and return marker for containers
@@ -174,12 +130,6 @@ public class ESONSource {
                 case VALUE_NULL -> {
                     return null;
                 }
-                case START_OBJECT -> {
-                    return new ContainerMarker(true);
-                }
-                case START_ARRAY -> {
-                    return new ContainerMarker(false);
-                }
                 case VALUE_EMBEDDED_OBJECT -> {
                     byte[] binaryValue = parser.binaryValue();
                     bytes.writeBytes(binaryValue, 0, binaryValue.length);
@@ -188,28 +138,6 @@ public class ESONSource {
                 default -> throw new IllegalStateException("Unexpected token [" + token + "]");
             }
         }
-
-        // Simplified frame classes - no more expectingValue state
-        private abstract static class ParseFrame {}
-
-        private static class ObjectFrame extends ParseFrame {
-            final Map<String, Type> map;
-
-            ObjectFrame(Map<String, Type> map) {
-                this.map = map;
-            }
-        }
-
-        private static class ArrayFrame extends ParseFrame {
-            final List<Type> elements;
-
-            ArrayFrame(List<Type> elements) {
-                this.elements = elements;
-            }
-        }
-
-        // Marker to indicate a container type was encountered
-        private record ContainerMarker(boolean isObject) implements Type {}
 
         private static ValueType handleNumber(XContentParser parser, BytesStreamOutput bytes) throws IOException {
             switch (parser.numberType()) {

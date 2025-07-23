@@ -79,6 +79,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",

@@ -8,6 +8,7 @@
 | cartesian_point | long |
 | cartesian_shape | long |
 | date | long |
+| date_nanos | long |
 | double | long |
 | geo_point | long |
 | geo_shape | long |

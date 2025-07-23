@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.ToDoubleFunction;
 
 public record ClusterBalanceStats(
@@ -213,7 +214,8 @@ public record ClusterBalanceStats(
         int undesiredShardAllocations,
         double forecastWriteLoad,
         long forecastShardSize,
-        long actualShardSize
+        long actualShardSize,
+        Double nodeWeight
     ) implements Writeable, ToXContentObject {
 
         private static final String UNKNOWN_NODE_ID = "UNKNOWN";
@@ -241,6 +243,11 @@ public record ClusterBalanceStats(
                 }
             }
 
+            assert desiredBalance != null;
+            Double nodeWeight = Optional.ofNullable(desiredBalance.weightsPerNode().get(routingNode.node()))
+                .map(DesiredBalanceMetrics.NodeWeightStats::nodeWeight)
+                .orElse(null);
+
             return new NodeBalanceStats(
                 routingNode.nodeId(),
                 routingNode.node().getRoles().stream().map(DiscoveryNodeRole::roleName).toList(),
@@ -248,7 +255,8 @@ public record ClusterBalanceStats(
                 undesired,
                 forecastWriteLoad,
                 forecastShardSize,
-                actualShardSize
+                actualShardSize,
+                nodeWeight
             );
         }
 
@@ -269,7 +277,10 @@ public record ClusterBalanceStats(
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
                 in.readDouble(),
                 in.readLong(),
-                in.readLong()
+                in.readLong(),
+                in.getTransportVersion().onOrAfter(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)
+                    ? in.readOptionalDouble()
+                    : null
             );
         }
 
@@ -286,6 +297,9 @@ public record ClusterBalanceStats(
             out.writeDouble(forecastWriteLoad);
             out.writeLong(forecastShardSize);
             out.writeLong(actualShardSize);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS)) {
+                out.writeOptionalDouble(nodeWeight);
+            }
         }
 
         @Override
@@ -294,13 +308,16 @@ public record ClusterBalanceStats(
             if (UNKNOWN_NODE_ID.equals(nodeId) == false) {
                 builder.field("node_id", nodeId);
             }
-            return builder.field("roles", roles)
+            builder.field("roles", roles)
                 .field("shard_count", shards)
                 .field("undesired_shard_allocation_count", undesiredShardAllocations)
                 .field("forecast_write_load", forecastWriteLoad)
                 .humanReadableField("forecast_disk_usage_bytes", "forecast_disk_usage", ByteSizeValue.ofBytes(forecastShardSize))
-                .humanReadableField("actual_disk_usage_bytes", "actual_disk_usage", ByteSizeValue.ofBytes(actualShardSize))
-                .endObject();
+                .humanReadableField("actual_disk_usage_bytes", "actual_disk_usage", ByteSizeValue.ofBytes(actualShardSize));
+            if (nodeWeight != null) {
+                builder.field("node_weight", nodeWeight);
+            }
+            return builder.endObject();
         }
     }
 }

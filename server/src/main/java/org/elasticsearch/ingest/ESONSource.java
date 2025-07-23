@@ -82,71 +82,66 @@ public class ESONSource {
             Map<String, Type> rootMap = new HashMap<>();
             stack.push(new ObjectFrame(rootMap));
 
-            // Current field name for objects
-            String currentFieldName = null;
-
             while (stack.isEmpty() == false) {
                 ParseFrame currentFrame = stack.peek();
 
                 if (currentFrame instanceof ObjectFrame objFrame) {
+                    // Use Jackson's optimized nextFieldName() pattern
+                    String fieldName = parser.nextFieldName();
 
-                    if (objFrame.expectingValue) {
-                        // We have a field name, now parse its value
-                        XContentParser.Token valueToken = parser.nextToken();
-                        Type value = parseSimpleValue(parser, bytes, valueToken);
+                    if (fieldName == null) {
+                        // End of object
+                        stack.pop();
+                        continue;
+                    }
 
-                        if (value instanceof ContainerMarker marker) {
-                            // Handle container types
-                            if (marker.isObject) {
-                                Map<String, Type> newMap = new HashMap<>();
-                                ESONObject newObj = new ESONObject(newMap, valuesSupplier);
-                                objFrame.map.put(currentFieldName, newObj);
-                                stack.push(new ObjectFrame(newMap));
-                            } else {
-                                List<Type> newList = new ArrayList<>();
-                                ESONArray newArr = new ESONArray(newList, valuesSupplier);
-                                objFrame.map.put(currentFieldName, newArr);
-                                stack.push(new ArrayFrame(newList));
-                            }
-                        } else {
-                            // Simple value
-                            objFrame.map.put(currentFieldName, value);
+                    // Immediately parse the value after getting field name
+                    XContentParser.Token valueToken = parser.nextToken();
+
+                    switch (valueToken) {
+                        case START_OBJECT -> {
+                            Map<String, Type> newMap = new HashMap<>();
+                            ESONObject newObj = new ESONObject(newMap, valuesSupplier);
+                            objFrame.map.put(fieldName, newObj);
+                            stack.push(new ObjectFrame(newMap));
                         }
-                        objFrame.expectingValue = false;
-                    } else {
-                        // Try to get next field
-                        currentFieldName = parser.nextFieldName();
-                        if (currentFieldName != null) {
-                            objFrame.expectingValue = true;
-                        } else {
-                            // End of object
-                            stack.pop();
+                        case START_ARRAY -> {
+                            List<Type> newList = new ArrayList<>();
+                            ESONArray newArr = new ESONArray(newList, valuesSupplier);
+                            objFrame.map.put(fieldName, newArr);
+                            stack.push(new ArrayFrame(newList));
+                        }
+                        default -> {
+                            // Simple value - inline the parsing to avoid method call
+                            Type value = parseSimpleValue(parser, bytes, valueToken);
+                            objFrame.map.put(fieldName, value);
                         }
                     }
+
                 } else if (currentFrame instanceof ArrayFrame arrFrame) {
-
                     XContentParser.Token token = parser.nextToken();
-                    if (token == XContentParser.Token.END_ARRAY) {
-                        // End of array
-                        stack.pop();
-                    } else {
-                        Type value = parseSimpleValue(parser, bytes, token);
 
-                        if (value instanceof ContainerMarker marker) {
-                            // Handle container types
-                            if (marker.isObject) {
-                                Map<String, Type> newMap = new HashMap<>();
-                                ESONObject newObj = new ESONObject(newMap, valuesSupplier);
-                                arrFrame.elements.add(newObj);
-                                stack.push(new ObjectFrame(newMap));
-                            } else {
-                                List<Type> newList = new ArrayList<>();
-                                ESONArray newArr = new ESONArray(newList, valuesSupplier);
-                                arrFrame.elements.add(newArr);
-                                stack.push(new ArrayFrame(newList));
-                            }
-                        } else {
+                    if (token == XContentParser.Token.END_ARRAY) {
+                        stack.pop();
+                        continue;
+                    }
+
+                    switch (token) {
+                        case START_OBJECT -> {
+                            Map<String, Type> newMap = new HashMap<>();
+                            ESONObject newObj = new ESONObject(newMap, valuesSupplier);
+                            arrFrame.elements.add(newObj);
+                            stack.push(new ObjectFrame(newMap));
+                        }
+                        case START_ARRAY -> {
+                            List<Type> newList = new ArrayList<>();
+                            ESONArray newArr = new ESONArray(newList, valuesSupplier);
+                            arrFrame.elements.add(newArr);
+                            stack.push(new ArrayFrame(newList));
+                        }
+                        default -> {
                             // Simple value
+                            Type value = parseSimpleValue(parser, bytes, token);
                             arrFrame.elements.add(value);
                         }
                     }
@@ -194,23 +189,17 @@ public class ESONSource {
             }
         }
 
-        // Marker to indicate a container type was encountered
-        private record ContainerMarker(boolean isObject) implements Type {}
-
-        // Base class for parse frames
+        // Simplified frame classes - no more expectingValue state
         private abstract static class ParseFrame {}
 
-        // Frame for parsing objects
         private static class ObjectFrame extends ParseFrame {
             final Map<String, Type> map;
-            boolean expectingValue = false;
 
             ObjectFrame(Map<String, Type> map) {
                 this.map = map;
             }
         }
 
-        // Frame for parsing arrays
         private static class ArrayFrame extends ParseFrame {
             final List<Type> elements;
 
@@ -218,6 +207,9 @@ public class ESONSource {
                 this.elements = elements;
             }
         }
+
+        // Marker to indicate a container type was encountered
+        private record ContainerMarker(boolean isObject) implements Type {}
 
         private static ValueType handleNumber(XContentParser parser, BytesStreamOutput bytes) throws IOException {
             switch (parser.numberType()) {

@@ -14,11 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.internal.VersionExtension;
 import org.elasticsearch.plugins.ExtensionLoader;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -87,43 +82,44 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         this(null, id, null);
     }
 
-    private static final ParseField NAME = new ParseField("name");
-    private static final ParseField IDS = new ParseField("ids");
-
-    private static final ConstructingObjectParser<TransportVersion, Integer> PARSER = new ConstructingObjectParser<>(
-        TransportVersion.class.getCanonicalName(),
-        false,
-        (args, latestTransportId) -> {
-            String name = (String) args[0];
-            @SuppressWarnings("unchecked")
-            List<Integer> ids = (List<Integer>) args[1];
-            ids.sort(Integer::compareTo);
-            TransportVersion transportVersion = null;
-            for (int idIndex = 0; idIndex < ids.size(); ++idIndex) {
-                if (ids.get(idIndex) > latestTransportId) {
-                    break;
-                }
-                transportVersion = new TransportVersion(name, ids.get(idIndex), transportVersion);
-            }
-            return transportVersion;
-        }
-    );
-
-    static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
-        PARSER.declareIntArray(ConstructingObjectParser.constructorArg(), IDS);
-    }
-
     /**
      * Constructs a named transport version along with its set of compatible patch versions from x-content.
      * This method takes in the parameter {@code latest} which is the highest valid transport version id
      * supported by this node. Versions newer than the current transport version id for this node are discarded.
      */
-    public static TransportVersion fromXContent(InputStream inputStream, Integer latest) {
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, inputStream)) {
-            return PARSER.apply(parser, latest);
+    public static TransportVersion fromInputStream(String path, InputStream stream, Integer latest) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            String line = reader.readLine();
+            String[] parts = line.replaceAll("\\s+","").split("\\|");
+            String check;
+            while ((check = reader.readLine()) != null) {
+                if (check.replaceAll("\\s+","").isEmpty() == false) {
+                    throw new IllegalArgumentException("invalid transport version file format [" + path + "]");
+                }
+            }
+            if (parts.length < 2) {
+                throw new IllegalStateException("invalid transport version file format [" + path + "]");
+            }
+            String name = parts[0];
+            List<Integer> ids = new ArrayList<>();
+            for (int i = 1; i < parts.length; ++i) {
+                try {
+                    ids.add(Integer.parseInt(parts[i]));
+                } catch (NumberFormatException nfe) {
+                    throw new IllegalStateException("invalid transport version file format [" + path + "]", nfe);
+                }
+            }
+            ids.sort(Integer::compareTo);
+            TransportVersion transportVersion = null;
+            for (int idIndex = 0; idIndex < ids.size(); ++idIndex) {
+                if (ids.get(idIndex) > latest) {
+                    break;
+                }
+                transportVersion = new TransportVersion(name, ids.get(idIndex), transportVersion);
+            }
+            return transportVersion;
         } catch (IOException ioe) {
-            throw new UncheckedIOException(ioe);
+            throw new UncheckedIOException("cannot parse transport version [" + path + "]", ioe);
         }
     }
 
@@ -380,14 +376,14 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         private static Map<String, TransportVersion> loadTransportVersionsByName() {
             Map<String, TransportVersion> transportVersions = new HashMap<>();
 
-            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".json";
+            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".txt";
             int latestId = -1;
             try (InputStream inputStream = TransportVersion.class.getResourceAsStream(latestLocation)) {
                 // this check is required until bootstrapping for the new transport versions format is completed;
                 // when load is false, we will only use the transport versions in the legacy format;
                 // load becomes false if we don't find the latest or manifest files required for the new format
                 if (inputStream != null) {
-                    TransportVersion latest = fromXContent(inputStream, Integer.MAX_VALUE);
+                    TransportVersion latest = fromInputStream(latestLocation, inputStream, Integer.MAX_VALUE);
                     if (latest == null) {
                         throw new IllegalStateException(
                             "invalid latest transport version for minor version ["
@@ -423,7 +419,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                         if (inputStream == null) {
                             throw new IllegalStateException("transport version file not found at [" + versionLocation + "]");
                         }
-                        TransportVersion transportVersion = TransportVersion.fromXContent(inputStream, latestId);
+                        TransportVersion transportVersion = TransportVersion.fromInputStream(versionLocation, inputStream, latestId);
                         if (transportVersion != null) {
                             transportVersions.put(transportVersion.name(), transportVersion);
                         }

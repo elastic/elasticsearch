@@ -1,8 +1,7 @@
 ---
 navigation_title: "Normalize for Stream"
 applies_to:
-  stack: ga 9.1
-  serverless: ga
+  stack: preview 9.1
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/normalize-for-stream-processor.html
 ---

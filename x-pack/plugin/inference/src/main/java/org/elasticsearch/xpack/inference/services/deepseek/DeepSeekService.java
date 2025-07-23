@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.deepseek;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Strings;
@@ -65,11 +64,11 @@ public class DeepSeekService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(factory, serviceComponents, context.clusterService());
+        this(factory, serviceComponents);
     }
 
-    public DeepSeekService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+    public DeepSeekService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
+        super(factory, serviceComponents);
     }
 
     @Override

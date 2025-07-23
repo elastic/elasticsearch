@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -43,13 +42,11 @@ public abstract class SenderService implements InferenceService {
     protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
-    private final ClusterService clusterService;
 
-    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+    public SenderService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         Objects.requireNonNull(factory);
         sender = factory.createSender();
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
-        this.clusterService = Objects.requireNonNull(clusterService);
     }
 
     public Sender getSender() {

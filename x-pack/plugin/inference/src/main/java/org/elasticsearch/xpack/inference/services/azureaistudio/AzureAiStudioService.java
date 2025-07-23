@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -91,11 +90,11 @@ public class AzureAiStudioService extends SenderService {
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        this(factory, serviceComponents, context.clusterService());
+        this(factory, serviceComponents);
     }
 
-    public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
-        super(factory, serviceComponents, clusterService);
+    public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
+        super(factory, serviceComponents);
     }
 
     @Override

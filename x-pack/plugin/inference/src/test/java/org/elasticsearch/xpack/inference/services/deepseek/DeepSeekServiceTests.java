@@ -360,8 +360,7 @@ public class DeepSeekServiceTests extends ESTestCase {
     private DeepSeekService createService() {
         return new DeepSeekService(
             HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
-            createWithEmptySettings(threadPool),
-            mockClusterServiceEmpty()
+            createWithEmptySettings(threadPool)
         );
     }
 

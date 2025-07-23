@@ -453,7 +453,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
         var mockModel = getInvalidModel("model_id", "service_name");
 
-        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = new AnthropicService(factory, createWithEmptySettings(threadPool))) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 mockModel,
@@ -486,7 +486,7 @@ public class AnthropicServiceTests extends ESTestCase {
     public void testInfer_SendsCompletionRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool))) {
             String responseJson = """
                 {
                     "id": "msg_01XzZQmG41BMGe5NZ5p2vEWb",
@@ -579,7 +579,7 @@ public class AnthropicServiceTests extends ESTestCase {
 
     private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+        try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
                 getUrl(webServer),
                 "secret",
@@ -679,13 +679,13 @@ public class AnthropicServiceTests extends ESTestCase {
     }
 
     public void testSupportsStreaming() throws IOException {
-        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
+        try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()))) {
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
     }
 
     private AnthropicService createServiceWithMockSender() {
-        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+        return new AnthropicService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }
 }

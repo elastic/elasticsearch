@@ -2024,9 +2024,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             """;
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
-        var project = as (plan, ProjectExec.class);
+        var project = as(plan, ProjectExec.class);
         assertFalse(project.projections().stream().anyMatch(p -> p.toString().contains(EXACT_SCORE_ATTR_NAME)));
-
 
         // LimitExec
         var limit = as(project.child(), LimitExec.class);

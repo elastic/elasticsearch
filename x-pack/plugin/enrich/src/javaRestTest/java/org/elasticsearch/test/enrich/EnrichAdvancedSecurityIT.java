@@ -4,13 +4,15 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.enrich;
+package org.elasticsearch.test.enrich;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -20,16 +22,29 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
 
+    public static final String ADMIN_USER = "test_admin";
+    public static final String ENRICH_USER = "test_enrich";
+    public static final String TEST_PASSWORD = "x-pack-test-password";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = enrichCluster("trial", true).rolesFile(Resource.fromClasspath("advanced_roles.yml"))
+        .user(ADMIN_USER, TEST_PASSWORD, "superuser", true)
+        .user(ENRICH_USER, TEST_PASSWORD, "integ_test_role", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test_enrich", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return authRequestHeaderSetting(ENRICH_USER, TEST_PASSWORD);
     }
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return authRequestHeaderSetting(ADMIN_USER, TEST_PASSWORD);
     }
 
     public void testEnrichEnforcesDLS() throws IOException {

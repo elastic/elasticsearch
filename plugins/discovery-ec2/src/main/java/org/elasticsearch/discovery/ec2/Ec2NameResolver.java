@@ -57,7 +57,7 @@ class Ec2NameResolver implements CustomNameResolver {
         return null; // using this, one has to explicitly specify _ec2_ in network setting
     }
 
-    private static final String IMDS_ADDRESS_PATH_PREFIX = "/latest/meta-data/";
+    private static final String IMDS_ADDRESS_PATH_PREFIX = "/transport/latest/meta-data/";
 
     @Override
     public InetAddress[] resolveIfPossible(String value) throws IOException {

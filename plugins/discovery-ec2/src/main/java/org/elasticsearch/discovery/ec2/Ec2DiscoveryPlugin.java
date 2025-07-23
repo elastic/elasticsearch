@@ -95,7 +95,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         return getAvailabilityZoneNodeAttributes(settings);
     }
 
-    private static final String IMDS_AVAILABILITY_ZONE_PATH = "/latest/meta-data/placement/availability-zone";
+    private static final String IMDS_AVAILABILITY_ZONE_PATH = "/transport/latest/meta-data/placement/availability-zone";
 
     // pkg private for testing
     static Settings getAvailabilityZoneNodeAttributes(Settings settings) {

@@ -56,7 +56,7 @@ public class Ec2ImdsServiceBuilder {
     }
 
     public Ec2ImdsServiceBuilder addInstanceAddress(String addressType, String addressValue) {
-        instanceAddresses.put("/latest/meta-data/" + addressType, addressValue);
+        instanceAddresses.put("/transport/latest/meta-data/" + addressType, addressValue);
         return this;
     }
 

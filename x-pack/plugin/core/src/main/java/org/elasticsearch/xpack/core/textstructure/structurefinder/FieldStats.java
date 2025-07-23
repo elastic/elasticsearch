@@ -30,7 +30,7 @@ public class FieldStats implements ToXContentObject, Writeable {
     static final ParseField MEAN_VALUE = new ParseField("mean_value");
     static final ParseField MEDIAN_VALUE = new ParseField("median_value");
     static final ParseField EARLIEST = new ParseField("earliest");
-    static final ParseField LATEST = new ParseField("latest");
+    static final ParseField LATEST = new ParseField("transport/latest");
     static final ParseField TOP_HITS = new ParseField("top_hits");
 
     @SuppressWarnings("unchecked")

@@ -104,9 +104,9 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         // waiting for task execution to begin via the supplied barrier.
         var adjustableTimedRunnable = new AdjustableQueueTimeWithExecutionBarrierTimedRunnable(
             barrier,
-            // This won't actually be used, because it is reported when a task is taken off the queue. This test peeks at the still queued
+            // This won't actually be used, because it is reported after a task is taken off the queue. This test peeks at the still queued
             // tasks.
-            TimeUnit.NANOSECONDS.toNanos(1_000_000)
+            TimeUnit.MILLISECONDS.toNanos(1)
         );
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",

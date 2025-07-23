@@ -34,7 +34,7 @@ public class DesiredNodesMetadata extends AbstractNamedDiffable<Metadata.Cluster
 
     public static final DesiredNodesMetadata EMPTY = new DesiredNodesMetadata((DesiredNodes) null);
 
-    private static final ParseField LATEST_FIELD = new ParseField("transport/latest");
+    private static final ParseField LATEST_FIELD = new ParseField("latest");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DesiredNodesMetadata, Void> PARSER = new ConstructingObjectParser<>(

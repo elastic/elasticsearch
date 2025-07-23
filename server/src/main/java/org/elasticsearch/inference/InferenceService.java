@@ -23,9 +23,7 @@ import java.util.Map;
 import java.util.Set;
 
 public interface InferenceService extends Closeable {
-
-    default void init(Client client) {}
-
+    
     String name();
 
     /**

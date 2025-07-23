@@ -18,6 +18,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -1313,9 +1314,7 @@ public class ServiceUtilsTests extends ESTestCase {
     }
 
     public void testResolveInferenceTimeout_WithProvidedTimeout_ReturnsProvidedTimeout() {
-        var clusterService = mockClusterService(
-            Settings.builder().put(org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build()
-        );
+        var clusterService = mockClusterService(Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build());
         var providedTimeout = TimeValue.timeValueSeconds(45);
 
         InputType[] inputTypes = {
@@ -1336,9 +1335,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testResolveInferenceTimeout_WithNullTimeoutAndSearchInputType_ReturnsClusterSetting() {
         var configuredTimeout = TimeValue.timeValueSeconds(10);
         var clusterService = mockClusterService(
-            Settings.builder()
-                .put(org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout)
-                .build()
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
         );
 
         {
@@ -1352,9 +1349,7 @@ public class ServiceUtilsTests extends ESTestCase {
     }
 
     public void testResolveInferenceTimeout_WithNullTimeoutAndIngestInputType_ReturnsMaxValue() {
-        var clusterService = mockClusterService(
-            Settings.builder().put(org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build()
-        );
+        var clusterService = mockClusterService(Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build());
 
         {
             var result = ServiceUtils.resolveInferenceTimeout(null, InputType.INGEST, clusterService);
@@ -1367,9 +1362,7 @@ public class ServiceUtilsTests extends ESTestCase {
     }
 
     public void testResolveInferenceTimeout_WithNullTimeoutAndOtherInputTypes_ReturnsDefaultTimeout() {
-        var clusterService = mockClusterService(
-            Settings.builder().put(org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build()
-        );
+        var clusterService = mockClusterService(Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build());
 
         InputType[] otherTypes = { InputType.CLASSIFICATION, InputType.CLUSTERING, InputType.UNSPECIFIED };
 

@@ -12,8 +12,6 @@ import software.amazon.awssdk.services.sagemakerruntime.model.InvokeEndpointWith
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -52,6 +50,7 @@ import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureLi
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.core.TimeValue.THIRTY_SECONDS;
 import static org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequestTests.randomUnifiedCompletionRequest;
+import static org.elasticsearch.xpack.inference.Utils.mockClusterService;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -189,13 +188,10 @@ public class SageMakerServiceTests extends ESTestCase {
         var model = mockModel();
         when(schemas.schemaFor(model)).thenReturn(mock());
 
-        var configuredTimeout = TimeValue.timeValueSeconds(30);
-        var clusterSettings = new ClusterSettings(
-            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build(),
-            Set.of(InferencePlugin.INFERENCE_QUERY_TIMEOUT)
+        var configuredTimeout = TimeValue.timeValueSeconds(15);
+        var clusterService = mockClusterService(
+            Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
         );
-        var clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         var service = new SageMakerService(modelBuilder, client, schemas, mock(ThreadPool.class), Map::of, clusterService);
 
@@ -206,7 +202,7 @@ public class SageMakerServiceTests extends ESTestCase {
             return null;
         }).when(client).invoke(any(), any(), any(), any());
 
-        service.infer(model, QUERY, null, null, INPUT, false, null, INPUT_TYPE, null, assertNoFailureListener(ignored -> {}));
+        service.infer(model, QUERY, null, null, INPUT, false, null, InputType.SEARCH, null, assertNoFailureListener(ignored -> {}));
 
         assertEquals(configuredTimeout, capturedTimeout.get());
     }

@@ -80,7 +80,13 @@ public final class TypeResolutions {
     }
 
     public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
-        return isType(e, (t) -> isSpatial(t) == false && DataType.isRepresentable(t), operationName, paramOrd, "any type except counter and spatial types");
+        return isType(
+            e,
+            (t) -> isSpatial(t) == false && DataType.isRepresentable(t),
+            operationName,
+            paramOrd,
+            "any type except counter and spatial types"
+        );
     }
 
     public static TypeResolution isExact(Expression e, String message) {

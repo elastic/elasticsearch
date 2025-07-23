@@ -39,8 +39,6 @@ import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilari
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.SNIPPETS_FIELD;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_RERANK_ID;
-import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.RERANKER_ID;
 
 /**
  * A {@code RankBuilder} that enables ranking with text similarity model inference. Supports parameters for configuring the inference call.
@@ -52,13 +50,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     /**
      * The default token size limit of the Elastic reranker is 512.
      */
-    private static final int RERANK_TOKEN_SIZE_LIMIT = 512;
-
-    /**
-     * 4096 is a safe default token size limit for other reranker models.
-     * Reranker models with smaller token limits will be truncated.
-     */
-    private static final int DEFAULT_TOKEN_SIZE_LIMIT = 4_096;
+    private static final int DEFAULT_TOKEN_SIZE_LIMIT = 512;
 
     public static final LicensedFeature.Momentary TEXT_SIMILARITY_RERANKER_FEATURE = LicensedFeature.momentary(
         null,
@@ -266,9 +258,6 @@ public class TextSimilarityRankBuilder extends RankBuilder {
      * TODO: This should be pulled from the inference endpoint when available, not hardcoded.
      */
     public static Integer tokenSizeLimit(String inferenceId) {
-        if (inferenceId.equals(DEFAULT_RERANK_ID) || inferenceId.equals(RERANKER_ID)) {
-            return RERANK_TOKEN_SIZE_LIMIT;
-        }
         return DEFAULT_TOKEN_SIZE_LIMIT;
     }
 

@@ -1950,6 +1950,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         Set<ResolvedExpression> indicesAndAliases,
         String[] concreteIndices
     ) {
+        concreteIndices = ignoreBlockedIndices(projectState, concreteIndices);
         var routingMap = indexNameExpressionResolver.resolveSearchRouting(
             projectState.metadata(),
             searchRequest.routing(),
@@ -1980,6 +1981,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         // the returned list must support in-place sorting, so this is the most memory efficient we can do here
         return Arrays.asList(list);
+    }
+
+    static String[] ignoreBlockedIndices(ProjectState projectState, String[] concreteIndices) {
+        // optimization: mostly we do not have any blocks so there's no point in the expensive per-index checking
+        boolean hasIndexBlocks = projectState.blocks().indices(projectState.projectId()).isEmpty() == false;
+        if (hasIndexBlocks) {
+            return Arrays.stream(concreteIndices)
+                .filter(
+                    index -> projectState.blocks()
+                        .hasIndexBlock(projectState.projectId(), index, IndexMetadata.INDEX_REFRESH_BLOCK) == false
+                )
+                .toArray(String[]::new);
+        }
+        return concreteIndices;
     }
 
     private interface TelemetryListener {

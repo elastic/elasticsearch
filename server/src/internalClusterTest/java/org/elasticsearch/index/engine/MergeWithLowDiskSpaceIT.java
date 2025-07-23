@@ -364,8 +364,8 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             assertTrue(forceMergeBeforeRelocationFuture.isDone());
             assertFalse(forceMergeBeforeRelocationFuture.isCancelled());
         });
-        // there is some merging going on in the {@code PostRecoveryMerger} after the recovery, but we don't control that
-        // so let's trigger a force merge to 1 segment again
+        // there is some merging going on in the {@code PostRecoveryMerger} after recovery, but that's not guaranteeing us a single segment,
+        // so let's trigger a force merge to 1 segment again (this one should succeed promptly)
         indicesAdmin().prepareForceMerge(indexName).setMaxNumSegments(1).get();
         IndicesSegmentResponse indicesSegmentResponseAfterRelocation = indicesAdmin().prepareSegments(indexName).get();
         // assert there's only one segment now

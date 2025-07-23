@@ -184,7 +184,7 @@ public class InferencePlugin extends Plugin
     );
     public static final Setting<TimeValue> INFERENCE_QUERY_TIMEOUT = Setting.timeSetting(
         "xpack.inference.query_timeout",
-        TimeValue.timeValueSeconds(TimeUnit.SECONDS.toSeconds(10)),
+        TimeValue.timeValueSeconds(10),
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

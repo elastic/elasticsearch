@@ -114,7 +114,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
             maxBlock = maxBuilder.build();
             sumBlock = sumBuilder.build();
             countBlock = countBuilder.build();
-            AggregateMetricDoubleBlock block = new AggregateMetricDoubleBlock(minBlock, maxBlock, sumBlock, countBlock);
+            AggregateMetricDoubleBlock block = new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
             success = true;
             return block;
         } finally {
@@ -174,9 +174,9 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
 
     public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
         public AggregateMetricDoubleLiteral {
-            min = min.isNaN() ? null : min;
-            max = max.isNaN() ? null : max;
-            sum = sum.isNaN() ? null : sum;
+            min = min == null || min.isNaN() ? null : min;
+            max = max == null || max.isNaN() ? null : max;
+            sum = sum == null || sum.isNaN() ? null : sum;
         }
 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

@@ -16,7 +16,7 @@ import java.io.IOException;
 
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test").setting("xpack.ml.enabled", "false"));
 
     @Override
     protected String getTestRestCluster() {

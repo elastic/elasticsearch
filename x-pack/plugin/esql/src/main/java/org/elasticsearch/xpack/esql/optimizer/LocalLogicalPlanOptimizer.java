@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEmptyRelation;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceInlinestatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
@@ -75,6 +76,8 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
                 case PropagateEmptyRelation ignoredPropagate -> newRules.add(new LocalPropagateEmptyRelation());
                 // skip it: once a fragment contains an Agg, this can no longer be pruned, which the rule can do
                 case ReplaceStatsFilteredAggWithEval ignoredReplace -> {
+                }
+                case ReplaceInlinestatsFilteredAggWithEval ignoredReplace -> {
                 }
                 default -> newRules.add(r);
             }

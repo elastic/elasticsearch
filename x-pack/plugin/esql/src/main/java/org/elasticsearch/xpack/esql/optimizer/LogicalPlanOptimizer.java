@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceInlinestatsFilteredAggWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
@@ -185,6 +186,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // TODO: bifunction can now (since we now have just one data types set) be pushed into the rule
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
             new ReplaceStringCasingWithInsensitiveEquals(),
+            new ReplaceInlinestatsFilteredAggWithEval(),
             new ReplaceStatsFilteredAggWithEval(),
             new ExtractAggregateCommonFilter(),
             // prune/elimination

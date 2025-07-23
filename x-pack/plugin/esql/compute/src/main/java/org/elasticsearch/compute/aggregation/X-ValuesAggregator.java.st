@@ -113,37 +113,24 @@ $endif$
         state.addValue(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
 $if(BytesRef)$
-        BytesRef scratch = new BytesRef();
-$endif$
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntVector groups, $Type$Block values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
+    }
+
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntBlock groups, $Type$Block values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
+    }
+
+$else$
+    public static void combineIntermediate(GroupingState state, int groupId, $Type$Block values, int valuesPosition) {
         int start = values.getFirstValueIndex(valuesPosition);
         int end = start + values.getValueCount(valuesPosition);
         for (int i = start; i < end; i++) {
-$if(BytesRef)$
-            state.addValue(groupId, values.getBytesRef(i, scratch));
-$else$
             state.addValue(groupId, values.get$Type$(i));
-$endif$
         }
     }
-
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        if (statePosition > state.maxGroupId) {
-            return;
-        }
-        var sorted = state.sortedForOrdinalMerging(current);
-        var start = statePosition > 0 ? sorted.counts[statePosition - 1] : 0;
-        var end = sorted.counts[statePosition];
-        for (int i = start; i < end; i++) {
-            int id = sorted.ids[i];
-$if(BytesRef)$
-            current.addValueOrdinal(currentGroupId, id);
-$else$
-            current.addValue(currentGroupId, state.getValue(id));
 $endif$
-        }
-    }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
         return state.toBlock(driverContext.blockFactory(), selected);
@@ -222,10 +209,6 @@ $endif$
      * and then use it to iterate over the values in order.
      *
      * @param ids positions of the {@link GroupingState#values} to read.
-$if(BytesRef)$
-     *            If built from {@link GroupingState#sortedForOrdinalMerging(GroupingState)},
-     *            these are ordinals referring to the {@link GroupingState#bytes} in the target state.
-$endif$
      */
     private record Sorted(Releasable releasable, int[] counts, int[] ids) implements Releasable {
         @Override
@@ -255,8 +238,6 @@ $elseif(int||float)$
         private final LongHash values;
 
 $endif$
-        private Sorted sortedForOrdinalMerging = null;
-
         private GroupingState(DriverContext driverContext) {
             this.blockFactory = driverContext.blockFactory();
 $if(long||double)$
@@ -327,7 +308,7 @@ $endif$
 
             try (var sorted = buildSorted(selected)) {
 $if(BytesRef)$
-                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(values.size()))) {
+                if (OrdinalBytesRefBlock.isDense(values.size(), bytes.size())) {
                     return buildOrdinalOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
                 } else {
                     return buildOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
@@ -436,36 +417,6 @@ $endif$
             }
         }
 
-        private Sorted sortedForOrdinalMerging(GroupingState other) {
-            if (sortedForOrdinalMerging == null) {
-                try (var selected = IntVector.range(0, maxGroupId + 1, blockFactory)) {
-                    sortedForOrdinalMerging = buildSorted(selected);
-$if(BytesRef)$
-                    // hash all the bytes to the destination to avoid hashing them multiple times
-                    BytesRef scratch = new BytesRef();
-                    final int totalValue = Math.toIntExact(bytes.size());
-                    blockFactory.adjustBreaker((long) totalValue * Integer.BYTES);
-                    try {
-                        final int[] mappedIds = new int[totalValue];
-                        for (int i = 0; i < totalValue; i++) {
-                            var v = bytes.get(i, scratch);
-                            mappedIds[i] = Math.toIntExact(BlockHash.hashOrdToGroup(other.bytes.add(v)));
-                        }
-                        // no longer need the bytes
-                        bytes.close();
-                        bytes = null;
-                        for (int i = 0; i < sortedForOrdinalMerging.ids.length; i++) {
-                            sortedForOrdinalMerging.ids[i] = mappedIds[Math.toIntExact(values.getKey2(sortedForOrdinalMerging.ids[i]))];
-                        }
-                    } finally {
-                        blockFactory.adjustBreaker(-(long) totalValue * Integer.BYTES);
-                    }
-$endif$
-                }
-            }
-            return sortedForOrdinalMerging;
-        }
-
         Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, int[] selectedCounts, int[] ids) {
             /*
              * Insert the ids in order.
@@ -559,9 +510,9 @@ $endif$
         @Override
         public void close() {
 $if(BytesRef)$
-            Releasables.closeExpectNoException(values, bytes, sortedForOrdinalMerging);
+            Releasables.closeExpectNoException(values, bytes);
 $else$
-            Releasables.closeExpectNoException(values, sortedForOrdinalMerging);
+            Releasables.closeExpectNoException(values);
 $endif$
         }
     }

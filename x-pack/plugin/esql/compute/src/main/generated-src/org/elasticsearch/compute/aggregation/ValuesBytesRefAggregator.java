@@ -80,26 +80,12 @@ class ValuesBytesRefAggregator {
         state.addValue(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, BytesRefBlock values, int valuesPosition) {
-        BytesRef scratch = new BytesRef();
-        int start = values.getFirstValueIndex(valuesPosition);
-        int end = start + values.getValueCount(valuesPosition);
-        for (int i = start; i < end; i++) {
-            state.addValue(groupId, values.getBytesRef(i, scratch));
-        }
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntVector groups, BytesRefBlock values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        if (statePosition > state.maxGroupId) {
-            return;
-        }
-        var sorted = state.sortedForOrdinalMerging(current);
-        var start = statePosition > 0 ? sorted.counts[statePosition - 1] : 0;
-        var end = sorted.counts[statePosition];
-        for (int i = start; i < end; i++) {
-            int id = sorted.ids[i];
-            current.addValueOrdinal(currentGroupId, id);
-        }
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntBlock groups, BytesRefBlock values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
@@ -148,8 +134,6 @@ class ValuesBytesRefAggregator {
      * and then use it to iterate over the values in order.
      *
      * @param ids positions of the {@link GroupingState#values} to read.
-     *            If built from {@link GroupingState#sortedForOrdinalMerging(GroupingState)},
-     *            these are ordinals referring to the {@link GroupingState#bytes} in the target state.
      */
     private record Sorted(Releasable releasable, int[] counts, int[] ids) implements Releasable {
         @Override
@@ -170,8 +154,6 @@ class ValuesBytesRefAggregator {
         private final BlockFactory blockFactory;
         private final LongLongHash values;
         BytesRefHash bytes;
-
-        private Sorted sortedForOrdinalMerging = null;
 
         private GroupingState(DriverContext driverContext) {
             this.blockFactory = driverContext.blockFactory();
@@ -216,7 +198,7 @@ class ValuesBytesRefAggregator {
             }
 
             try (var sorted = buildSorted(selected)) {
-                if (OrdinalBytesRefBlock.isDense(selected.getPositionCount(), Math.toIntExact(values.size()))) {
+                if (OrdinalBytesRefBlock.isDense(values.size(), bytes.size())) {
                     return buildOrdinalOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
                 } else {
                     return buildOutputBlock(blockFactory, selected, sorted.counts, sorted.ids);
@@ -312,34 +294,6 @@ class ValuesBytesRefAggregator {
             }
         }
 
-        private Sorted sortedForOrdinalMerging(GroupingState other) {
-            if (sortedForOrdinalMerging == null) {
-                try (var selected = IntVector.range(0, maxGroupId + 1, blockFactory)) {
-                    sortedForOrdinalMerging = buildSorted(selected);
-                    // hash all the bytes to the destination to avoid hashing them multiple times
-                    BytesRef scratch = new BytesRef();
-                    final int totalValue = Math.toIntExact(bytes.size());
-                    blockFactory.adjustBreaker((long) totalValue * Integer.BYTES);
-                    try {
-                        final int[] mappedIds = new int[totalValue];
-                        for (int i = 0; i < totalValue; i++) {
-                            var v = bytes.get(i, scratch);
-                            mappedIds[i] = Math.toIntExact(BlockHash.hashOrdToGroup(other.bytes.add(v)));
-                        }
-                        // no longer need the bytes
-                        bytes.close();
-                        bytes = null;
-                        for (int i = 0; i < sortedForOrdinalMerging.ids.length; i++) {
-                            sortedForOrdinalMerging.ids[i] = mappedIds[Math.toIntExact(values.getKey2(sortedForOrdinalMerging.ids[i]))];
-                        }
-                    } finally {
-                        blockFactory.adjustBreaker(-(long) totalValue * Integer.BYTES);
-                    }
-                }
-            }
-            return sortedForOrdinalMerging;
-        }
-
         Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, int[] selectedCounts, int[] ids) {
             /*
              * Insert the ids in order.
@@ -416,7 +370,7 @@ class ValuesBytesRefAggregator {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(values, bytes, sortedForOrdinalMerging);
+            Releasables.closeExpectNoException(values, bytes);
         }
     }
 }

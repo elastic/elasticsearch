@@ -12,14 +12,13 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
-import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -43,9 +42,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import static org.apache.lucene.search.ScoreMode.TOP_DOCS;
-import static org.apache.lucene.search.ScoreMode.TOP_DOCS_WITH_SCORES;
 
 /**
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
@@ -75,7 +71,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                needsScore ? TOP_DOCS_WITH_SCORES : TOP_DOCS
+                scoreModeFunction(sorts, needsScore)
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
@@ -331,18 +327,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private static Function<ShardContext, Weight> weightFunction(
-        Function<ShardContext, Query> queryFunction,
-        List<SortBuilder<?>> sorts,
-        boolean needsScore
-    ) {
+    private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
         return ctx -> {
-            final var query = queryFunction.apply(ctx);
-            final var searcher = ctx.searcher();
             try {
                 // we create a collector with a limit of 1 to determine the appropriate score mode to use.
-                var scoreMode = newPerShardCollector(ctx, sorts, needsScore, 1).collector.scoreMode();
-                return searcher.createWeight(searcher.rewrite(query), scoreMode, 1);
+                return newPerShardCollector(ctx, sorts, needsScore, 1).collector.scoreMode();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

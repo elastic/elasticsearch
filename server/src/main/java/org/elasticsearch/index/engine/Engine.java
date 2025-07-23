@@ -62,6 +62,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
+import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -275,6 +276,7 @@ public abstract class Engine implements Closeable {
         int numSegments = 0;
         int totalFields = 0;
         long usages = 0;
+        long totalPostingBytes = 0;
         for (LeafReaderContext leaf : leaves) {
             numSegments++;
             var fieldInfos = leaf.reader().getFieldInfos();
@@ -286,8 +288,19 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
+            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+                SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
+                if (segmentReader != null) {
+                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                    );
+                    if (postingBytes != null) {
+                        totalPostingBytes += Long.parseLong(postingBytes);
+                    }
+                }
+            }
         }
-        return new ShardFieldStats(numSegments, totalFields, usages);
+        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes);
     }
 
     /**
@@ -902,6 +915,17 @@ public abstract class Engine implements Closeable {
         }
     }
 
+    /**
+     * Whether the document is in the live version map or not.
+     *
+     * This is used in stateless so that the {@link org.elasticsearch.action.termvectors.EnsureDocsSearchableAction} can
+     * judge whether a requested document needs to be refreshed to the search shards before executing the term vector
+     * information API on the search shards.
+     */
+    public boolean isDocumentInLiveVersionMap(BytesRef uid) {
+        return false;
+    }
+
     public abstract GetResult get(
         Get get,
         MappingLookup mappingLookup,
@@ -929,6 +953,9 @@ public abstract class Engine implements Closeable {
         return acquireSearcherSupplier(wrapper, SearcherScope.EXTERNAL);
     }
 
+    // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
+    protected void onSearcherCreation(String source, SearcherScope scope) {}
+
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
@@ -947,6 +974,7 @@ public abstract class Engine implements Closeable {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
                     assert assertSearcherIsWarmedUp(source, scope);
+                    onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
                         acquire,
@@ -999,6 +1027,7 @@ public abstract class Engine implements Closeable {
             SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
+            onSearcherCreation(source, scope);
             return new Searcher(
                 source,
                 searcher.getDirectoryReader(),

@@ -109,6 +109,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             Map.of(),
             Map.of(),
             Map.of(),
+            Map.of(),
+            Map.of(),
             Map.of()
         );
         RoutingAllocation allocation = new RoutingAllocation(
@@ -178,6 +180,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             leastAvailableUsages,
             mostAvailableUsage,
             Map.of("[test][0][p]", shardSize),
+            Map.of(),
+            Map.of(),
             Map.of(),
             Map.of(),
             Map.of(),
@@ -326,6 +330,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             shardSizes,
             Map.of(),
             shardRoutingMap,
+            Map.of(),
+            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -840,15 +846,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         allFullUsages.put("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
         allFullUsages.put("node_1", new DiskUsage("node_1", "node_1", "_na_", 100, 0)); // all full
 
-        final ClusterInfo clusterInfo = new ClusterInfo(
-            allFullUsages,
-            allFullUsages,
-            Map.of("[test][0][p]", 10L),
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        final ClusterInfo clusterInfo = ClusterInfo.builder()
+            .leastAvailableSpaceUsage(allFullUsages)
+            .mostAvailableSpaceUsage(allFullUsages)
+            .shardSizes(Map.of("[test][0][p]", 10L))
+            .build();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState,
@@ -908,15 +910,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         // bigger than available space
         final long shardSize = randomIntBetween(1, 10);
         shardSizes.put("[test][0][p]", shardSize);
-        ClusterInfo clusterInfo = new ClusterInfo(
-            leastAvailableUsages,
-            mostAvailableUsage,
-            shardSizes,
-            Map.of(),
-            Map.of(),
-            Map.of(),
-            Map.of()
-        );
+        ClusterInfo clusterInfo = ClusterInfo.builder()
+            .leastAvailableSpaceUsage(leastAvailableUsages)
+            .mostAvailableSpaceUsage(mostAvailableUsage)
+            .shardSizes(shardSizes)
+            .build();
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState,

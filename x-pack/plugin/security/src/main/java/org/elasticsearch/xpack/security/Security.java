@@ -127,6 +127,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.security.CrossProjectRemoteServerTransportInterceptor;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -213,6 +214,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.CrossProjectTargetResolver;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
@@ -1146,6 +1148,8 @@ public class Security extends Plugin
         if (authorizationDenialMessages.get() == null) {
             authorizationDenialMessages.set(new AuthorizationDenialMessages.Default());
         }
+
+        CrossProjectTargetResolver crossProjectTargetResolver = createCrossProjectTargetResolver(extensionComponents);
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -1162,7 +1166,8 @@ public class Security extends Plugin
             operatorPrivilegesService.get(),
             restrictedIndices,
             authorizationDenialMessages.get(),
-            projectResolver
+            projectResolver,
+            crossProjectTargetResolver
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1181,8 +1186,17 @@ public class Security extends Plugin
         ipFilter.set(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), getLicenseState()));
         components.add(ipFilter.get());
 
+        CrossProjectRemoteServerTransportInterceptor crossProjectRemoteServerTransportInterceptor =
+            createCustomRemoteServerTransportInterceptor(extensionComponents);
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
-        crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
+        crossClusterAccessAuthcService.set(
+            new CrossClusterAccessAuthenticationService(
+                clusterService,
+                apiKeyService,
+                authcService.get(),
+                crossProjectRemoteServerTransportInterceptor.enabled()
+            )
+        );
         components.add(crossClusterAccessAuthcService.get());
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
@@ -1194,6 +1208,7 @@ public class Security extends Plugin
                 securityContext.get(),
                 destructiveOperations,
                 crossClusterAccessAuthcService.get(),
+                crossProjectRemoteServerTransportInterceptor,
                 getLicenseState()
             )
         );
@@ -1250,6 +1265,90 @@ public class Security extends Plugin
         this.reloadableComponents.set(List.copyOf(reloadableComponents));
         this.closableComponents.set(List.copyOf(closableComponents));
         return components;
+    }
+
+    private CrossProjectRemoteServerTransportInterceptor createCustomRemoteServerTransportInterceptor(
+        SecurityExtension.SecurityComponents extensionComponents
+    ) {
+        final Map<String, CrossProjectRemoteServerTransportInterceptor> customByExtension = new HashMap<>();
+        for (final SecurityExtension extension : securityExtensions) {
+            final CrossProjectRemoteServerTransportInterceptor custom = extension.getCustomRemoteServerTransportInterceptor(
+                extensionComponents
+            );
+            if (custom != null) {
+                if (false == isInternalExtension(extension)) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.extensionName()
+                            + "] extension tried to install a custom CustomIndicesRequestRewriter. "
+                            + "This functionality is not available to external extensions."
+                    );
+                }
+                customByExtension.put(extension.extensionName(), custom);
+            }
+        }
+
+        if (customByExtension.isEmpty()) {
+            logger.debug(
+                "No custom implementation for [{}]. Falling-back to default implementation.",
+                CrossProjectRemoteServerTransportInterceptor.class.getCanonicalName()
+            );
+            return new CrossProjectRemoteServerTransportInterceptor.Default();
+        } else if (customByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple extensions tried to install a custom CustomRemoteServerTransportInterceptor: " + customByExtension.keySet()
+            );
+        } else {
+            final var byExtensionEntry = customByExtension.entrySet().iterator().next();
+            final CrossProjectRemoteServerTransportInterceptor custom = byExtensionEntry.getValue();
+            final String extensionName = byExtensionEntry.getKey();
+            logger.debug(
+                "CustomRemoteServerTransportInterceptor implementation [{}] provided by extension [{}]",
+                custom.getClass().getCanonicalName(),
+                extensionName
+            );
+            return custom;
+        }
+    }
+
+    private CrossProjectTargetResolver createCrossProjectTargetResolver(SecurityExtension.SecurityComponents extensionComponents) {
+        final Map<String, CrossProjectTargetResolver> customByExtension = new HashMap<>();
+        for (final SecurityExtension extension : securityExtensions) {
+            final CrossProjectTargetResolver custom = extension.getCrossProjectTargetResolver(extensionComponents);
+            if (custom != null) {
+                if (false == isInternalExtension(extension)) {
+                    throw new IllegalStateException(
+                        "The ["
+                            + extension.extensionName()
+                            + "] extension tried to install a custom CrossProjectTargetResolver. "
+                            + "This functionality is not available to external extensions."
+                    );
+                }
+                customByExtension.put(extension.extensionName(), custom);
+            }
+        }
+
+        if (customByExtension.isEmpty()) {
+            logger.debug(
+                "No custom implementation for [{}]. Falling-back to default implementation.",
+                CrossProjectTargetResolver.class.getCanonicalName()
+            );
+            return new CrossProjectTargetResolver.Default();
+        } else if (customByExtension.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple extensions tried to install a custom CrossProjectTargetResolver: " + customByExtension.keySet()
+            );
+        } else {
+            final var byExtensionEntry = customByExtension.entrySet().iterator().next();
+            final CrossProjectTargetResolver custom = byExtensionEntry.getValue();
+            final String extensionName = byExtensionEntry.getKey();
+            logger.debug(
+                "CrossProjectTargetResolver implementation [{}] provided by extension [{}]",
+                custom.getClass().getCanonicalName(),
+                extensionName
+            );
+            return custom;
+        }
     }
 
     private CustomApiKeyAuthenticator createCustomApiKeyAuthenticator(SecurityExtension.SecurityComponents extensionComponents) {

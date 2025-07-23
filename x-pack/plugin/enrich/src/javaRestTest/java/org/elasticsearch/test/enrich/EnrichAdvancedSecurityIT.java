@@ -7,9 +7,7 @@
 package org.elasticsearch.test.enrich;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.ClassRule;

@@ -92,8 +92,9 @@ class HardcodedEntitlements {
                     new CreateClassLoaderEntitlement(),
                     new FilesEntitlement(
                         List.of(
-                            // TODO: what in es.base is accessing shared repo?
+                            // necessary due to lack of delegation ES-12382
                             FilesEntitlement.FileData.ofBaseDirPath(SHARED_REPO, READ_WRITE),
+                            FilesEntitlement.FileData.ofBaseDirPath(SHARED_DATA, READ_WRITE),
                             FilesEntitlement.FileData.ofBaseDirPath(DATA, READ_WRITE)
                         )
                     )

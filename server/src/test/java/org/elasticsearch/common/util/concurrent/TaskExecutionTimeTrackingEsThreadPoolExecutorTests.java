@@ -104,13 +104,15 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         // waiting for task execution to begin via the supplied barrier.
         var adjustableTimedRunnable = new AdjustableQueueTimeWithExecutionBarrierTimedRunnable(
             barrier,
-            TimeUnit.NANOSECONDS.toNanos(1000000) // Until changed, queue latencies will always be 1 millisecond.
+            // This won't actually be used, because it is reported when a task is taken off the queue. This test peeks at the still queued
+            // tasks.
+            TimeUnit.NANOSECONDS.toNanos(1_000_000)
         );
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
             "test-threadpool",
             1,
             1,
-            1000,
+            1_000,
             TimeUnit.MILLISECONDS,
             ConcurrentCollections.newBlockingQueue(),
             (runnable) -> adjustableTimedRunnable,
@@ -139,14 +141,24 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             // one thread) and can be peeked at.
             executor.execute(() -> {});
             executor.execute(() -> {});
+
             var frontOfQueueDuration = executor.peekMaxQueueLatencyInQueue();
             assertThat("Expected a task to be queued", frontOfQueueDuration, greaterThan(0L));
-            safeAwait(barrier); // release the first task to finish
+            safeSleep(10);
+            var updatedFrontOfQueueDuration = executor.peekMaxQueueLatencyInQueue();
+            assertThat(
+                "Expected a second peek to report a longer duration",
+                updatedFrontOfQueueDuration,
+                greaterThan(frontOfQueueDuration)
+            );
+
+            // Release the first task that's running, and wait for the second to start -- then it is ensured that the queue will be empty.
+            safeAwait(barrier);
+            safeAwait(barrier);
             assertBusy(() -> { assertEquals("Queue should be emptied", 0, executor.peekMaxQueueLatencyInQueue()); });
-            safeAwait(barrier); // release the second task to finish.
         } finally {
             // Clean up.
-            if (barrier.getNumberWaiting() > 0) {
+            while (barrier.getNumberWaiting() > 0) {
                 // Release any potentially running task. This could be racy (a task may start executing and hit the barrier afterward) and
                 // is best-effort.
                 safeAwait(barrier);
@@ -213,7 +225,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
         } finally {
             // Clean up.
-            if (barrier.getNumberWaiting() > 0) {
+            while (barrier.getNumberWaiting() > 0) {
                 // Release any potentially running task. This could be racy (a task may start executing and hit the barrier afterward) and
                 // is best-effort.
                 safeAwait(barrier);

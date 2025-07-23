@@ -11,12 +11,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
@@ -71,6 +68,7 @@ import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -147,6 +145,7 @@ public class EsqlSession {
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
     private final EsqlFunctionRegistry functionRegistry;
+    private final LogicalPlanPreOptimizer logicalPlanPreOptimizer;
     private final LogicalPlanOptimizer logicalPlanOptimizer;
     private final PreMapper preMapper;
 
@@ -154,7 +153,6 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
-    private Set<String> configuredClusters;
     private final InferenceRunner inferenceRunner;
     private final RemoteClusterService remoteClusterService;
 
@@ -168,6 +166,7 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
+        LogicalPlanPreOptimizer logicalPlanPreOptimizer,
         EsqlFunctionRegistry functionRegistry,
         LogicalPlanOptimizer logicalPlanOptimizer,
         Mapper mapper,
@@ -181,6 +180,7 @@ public class EsqlSession {
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.preAnalyzer = preAnalyzer;
+        this.logicalPlanPreOptimizer = logicalPlanPreOptimizer;
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
         this.mapper = mapper;
@@ -212,10 +212,10 @@ public class EsqlSession {
         analyzedPlan(parsed, executionInfo, request.filter(), new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
             @Override
             public void onResponse(LogicalPlan analyzedPlan) {
-                preMapper.preMapper(
-                    analyzedPlan,
-                    listener.delegateFailureAndWrap((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(p), l))
-                );
+                SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, l))
+                    .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p), l))
+                    .<Result>andThen((l, p) -> executeOptimizedPlan(request, executionInfo, planRunner, p, l))
+                    .addListener(listener);
             }
         });
     }
@@ -406,8 +406,6 @@ public class EsqlSession {
             plan.setAnalyzed();
             return plan;
         };
-        // Capture configured remotes list to ensure consistency throughout the session
-        configuredClusters = Set.copyOf(indicesExpressionGrouper.getConfiguredClusters());
 
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
@@ -418,10 +416,8 @@ public class EsqlSession {
                 )
             )
             .collect(Collectors.toSet());
-        final List<IndexPattern> indices = preAnalysis.indices;
 
-        EsqlCCSUtils.checkForCcsLicense(executionInfo, indices, indicesExpressionGrouper, configuredClusters, verifier.licenseState());
-        initializeClusterData(indices, executionInfo);
+        EsqlCCSUtils.initCrossClusterState(indicesExpressionGrouper, verifier.licenseState(), preAnalysis.indices, executionInfo);
 
         var listener = SubscribableListener.<EnrichResolution>newForked(
             l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
@@ -457,14 +453,8 @@ public class EsqlSession {
             try {
                 // the order here is tricky - if the cluster has been filtered and later became unavailable,
                 // do we want to declare it successful or skipped? For now, unavailability takes precedence.
-                var unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(result.indices.failures());
-                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, unavailableClusters);
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                    executionInfo,
-                    result.indices,
-                    unavailableClusters.keySet(),
-                    null
-                );
+                EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, result.indices.failures());
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, false);
                 plan = analyzeAction.apply(result);
             } catch (Exception e) {
                 l.onFailure(e);
@@ -528,10 +518,7 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         IndexResolution lookupIndexResolution
     ) {
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(
-            executionInfo,
-            EsqlCCSUtils.determineUnavailableRemoteClusters(lookupIndexResolution.failures())
-        );
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, lookupIndexResolution.failures());
         if (lookupIndexResolution.isValid() == false) {
             // If the index resolution is invalid, don't bother with the rest of the analysis
             return result.addLookupIndexResolution(index, lookupIndexResolution);
@@ -665,26 +652,6 @@ public class EsqlSession {
         });
     }
 
-    private void initializeClusterData(List<IndexPattern> indices, EsqlExecutionInfo executionInfo) {
-        if (indices.isEmpty()) {
-            return;
-        }
-        assert indices.size() == 1 : "Only single index pattern is supported";
-        Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(
-            configuredClusters,
-            IndicesOptions.DEFAULT,
-            indices.getFirst().indexPattern()
-        );
-        for (Map.Entry<String, OriginalIndices> entry : clusterIndices.entrySet()) {
-            final String clusterAlias = entry.getKey();
-            String indexExpr = Strings.arrayToCommaDelimitedString(entry.getValue().indices());
-            executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                assert v == null : "No cluster for " + clusterAlias + " should have been added to ExecutionInfo yet";
-                return new EsqlExecutionInfo.Cluster(clusterAlias, indexExpr, executionInfo.isSkipUnavailable(clusterAlias));
-            });
-        }
-    }
-
     private void preAnalyzeMainIndices(
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
@@ -749,10 +716,7 @@ public class EsqlSession {
         ActionListener<LogicalPlan> logicalPlanListener
     ) {
         IndexResolution indexResolution = result.indices;
-        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(
-            executionInfo,
-            EsqlCCSUtils.determineUnavailableRemoteClusters(indexResolution.failures())
-        );
+        EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.failures());
         if (executionInfo.isCrossClusterSearch()
             && executionInfo.getClusterStates(EsqlExecutionInfo.Cluster.Status.RUNNING).findAny().isEmpty()) {
             // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel Exception
@@ -782,13 +746,7 @@ public class EsqlSession {
             if (result.indices.isValid() || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                var unavailableClusters = EsqlCCSUtils.determineUnavailableRemoteClusters(result.indices.failures()).keySet();
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                    executionInfo,
-                    result.indices,
-                    unavailableClusters,
-                    requestFilter
-                );
+                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, result.indices, requestFilter != null);
             }
             plan = analyzeAction.apply(result);
         } catch (Exception e) {
@@ -1060,12 +1018,16 @@ public class EsqlSession {
     }
 
     public LogicalPlan optimizedPlan(LogicalPlan logicalPlan) {
-        if (logicalPlan.analyzed() == false) {
-            throw new IllegalStateException("Expected analyzed plan");
+        if (logicalPlan.preOptimized() == false) {
+            throw new IllegalStateException("Expected pre-optimized plan");
         }
         var plan = logicalPlanOptimizer.optimize(logicalPlan);
         LOGGER.debug("Optimized logicalPlan plan:\n{}", plan);
         return plan;
+    }
+
+    public void preOptimizedPlan(LogicalPlan logicalPlan, ActionListener<LogicalPlan> listener) {
+        logicalPlanPreOptimizer.preOptimize(logicalPlan, listener);
     }
 
     public PhysicalPlan physicalPlan(LogicalPlan optimizedPlan) {

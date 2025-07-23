@@ -55,6 +55,7 @@ abstract class AbstractPreserveAllocations {
 
         return new Deployment(
             m.deploymentId(),
+            m.modelId(),
             m.memoryBytes(),
             m.allocations() - calculatePreservedAllocations(m),
             m.threadsPerAllocation(),

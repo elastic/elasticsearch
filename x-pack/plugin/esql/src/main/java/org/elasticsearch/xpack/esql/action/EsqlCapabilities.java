@@ -1282,6 +1282,16 @@ public class EsqlCapabilities {
         COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Fixed some profile serialization issues
+         */
+        FIXED_PROFILE_SERIALIZATION,
+
+        /**
+         * Dot product vector similarity function
+         */
+        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the options field of CATEGORIZE.
          */
         CATEGORIZE_OPTIONS;

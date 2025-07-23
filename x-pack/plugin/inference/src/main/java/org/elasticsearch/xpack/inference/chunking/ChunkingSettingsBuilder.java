@@ -19,7 +19,7 @@ public class ChunkingSettingsBuilder {
     public static final WordBoundaryChunkingSettings OLD_DEFAULT_SETTINGS = new WordBoundaryChunkingSettings(250, 100);
     public static final int ELASTIC_RERANKER_TOKEN_LIMIT = 512;
     public static final int ELASTIC_RERANKER_EXTRA_TOKEN_COUNT = 3;
-    public static final float TOKENS_PER_WORD = 0.75f;
+    public static final float WORDS_PER_TOKEN = 0.75f;
 
     public static ChunkingSettings fromMap(Map<String, Object> settings) {
         return fromMap(settings, true);
@@ -56,7 +56,7 @@ public class ChunkingSettingsBuilder {
     }
 
     public static ChunkingSettings buildChunkingSettingsForElasticRerank(int queryWordCount) {
-        var queryTokenCount = Math.ceil(queryWordCount * TOKENS_PER_WORD);
+        var queryTokenCount = Math.ceil(queryWordCount / WORDS_PER_TOKEN);
         var chunkSizeTokenCountWithFullQuery = (ELASTIC_RERANKER_TOKEN_LIMIT - ELASTIC_RERANKER_EXTRA_TOKEN_COUNT - queryTokenCount);
 
         var maxChunkSizeTokenCount = Math.floor((float) ELASTIC_RERANKER_TOKEN_LIMIT / 2);
@@ -64,7 +64,7 @@ public class ChunkingSettingsBuilder {
             maxChunkSizeTokenCount = chunkSizeTokenCountWithFullQuery;
         }
 
-        var maxChunkSizeWordCount = (int) (maxChunkSizeTokenCount / TOKENS_PER_WORD);
+        var maxChunkSizeWordCount = (int) (maxChunkSizeTokenCount * WORDS_PER_TOKEN);
         return new SentenceBoundaryChunkingSettings(maxChunkSizeWordCount, 1);
     }
 }

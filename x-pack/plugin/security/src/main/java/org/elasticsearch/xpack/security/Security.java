@@ -2402,14 +2402,14 @@ public class Security extends Plugin
     public Map<String, String> getAuthContextForSlowLog() {
         if (this.securityContext.get() != null && this.securityContext.get().getAuthentication() != null) {
             Authentication authentication = this.securityContext.get().getAuthentication();
-            Map<String, String> authContext = new HashMap<>();
+            Map<String, String> authContext;
 
             if (authentication.isCrossClusterAccess()) {
                 Authentication originalAuthentication = Authentication.getAuthenticationFromCrossClusterAccessMetadata(authentication);
                 // For RCS 2.0, we log the user from the querying cluster
-                populateAuthContextMap(originalAuthentication, authContext);
+                authContext = createAuthContextMap(originalAuthentication);
             } else {
-                populateAuthContextMap(authentication, authContext);
+                authContext = createAuthContextMap(authentication);
             }
             return authContext;
         }
@@ -2422,9 +2422,10 @@ public class Security extends Plugin
      * original authentication in cross-cluster access scenarios.
      *
      * @param auth The Authentication object to extract details from.
-     * @param authContext The map to populate with authentication details.
      */
-    private void populateAuthContextMap(Authentication auth, Map<String, String> authContext) {
+    private Map<String, String> createAuthContextMap(Authentication auth) {
+        Map<String, String> authContext = new HashMap<>();
+
         Subject authenticatingSubject = auth.getAuthenticatingSubject();
         Subject effectiveSubject = auth.getEffectiveSubject();
 
@@ -2458,6 +2459,7 @@ public class Security extends Plugin
                 authContext.put("apikey.name", apiKeyName.toString());
             }
         }
+        return authContext;
     }
 
     static final class ValidateLicenseForFIPS implements BiConsumer<DiscoveryNode, ClusterState> {

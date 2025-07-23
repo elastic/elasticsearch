@@ -74,6 +74,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
     /**
      * Returns the number of positions in this query list
      */
+    @Override
     public int getPositionCount() {
         return block.getPositionCount();
     }
@@ -87,6 +88,7 @@ public abstract class QueryList implements LookupEnrichQueryGenerator {
      */
     public abstract QueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage);
 
+    @Override
     public final Query getQuery(int position) {
         final int valueCount = block.getValueCount(position);
         if (onlySingleValueParams != null && valueCount != 1) {

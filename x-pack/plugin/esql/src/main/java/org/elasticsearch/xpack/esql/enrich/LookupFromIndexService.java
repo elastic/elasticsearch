@@ -251,6 +251,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
                 planOut.writeCollection(matchFields, (o, matchConfig) -> matchConfig.writeTo(o));
+            } else if (matchFields.size() > 1) {
+                throw new EsqlIllegalArgumentException("LOOKUP JOIN on multiple fields is not supported on remote node");
             }
         }
 

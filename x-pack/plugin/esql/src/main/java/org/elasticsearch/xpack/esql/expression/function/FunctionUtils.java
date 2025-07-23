@@ -23,7 +23,8 @@ public class FunctionUtils {
      * If null is passed for Failures to the constructor, it means we are only type resolution.
      * This is usually called when doing pre-folding validation.
      * If a {@link Failures} instance is passed, it means we are doing post-folding validation as well.
-     * This is usually called after folding is done, from during {@link org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware} verification
+     * This is usually called after folding is done, from during
+     * {@link org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware} verification
      */
     public static class TypeResolutionValidator {
 

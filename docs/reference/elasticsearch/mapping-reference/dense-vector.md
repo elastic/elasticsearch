@@ -396,9 +396,18 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the [Update Mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), according to the following graph (jumps allowed):
 
+::::{tab-set}
+:::{tab-item} {{stack}} 9.1+
 ```txt
 flat --> int8_flat --> int4_flat --> bbq_flat --> hnsw --> int8_hnsw --> int4_hnsw --> bbq_hnsw
 ```
+:::
+:::{tab-item} {{stack}} 9.0
+```txt
+flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
+```
+:::
+::::
 
 For updating all HNSW types (`hnsw`, `int8_hnsw`, `int4_hnsw`, `bbq_hnsw`) the number of connections `m` must either stay the same or increase. For the scalar quantized formats  `int8_flat`, `int4_flat`, `int8_hnsw` and `int4_hnsw` the `confidence_interval` must always be consistent (once defined, it cannot change).
 

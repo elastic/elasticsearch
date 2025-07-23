@@ -60,8 +60,6 @@ public class TestBuildInfoPlugin implements Plugin<Project> {
         project.getTasks()
             .withType(Test.class)
             .matching(test -> List.of("test", "internalClusterTest").contains(test.getName()))
-            .configureEach(test -> {
-                test.systemProperty("es.entitlement.enableForTests", "true");
-            });
+            .configureEach(test -> test.getSystemProperties().putIfAbsent("es.entitlement.enableForTests", "true"));
     }
 }

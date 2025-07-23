@@ -29,4 +29,9 @@ public interface LocalSurrogateExpression {
      * Returns the expression to be replaced by or {@code null} if this cannot be replaced.
      */
     Expression surrogate(SearchStats searchStats, List<EsqlBinaryComparison> binaryComparisons);
+
+    /**
+     * Returns the field that can be used by {@code LocalSubstituteSurrogateExpressions} to check predicates against.
+     */
+    Expression field();
 }

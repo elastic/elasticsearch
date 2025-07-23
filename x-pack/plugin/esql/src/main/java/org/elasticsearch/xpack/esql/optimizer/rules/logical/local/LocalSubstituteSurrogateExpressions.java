@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.expression.LocalSurrogateExpression;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
@@ -63,13 +61,8 @@ public class LocalSubstituteSurrogateExpressions extends ParameterizedRule<Logic
      */
     private Expression substitute(Expression e, Eval eval, SearchStats searchStats) {
         if (e instanceof LocalSurrogateExpression s) {
-            List<EsqlBinaryComparison> binaryComparisons = new ArrayList<>();
             // extract relevant predicates from the query
-            if (e instanceof DateTrunc dateTrunc) {
-                binaryComparisons.addAll(predicates(eval, dateTrunc.field()));
-            } else if (e instanceof Bucket bucket) {
-                binaryComparisons.addAll(predicates(eval, bucket.field()));
-            }
+            List<EsqlBinaryComparison> binaryComparisons = new ArrayList<>(predicates(eval, s.field()));
             Expression surrogate = s.surrogate(searchStats, binaryComparisons);
             if (surrogate != null) {
                 return surrogate;

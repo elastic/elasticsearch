@@ -271,10 +271,10 @@ public record ClusterBalanceStats(
 
         public static NodeBalanceStats readFrom(StreamInput in) throws IOException {
             return new NodeBalanceStats(
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readString() : UNKNOWN_NODE_ID,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readStringCollectionAsList() : List.of(),
+                in.readString(),
+                in.readStringCollectionAsList(),
                 in.readInt(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
+                in.readVInt(),
                 in.readDouble(),
                 in.readLong(),
                 in.readLong(),
@@ -286,14 +286,10 @@ public record ClusterBalanceStats(
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeString(nodeId);
-                out.writeStringCollection(roles);
-            }
+            out.writeString(nodeId);
+            out.writeStringCollection(roles);
             out.writeInt(shards);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeVInt(undesiredShardAllocations);
-            }
+            out.writeVInt(undesiredShardAllocations);
             out.writeDouble(forecastWriteLoad);
             out.writeLong(forecastShardSize);
             out.writeLong(actualShardSize);

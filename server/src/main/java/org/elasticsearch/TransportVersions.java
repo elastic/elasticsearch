@@ -352,6 +352,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
     public static final TransportVersion ESQL_TOPN_TIMINGS = def(9_128_0_00);
     public static final TransportVersion NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS = def(9_129_0_00);
+    public static final TransportVersion RERANK_SNIPPETS = def(9_130_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.common.util.Maps;
@@ -98,9 +97,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             }
             while (p.nextToken() != XContentParser.Token.END_ARRAY) {
                 String field = p.text();
-                if (field.contains("^")) {
-                    throw new ElasticsearchParseException("[" + NAME + "] does not support per-field weights in [fields]");
-                }
                 fields.add(field);
             }
             return fields;
@@ -147,6 +143,11 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         this.fields = fields == null ? null : List.copyOf(fields);
         this.query = query;
         this.rankConstant = rankConstant;
+        if (weights != null && weights.length != innerRetrievers.size()) {
+            throw new IllegalArgumentException(
+                "weights array length [" + weights.length + "] must match retrievers count [" + innerRetrievers.size() + "]"
+            );
+        }
         this.weights = weights;
     }
 
@@ -304,6 +305,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             );
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
+                // TODO: This is a incomplete solution as it does not address other incomplete copy issues
+                // (such as dropping the retriever name and min score)
                 int size = fieldsInnerRetrievers.size();
                 List<RetrieverSource> sources = new ArrayList<>(size);
                 float[] weights = new float[size];
@@ -315,7 +318,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 rewritten = new RRFRetrieverBuilder(sources, null, null, rankWindowSize, rankConstant, weights);
                 rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
             } else {
-                return new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
+                // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices
+                rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
         }
 
@@ -327,10 +331,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         if (innerRetrievers.isEmpty() == false) {
             builder.startArray(RETRIEVERS_FIELD.getPreferredName());
             for (int i = 0; i < innerRetrievers.size(); i++) {
-                builder.startObject();
-                builder.field("retriever", innerRetrievers.get(i).retriever());
-                builder.field(RRFRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[i]);
-                builder.endObject();
+                RRFRetrieverComponent component = new RRFRetrieverComponent(innerRetrievers.get(i).retriever(), weights[i]);
+                component.toXContent(builder, params);
             }
             builder.endArray();
         }
@@ -346,7 +348,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
 
-        builder.field(RankBuilder.RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
+        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
         builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
         if (fields == null && query == null) {
             builder.startArray(WEIGHTS_FIELD.getPreferredName());

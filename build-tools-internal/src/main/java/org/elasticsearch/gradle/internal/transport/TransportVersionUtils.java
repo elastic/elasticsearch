@@ -13,6 +13,7 @@ import com.google.common.collect.Comparators;
 
 import org.gradle.api.Project;
 import org.gradle.api.attributes.Attribute;
+import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.file.Directory;
 
 import java.io.IOException;
@@ -22,6 +23,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+
+import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
 
 class TransportVersionUtils {
 
@@ -52,5 +55,10 @@ class TransportVersionUtils {
     static Directory getConstantsDirectory(Project project) {
         Directory serverDir = project.getRootProject().project(":server").getLayout().getProjectDirectory();
         return serverDir.dir("src/main/resources/transport/constants");
+    }
+
+    static void addTransportVersionNamesAttribute(AttributeContainer attributes) {
+        attributes.attribute(ARTIFACT_TYPE_ATTRIBUTE, "csv");
+        attributes.attribute(TransportVersionUtils.TRANSPORT_VERSION_NAMES_ATTRIBUTE, true);
     }
 }

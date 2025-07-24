@@ -224,9 +224,9 @@ gradlePlugin {
       id = 'elasticsearch.transport-version-management'
       implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionManagementPlugin'
     }
-    transportVersionGlobalManagementPlugin {
-      id = 'elasticsearch.transport-version-global-management'
-      implementationClass = 'org.elasticsearch.gradle.internal.transport.TransportVersionGlobalManagementPlugin'
+    globalTransportVersionManagementPlugin {
+      id = 'elasticsearch.global-transport-version-management'
+      implementationClass = 'org.elasticsearch.gradle.internal.transport.GlobalTransportVersionManagementPlugin'
     }
   }
 }

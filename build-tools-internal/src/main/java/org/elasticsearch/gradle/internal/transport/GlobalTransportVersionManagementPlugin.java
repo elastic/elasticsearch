@@ -18,12 +18,8 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TRANSPORT_VERSION_NAMES_ATTRIBUTE;
-import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
-
-public class TransportVersionGlobalManagementPlugin implements Plugin<Project> {
-
-
+public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
+    
     @Override
     public void apply(Project project) {
 
@@ -42,10 +38,7 @@ public class TransportVersionGlobalManagementPlugin implements Plugin<Project> {
         tvDependencies.add(depsHandler.create(":server"));
 
         Configuration tvNamesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
-        tvNamesConfig.attributes(attrs -> {
-            attrs.attribute(ARTIFACT_TYPE_ATTRIBUTE, "csv");
-            attrs.attribute(TRANSPORT_VERSION_NAMES_ATTRIBUTE, true);
-        });
+        tvNamesConfig.attributes(TransportVersionUtils::addTransportVersionNamesAttribute);
 
         var validateTask = project.getTasks().register("validateTransportVersionConstants", ValidateTransportVersionConstantsTask.class, t -> {
             t.setGroup("Transport Versions");

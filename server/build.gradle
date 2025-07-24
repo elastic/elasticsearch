@@ -13,7 +13,6 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
 apply plugin: 'elasticsearch.transport-version-management'
-apply plugin: 'elasticsearch.transport-version-global-management'
 
 publishing {
   publications {

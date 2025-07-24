@@ -31,7 +31,7 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
         Configuration transportVersionsConfig = project.getConfigurations().create("transportVersionNames", c -> {
             c.setCanBeConsumed(true);
             c.setCanBeResolved(false);
-            c.attributes(a -> a.attribute(TransportVersionUtils.TRANSPORT_VERSION_NAMES_ATTRIBUTE, true));
+            c.attributes(TransportVersionUtils::addTransportVersionNamesAttribute);
         });
 
         project.getArtifacts().add(transportVersionsConfig.getName(), collectTask);

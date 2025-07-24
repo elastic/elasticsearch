@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.test-build-info'
-apply plugin: 'elasticsearch.locate-transport-versions'
+apply plugin: 'elasticsearch.transport-version-names'
 
 publishing {
   publications {

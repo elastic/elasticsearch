@@ -40,9 +40,9 @@ import java.util.Set;
  * provided directory, and then records the value of string literals passed as arguments. It then records each
  * string on a newline in the provided output file.
  */
-public abstract class LocateTransportVersionsTask extends DefaultTask {
+public abstract class CollectTransportVersionNamesTask extends DefaultTask {
     public static final String TRANSPORT_VERSION_SET_CLASS = "org/elasticsearch/TransportVersion";
-    public static final String TRANSPORT_VERSION_SET_METHOD_NAME = "getName";
+    public static final String TRANSPORT_VERSION_SET_METHOD_NAME = "fromName";
     public static final String CLASS_EXTENSION = ".class";
     public static final String MODULE_INFO = "module-info.class";
 

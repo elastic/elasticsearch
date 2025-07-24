@@ -7873,22 +7873,14 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      */
     public void testReplaceGroupingByDateFormatWithDateTrunc() {
 
-        List<String> formats = List.of(
-            "yyyy",
-            "YYYY",
-            "MM/yyyy",
-            "yy-mm",
-            "yyyy-dd-MM",
-            "DD",
-            "yyyy-MM-dd HH:mm:ss"
-        );
+        List<String> formats = List.of("yyyy", "YYYY", "MM/yyyy", "yy-mm", "yyyy-dd-MM", "DD", "yyyy-MM-dd HH:mm:ss");
 
         for (var format : formats) {
             var query = """
                 FROM test
                 | STATS avg = AVG(salary) BY date = DATE_FORMAT("%s", hire_date)
                 """;
-            String format1 = String.format(query, format);
+            String format1 = String.format(Locale.ROOT, query, format);
             var optimized = optimizedPlan(format1);
 
             var project = as(optimized, Project.class);

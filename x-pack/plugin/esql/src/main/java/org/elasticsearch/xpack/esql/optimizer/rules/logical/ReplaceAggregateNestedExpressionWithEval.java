@@ -34,6 +34,7 @@ import java.time.temporal.IsoFields;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -277,7 +278,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
 
     private static Literal formatToMinimalInterval(String format, Source source) {
         try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format);
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern(format, Locale.ROOT);
             String formatterAsString = formatter.toString();
             if (formatterAsString.contains(ChronoField.NANO_OF_SECOND.toString())
                 || formatterAsString.contains(ChronoField.NANO_OF_DAY.toString())) {

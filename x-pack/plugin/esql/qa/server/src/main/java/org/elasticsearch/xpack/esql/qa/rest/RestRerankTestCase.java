@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,6 +25,9 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteRerankInfere
 import static org.hamcrest.core.StringContains.containsString;
 
 public class RestRerankTestCase extends ESRestTestCase {
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     @Before
     public void skipWhenRerankDisabled() throws IOException {
@@ -182,11 +187,11 @@ public class RestRerankTestCase extends ESRestTestCase {
 
     private Map<String, Object> runEsqlQuery(String query) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder().query(query);
-        return RestEsqlTestCase.runEsqlSync(builder);
+        return RestEsqlTestCase.runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
     }
 
     private Map<String, Object> runEsqlQuery(String query, String params) throws IOException {
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder().query(query).params(params);
-        return RestEsqlTestCase.runEsqlSync(builder);
+        return RestEsqlTestCase.runEsqlSync(builder, new AssertWarnings.NoWarnings(), profileLogger);
     }
 }

@@ -91,13 +91,18 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final var expectedUtilisationIncreaseAtDestination = shardWriteLoad / originalNode1ThreadPoolStats.totalThreadPoolThreads();
 
         // Some node_0 utilization should have been moved to node_1
-        assertThat(
-            (double) originalNode0ThreadPoolStats.averageThreadPoolUtilization() - getAverageWritePoolUtilization(
-                shardMovementWriteLoadSimulator,
-                "node_0"
-            ),
-            closeTo(expectedUtilisationReductionAtSource, 0.001f)
-        );
+        if (expectedUtilisationReductionAtSource > originalNode0ThreadPoolStats.averageThreadPoolUtilization()) {
+            // We don't return utilization less than zero because that makes no sense
+            assertThat(getAverageWritePoolUtilization(shardMovementWriteLoadSimulator, "node_0"), equalTo(0.0f));
+        } else {
+            assertThat(
+                (double) originalNode0ThreadPoolStats.averageThreadPoolUtilization() - getAverageWritePoolUtilization(
+                    shardMovementWriteLoadSimulator,
+                    "node_0"
+                ),
+                closeTo(expectedUtilisationReductionAtSource, 0.001f)
+            );
+        }
         assertThat(
             (double) getAverageWritePoolUtilization(shardMovementWriteLoadSimulator, "node_1") - originalNode1ThreadPoolStats
                 .averageThreadPoolUtilization(),
@@ -151,7 +156,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
     private NodeUsageStatsForThreadPools.ThreadPoolUsageStats randomThreadPoolUsageStats() {
         return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
             randomIntBetween(4, 16),
-            randomFloatBetween(0.1f, 1.0f, true),
+            randomBoolean() ? 0.0f : randomFloatBetween(0.1f, 1.0f, true),
             randomLongBetween(0, 60_000)
         );
     }
@@ -178,7 +183,12 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
                     .stream()
                     .filter(index -> indicesWithNoWriteLoad.contains(index.getIndex().getName()) == false)
                     .flatMap(index -> IntStream.range(0, 3).mapToObj(shardNum -> new ShardId(index.getIndex(), shardNum)))
-                    .collect(Collectors.toUnmodifiableMap(shardId -> shardId, shardId -> randomDoubleBetween(0.1, 5.0, true)))
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            shardId -> shardId,
+                            shardId -> randomBoolean() ? 0.0f : randomDoubleBetween(0.1, 5.0, true)
+                        )
+                    )
             )
             .build();
 

@@ -86,8 +86,10 @@ public class ShardMovementWriteLoadSimulator {
             .get(ThreadPool.Names.WRITE);
         return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
             writeThreadPoolStats.totalThreadPoolThreads(),
-            (float) (writeThreadPoolStats.averageThreadPoolUtilization() + (writeLoadDelta / writeThreadPoolStats
-                .totalThreadPoolThreads())),
+            (float) Math.max(
+                (writeThreadPoolStats.averageThreadPoolUtilization() + (writeLoadDelta / writeThreadPoolStats.totalThreadPoolThreads())),
+                0.0
+            ),
             writeThreadPoolStats.averageThreadPoolQueueLatencyMillis()
         );
     }

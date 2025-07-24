@@ -2,6 +2,9 @@
 navigation_title: "Semantic text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/semantic-text.html
+applies_to:
+  stack: ga 9.0
+  serverless: ga
 ---
 
 # Semantic text field type [semantic-text]
@@ -117,13 +120,13 @@ for the field. Currently, `dense_vector` index options are supported.
 For text embeddings, `index_options` may match any allowed
 [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
 
-`chunking_settings` {applies_to}`stack: ga 9.1, serverless`
+`chunking_settings`
 :   (Optional, object) Settings for chunking text into smaller passages.
 If specified, these will override the chunking settings set in the {{infer-cap}}
 endpoint associated with `inference_id`.
 If chunking settings are updated, they will not be applied to existing documents
 until they are reindexed.
-To completely disable chunking, use the `none` chunking strategy.
+{applies_to}`stack: ga 9.1, serverless` To completely disable chunking, use the `none` chunking strategy.
 
     **Valid values for `chunking_settings`**:
 

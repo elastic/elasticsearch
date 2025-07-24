@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
@@ -42,6 +43,7 @@ public class BulkInferenceRunner {
 
     private final Client client;
     private final Semaphore permits;
+    private final ReentrantLock responseWriteLock = new ReentrantLock();
 
     /**
      * Constructs a new throttled inference runner with the specified configuration.
@@ -91,20 +93,19 @@ public class BulkInferenceRunner {
         final BulkInferenceExecutionState bulkExecutionState = new BulkInferenceExecutionState();
 
         final InferenceResponseListenerFactory inferenceResponseListenerFactory = (inferenceRequestItem) -> ActionListener.runAfter(
-            inferenceResponseListenerFactory(bulkExecutionState, responseConsumer).create(inferenceRequestItem),
+            ActionListener.wrap(
+                r -> bulkExecutionState.onInferenceResponse(inferenceRequestItem.seqNo(), r),
+                e -> bulkExecutionState.onInferenceException(inferenceRequestItem.seqNo(), e)
+            ),
             () -> {
+                if (responseSent.get() == true) {
+                    return;
+                }
+
+                persistPendingResponses(bulkExecutionState, responseConsumer);
+
                 if (bulkExecutionState.finished() && responseSent.compareAndSet(false, true)) {
-                    if (bulkExecutionState.hasFailure() == false) {
-                        try {
-                            completionListener.onResponse(null);
-                            return;
-                        } catch (Exception e) {
-                            completionListener.onFailure(e);
-                        }
-                    }
-
-                    completionListener.onFailure(bulkExecutionState.getFailure());
-
+                    onBulkCompletion(bulkExecutionState, completionListener);
                 }
             }
         );
@@ -159,80 +160,58 @@ public class BulkInferenceRunner {
         BulkInferenceExecutionState bulkExecutionState,
         InferenceResponseListenerFactory inferenceResponseListenerFactory
     ) {
-        BulkRequestItem.Factory bulkItemFactory = new BulkRequestItem.Factory(bulkExecutionState);
-        while (bulkExecutionState.finished() == false) {
-            BulkRequestItem bulkRequestItem = pollPendingRequest(requests, bulkItemFactory);
+        try {
+            BulkRequestItem.Factory bulkItemFactory = new BulkRequestItem.Factory(bulkExecutionState);
+            while (bulkExecutionState.finished() == false) {
+                BulkRequestItem bulkRequestItem = pollPendingRequest(requests, bulkItemFactory);
 
-            if (bulkRequestItem == null) {
-                // No more requests available or at max concurrency limit
-                // Release the permit we never used and stop processing
-                permits.release();
-                return;
-            }
-
-            if (requests.hasNext() == false) {
-                // This is the last request - mark bulk execution as finished
-                // to prevent further processing attempts
-                bulkExecutionState.finish();
-            }
-
-            // Create response listener with continuation callback
-            ActionListener<InferenceAction.Response> inferenceResponseListener = ActionListener.releaseAfter(
-                inferenceResponseListenerFactory.create(bulkRequestItem),
-                () -> {
-                    try {
-                        // Release the permit after request completion and continue processing
-                        // This creates the asynchronous continuation chain
-                        permits.release();
-                        executePendingRequests(requests, bulkExecutionState, inferenceResponseListenerFactory);
-                    } catch (Exception e) {
-                        // Ensure any errors in continuation don't break the bulk operation
-                        bulkExecutionState.addFailure(e);
-                    }
+                if (bulkRequestItem == null) {
+                    // No more requests available or at max concurrency limit
+                    // Release the permit we never used and stop processing
+                    permits.release();
+                    return;
                 }
-            );
 
-            // Handle null requests (edge case in some iterators)
-            if (bulkRequestItem.request() == null) {
-                inferenceResponseListener.onResponse(null);
-                return;
+                if (requests.hasNext() == false) {
+                    // This is the last request - mark bulk execution as finished
+                    // to prevent further processing attempts
+                    bulkExecutionState.finish();
+                }
+
+                // Create response listener with continuation callback
+                ActionListener<InferenceAction.Response> inferenceResponseListener = ActionListener.releaseAfter(
+                    inferenceResponseListenerFactory.create(bulkRequestItem),
+                    () -> {
+                        try {
+                            // Release the permit after request completion and continue processing
+                            // This creates the asynchronous continuation chain
+                            permits.release();
+                            executePendingRequests(requests, bulkExecutionState, inferenceResponseListenerFactory);
+                        } catch (Exception e) {
+                            // Ensure any errors in continuation don't break the bulk operation
+                            bulkExecutionState.addFailure(e);
+                        }
+                    }
+                );
+
+                // Handle null requests (edge case in some iterators)
+                if (bulkRequestItem.request() == null) {
+                    inferenceResponseListener.onResponse(null);
+                    return;
+                }
+
+                // Execute the inference request with proper origin context
+                executeAsyncWithOrigin(
+                    client,
+                    INFERENCE_ORIGIN,
+                    InferenceAction.INSTANCE,
+                    bulkRequestItem.request(),
+                    inferenceResponseListener
+                );
             }
-
-            // Execute the inference request with proper origin context
-            executeAsyncWithOrigin(
-                client,
-                INFERENCE_ORIGIN,
-                InferenceAction.INSTANCE,
-                bulkRequestItem.request(),
-                inferenceResponseListener
-            );
+        } catch (Exception e) {
+            bulkExecutionState.addFailure(e);
         }
-    }
-
-    /**
-     * Creates a factory for generating response listeners for inference requests.
-     * <p>
-     * Each listener handles:
-     * 1. Success: Records the response in the execution state
-     * 2. Failure: Records the exception in the execution state
-     * 3. Completion: Triggers response persistence and potential bulk completion
-     * </p>
-     *
-     * @param bulkExecutionState The state tracker for this bulk operation
-     * @param responseConsumer   Consumer to deliver processed responses to
-     * @return Factory that creates properly configured response listeners
-     */
-    private InferenceResponseListenerFactory inferenceResponseListenerFactory(
-        BulkInferenceExecutionState bulkExecutionState,
-        Consumer<InferenceAction.Response> responseConsumer
-    ) {
-        return bulkRequestItem -> ActionListener.runAfter(
-            ActionListener.wrap(
-                r -> bulkExecutionState.onInferenceResponse(bulkRequestItem.seqNo(), r),
-                e -> bulkExecutionState.onInferenceException(bulkRequestItem.seqNo(), e)
-            ),
-            () -> persistPendingResponses(bulkExecutionState, responseConsumer)
-        );
     }
 
     /**
@@ -258,9 +237,7 @@ public class BulkInferenceRunner {
                 if (bulkExecutionState.hasFailure() == false) {
                     try {
                         InferenceAction.Response response = bulkExecutionState.fetchBufferedResponse(persistedSeqNo);
-                        synchronized (this) {
-                            responseConsumer.accept(response);
-                        }
+                        responseConsumer.accept(response);
                     } catch (Exception e) {
                         bulkExecutionState.addFailure(e);
                     }
@@ -268,6 +245,25 @@ public class BulkInferenceRunner {
                 bulkExecutionState.markSeqNoAsPersisted(persistedSeqNo);
             }
         }
+    }
+
+    /**
+     * Sets up a completion listener for the bulk inference operation.
+     *
+     * @param bulkExecutionState The state tracker for the bulk operation.
+     * @param completionListener Completion listener for the bulk operation
+     */
+    private void onBulkCompletion(BulkInferenceExecutionState bulkExecutionState, ActionListener<Void> completionListener) {
+        if (bulkExecutionState.hasFailure() == false) {
+            try {
+                completionListener.onResponse(null);
+                return;
+            } catch (Exception e) {
+                completionListener.onFailure(e);
+            }
+        }
+
+        completionListener.onFailure(bulkExecutionState.getFailure());
     }
 
     /**

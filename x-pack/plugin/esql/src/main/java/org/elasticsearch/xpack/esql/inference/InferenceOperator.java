@@ -39,7 +39,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      * Constructs a new {@code InferenceOperator}.
      *
      * @param driverContext       The driver context.
-     * @param bulkInferenceRunner     Inference runner used to execute inference requests.
+     * @param bulkInferenceRunner Inference runner used to execute inference requests.
      * @param inferenceId         The ID of the inference model to use.
      * @param maxOutstandingPages The number of concurrent pages to process in parallel.
      */

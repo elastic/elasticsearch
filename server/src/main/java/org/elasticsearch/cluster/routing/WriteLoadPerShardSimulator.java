@@ -41,7 +41,7 @@ public class WriteLoadPerShardSimulator {
         final Double writeLoadForShard = writeLoadsPerShard.get(shardRouting.shardId());
         if (writeLoadForShard != null) {
             if (shardRouting.relocatingNodeId() != null) {
-                // relocating
+                // This is a shard being relocated
                 simulatedWriteLoadDeltas.addTo(shardRouting.relocatingNodeId(), -1 * writeLoadForShard);
                 simulatedWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
             } else {

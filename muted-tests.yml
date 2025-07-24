@@ -495,3 +495,18 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test050BasicApiTests
   issue: https://github.com/elastic/elasticsearch/issues/120911
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test140CgroupOsStatsAreAvailable
+  issue: https://github.com/elastic/elasticsearch/issues/131372
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test12SetupBwcVersion
+  issue: https://github.com/elastic/elasticsearch/issues/131791
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test151MachineDependentHeapWithSizeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/120978
+- class: org.elasticsearch.packaging.test.PackageTests
+  method: test32JavaHomeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/131842
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test61EsJavaHomeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/131839

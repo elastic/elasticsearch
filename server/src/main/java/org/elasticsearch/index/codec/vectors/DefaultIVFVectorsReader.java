@@ -110,7 +110,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         VectorSimilarityFunction similarityFunction
     ) {
         float ax = targetCorrections[0];
-        // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
         float lx = (targetCorrections[1] - ax) * FOUR_BIT_SCALE;
         float ay = queryCorrections.lowerInterval();
         float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;

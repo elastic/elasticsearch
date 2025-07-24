@@ -143,8 +143,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=nodes.stats/11_indices_metrics/indices mappings exact count test for indices level}
   issue: https://github.com/elastic/elasticsearch/issues/120950
-- class: org.elasticsearch.xpack.ml.integration.PyTorchModelIT
-  issue: https://github.com/elastic/elasticsearch/issues/121165
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/121407
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
@@ -309,9 +307,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCCSClusterDetailsWhereAllShardsSkippedInCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/128418
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithFiltersIT
-  method: testTimestampFilterFromQuery
-  issue: https://github.com/elastic/elasticsearch/issues/127332
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderIT
   method: testSearchWhileRelocating
   issue: https://github.com/elastic/elasticsearch/issues/128500
@@ -493,9 +488,6 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
   method: testReader
   issue: https://github.com/elastic/elasticsearch/issues/131573
-- class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
-  method: testTimeoutSetting
-  issue: https://github.com/elastic/elasticsearch/issues/131656
 - class: org.elasticsearch.search.SearchWithIndexBlocksIT
   method: testSearchShardsOnIndicesWithIndexRefreshBlocks
   issue: https://github.com/elastic/elasticsearch/issues/131662
@@ -511,6 +503,12 @@ tests:
 - class: org.elasticsearch.search.SearchWithIndexBlocksIT
   method: testMultiSearchIndicesWithIndexRefreshBlocks
   issue: https://github.com/elastic/elasticsearch/issues/131698
+- class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
+  method: testTimeoutSetting
+  issue: https://github.com/elastic/elasticsearch/issues/131656
+- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
+  method: testRelocationWhileForceMerging
+  issue: https://github.com/elastic/elasticsearch/issues/131789
 
 # Examples:
 #

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -50,8 +52,10 @@ public class CommandDocsTests extends ESTestCase {
      * in the documentation.
      */
     public static class TestDocsV3Support extends DocsV3Support {
+        private static final Logger logger = LogManager.getLogger(TestDocsV3Support.class);
+
         public TestDocsV3Support() {
-            super("commands", "commands", CommandDocsTests.class, null);
+            super("commands", "commands", CommandDocsTests.class, null, callbacksFromSystemProperty());
         }
 
         @Override
@@ -108,11 +112,11 @@ public class CommandDocsTests extends ESTestCase {
             }
             String rendered = builder.toString();
             logger.info("Writing example for [{}]:\n{}", name, rendered);
-            writeExampleFile(csvFile, tagFile, rendered);
+            writeExampleFile(csvFile, tag, rendered);
             return true;
         }
 
-        protected void writeExampleFile(String csvFile, String tagFile, String str) throws IOException {
+        protected void writeExampleFile(String csvFile, String tag, String str) throws IOException {
             // We have to write to a tempdir because it’s all test are allowed to write to. Gradle can move them.
             Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
                 .resolve("esql")
@@ -120,10 +124,7 @@ public class CommandDocsTests extends ESTestCase {
                 .resolve(category)
                 .resolve("examples")
                 .resolve(csvFile);
-            Files.createDirectories(dir);
-            Path file = dir.resolve(tagFile);
-            Files.writeString(file, str);
-            logger.info("Wrote to file: {}", file);
+            callbacks.write(dir, tag, "md", str, false);
         }
 
         @SuppressWarnings("SameParameterValue")

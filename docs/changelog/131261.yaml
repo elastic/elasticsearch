@@ -4,3 +4,7 @@ area: Data streams
 type: feature
 issues:
  - 131105
+highlight:
+  title: Enable failure store for log data streams
+  body: "Closes #131105 Now let's see which tests this breaks 🙂"
+  notable: true

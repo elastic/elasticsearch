@@ -559,3 +559,25 @@ Query using TERM function on name but with non constant query:
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "second argument of [TERM(name, salary)] must be [string], found value [salary] type [integer]" }
 
+---
+
+Percentile with foldable value:
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW x = 100 | STATS p = PERCENTILE(x, 19.8 + 13.4454545) | LIMIT 1
+  - match: { columns.0.name: "p" }
+  - match: { values.0.0: 100 }
+
+---
+
+Percentile with non-foldable value:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees | STATS p = PERCENTILE(salary, salary + 1)  | LIMIT 1
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "second argument of [PERCENTILE(salary, salary + 1)] must be a constant, received [salary + 1]" }

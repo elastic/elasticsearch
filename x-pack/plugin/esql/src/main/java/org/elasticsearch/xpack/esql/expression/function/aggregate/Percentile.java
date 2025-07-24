@@ -15,8 +15,8 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.PercentileLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -169,7 +170,12 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
     }
 
     private int percentileValue() {
-        return ((Number) percentile.fold(FoldContext.small() /* TODO remove me */)).intValue();
+        if (percentile() instanceof Literal literal) {
+            return ((Number) literal.value()).intValue();
+        }
+        throw new EsqlIllegalArgumentException(
+            format(null, "Percentile value must be a constant integer in [{}], found [{}]", source(), percentile)
+        );
     }
 
     @Override

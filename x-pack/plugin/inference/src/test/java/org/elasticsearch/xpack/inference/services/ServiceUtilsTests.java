@@ -16,7 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
@@ -1317,62 +1317,41 @@ public class ServiceUtilsTests extends ESTestCase {
         var clusterService = mockClusterService(Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build());
         var providedTimeout = TimeValue.timeValueSeconds(45);
 
-        InputType[] inputTypes = {
-            InputType.INGEST,
-            InputType.INTERNAL_INGEST,
-            InputType.SEARCH,
-            InputType.INTERNAL_SEARCH,
-            InputType.CLASSIFICATION,
-            InputType.CLUSTERING,
-            InputType.UNSPECIFIED };
-
-        for (InputType inputType : inputTypes) {
+        for (InputType inputType : InputType.values()) {
             var result = ServiceUtils.resolveInferenceTimeout(providedTimeout, inputType, clusterService);
             assertEquals("Input type " + inputType + " should return provided timeout", providedTimeout, result);
         }
     }
 
-    public void testResolveInferenceTimeout_WithNullTimeoutAndSearchInputType_ReturnsClusterSetting() {
+    public void testResolveInferenceTimeout_WithNullTimeout_ReturnsExpectedTimeoutByInputType() {
         var configuredTimeout = TimeValue.timeValueSeconds(10);
         var clusterService = mockClusterService(
             Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), configuredTimeout).build()
         );
 
-        {
-            var result = ServiceUtils.resolveInferenceTimeout(null, InputType.SEARCH, clusterService);
-            assertEquals(configuredTimeout, result);
-        }
-        {
-            var result = ServiceUtils.resolveInferenceTimeout(null, InputType.INTERNAL_SEARCH, clusterService);
-            assertEquals(configuredTimeout, result);
-        }
-    }
+        Map<InputType, TimeValue> expectedTimeouts = Map.of(
+            InputType.SEARCH,
+            configuredTimeout,
+            InputType.INTERNAL_SEARCH,
+            configuredTimeout,
+            InputType.INGEST,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.INTERNAL_INGEST,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.CLASSIFICATION,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.CLUSTERING,
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            InputType.UNSPECIFIED,
+            InferenceAction.Request.DEFAULT_TIMEOUT
+        );
 
-    public void testResolveInferenceTimeout_WithNullTimeoutAndIngestInputType_ReturnsMaxValue() {
-        var clusterService = mockClusterService(Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build());
+        for (Map.Entry<InputType, TimeValue> entry : expectedTimeouts.entrySet()) {
+            InputType inputType = entry.getKey();
+            TimeValue expectedTimeout = entry.getValue();
 
-        {
-            var result = ServiceUtils.resolveInferenceTimeout(null, InputType.INGEST, clusterService);
-            assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, result);
-        }
-        {
-            var result = ServiceUtils.resolveInferenceTimeout(null, InputType.INTERNAL_INGEST, clusterService);
-            assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST, result);
-        }
-    }
-
-    public void testResolveInferenceTimeout_WithNullTimeoutAndOtherInputTypes_ReturnsDefaultTimeout() {
-        var clusterService = mockClusterService(Settings.builder().put(InferencePlugin.INFERENCE_QUERY_TIMEOUT.getKey(), "10s").build());
-
-        InputType[] otherTypes = { InputType.CLASSIFICATION, InputType.CLUSTERING, InputType.UNSPECIFIED };
-
-        for (InputType inputType : otherTypes) {
             var result = ServiceUtils.resolveInferenceTimeout(null, inputType, clusterService);
-            assertEquals(
-                "Input type " + inputType + " should return DEFAULT_TIMEOUT",
-                InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API,
-                result
-            );
+            assertEquals("Input type " + inputType + " should return expected timeout", expectedTimeout, result);
         }
     }
 }

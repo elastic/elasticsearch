@@ -22,7 +22,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
@@ -1113,10 +1113,8 @@ public final class ServiceUtils {
         if (timeout == null) {
             if (inputType == InputType.SEARCH || inputType == InputType.INTERNAL_SEARCH) {
                 return clusterService.getClusterSettings().get(InferencePlugin.INFERENCE_QUERY_TIMEOUT);
-            } else if (inputType == InputType.INGEST || inputType == InputType.INTERNAL_INGEST) {
-                return InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST;
             } else {
-                return InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API;
+                return InferenceAction.Request.DEFAULT_TIMEOUT;
             }
         }
         return timeout;

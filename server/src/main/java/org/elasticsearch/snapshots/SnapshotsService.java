@@ -2849,6 +2849,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             // Check whether we can start any assigned-queued shard snapshots in other repositories. They may have been
             // limited because the deleted entry took all node capacity.
             // TODO: deduplicate the code for starting assigned-queued shards across repos
+            // TODO: This may not be necessary? If a shards was taking node capacity in the deleted entry, it should
+            // be aborted via a shard snapshot update and the update executor also kicks off assigned-queued shards
+            // in other repo.
             final var snapshotsInProgress = SnapshotsInProgress.get(updatedState);
             final var perNodeShardSnapshotCounter = new PerNodeShardSnapshotCounter(
                 shardSnapshotPerNodeLimit,

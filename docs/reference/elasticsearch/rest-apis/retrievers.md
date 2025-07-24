@@ -11,7 +11,7 @@ applies_to:
 A retriever is a specification to describe top documents returned from a search. A retriever replaces other elements of the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) that also return top documents such as [`query`](/reference/query-languages/querydsl.md) and [`knn`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn). A retriever may have child retrievers where a retriever with two or more children is considered a compound retriever. This allows for complex behavior to be depicted in a tree-like structure, called the retriever tree, which clarifies the order of operations that occur during a search.
 
 ::::{tip}
-Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) for a high level overview of the retrievers abstraction. Refer to [Retrievers examples](docs-content://solutions/search/retrievers-examples.md) for additional examples.
+Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) for a high level overview of the retrievers abstraction. Refer to [Retrievers examples](retrievers/retrievers-examples.md) for additional examples.
 
 ::::
 
@@ -238,5 +238,5 @@ Note, however, that wildcard field patterns will only resolve to fields that eit
 
 ### Examples
 
-- [RRF with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-rrf-multi-field-query-format)
-- [Linear retriever with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-multi-field-query-format)
+- [RRF with the multi-field query format](retrievers/retrievers-examples.md#retrievers-examples-rrf-multi-field-query-format)
+- [Linear retriever with the multi-field query format](retrievers/retrievers-examples.md#retrievers-examples-linear-multi-field-query-format)

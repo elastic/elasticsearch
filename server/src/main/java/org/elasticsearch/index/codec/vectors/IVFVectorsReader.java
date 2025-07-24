@@ -36,6 +36,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
@@ -252,6 +253,21 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             nProbe = Math.max(Math.min(nProbe, centroidQueryScorer.size()), 1);
         }
         final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
+
+        // TODO : eval this
+        List<Float> centroidScores = centroidQueryScorer.scores();
+        if (centroidQueue.size() > 2 && centroidScores.size() > nProbe) {
+            // Calculate distances between first and last centroids in queue
+            float firstCentroidScore = centroidScores.getFirst();
+            float lastCentroidScore = centroidScores.get(nProbe - 1);
+            float scoreDifference = Math.abs(firstCentroidScore - lastCentroidScore);
+
+            // If difference is small, increase nprobe to search more centroids
+            if (scoreDifference < 0.1f) {
+                nProbe = Math.min(nProbe * 2, centroidQueryScorer.size());
+            }
+        }
+
         PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
         int centroidsVisited = 0;
         long expectedDocs = 0;
@@ -329,6 +345,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long postingListOffset(int centroidOrdinal) throws IOException;
 
         void bulkScore(NeighborQueue queue) throws IOException;
+
+        List<Float> scores();
     }
 
     interface PostingVisitor {

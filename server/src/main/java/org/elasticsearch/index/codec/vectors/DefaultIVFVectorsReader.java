@@ -24,6 +24,9 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.IntPredicate;
 
@@ -68,6 +71,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         return new CentroidQueryScorer() {
             int currentCentroid = -1;
             long postingListOffset;
+            final List<Float> scores = new ArrayList<>(numCentroids);
+
             private final float[] centroidCorrectiveValues = new float[3];
             private final long quantizeCentroidsLength = (long) numCentroids * (fieldInfo.getVectorDimension() + 3 * Float.BYTES
                 + Short.BYTES);
@@ -91,8 +96,16 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 // TODO: bulk score centroids like we do with posting lists
                 centroids.seek(0L);
                 for (int i = 0; i < numCentroids; i++) {
-                    queue.add(i, score());
+                    float score = score();
+                    queue.add(i, score);
+                    scores.add(score);
                 }
+                scores.sort(Collections.reverseOrder());
+            }
+
+            @Override
+            public List<Float> scores() {
+                return scores;
             }
 
             private float score() throws IOException {

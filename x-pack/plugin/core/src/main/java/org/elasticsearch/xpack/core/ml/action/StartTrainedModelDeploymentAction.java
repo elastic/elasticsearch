@@ -20,6 +20,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -45,6 +47,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelAssignmentTaskDescription;
 
 public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAssignmentAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(StartTrainedModelDeploymentAction.class);
 
     public static final StartTrainedModelDeploymentAction INSTANCE = new StartTrainedModelDeploymentAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/start";
@@ -799,6 +803,15 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         long perAllocationMemoryBytes,
         int numberOfAllocations
     ) {
+
+        // If numberOfAllocations is 7, print the call stack without stopping the application.
+        if (numberOfAllocations == 7) {
+            Thread.dumpStack();
+        }
+
+        logger.info("Call to estimateMemoryUsageBytes with modelId [{}], totalDefinitionLength [{}], perDeploymentMemoryBytes [{}], perAllocationMemoryBytes [{}], numberOfAllocations [{}]",
+            modelId, totalDefinitionLength, perDeploymentMemoryBytes, perAllocationMemoryBytes, numberOfAllocations);
+
         if (numberOfAllocations == 0) {
             return 0;
         }

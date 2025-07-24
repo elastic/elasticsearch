@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
@@ -30,6 +32,8 @@ import java.util.stream.Collectors;
  * A plan describing how models should be assigned to nodes.
  */
 public class AssignmentPlan implements Comparable<AssignmentPlan> {
+
+    private static final org.apache.log4j.Logger log = org.apache.log4j.Logger.getLogger(AssignmentPlan.class);
 
     /**
      *
@@ -352,6 +356,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         private final Map<Node, Long> remainingNodeMemory;
         private final Map<Node, Integer> remainingNodeCores;
         private final Map<Deployment, Integer> remainingModelAllocations;
+        private final Logger logger = LogManager.getLogger(AssignmentPlan.class);
 
         private Builder(Collection<Node> nodes, Collection<Deployment> deployments) {
             if (new HashSet<>(nodes).size() != nodes.size()) {
@@ -407,21 +412,63 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 && (deployment.priority == Priority.LOW || allocations * deployment.threadsPerAllocation() <= remainingNodeCores.get(node));
         }
 
-        public long getDeploymentMemoryRequirement(Deployment deployment, Node node, int newAllocations) {
-            int assignedAllocations = getAssignedAllocations(deployment, node);
+        /**
+         * Calculates the memory required for a deployment on a node with additional allocations.
+         * This method takes into account both:
+         * - Existing allocations: allocations already on the node (from currentAllocationsByNodeId)
+         * - Pending allocations: allocations already assigned but not yet applied (from assignments)
+         * - New allocations: additional allocations beyond what's already assigned
+         *
+         * @param deployment The deployment to calculate memory for
+         * @param node The target node
+         * @param additionalAllocations The number of NEW allocations to add (not including existing or pending)
+         * @return Memory required in bytes for these additional allocations
+         */
+        public long getDeploymentMemoryRequirement(Deployment deployment, Node node, int additionalAllocations) {
+            // Get current allocations from deployment's tracked allocation table
+            int currentAllocations = getCurrentAllocations(deployment, node);
 
-            if (assignedAllocations > 0) {
-                return deployment.estimateAdditionalMemoryUsageBytes(assignedAllocations, assignedAllocations + newAllocations);
+            // Get allocations already assigned but not yet applied in the final plan
+            int pendingAllocations = getPendingAllocations(deployment, node);
+
+            // Calculate total existing allocations (both current and pending)
+            int totalExistingAllocations = currentAllocations + pendingAllocations;
+
+            logger.debug(
+                "Memory calculation for [{}] on node [{}]: current=[{}], pending=[{}], additional=[{}]",
+                deployment.deploymentId(), node.id(), currentAllocations, pendingAllocations, additionalAllocations
+            );
+
+            if (totalExistingAllocations > 0) {
+                // If there are existing allocations, calculate the incremental memory needed
+                return deployment.estimateAdditionalMemoryUsageBytes(
+                    totalExistingAllocations,
+                    totalExistingAllocations + additionalAllocations
+                );
+            } else {
+                // If there are no existing allocations, calculate the full memory needed
+                return deployment.estimateMemoryUsageBytes(additionalAllocations);
             }
-            return deployment.estimateMemoryUsageBytes(newAllocations);
         }
 
-        public Builder assignModelToNode(Deployment deployment, Node node, int allocations) {
-            return assignModelToNode(deployment, node, allocations, getDeploymentMemoryRequirement(deployment, node, allocations));
+        /**
+         * Assigns additional allocations of a model to a node.
+         *
+         * @param deployment The deployment to assign
+         * @param node The node to assign to
+         * @param additionalAllocations The number of NEW allocations to add
+         * @return This builder
+         */
+        public Builder assignModelToNode(Deployment deployment, Node node, int additionalAllocations) {
+            if (additionalAllocations <= 0) {
+                return this;
+            }
+
+            // Calculate memory requirement for these additional allocations
+            long requiredMemory = getDeploymentMemoryRequirement(deployment, node, additionalAllocations);
+            return assignModelToNode(deployment, node, additionalAllocations, requiredMemory);
         }
 
-        public Builder assignModelToNode(Deployment deployment, Node node, int allocations, long requiredMemory) {
-            if (allocations <= 0) {
         /**
          * Assigns a model to a node with the specified number of allocations.
          * This method checks if the node has enough memory and cores available
@@ -430,31 +477,42 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
          *
          * @param deployment the model to assign
          * @param node the node to which the model is assigned
-         * @param newAllocations the number of new allocations to assign
+         * @param additionalAllocations the number of new allocations to assign
          * @param requiredMemory the memory required for the assignment
          * @return this builder instance for chaining
          */
-        public Builder assignModelToNode(Deployment deployment, Node node, int newAllocations, long requiredMemory) {
-            if (newAllocations <= 0) {
+        public Builder assignModelToNode(Deployment deployment, Node node, int additionalAllocations, long requiredMemory) {
+
+            logger.info("Assigning [{}] allocations of [{}] to node [{}]",
+                additionalAllocations, deployment.deploymentId(), node.id());
+
+            if (additionalAllocations <= 0) {
                 return this;
             }
+
+            int currentAllocations = getCurrentAllocations(deployment, node);
+            int pendingAllocations = getPendingAllocations(deployment, node);
+
+            logger.info("Before assignment - current: [{}], pending: [{}], additional: [{}]",
+                currentAllocations, pendingAllocations, additionalAllocations);
+
             if (requiredMemory > remainingNodeMemory.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough memory on node ["
                         + node.id()
                         + "] to assign ["
-                        + newAllocations
+                        + additionalAllocations
                         + "] allocations to deployment ["
                         + deployment.deploymentId()
                         + "]"
                 );
             }
-            if (deployment.priority == Priority.NORMAL && newAllocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
+            if (deployment.priority == Priority.NORMAL && additionalAllocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough cores on node ["
                         + node.id()
                         + "] to assign ["
-                        + newAllocations
+                        + additionalAllocations
                         + "] allocations to deployment ["
                         + deployment.deploymentId()
                         + "]; required threads per allocation ["
@@ -463,23 +521,21 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 );
             }
 
-            assignments.get(deployment).compute(node, (n, assignedAllocations) -> assignedAllocations + newAllocations);
+            assignments.get(deployment).compute(node, (n, assignedAllocations) -> assignedAllocations + additionalAllocations);
             accountMemory(deployment, node, requiredMemory);
 
             if (deployment.priority == Priority.NORMAL) {
-                remainingNodeCores.compute(node, (n, remCores) -> remCores - newAllocations * deployment.threadsPerAllocation());
+                remainingNodeCores.compute(node, (n, remCores) -> remCores - additionalAllocations * deployment.threadsPerAllocation());
             }
-            remainingModelAllocations.compute(deployment, (m, remModelThreads) -> remModelThreads - newAllocations);
+            remainingModelAllocations.compute(deployment, (m, remModelThreads) -> remModelThreads - additionalAllocations);
             return this;
         }
 
-        private int getAssignedAllocations(Deployment deployment, Node node) {
-            int currentAllocations = getCurrentAllocations(deployment, node);
-            int assignmentAllocations = assignments.get(deployment).get(node);
-            return currentAllocations + assignmentAllocations;
+        public Integer getPendingAllocations(Deployment deployment, Node node) {
+            return assignments.get(deployment).get(node);
         }
 
-        private static int getCurrentAllocations(Deployment m, Node n) {
+        public static int getCurrentAllocations(Deployment m, Node n) {
             return m.currentAllocationsByNodeId.containsKey(n.id()) ? m.currentAllocationsByNodeId.get(n.id()) : 0;
         }
 

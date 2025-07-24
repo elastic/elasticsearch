@@ -139,7 +139,20 @@ class TrainedModelAssignmentRebalancer {
             Map<AssignmentPlan.Node, Integer> nodeAssignments = source.assignments(m).orElse(Map.of());
             for (Map.Entry<AssignmentPlan.Node, Integer> assignment : nodeAssignments.entrySet()) {
                 AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
-                dest.assignModelToNode(m, originalNode, assignment.getValue());
+
+                // The source plan has allocated this many allocations for this model on this node
+                int allocationsToAssign = assignment.getValue();
+
+                // Check if the destination already has allocations for this model on this node
+                // and only assign the delta to avoid double-counting
+                int existingAllocations = AssignmentPlan.Builder.getCurrentAllocations(m, originalNode);
+                int pendingAllocations = dest.getPendingAllocations(m, originalNode);
+                int additionalAllocations = Math.max(0, allocationsToAssign - (existingAllocations + pendingAllocations));
+
+                if (additionalAllocations > 0) {
+                    dest.assignModelToNode(m, originalNode, assignment.getValue());
+                }
+
                 // As the node has all its available memory we need to manually account memory of models with
                 // current allocations.
                 dest.accountMemory(m, originalNode);

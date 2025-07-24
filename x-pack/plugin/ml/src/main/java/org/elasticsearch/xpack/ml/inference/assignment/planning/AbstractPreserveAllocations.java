@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Deployment;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
@@ -20,6 +22,7 @@ abstract class AbstractPreserveAllocations {
 
     private final List<Node> nodes;
     private final List<Deployment> deployments;
+    private final Logger logger = LogManager.getLogger(AbstractPreserveAllocations.class);
 
     protected AbstractPreserveAllocations(List<Node> nodes, List<Deployment> deployments) {
         this.nodes = Objects.requireNonNull(nodes);
@@ -72,6 +75,9 @@ abstract class AbstractPreserveAllocations {
         // they will not match the models/nodes members we have in this class.
         // Therefore, we build a lookup table based on the ids, so we can merge the plan
         // with its preserved allocations.
+
+        logger.info("Executing mergePreservedAllocations with assignment plan: {}", assignmentPlan);
+
         final Map<Tuple<String, String>, Integer> plannedAssignmentsByDeploymentNodeIdPair = new HashMap<>();
         for (Deployment d : assignmentPlan.deployments()) {
             Map<Node, Integer> assignmentsOfDeployment = assignmentPlan.assignments(d).orElse(Map.of());
@@ -83,28 +89,56 @@ abstract class AbstractPreserveAllocations {
             }
         }
 
+        logger.info("Planned assignments by deployment/node ID pair: {}", plannedAssignmentsByDeploymentNodeIdPair);
+
         AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, deployments);
         for (Node n : nodes) {
             for (Deployment deploymentAllocationsToPreserve : deployments) {
+//            for (int i = 0; i < deployments.size(); i++) {
+//                Deployment deploymentAllocationsToPreserve = deployments.get(i);
 
                 // if the model m is already allocated on the node n and I want to preserve this allocation
                 int preservedAllocations = addPreservedAllocations(n, deploymentAllocationsToPreserve);
+                logger.info("Node [{}] has {} preserved allocations for deployment [{}]",
+                    n.id(),
+                    preservedAllocations,
+                    deploymentAllocationsToPreserve.deploymentId()
+                );
                 if (preservedAllocations > 0) {
                     long requiredMemory = deploymentAllocationsToPreserve.estimateMemoryUsageBytes(preservedAllocations);
                     if (mergedPlanBuilder.canAssign(deploymentAllocationsToPreserve, n, preservedAllocations, requiredMemory)) {
+                        logger.info(
+                            "Assigning {} preserved allocations of deployment [{}] to node [{}]",
+                            preservedAllocations,
+                            deploymentAllocationsToPreserve.deploymentId(),
+                            n.id()
+                        );
                         mergedPlanBuilder.assignModelToNode(deploymentAllocationsToPreserve, n, preservedAllocations, requiredMemory);
+//                        deployments.get(i).currentAllocationsByNodeId().put(n.id(), preservedAllocations);
                     }
                 }
             }
             for (Deployment deploymentNewAllocations : deployments) {
-                int newAllocations = plannedAssignmentsByDeploymentNodeIdPair.getOrDefault(
+                int additionalAllocationsToAssign = plannedAssignmentsByDeploymentNodeIdPair.getOrDefault(
                     Tuple.tuple(deploymentNewAllocations.deploymentId(), n.id()),
                     0
                 );
 
-                long requiredMemory = mergedPlanBuilder.getDeploymentMemoryRequirement(deploymentNewAllocations, n, newAllocations);
-                if (newAllocations > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, newAllocations, requiredMemory)) {
-                    mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, newAllocations);
+                logger.info(
+                    "Node [{}] has {} additional allocations to assign for deployment [{}]",
+                    n.id(),
+                    additionalAllocationsToAssign,
+                    deploymentNewAllocations.deploymentId()
+                );
+
+                // Log planned assignments for debugging
+                logger.info("Planned assignments: {}", plannedAssignmentsByDeploymentNodeIdPair);
+
+                // Calculate memory for ONLY the additional allocations (beyond what's already assigned)
+                // This is important because getDeploymentMemoryRequirement already accounts for existing and pending allocations
+                long requiredMemory = mergedPlanBuilder.getDeploymentMemoryRequirement(deploymentNewAllocations, n, additionalAllocationsToAssign);
+                if (additionalAllocationsToAssign > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, additionalAllocationsToAssign, requiredMemory)) {
+                    mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, additionalAllocationsToAssign);
                 }
             }
         }

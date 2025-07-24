@@ -29,7 +29,11 @@ public class StreamsYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("streams").feature(FeatureFlag.LOGS_STREAM).build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("streams")
+        .module("ingest-common")
+        .feature(FeatureFlag.LOGS_STREAM)
+        .build();
 
     @Override
     protected String getTestRestCluster() {

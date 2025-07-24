@@ -20,7 +20,7 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'streams'
+    include '_common', 'streams', "bulk", "index", "ingest", "indices"
   }
 }
 
@@ -38,4 +38,5 @@ artifacts {
 
 dependencies {
   testImplementation project(path: ':test:test-clusters')
+  clusterModules project(':modules:ingest-common')
 }

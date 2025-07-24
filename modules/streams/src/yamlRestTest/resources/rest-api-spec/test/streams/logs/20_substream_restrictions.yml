@@ -1,0 +1,72 @@
+---
+"Check User Can't Write To Substream Directly":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "logs.foo" } }
+          { "foo": "bar" }
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: "illegal_argument_exception" }
+  - match: { items.0.index.error.reason: "Writes to child stream [logs.foo] are not allowed, use the parent stream instead: [logs]" }
+
+---
+"Check User Can't Write To Substream Directly With Single Doc":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      catch: bad_request
+      index:
+        index: logs.foo
+        id: "1"
+        body:
+          foo: bar
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "Writes to child stream [logs.foo] are not allowed, use the parent stream instead: [logs]" }
+
+---
+"Check Bulk Index With Reroute Processor To Substream Is Rejected":
+  - do:
+      streams.logs_enable: { }
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+
+  - do:
+      ingest.put_pipeline:
+        id: "reroute-to-logs-foo"
+        body:
+          processors:
+            - reroute:
+                destination: "logs.foo"
+  - do:
+      indices.create:
+        index: "bad-index"
+        body:
+          settings:
+            index.default_pipeline: "reroute-to-logs-foo"
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "bad-index" } }
+          { "foo": "bar" }
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: "illegal_argument_exception" }
+  - match: { items.0.index.error.reason: "Cannot reroute to substream [logs.foo] as only the stream itself can reroute to substreams. Please reroute to the stream [logs] instead." }

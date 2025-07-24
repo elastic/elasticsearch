@@ -55,6 +55,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -1196,6 +1197,30 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             )
                         );
                         return; // document failed!
+                    }
+
+                    for (StreamType streamType : StreamType.values()) {
+                        if (StreamType.streamTypeIsEnabled(streamType, project)) {
+                            if (newIndex.startsWith(streamType.getStreamName() + ".")
+                                && ingestDocument.getIndexHistory().stream().noneMatch(s -> s.equals(streamType.getStreamName()))) {
+                                exceptionHandler.accept(
+                                    new IngestPipelineException(
+                                        pipelineId,
+                                        new IllegalArgumentException(
+                                            format(
+                                                "Pipelines can't re-route documents to child streams, but pipeline [%s] tried to reroute "
+                                                    + "this document from index [%s] to index [%s]. Reroute history: %s",
+                                                pipelineId,
+                                                originalIndex,
+                                                newIndex,
+                                                String.join(" -> ", ingestDocument.getIndexHistory())
+                                            )
+                                        )
+                                    )
+                                );
+                                return; // document failed!
+                            }
+                        }
                     }
 
                     // add the index to the document's index history, and check for cycles in the visited indices

@@ -282,11 +282,14 @@ POST test-index/_search
     "highlight": {
         "fields": {
             "my_semantic_field": {
-                "number_of_fragments": 5
+                "number_of_fragments": 5  <1>
             }
         }
     }
 }
+```
+
+1. This will return the first 5 chunks, set this number higher to retrieve more chunks.
 
 Highlighting is supported on fields other than semantic_text. However, if you
 want to restrict highlighting to the semantic highlighter and return no

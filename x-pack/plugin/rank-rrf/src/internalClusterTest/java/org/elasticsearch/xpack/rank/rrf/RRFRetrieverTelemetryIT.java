@@ -176,8 +176,8 @@ public class RRFRetrieverTelemetryIT extends ESIntegTestCase {
             assertThat(stats.getSectionsUsage().get("knn"), equalTo(1L));
 
             assertThat(stats.getRetrieversUsage().size(), equalTo(3));
-            assertThat(stats.getRetrieversUsage().get("standard"), equalTo(3L));
-            assertThat(stats.getRetrieversUsage().get("knn"), equalTo(1L));
+            assertThat(stats.getRetrieversUsage().get("standard"), equalTo(4L));
+            assertThat(stats.getRetrieversUsage().get("knn"), equalTo(2L));
             assertThat(stats.getRetrieversUsage().get("rrf"), equalTo(1L));
 
             assertThat(stats.getQueryUsage().size(), equalTo(5));

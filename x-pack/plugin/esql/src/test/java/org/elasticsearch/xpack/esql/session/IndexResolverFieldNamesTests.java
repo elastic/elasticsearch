@@ -2130,26 +2130,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 | LOOKUP JOIN my_lookup_index ON xyz
                 | WHERE x > y OR _fork == "fork1"
                 """,
-            Set.of(
-                "x",
-                "y",
-                "a",
-                "c",
-                "abc",
-                "b",
-                "def",
-                "z",
-                "xyz",
-                "def.*",
-                "y.*",
-                "x.*",
-                "xyz.*",
-                "z.*",
-                "abc.*",
-                "a.*",
-                "c.*",
-                "b.*"
-            )
+            Set.of("x", "y", "a", "c", "abc", "b", "def", "z", "xyz", "def.*", "y.*", "x.*", "xyz.*", "z.*", "abc.*", "a.*", "c.*", "b.*")
         );
     }
 

@@ -33,19 +33,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- * Integration test for verifying that slow log authentication context contains
- * the correct user information for cross-cluster access scenarios.
- *
- * This test verifies that when cross-cluster searches are performed, the slow logs
- * on the fulfilling cluster contain the authentication context of the ORIGINAL user
- * from the querying cluster, not just the cross-cluster access API key.
- *
- * The key verification is that slow logs should show:
- * - user.name: The actual user from the querying cluster (e.g., "slow_log_test_user")
- * - user.realm: The realm of the original user on the querying cluster (e.g., "default_native")
- * - For run-as: Both authenticating and effective users from querying cluster
- */
 public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
@@ -318,10 +305,6 @@ public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSec
         }
     }
 
-    /**
-     * Verifies that the slow logs on the fulfilling cluster contain the expected
-     * authentication context from the original user on the querying cluster.
-     */
     private void verifySlowLogAuthenticationContext(Map<String, Object> expectedAuthContext) throws Exception {
         assertBusy(() -> {
             try (var slowLog = fulfillingCluster.getNodeLog(0, LogType.SEARCH_SLOW)) {

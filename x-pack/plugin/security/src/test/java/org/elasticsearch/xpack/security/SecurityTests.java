@@ -1312,10 +1312,6 @@ public class SecurityTests extends ESTestCase {
         assertFalse(authContext.containsKey("user.effective.realm"));
     }
 
-    /**
-     * Tests getAuthContextForSlowLog for a Run-as authentication scenario.
-     * Covers a part of the 'else' branch where authentication is NOT cross-cluster.
-     */
     public void testAuthContextForSlowLog_LocalAccess_RunAsAuthentication() throws Exception {
         createComponents(Settings.EMPTY);
         AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
@@ -1380,10 +1376,6 @@ public class SecurityTests extends ESTestCase {
 
     }
 
-    /**
-     * Tests getAuthContextForSlowLog for a Cross-Cluster Access scenario
-     * where the original user on the querying cluster authenticated via a Realm.
-     */
     public void testAuthContextForSlowLog_CCA_OriginalRealmUser() throws Exception {
         createComponents(Settings.EMPTY);
         AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
@@ -1429,10 +1421,6 @@ public class SecurityTests extends ESTestCase {
         assertFalse(authContext.containsKey("apikey.name"));
     }
 
-    /**
-     * Tests getAuthContextForSlowLog for a Cross-Cluster Access scenario
-     * where the original user on the querying cluster authenticated via an API Key.
-     */
     public void testAuthContextForSlowLog_CCA_OriginalApiKeyUser() throws Exception {
         createComponents(Settings.EMPTY);
         AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();
@@ -1492,10 +1480,6 @@ public class SecurityTests extends ESTestCase {
         assertFalse(authContext.containsKey("user.effective.realm"));
     }
 
-    /**
-     * Tests getAuthContextForSlowLog for a Cross-Cluster Access scenario
-     * where the original user on the querying cluster was a Run-As user.
-     */
     public void testAuthContextForSlowLog_CCA_OriginalRunAsUser() throws Exception {
         createComponents(Settings.EMPTY);
         AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();

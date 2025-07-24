@@ -15,6 +15,10 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
+import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
@@ -196,6 +200,16 @@ public class KnnIndexTester {
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
             Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
+            MergePolicy mergePolicy = null;
+            if (cmdLineArgs.mergePolicy() != null && cmdLineArgs.mergePolicy().isEmpty() == false) {
+                if ("tmp".equalsIgnoreCase(cmdLineArgs.mergePolicy())) {
+                    mergePolicy = new TieredMergePolicy();
+                } else if ("lbmp".equalsIgnoreCase(cmdLineArgs.mergePolicy())) {
+                    mergePolicy = new LogByteSizeMergePolicy();
+                } else if ("no".equalsIgnoreCase(cmdLineArgs.mergePolicy())) {
+                    mergePolicy = NoMergePolicy.INSTANCE;
+                }
+            }
             if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {
                 KnnIndexer knnIndexer = new KnnIndexer(
                     cmdLineArgs.docVectors(),
@@ -205,7 +219,8 @@ public class KnnIndexTester {
                     cmdLineArgs.vectorEncoding(),
                     cmdLineArgs.dimensions(),
                     cmdLineArgs.vectorSpace(),
-                    cmdLineArgs.numDocs()
+                    cmdLineArgs.numDocs(),
+                    mergePolicy
                 );
                 if (cmdLineArgs.reindex() == false && Files.exists(indexPath) == false) {
                     throw new IllegalArgumentException("Index path does not exist: " + indexPath);

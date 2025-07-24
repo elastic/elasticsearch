@@ -263,9 +263,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
             // If the difference is small, increase nprobe to search more centroids
             if (scoreDifferencePercentage < 0.001f) {
-                nProbe = Math.min(nProbe * 2, centroidQueryScorer.size());
+                nProbe = (int) Math.min(nProbe * 1.1, centroidQueryScorer.size());
             }
         }
+
 
         PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
         int centroidsVisited = 0;

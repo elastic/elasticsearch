@@ -67,7 +67,8 @@ public class TestDocumentParserContext extends DocumentParserContext {
                 null,
                 query -> {
                     throw new UnsupportedOperationException();
-                }
+                },
+                null
             ),
             source,
             mappingLookup.getMapping().getRoot(),

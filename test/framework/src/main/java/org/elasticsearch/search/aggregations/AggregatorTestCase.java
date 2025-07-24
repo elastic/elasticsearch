@@ -1411,7 +1411,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 null,
                 query -> {
                     throw new UnsupportedOperationException();
-                }
+                },
+                null
             );
         }
 

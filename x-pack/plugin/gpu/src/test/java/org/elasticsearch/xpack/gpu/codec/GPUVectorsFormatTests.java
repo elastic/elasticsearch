@@ -25,7 +25,7 @@ public class GPUVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-        assumeTrue("cuvs not supported", GPUVectorsFormat.cuVSResourcesOrNull() != null);
+        assumeTrue("cuvs not supported", GPUVectorsFormat.cuVSResourcesOrNull(false) != null);
     }
 
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new GPUVectorsFormat());

@@ -17,10 +17,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptCompiler;
 
+import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -41,6 +43,7 @@ public class MappingParserContext {
     private final IndexSettings indexSettings;
     private final IdFieldMapper idFieldMapper;
     private final Function<Query, BitSetProducer> bitSetProducer;
+    private final List<VectorsFormatProvider> vectorsFormatProviders;
     private final long mappingObjectDepthLimit;
     private long mappingObjectDepth = 0;
 
@@ -55,7 +58,8 @@ public class MappingParserContext {
         IndexAnalyzers indexAnalyzers,
         IndexSettings indexSettings,
         IdFieldMapper idFieldMapper,
-        Function<Query, BitSetProducer> bitSetProducer
+        Function<Query, BitSetProducer> bitSetProducer,
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
@@ -69,6 +73,7 @@ public class MappingParserContext {
         this.idFieldMapper = idFieldMapper;
         this.mappingObjectDepthLimit = indexSettings.getMappingDepthLimit();
         this.bitSetProducer = bitSetProducer;
+        this.vectorsFormatProviders = vectorsFormatProviders;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -142,6 +147,10 @@ public class MappingParserContext {
         return bitSetProducer.apply(query);
     }
 
+    public List<VectorsFormatProvider> getVectorsFormatProviders() {
+        return vectorsFormatProviders;
+    }
+
     void incrementMappingObjectDepth() throws MapperParsingException {
         mappingObjectDepth++;
         if (mappingObjectDepth > mappingObjectDepthLimit) {
@@ -170,7 +179,8 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.vectorsFormatProviders
             );
         }
 
@@ -200,7 +210,8 @@ public class MappingParserContext {
                 in.indexAnalyzers,
                 in.indexSettings,
                 in.idFieldMapper,
-                in.bitSetProducer
+                in.bitSetProducer,
+                in.vectorsFormatProviders
             );
             this.dateFormatter = dateFormatter;
         }

@@ -552,7 +552,8 @@ public class SearchExecutionContextTests extends ESTestCase {
                 indexSettings.getMode().buildIdFieldMapper(() -> true),
                 query -> {
                     throw new UnsupportedOperationException();
-                }
+                },
+                null
             )
         );
         when(mapperService.isMultiField(anyString())).then(

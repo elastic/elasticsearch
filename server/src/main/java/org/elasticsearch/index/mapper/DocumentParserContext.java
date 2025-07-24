@@ -19,6 +19,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -297,6 +298,10 @@ public abstract class DocumentParserContext {
 
     public final MetadataFieldMapper getMetadataMapper(String mapperName) {
         return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
+    }
+
+    public final List<VectorsFormatProvider> getVectorFormatProviers() {
+        return mappingParserContext.getVectorsFormatProviders();
     }
 
     public final MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {

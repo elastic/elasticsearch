@@ -23,14 +23,13 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.xpack.gpu.GPUPlugin.GPU_FORMAT;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GPUDenseVectorFieldMapperTests extends AbstractDenseVectorFieldMapperTestcase {
 
     @Before
     public void setup() {
-        assumeTrue("feature flag [gpu_format] must be enabled", GPU_FORMAT.isEnabled());
+        assumeTrue("cuvs not supported", GPUVectorsFormat.cuVSResourcesOrNull(false) != null);
     }
 
     @Override

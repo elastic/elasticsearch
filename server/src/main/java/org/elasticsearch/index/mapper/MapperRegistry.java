@@ -11,11 +11,13 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -31,16 +33,19 @@ public final class MapperRegistry {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers6x;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers5x;
     private final Function<String, FieldPredicate> fieldFilter;
+    private final List<VectorsFormatProvider> vectorsFormatProviders;
 
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-        Function<String, FieldPredicate> fieldFilter
+        Function<String, FieldPredicate> fieldFilter,
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));
+        this.vectorsFormatProviders = vectorsFormatProviders;
         Map<String, MetadataFieldMapper.TypeParser> metadata7x = new LinkedHashMap<>(metadataMapperParsers);
         metadata7x.remove(NestedPathFieldMapper.NAME);
         this.metadataMapperParsers7x = metadata7x;
@@ -70,6 +75,10 @@ public final class MapperRegistry {
 
     public Map<String, RuntimeField.Parser> getRuntimeFieldParsers() {
         return runtimeFieldParsers;
+    }
+
+    public List<VectorsFormatProvider> getVectorsFormatProviders() {
+        return vectorsFormatProviders;
     }
 
     /**

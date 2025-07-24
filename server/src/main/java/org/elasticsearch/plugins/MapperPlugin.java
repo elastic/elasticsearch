@@ -12,6 +12,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 
 import java.util.Collections;
 import java.util.Map;
@@ -63,6 +64,13 @@ public interface MapperPlugin {
      */
     default Function<String, FieldPredicate> getFieldFilter() {
         return NOOP_FIELD_FILTER;
+    }
+
+    /**
+     * Returns {VectorFormatProvider} implementations added by this plugin.
+     */
+    default VectorsFormatProvider getVectorsFormatProvider() {
+        return null;
     }
 
     /**

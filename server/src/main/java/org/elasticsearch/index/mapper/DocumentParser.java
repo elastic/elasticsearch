@@ -806,7 +806,8 @@ public final class DocumentParser {
             DenseVectorFieldMapper.Builder builder = new DenseVectorFieldMapper.Builder(
                 fieldName,
                 context.indexSettings().getIndexVersionCreated(),
-                IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(context.indexSettings().getSettings())
+                IndexSettings.INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(context.indexSettings().getSettings()),
+                context.getVectorFormatProviers()
             );
             builder.dimensions(mappers.size());
             DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);

@@ -68,6 +68,7 @@ import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
@@ -80,6 +81,7 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -99,7 +101,8 @@ public class IndicesModule extends AbstractModule {
             getMappers(mapperPlugins),
             getRuntimeFields(mapperPlugins),
             getMetadataMappers(mapperPlugins),
-            getFieldFilter(mapperPlugins)
+            getFieldFilter(mapperPlugins),
+            getVectorFormatProviders(mapperPlugins)
         );
     }
 
@@ -219,6 +222,17 @@ public class IndicesModule extends AbstractModule {
             }
         }
         return Collections.unmodifiableMap(mappers);
+    }
+
+    private static List<VectorsFormatProvider> getVectorFormatProviders(List<MapperPlugin> mapperPlugins) {
+        List<VectorsFormatProvider> vectorsFormatProviders = new ArrayList<>();
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            VectorsFormatProvider vectorsFormatProvider = mapperPlugin.getVectorsFormatProvider();
+            if (vectorsFormatProvider != null) {
+                vectorsFormatProviders.add(vectorsFormatProvider);
+            }
+        }
+        return Collections.unmodifiableList(vectorsFormatProviders);
     }
 
     private static Map<String, RuntimeField.Parser> getRuntimeFields(List<MapperPlugin> mapperPlugins) {

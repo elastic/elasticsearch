@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
@@ -121,9 +122,6 @@ import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_SOURCE_SYNTHET
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
-/**
- * A {@link FieldMapper} for indexing a dense vector of floats.
- */
 public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
@@ -256,8 +254,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         final IndexVersion indexVersionCreated;
         final boolean isSyntheticVector;
+        private final List<VectorsFormatProvider> vectorsFormatProviders;
 
-        public Builder(String name, IndexVersion indexVersionCreated, boolean isSyntheticVector) {
+        public Builder(
+            String name,
+            IndexVersion indexVersionCreated,
+            boolean isSyntheticVector,
+            List<VectorsFormatProvider> vectorsFormatProviders
+        ) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
             // This is defined as updatable because it can be updated once, from [null] to a valid dim size,
@@ -290,6 +294,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 });
             this.isSyntheticVector = isSyntheticVector;
+            this.vectorsFormatProviders = vectorsFormatProviders;
             final boolean indexedByDefault = indexVersionCreated.onOrAfter(INDEXED_BY_DEFAULT_INDEX_VERSION);
             final boolean defaultInt8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW);
             final boolean defaultBBQ8Hnsw = indexVersionCreated.onOrAfter(IndexVersions.DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW);
@@ -427,6 +432,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             // Validate again here because the dimensions or element type could have been set programmatically,
             // which affects index option validity
@@ -448,7 +454,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 indexOptions.getValue(),
                 indexVersionCreated,
-                isSyntheticVectorFinal
+                isSyntheticVectorFinal,
+                vectorsFormatProviders
             );
         }
     }
@@ -2382,7 +2389,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         (n, c) -> new Builder(
             n,
             c.getIndexSettings().getIndexVersionCreated(),
-            INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+            INDEX_MAPPING_SOURCE_SYNTHETIC_VECTORS_SETTING.get(c.getIndexSettings().getSettings()),
+            c.getVectorsFormatProviders()
         ),
         notInMultiFields(CONTENT_TYPE)
     );
@@ -2841,6 +2849,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     private final DenseVectorIndexOptions indexOptions;
     private final IndexVersion indexCreatedVersion;
     private final boolean isSyntheticVector;
+    private final List<VectorsFormatProvider> extraVectorsFormatProviders;
 
     private DenseVectorFieldMapper(
         String simpleName,
@@ -2848,12 +2857,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         BuilderParams params,
         DenseVectorIndexOptions indexOptions,
         IndexVersion indexCreatedVersion,
-        boolean isSyntheticVector
+        boolean isSyntheticVector,
+        List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         super(simpleName, mappedFieldType, params);
         this.indexOptions = indexOptions;
         this.indexCreatedVersion = indexCreatedVersion;
         this.isSyntheticVector = isSyntheticVector;
+        this.extraVectorsFormatProviders = vectorsFormatProviders;
     }
 
     @Override
@@ -2975,7 +2986,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, isSyntheticVector).init(this);
+        return new Builder(leafName(), indexCreatedVersion, isSyntheticVector, extraVectorsFormatProviders).init(this);
     }
 
     private static DenseVectorIndexOptions parseIndexOptions(String fieldName, Object propNode, IndexVersion indexVersion) {
@@ -2998,12 +3009,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
      * @return the custom kNN vectors format that is configured for this field or
      * {@code null} if the default format should be used.
      */
-    public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat) {
+    public KnnVectorsFormat getKnnVectorsFormatForField(KnnVectorsFormat defaultFormat, IndexSettings indexSettings) {
         final KnnVectorsFormat format;
         if (indexOptions == null) {
             format = fieldType().elementType == ElementType.BIT ? new ES815HnswBitVectorsFormat() : defaultFormat;
         } else {
-            format = indexOptions.getVectorsFormat(fieldType().elementType);
+            // if plugins provided alternative KnnVectorsFormat for this indexOptions, use it instead of standard
+            List<KnnVectorsFormat> extraKnnFormats = new ArrayList<>();
+            for (VectorsFormatProvider vectorsFormatProvider : extraVectorsFormatProviders) {
+                KnnVectorsFormat extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions);
+                extraKnnFormats.add(extraKnnFormat);
+            }
+            if (extraKnnFormats.size() > 0) {
+                format = extraKnnFormats.get(0);
+            } else {
+                format = indexOptions.getVectorsFormat(fieldType().elementType);
+            }
         }
         // It's legal to reuse the same format name as this is the same on-disk format.
         return new KnnVectorsFormat(format.getName()) {

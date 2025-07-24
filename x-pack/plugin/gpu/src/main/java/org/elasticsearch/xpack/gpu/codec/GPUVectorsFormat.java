@@ -54,7 +54,7 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        CuVSResources cuVSResources = cuVSResourcesOrNull();
+        CuVSResources cuVSResources = cuVSResourcesOrNull(true);
         if (cuVSResources == null) {
             throw new IllegalArgumentException("GPU based vector search is not supported on this platform or java version");
         }
@@ -83,23 +83,27 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     }
 
     /** Tells whether the platform supports cuvs. */
-    public static CuVSResources cuVSResourcesOrNull() {
+    public static CuVSResources cuVSResourcesOrNull(boolean logError) {
         try {
             var resources = CuVSResources.create();
             return resources;
         } catch (UnsupportedOperationException uoe) {
-            String msg = "";
-            if (uoe.getMessage() == null) {
-                msg = "Runtime Java version: " + Runtime.version().feature();
-            } else {
-                msg = ": " + uoe.getMessage();
+            if (logError) {
+                String msg = "";
+                if (uoe.getMessage() == null) {
+                    msg = "Runtime Java version: " + Runtime.version().feature();
+                } else {
+                    msg = ": " + uoe.getMessage();
+                }
+                LOG.warn("GPU based vector search is not supported on this platform or java version; " + msg);
             }
-            LOG.warn("GPU based vector search is not supported on this platform or java version; " + msg);
         } catch (Throwable t) {
-            if (t instanceof ExceptionInInitializerError ex) {
-                t = ex.getCause();
+            if (logError) {
+                if (t instanceof ExceptionInInitializerError ex) {
+                    t = ex.getCause();
+                }
+                LOG.warn("Exception occurred during creation of cuvs resources. " + t);
             }
-            LOG.warn("Exception occurred during creation of cuvs resources. " + t);
         }
         return null;
     }

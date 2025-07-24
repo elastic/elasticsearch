@@ -58,7 +58,8 @@ public class MappingParserTests extends MapperServiceTestCase {
             indexAnalyzers,
             indexSettings,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            bitsetFilterCache::getBitSetProducer
+            bitsetFilterCache::getBitSetProducer,
+            null
         );
 
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(

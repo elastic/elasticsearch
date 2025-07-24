@@ -93,6 +93,11 @@ public class EsqlCapabilities {
         AGG_VALUES_SPATIAL,
 
         /**
+         * Accept unsigned longs on MAX and MIN aggregations.
+         */
+        AGG_MAX_MIN_UNSIGNED_LONG,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,
@@ -891,6 +896,31 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_PARTIAL_SUBMETRICS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Support for rendering aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for to_aggregate_metric_double function
+         */
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for sorting when aggregate_metric_doubles are present
+         */
+        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support avg with aggregate metric doubles
+         */
+        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for implicit casting of aggregate metric double when run in aggregations
+         */
+        AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -912,11 +942,6 @@ public class EsqlCapabilities {
          * Support partial_results
          */
         SUPPORT_PARTIAL_RESULTS,
-
-        /**
-         * Support for rendering aggregate_metric_double type
-         */
-        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
          * Support for RERANK command
@@ -965,11 +990,6 @@ public class EsqlCapabilities {
         NON_FULL_TEXT_FUNCTIONS_SCORING,
 
         /**
-         * Support for to_aggregate_metric_double function
-         */
-        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
          * The {@code _query} API now reports the original types.
          */
         REPORT_ORIGINAL_TYPES,
@@ -994,11 +1014,6 @@ public class EsqlCapabilities {
          * Make numberOfChannels consistent with layout in DefaultLayout by removing duplicated ChannelSet.
          */
         MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT,
-
-        /**
-         * Support for sorting when aggregate_metric_doubles are present
-         */
-        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
          * Supercedes {@link Cap#MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT}.
@@ -1236,6 +1251,12 @@ public class EsqlCapabilities {
         NO_PLAIN_STRINGS_IN_LITERALS,
 
         /**
+         * Support for the mv_expand target attribute should be retained in its original position.
+         * see <a href="https://github.com/elastic/elasticsearch/issues/129000"> ES|QL: inconsistent column order #129000 </a>
+         */
+        FIX_MV_EXPAND_INCONSISTENT_COLUMN_ORDER,
+
+        /**
          * (Re)Added EXPLAIN command
          */
         EXPLAIN(Build.current().isSnapshot()),
@@ -1248,14 +1269,11 @@ public class EsqlCapabilities {
          * FUSE command
          */
         FUSE(Build.current().isSnapshot()),
+
         /**
          * Support improved behavior for LIKE operator when used with index fields.
          */
         LIKE_ON_INDEX_FIELDS,
-        /**
-         * Support avg with aggregate metric doubles
-         */
-        AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
          * Forbid usage of brackets in unquoted index and enrich policy names
@@ -1263,10 +1281,30 @@ public class EsqlCapabilities {
          */
         NO_BRACKETS_IN_UNQUOTED_INDEX_NAMES,
 
-        /*
+        /**
          * Cosine vector similarity function
          */
-        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot());
+        COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Fixed some profile serialization issues
+         */
+        FIXED_PROFILE_SERIALIZATION,
+
+        /**
+         * Dot product vector similarity function
+         */
+        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Support for the options field of CATEGORIZE.
+         */
+        CATEGORIZE_OPTIONS,
+
+        /**
+         * Support correct counting of skipped shards.
+         */
+        CORRECT_SKIPPED_SHARDS_COUNT;
 
         private final boolean enabled;
 

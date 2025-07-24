@@ -39,10 +39,12 @@ import java.util.Stack;
 public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader {
     private final Reader<?> reader;
     private final String fieldName;
+    private final Set<String> fieldPaths;
 
     protected FallbackSyntheticSourceBlockLoader(Reader<?> reader, String fieldName) {
         this.reader = reader;
         this.fieldName = fieldName;
+        this.fieldPaths = splitIntoFieldPaths(fieldName);
     }
 
     @Override
@@ -52,12 +54,12 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new IgnoredSourceRowStrideReader<>(fieldName, reader);
+        return new IgnoredSourceRowStrideReader<>(fieldName, reader, fieldPaths);
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(false, false, Set.of(IgnoredSourceFieldMapper.NAME));
+        return new StoredFieldsSpec(false, false, Set.of(IgnoredSourceFieldMapper.NAME + "." + fieldName));
     }
 
     @Override
@@ -70,30 +72,29 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         throw new UnsupportedOperationException();
     }
 
-    private static class IgnoredSourceRowStrideReader<T> implements RowStrideReader {
-        // Contains name of the field and all its parents
-        private final Set<String> fieldNames;
+    public static Set<String> splitIntoFieldPaths(String fieldName) {
+        var paths = new HashSet<String>();
+        paths.add("_doc");
+        var current = new StringBuilder();
+        for (var part : fieldName.split("\\.")) {
+            if (current.isEmpty() == false) {
+                current.append('.');
+            }
+            current.append(part);
+            paths.add(current.toString());
+        }
+        return paths;
+    }
+
+    private static final class IgnoredSourceRowStrideReader<T> implements RowStrideReader {
         private final String fieldName;
         private final Reader<T> reader;
+        private final Set<String> fieldPaths;
 
-        IgnoredSourceRowStrideReader(String fieldName, Reader<T> reader) {
+        private IgnoredSourceRowStrideReader(String fieldName, Reader<T> reader, Set<String> fieldPaths) {
             this.fieldName = fieldName;
             this.reader = reader;
-            this.fieldNames = new HashSet<>() {
-                {
-                    add("_doc");
-                }
-            };
-
-            var current = new StringBuilder();
-            for (String part : fieldName.split("\\.")) {
-                if (current.isEmpty() == false) {
-                    current.append('.');
-                }
-                current.append(part);
-                fieldNames.add(current.toString());
-            }
-
+            this.fieldPaths = fieldPaths;
         }
 
         @Override
@@ -105,10 +106,9 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             }
 
             Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
-
             for (Object value : ignoredSource) {
-                IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
-                if (fieldNames.contains(nameValue.name())) {
+                IgnoredSourceFieldMapper.NameValue nameValue = (IgnoredSourceFieldMapper.NameValue) value;
+                if (fieldPaths.contains(nameValue.name())) {
                     valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
                 }
             }

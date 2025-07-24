@@ -190,6 +190,7 @@ public class ComputeService {
         EsqlExecutionInfo execInfo,
         ActionListener<Result> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
         Tuple<List<PhysicalPlan>, PhysicalPlan> subplansAndMainPlan = PlannerUtils.breakPlanIntoSubPlansAndMainPlan(physicalPlan);
 
         List<PhysicalPlan> subplans = subplansAndMainPlan.v1();

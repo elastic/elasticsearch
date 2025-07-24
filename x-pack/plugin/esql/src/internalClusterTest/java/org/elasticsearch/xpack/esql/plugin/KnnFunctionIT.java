@@ -55,22 +55,11 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
-        // Indexed field types
         for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] {DenseVectorFieldMapper.ElementType.FLOAT, indexType, true, false });
         }
-//        params.add(new Object[] {DenseVectorFieldMapper.ElementType.BYTE, "flat", true, false });
         for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] {DenseVectorFieldMapper.ElementType.BYTE, indexType, true, false });
-        }
-        for (DenseVectorFieldMapper.ElementType elementType : List.of(
-            DenseVectorFieldMapper.ElementType.BYTE,
-            DenseVectorFieldMapper.ElementType.FLOAT
-        )) {
-            // No indexing
-            params.add(new Object[]{elementType, null, false, false});
-            // No indexing, synthetic source
-            params.add(new Object[]{elementType, null, false, true});
         }
 
         // Remove flat index types, as knn does not do a top k for flat

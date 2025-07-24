@@ -20,6 +20,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -355,6 +356,7 @@ public class Driver implements Releasable, Describable {
         int maxIterations,
         ActionListener<Void> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         driver.completionListener.addListener(listener);
         if (driver.started.compareAndSet(false, true)) {
             driver.updateStatus(0, 0, DriverStatus.Status.STARTING, "driver starting");

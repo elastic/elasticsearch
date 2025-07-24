@@ -45,7 +45,9 @@ public class WriteLoadPerShardSimulator {
                 simulatedWriteLoadDeltas.addTo(shardRouting.relocatingNodeId(), -1 * writeLoadForShard);
                 simulatedWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
             } else {
-                // not sure how this would come about, perhaps when allocating a replica after a delay?
+                // This is a new shard starting, it's unlikely we'll have a write-load value for a new
+                // shard, but we may be able to estimate if the new shard is created as part of a datastream
+                // rollover. See https://elasticco.atlassian.net/browse/ES-12469
                 simulatedWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
             }
         }

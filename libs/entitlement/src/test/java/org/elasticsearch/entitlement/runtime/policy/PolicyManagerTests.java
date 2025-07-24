@@ -32,6 +32,8 @@ import java.lang.module.ModuleFinder;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,6 +71,7 @@ public class PolicyManagerTests extends ESTestCase {
                 baseDir.resolve("/user/home"),
                 baseDir.resolve("/config"),
                 new Path[] { baseDir.resolve("/data1/"), baseDir.resolve("/data2") },
+                Path.of("/shareddata"),
                 new Path[] { baseDir.resolve("/shared1"), baseDir.resolve("/shared2") },
                 baseDir.resolve("/lib"),
                 baseDir.resolve("/modules"),
@@ -88,16 +91,16 @@ public class PolicyManagerTests extends ESTestCase {
         AtomicReference<PolicyScope> policyScope = new AtomicReference<>();
 
         // A common policy with a variety of entitlements to test
-        Path thisSourcePath = PolicyManager.getComponentPathFromClass(getClass());
-        var plugin1SourcePath = Path.of("modules", "plugin1");
+        var plugin1SourcePaths = List.of(Path.of("modules", "plugin1"));
         var policyManager = new PolicyManager(
             new Policy("server", List.of(new Scope("org.example.httpclient", List.of(new OutboundNetworkEntitlement())))),
             List.of(),
             Map.of("plugin1", new Policy("plugin1", List.of(new Scope("plugin.module1", List.of(new ExitVMEntitlement()))))),
             c -> policyScope.get(),
-            Map.of("plugin1", plugin1SourcePath),
+            Map.of("plugin1", plugin1SourcePaths)::get,
             TEST_PATH_LOOKUP
         );
+        Collection<Path> thisSourcePaths = policyManager.getComponentPathsFromClass(getClass());
 
         // "Unspecified" below means that the module is not named in the policy
 
@@ -107,7 +110,7 @@ public class PolicyManagerTests extends ESTestCase {
             getClass(),
             policyManager.policyEntitlements(
                 SERVER.componentName,
-                thisSourcePath,
+                thisSourcePaths,
                 "org.example.httpclient",
                 List.of(new OutboundNetworkEntitlement())
             ),
@@ -118,7 +121,7 @@ public class PolicyManagerTests extends ESTestCase {
         resetAndCheckEntitlements(
             "Default entitlements for unspecified module",
             getClass(),
-            policyManager.defaultEntitlements(SERVER.componentName, thisSourcePath, "plugin.unspecifiedModule"),
+            policyManager.defaultEntitlements(SERVER.componentName, thisSourcePaths, "plugin.unspecifiedModule"),
             policyManager
         );
 
@@ -126,7 +129,7 @@ public class PolicyManagerTests extends ESTestCase {
         resetAndCheckEntitlements(
             "Specified entitlements for plugin",
             getClass(),
-            policyManager.policyEntitlements("plugin1", plugin1SourcePath, "plugin.module1", List.of(new ExitVMEntitlement())),
+            policyManager.policyEntitlements("plugin1", plugin1SourcePaths, "plugin.module1", List.of(new ExitVMEntitlement())),
             policyManager
         );
 
@@ -134,7 +137,7 @@ public class PolicyManagerTests extends ESTestCase {
         resetAndCheckEntitlements(
             "Default entitlements for plugin",
             getClass(),
-            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, "plugin.unspecifiedModule"),
+            policyManager.defaultEntitlements("plugin1", plugin1SourcePaths, "plugin.unspecifiedModule"),
             policyManager
         );
     }
@@ -169,7 +172,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME)
                 ? PolicyScope.apmAgent("test.agent.module")
                 : PolicyScope.plugin("test", "test.plugin.module"),
-            Map.of(),
+            name -> Collections.emptyList(),
             TEST_PATH_LOOKUP
         );
         ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(TestAgent.class);
@@ -196,7 +199,7 @@ public class PolicyManagerTests extends ESTestCase {
                 List.of(),
                 Map.of(),
                 c -> PolicyScope.plugin("test", moduleName(c)),
-                Map.of(),
+                name -> Collections.emptyList(),
                 TEST_PATH_LOOKUP
             )
         );
@@ -212,7 +215,7 @@ public class PolicyManagerTests extends ESTestCase {
                 List.of(new CreateClassLoaderEntitlement(), new CreateClassLoaderEntitlement()),
                 Map.of(),
                 c -> PolicyScope.plugin("test", moduleName(c)),
-                Map.of(),
+                name -> Collections.emptyList(),
                 TEST_PATH_LOOKUP
             )
         );
@@ -248,7 +251,7 @@ public class PolicyManagerTests extends ESTestCase {
                     )
                 ),
                 c -> PolicyScope.plugin("plugin1", moduleName(c)),
-                Map.of("plugin1", Path.of("modules", "plugin1")),
+                Map.of("plugin1", List.of(Path.of("modules", "plugin1")))::get,
                 TEST_PATH_LOOKUP
             )
         );
@@ -298,7 +301,7 @@ public class PolicyManagerTests extends ESTestCase {
                     )
                 ),
                 c -> PolicyScope.plugin("", moduleName(c)),
-                Map.of("plugin1", Path.of("modules", "plugin1"), "plugin2", Path.of("modules", "plugin2")),
+                Map.of("plugin1", List.of(Path.of("modules", "plugin1")), "plugin2", List.of(Path.of("modules", "plugin2")))::get,
                 TEST_PATH_LOOKUP
             )
         );
@@ -349,7 +352,7 @@ public class PolicyManagerTests extends ESTestCase {
                     )
                 ),
                 c -> PolicyScope.plugin("", moduleName(c)),
-                Map.of(),
+                name -> Collections.emptyList(),
                 TEST_PATH_LOOKUP
             )
         );

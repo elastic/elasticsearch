@@ -50,15 +50,26 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final String field;
     protected final int nProbe;
     protected final int k;
+    protected final int numCands;
     protected final Query filter;
     protected final KnnSearchStrategy searchStrategy;
     protected int vectorOpsCount;
 
-    protected AbstractIVFKnnVectorQuery(String field, int nProbe, int k, Query filter) {
+    protected AbstractIVFKnnVectorQuery(String field, int nProbe, int k, int numCands, Query filter) {
+        if (k < 1) {
+            throw new IllegalArgumentException("k must be at least 1, got: " + k);
+        }
+        if (nProbe < 1 && nProbe != -1) {
+            throw new IllegalArgumentException("nProbe must be at least 1 or exactly -1, got: " + nProbe);
+        }
+        if (numCands < k) {
+            throw new IllegalArgumentException("numCands must be at least k, got: " + numCands);
+        }
         this.field = field;
         this.nProbe = nProbe;
         this.k = k;
         this.filter = filter;
+        this.numCands = numCands;
         this.searchStrategy = new IVFKnnSearchStrategy(nProbe);
     }
 
@@ -103,7 +114,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         } else {
             filterWeight = null;
         }
-        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(k, indexSearcher);
+        // we request numCands as we are using it as an approximation measure
+        KnnCollectorManager knnCollectorManager = getKnnCollectorManager(numCands, indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
@@ -157,7 +169,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     ) throws IOException;
 
     protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
-        return new IVFCollectorManager(k, nProbe);
+        return new IVFCollectorManager(k);
     }
 
     @Override
@@ -183,16 +195,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static class IVFCollectorManager implements KnnCollectorManager {
         private final int k;
-        private final int nprobe;
 
-        IVFCollectorManager(int k, int nprobe) {
+        IVFCollectorManager(int k) {
             this.k = k;
-            this.nprobe = nprobe;
         }
 
         @Override
         public KnnCollector newCollector(int visitedLimit, KnnSearchStrategy searchStrategy, LeafReaderContext context) throws IOException {
-            return new TopKnnCollector(k, visitedLimit, new IVFKnnSearchStrategy(nprobe));
+            return new TopKnnCollector(k, visitedLimit, searchStrategy);
         }
     }
 }

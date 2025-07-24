@@ -14,9 +14,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.http.TestHttpRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RestRequestTests extends ESTestCase {
 
@@ -86,11 +84,11 @@ public class RestRequestTests extends ESTestCase {
     }
 
     private <T extends Exception> void runConsumesContentTest(final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
-        final HttpRequest httpRequest = mock(HttpRequest.class);
-        when(httpRequest.uri()).thenReturn("");
-        when(httpRequest.body()).thenReturn(HttpBody.fromBytesReference(new BytesArray(new byte[1])));
-        when(httpRequest.getHeaders()).thenReturn(
-            Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson")))
+        final var httpRequest = new TestHttpRequest(
+            RestRequest.Method.GET,
+            "/",
+            Map.of("Content-Type", List.of(randomFrom("application/json", "application/x-ndjson"))),
+            new BytesArray(new byte[1])
         );
         final RestRequest request = RestRequest.request(XContentParserConfiguration.EMPTY, httpRequest, mock(HttpChannel.class));
         assertFalse(request.isContentConsumed());
@@ -118,6 +116,58 @@ public class RestRequestTests extends ESTestCase {
         AtomicReference<Object> source = new AtomicReference<>();
         contentRestRequest("{}", emptyMap()).applyContentParser(p -> source.set(p.map()));
         assertEquals(emptyMap(), source.get());
+    }
+
+    public void testParamAsIntWithNoParameters() {
+        RestRequest restRequest = contentRestRequest("", emptyMap());
+        int defaultValue = randomInt();
+        String parameterKey = randomIdentifier();
+
+        int value = restRequest.paramAsInt(parameterKey, defaultValue);
+        assertEquals(defaultValue, value);
+    }
+
+    public void testParamAsIntWithIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123"));
+        int defaultValue = randomInt();
+
+        int value = restRequest.paramAsInt(parameterKey, defaultValue);
+        assertEquals(123, value);
+    }
+
+    public void testParamAsIntWithNonIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
+        int defaultValue = randomInt();
+
+        assertThrows(IllegalArgumentException.class, () -> restRequest.paramAsInt(parameterKey, defaultValue));
+    }
+
+    public void testParamAsIntegerWithNoParameters() {
+        RestRequest restRequest = contentRestRequest("", emptyMap());
+        int defaultValue = randomInt();
+        String parameterKey = randomIdentifier();
+
+        Integer value2 = restRequest.paramAsInteger(parameterKey, defaultValue);
+        assertEquals(defaultValue, value2.intValue());
+    }
+
+    public void testParamAsIntegerWithIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123"));
+        int defaultValue = randomInt();
+
+        Integer value2 = restRequest.paramAsInteger(parameterKey, defaultValue);
+        assertEquals(123, value2.intValue());
+    }
+
+    public void testParamAsIntegerWithNonIntegerParameter() {
+        String parameterKey = randomIdentifier();
+        RestRequest restRequest = contentRestRequest("", singletonMap(parameterKey, "123T"));
+        int defaultValue = randomInt();
+
+        assertThrows(IllegalArgumentException.class, () -> restRequest.paramAsInteger(parameterKey, defaultValue));
     }
 
     public void testContentOrSourceParam() throws IOException {

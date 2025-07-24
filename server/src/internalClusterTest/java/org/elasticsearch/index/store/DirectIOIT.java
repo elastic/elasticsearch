@@ -17,10 +17,12 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -30,17 +32,23 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @LuceneTestCase.SuppressCodecs("*") // only use our own codecs
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-10920
 public class DirectIOIT extends ESIntegTestCase {
 
     @BeforeClass
-    public static void checkSupported() throws IOException {
+    public static void checkSupported() {
+        assumeTrue("Direct IO is not enabled", ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO);
+
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");
@@ -64,6 +72,7 @@ public class DirectIOIT extends ESIntegTestCase {
     }
 
     private void indexVectors() {
+        String type = randomFrom("bbq_flat", "bbq_hnsw");
         assertAcked(
             prepareCreate("foo-vectors").setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
                 .setMapping("""
@@ -76,12 +85,12 @@ public class DirectIOIT extends ESIntegTestCase {
                           "index": true,
                           "similarity": "l2_norm",
                           "index_options": {
-                            "type": "bbq_flat"
+                            "type": "%type%"
                           }
                         }
                       }
                     }
-                    """)
+                    """.replace("%type%", type))
         );
         ensureGreen("foo-vectors");
 
@@ -89,6 +98,14 @@ public class DirectIOIT extends ESIntegTestCase {
             indexDoc("foo-vectors", Integer.toString(i), "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
         }
         refresh();
+        assertBBQIndexType(type); // test assertion to ensure that the correct index type is being used
+    }
+
+    @SuppressWarnings("unchecked")
+    static void assertBBQIndexType(String type) {
+        var response = indicesAdmin().prepareGetFieldMappings("foo-vectors").setFields("fooVector").get();
+        var map = (Map<String, Object>) response.fieldMappings("foo-vectors", "fooVector").sourceAsMap().get("fooVector");
+        assertThat((String) ((Map<String, Object>) map.get("index_options")).get("type"), is(equalTo(type)));
     }
 
     @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")

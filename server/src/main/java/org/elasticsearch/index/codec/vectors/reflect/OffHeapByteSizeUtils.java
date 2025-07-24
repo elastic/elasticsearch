@@ -19,7 +19,6 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOLucene99FlatVectorsReader;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -50,9 +49,6 @@ public class OffHeapByteSizeUtils {
                 return mergeOffHeapByteSizeMaps(quant, raw);
             }
             case Lucene99FlatVectorsReader flatVectorsReader -> {
-                return OffHeapReflectionUtils.getOffHeapByteSizeF99FLT(flatVectorsReader, fieldInfo);
-            }
-            case DirectIOLucene99FlatVectorsReader flatVectorsReader -> {
                 return OffHeapReflectionUtils.getOffHeapByteSizeF99FLT(flatVectorsReader, fieldInfo);
             }
             case Lucene95HnswVectorsReader lucene95HnswVectorsReader -> {

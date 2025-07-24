@@ -21,7 +21,9 @@ import org.apache.http.conn.ConnectionPoolTimeoutException;
 import org.apache.http.conn.DnsResolver;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -54,6 +56,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -126,7 +129,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     @Before
     public void setUp() throws Exception {
         shouldErrorOnDns = false;
-        service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class), () -> null) {
+        service = new S3Service(
+            Mockito.mock(Environment.class),
+            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool()),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+            Mockito.mock(ResourceWatcherService.class),
+            () -> null
+        ) {
             private InetAddress[] resolveHost(String host) throws UnknownHostException {
                 assertEquals("127.0.0.1", host);
                 if (shouldErrorOnDns && randomBoolean() && randomBoolean()) {
@@ -231,7 +240,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", S3Repository.TYPE, repositorySettings.build());
 
         final S3BlobStore s3BlobStore = new S3BlobStore(
-            randomProjectIdOrDefault(),
+            ProjectId.DEFAULT,
             service,
             "bucket",
             S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
@@ -1308,7 +1317,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         service = new S3Service(
             Mockito.mock(Environment.class),
-            Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, "true").build(),
+            ClusterServiceUtils.createClusterService(
+                new DeterministicTaskQueue().getThreadPool(),
+                Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, "true").build()
+            ),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             Mockito.mock(ResourceWatcherService.class),
             () -> null
         );

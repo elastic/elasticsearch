@@ -41,6 +41,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -438,7 +439,13 @@ public final class SourceConfirmedTextQuery extends Query {
                     if (value == null) {
                         continue;
                     }
-                    cacheEntry.memoryIndex.addField(field, value.toString(), indexAnalyzer);
+                    String valueStr;
+                    if (value instanceof BytesRef valueRef) {
+                        valueStr = valueRef.utf8ToString();
+                    } else {
+                        valueStr = value.toString();
+                    }
+                    cacheEntry.memoryIndex.addField(field, valueStr, indexAnalyzer);
                 }
             }
             return cacheEntry.memoryIndex;

@@ -78,7 +78,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof Limit limit) {
-            return new LimitExec(limit.source(), mappedChild, limit.limit());
+            return new LimitExec(limit.source(), mappedChild, limit.limit(), null);
         }
 
         if (unary instanceof TopN topN) {
@@ -86,7 +86,7 @@ public class LocalMapper {
         }
 
         if (unary instanceof Sample sample) {
-            return new SampleExec(sample.source(), mappedChild, sample.probability(), sample.seed());
+            return new SampleExec(sample.source(), mappedChild, sample.probability());
         }
 
         //

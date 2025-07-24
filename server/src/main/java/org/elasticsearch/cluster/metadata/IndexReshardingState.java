@@ -350,8 +350,12 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
             return sourceShards[shardNum];
         }
 
+        public boolean isSourceShard(int shardId) {
+            return shardId < shardCountBefore();
+        }
+
         public boolean isTargetShard(int shardId) {
-            return shardId >= shardCountBefore();
+            return isSourceShard(shardId) == false;
         }
 
         /**
@@ -387,6 +391,10 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
 
         public Stream<TargetShardState> targetStates() {
             return Arrays.stream(targetShards);
+        }
+
+        public Stream<SourceShardState> sourceStates() {
+            return Arrays.stream(sourceShards);
         }
 
         /**

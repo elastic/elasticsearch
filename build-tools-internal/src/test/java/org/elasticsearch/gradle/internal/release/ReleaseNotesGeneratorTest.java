@@ -19,10 +19,15 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.gradle.internal.release.GenerateReleaseNotesTask.getSortedBundlesWithUniqueChangelogs;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
 public class ReleaseNotesGeneratorTest {
+
+    // Temporarily set this to `true` to regenerate test output files when they need to be updated
+    private final boolean UPDATE_EXPECTED_OUTPUT = false;
 
     private static final List<String> CHANGE_TYPES = List.of(
         "breaking",
@@ -78,8 +83,9 @@ public class ReleaseNotesGeneratorTest {
 
     public void testTemplate(String templateFilename, String outputFilename, List<ChangelogBundle> bundles) throws Exception {
         // given:
+        final String outputFile = "/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest." + outputFilename;
         final String template = getResource("/templates/" + templateFilename);
-        final String expectedOutput = getResource("/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest." + outputFilename);
+        final String expectedOutput = getResource(outputFile);
 
         if (bundles == null) {
             bundles = getBundles();
@@ -91,7 +97,15 @@ public class ReleaseNotesGeneratorTest {
         final String actualOutput = ReleaseNotesGenerator.generateFile(template, bundles);
 
         // then:
-        assertThat(actualOutput, equalTo(expectedOutput));
+        if (UPDATE_EXPECTED_OUTPUT) {
+            writeResource(outputFile, actualOutput);
+            assertFalse("UPDATE_EXPECTED_OUTPUT should be set back to false after updating output", UPDATE_EXPECTED_OUTPUT);
+        } else {
+            String[] expectedLines = expectedOutput.replace("\r", "").split("\n");
+            String[] actualLines = actualOutput.split("\n");
+
+            assertThat(actualLines, arrayContaining(expectedLines));
+        }
     }
 
     private List<ChangelogBundle> getBundles() {
@@ -174,6 +188,11 @@ public class ReleaseNotesGeneratorTest {
     }
 
     private String getResource(String name) throws Exception {
-        return Files.readString(Paths.get(Objects.requireNonNull(this.getClass().getResource(name)).toURI()), StandardCharsets.UTF_8);
+        return Files.readString(Paths.get(Objects.requireNonNull(this.getClass().getResource(name)).toURI()), StandardCharsets.UTF_8).replace("\r", "");
+    }
+
+    private void writeResource(String name, String contents) throws Exception {
+        String path = "src/test/resources" + name;
+        Files.writeString(Paths.get(path), contents);
     }
 }

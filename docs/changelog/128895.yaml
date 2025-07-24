@@ -1,0 +1,6 @@
+pr: 128895
+summary: Workaround for RLike handling of empty lang pattern
+area: ES|QL
+type: bug
+issues:
+ - 128813

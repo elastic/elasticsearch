@@ -38,10 +38,6 @@
         "default":"open",
         "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
       },
-      "include_defaults":{
-        "type":"boolean",
-        "description":"Return all relevant default configurations for the data stream (default: false)"
-      },
       "master_timeout":{
         "type":"time",
         "description":"Specify timeout for connection to master"

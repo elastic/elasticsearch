@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -188,7 +189,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
         Check.isTrue(Expressions.foldable(matches), "Expected foldable matches, but got [{}]", matches);
 
         String targetFieldName = handler.nameOf(fa.exactAttribute());
-        Set<Object> set = new LinkedHashSet<>(matches);
+        Set<Object> set = new LinkedHashSet<>(matches.stream().map(Foldables::extractLiteralOrReturnSelf).toList());
 
         return new TermsQuery(source(), targetFieldName, set);
     }

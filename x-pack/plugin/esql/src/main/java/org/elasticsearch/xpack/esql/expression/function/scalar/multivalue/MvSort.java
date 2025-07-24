@@ -150,7 +150,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
 
     @Override
     public Object fold(FoldContext ctx) {
-        if (order instanceof Literal == false) {
+        if (order != null && order instanceof Literal == false) {
             // if we are here, we know that order is foldable, so we can safely fold it
             Literal newOrder = Literal.of(ctx, order);
             List<Expression> newChildren = new ArrayList<>();

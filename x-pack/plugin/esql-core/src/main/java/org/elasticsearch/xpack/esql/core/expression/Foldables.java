@@ -16,4 +16,18 @@ public abstract class Foldables {
         }
         throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
+
+    public static Object literalValueOf(Expression e) {
+        if (e instanceof Literal literal) {
+            return literal.value();
+        }
+        throw new QlIllegalArgumentException("Expected literal, but got {}", e);
+    }
+
+    public static Object extractLiteralOrReturnSelf(Expression e) {
+        if (e instanceof Literal literal) {
+            return literal.value();
+        }
+        return e;
+    }
 }

@@ -13,9 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
@@ -24,7 +22,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -37,7 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
-    private static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Set.of(
+    public static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Set.of(
         "int8_hnsw",
         "hnsw",
         "int4_hnsw",
@@ -47,7 +44,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         "bbq_flat",
         "flat"
     );
-    private static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Set.of(
+    public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Set.of(
         "hnsw",
         "flat"
     );
@@ -191,7 +188,6 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             for (int j = 0; j < numDims; j++) {
                 switch (elementType) {
                     case FLOAT:
-                        // Normalized values to avoid normalizing the comparison
                         vector.add(randomFloatBetween(-1F, 1F, true));
                         break;
                     case BYTE:

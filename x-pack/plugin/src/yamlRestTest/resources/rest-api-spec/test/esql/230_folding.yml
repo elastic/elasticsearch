@@ -615,3 +615,42 @@ COUNT_DISTINCT with non-foldable precision:
             | STATS COUNT_DISTINCT(salary, salary + 1)  | LIMIT 1
   - match: { error.type: "verification_exception" }
   - contains: { error.reason: "second argument of [COUNT_DISTINCT(salary, salary + 1)] must be a constant, received [salary + 1]" }
+
+---
+MV_SORT with foldable order:
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW a = [4, 2, -3, 2]
+            | EVAL sa = mv_sort(a, CONCAT("AS", "C")), sd = mv_sort(a, CONCAT("DE", "SC")) | LIMIT 1
+  - match: { columns.0.name: "a" }
+  - match: { columns.1.name: "sa" }
+  - match: { columns.2.name: "sd" }
+  - match: { values.0.1: [ -3, 2, 2, 4 ] }
+  - match: { values.0.2: [ 4, 2, 2, -3 ] }
+
+---
+MV_SORT with invalid foldable order:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            ROW a = [4, 2, -3, 2]
+            | EVAL sa = mv_sort(a, CONCAT("ASC", "DESC")) | LIMIT 1
+  - match: { error.type: "illegal_argument_exception" }
+  - contains: { error.reason: "Invalid order value in [mv_sort(a, CONCAT(\"ASC\", \"DESC\"))], expected one of [ASC, DESC] but got [ASCDESC]" }
+
+
+---
+MV_SORT with invalid non-foldable order:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            ROW a = [4, 2, -3, 2], str = "REVERSE"
+            | EVAL sa = mv_sort(a, CONCAT(str, "DESC")) | LIMIT 1
+  - match: { error.type: "illegal_argument_exception" }
+  - contains: { error.reason: "Invalid order value in [mv_sort(a, CONCAT(str, \"DESC\"))], expected one of [ASC, DESC] but got [REVERSEDESC]" }

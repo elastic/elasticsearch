@@ -48,8 +48,10 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -144,6 +146,19 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     @Override
     public boolean foldable() {
         return field.foldable() && (order == null || order.foldable());
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        if (order instanceof Literal == false) {
+            // if we are here, we know that order is foldable, so we can safely fold it
+            Literal newOrder = Literal.of(ctx, order);
+            List<Expression> newChildren = new ArrayList<>();
+            newChildren.add(field);
+            newChildren.add(newOrder);
+            return replaceChildren(newChildren).fold(ctx);
+        }
+        return super.fold(ctx);
     }
 
     @Override
@@ -246,7 +261,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
                     sourceText(),
                     BytesRefs.toString(ASC.value()),
                     BytesRefs.toString(DESC.value()),
-                    BytesRefs.toString(order.fold(FoldContext.small() /* TODO remove me */))
+                    BytesRefs.toString(order)
                 )
             );
         }
@@ -255,16 +270,21 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     private boolean isValidOrder() {
         boolean isValidOrder = true;
         if (order != null && order.foldable()) {
-            Object obj = order.fold(FoldContext.small() /* TODO remove me */);
-            String o = null;
-            if (obj instanceof BytesRef ob) {
-                o = ob.utf8ToString();
-            } else if (obj instanceof String os) {
-                o = os;
-            }
-            if (o == null
-                || o.equalsIgnoreCase(BytesRefs.toString(ASC.value())) == false
-                    && o.equalsIgnoreCase(BytesRefs.toString(DESC.value())) == false) {
+            if (order instanceof Literal literal) {
+                Object obj = literal.value();
+                String o = null;
+                if (obj instanceof BytesRef ob) {
+                    o = ob.utf8ToString();
+                } else if (obj instanceof String os) {
+                    o = os;
+                }
+                if (o == null
+                    || o.equalsIgnoreCase(BytesRefs.toString(ASC.value())) == false
+                        && o.equalsIgnoreCase(BytesRefs.toString(DESC.value())) == false) {
+                    isValidOrder = false;
+                }
+            } else {
+                // order should be folded already, so if it is not literal it is invalid
                 isValidOrder = false;
             }
         }
@@ -286,6 +306,18 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         public String toString() {
             return "MvSort" + dataType.pascalCaseName() + "[field=" + field + ", order=" + order + "]";
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        MvSort mvSort = (MvSort) o;
+        return Objects.equals(field(), mvSort.field()) && Objects.equals(order(), mvSort.order());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field(), order());
     }
 
     private static class Evaluator implements EvalOperator.ExpressionEvaluator {

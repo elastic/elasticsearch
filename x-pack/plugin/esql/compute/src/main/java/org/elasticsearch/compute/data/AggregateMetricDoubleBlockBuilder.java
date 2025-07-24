@@ -174,9 +174,9 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
 
     public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
         public AggregateMetricDoubleLiteral {
-            min = min == null || min.isNaN() ? null : min;
-            max = max == null || max.isNaN() ? null : max;
-            sum = sum == null || sum.isNaN() ? null : sum;
+            min = (min == null || min.isNaN()) ? null : min;
+            max = (max == null || max.isNaN()) ? null : max;
+            sum = (sum == null || sum.isNaN()) ? null : sum;
         }
 
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

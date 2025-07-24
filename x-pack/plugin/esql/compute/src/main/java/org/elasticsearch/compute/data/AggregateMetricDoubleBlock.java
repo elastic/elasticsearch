@@ -55,33 +55,20 @@ public sealed interface AggregateMetricDoubleBlock extends Block permits Aggrega
         if (positions != block2.getPositionCount()) {
             return false;
         }
-        for (int pos = 0; pos < positions; pos++) {
-            if (block1.isNull(pos) || block2.isNull(pos)) {
-                if (block1.isNull(pos) != block2.isNull(pos)) {
-                    return false;
-                }
-            } else {
-                final int valueCount = block1.getValueCount(pos);
-                if (valueCount != block2.getValueCount(pos)) {
-                    return false;
-                }
-                for (var doubleMetric : List.of(
-                    AggregateMetricDoubleBlockBuilder.Metric.MIN,
-                    AggregateMetricDoubleBlockBuilder.Metric.MAX,
-                    AggregateMetricDoubleBlockBuilder.Metric.SUM
-                )) {
-                    DoubleBlock doubleBlock1 = (DoubleBlock) block1.getMetricBlock(doubleMetric.getIndex());
-                    DoubleBlock doubleBlock2 = (DoubleBlock) block2.getMetricBlock(doubleMetric.getIndex());
-                    if (DoubleBlock.equals(doubleBlock1, doubleBlock2) == false) {
-                        return false;
-                    }
-                }
-                IntBlock intBlock1 = block1.countBlock();
-                IntBlock intBlock2 = block2.countBlock();
-                return IntBlock.equals(intBlock1, intBlock2);
+        for (var doubleMetric : List.of(
+            AggregateMetricDoubleBlockBuilder.Metric.MIN,
+            AggregateMetricDoubleBlockBuilder.Metric.MAX,
+            AggregateMetricDoubleBlockBuilder.Metric.SUM
+        )) {
+            DoubleBlock doubleBlock1 = (DoubleBlock) block1.getMetricBlock(doubleMetric.getIndex());
+            DoubleBlock doubleBlock2 = (DoubleBlock) block2.getMetricBlock(doubleMetric.getIndex());
+            if (DoubleBlock.equals(doubleBlock1, doubleBlock2) == false) {
+                return false;
             }
         }
-        return true;
+        IntBlock intBlock1 = block1.countBlock();
+        IntBlock intBlock2 = block2.countBlock();
+        return IntBlock.equals(intBlock1, intBlock2);
     }
 
     static int hash(AggregateMetricDoubleBlock block) {

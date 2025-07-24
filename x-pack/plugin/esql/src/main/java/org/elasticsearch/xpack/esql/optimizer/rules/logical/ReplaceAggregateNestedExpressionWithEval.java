@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -112,7 +113,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
 
                         // Try to convert the format pattern to a minimal time interval
                         // This optimization attempts to simplify date formatting to DATE_TRUNC operations
-                        Literal interval = formatToMinimalInterval((String) format.value(), g.source());
+                        Literal interval = formatToMinimalInterval(BytesRefs.toString(format.value()), g.source());
                         // If we can optimize the format to use DATE_TRUNC
                         if (interval != null) {
                             // Create a new DateTrunc operation with the optimized interval

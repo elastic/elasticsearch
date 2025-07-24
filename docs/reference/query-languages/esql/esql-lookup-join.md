@@ -1,41 +1,24 @@
 ---
 navigation_title: "Join data with LOOKUP JOIN"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/_lookup_join.html
+ - https://www.elastic.co/guide/en/elasticsearch/reference/8.18/_lookup_join.html
 ---
 
-# Join data from multiple indices with
+# Join data from multiple indices with `LOOKUP JOIN` [esql-lookup-join-reference]
 
-`LOOKUP JOIN` [esql-lookup-join-reference]
+The {{esql}} [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) processing command combines data from your {{esql}} query results table with matching records from a specified lookup index. It adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
-The {{esql}} [
-`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join)
-processing command combines data from your {{esql}} query results table with
-matching records from a specified lookup index. It adds fields from the lookup
-index as new columns to your results table based on matching values in the join
-field.
-
-Teams often have data scattered across multiple indices – like logs, IPs, user
-IDs, hosts, employees etc. Without a direct way to enrich or correlate each
-event with reference data, root-cause analysis, security checks, and operational
-insights become time-consuming.
+Teams often have data scattered across multiple indices – like logs, IPs, user IDs, hosts, employees etc. Without a direct way to enrich or correlate each event with reference data, root-cause analysis, security checks, and operational insights become time-consuming.
 
 For example, you can use `LOOKUP JOIN` to:
 
-* Retrieve environment or ownership details for each host to correlate your
-  metrics data.
+* Retrieve environment or ownership details for each host to correlate your metrics data.
 * Quickly see if any source IPs match known malicious addresses.
-* Tag logs with the owning team or escalation info for faster triage and
-  incident response.
+* Tag logs with the owning team or escalation info for faster triage and incident response.
 
 ## Compare with `ENRICH`
 
-[
-`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join)
-is similar to [
-`ENRICH`](/reference/query-languages/esql/commands/processing-commands.md#esql-enrich)
-in the fact that they both help you join data together. You should use
-`LOOKUP JOIN` when:
+[`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) is similar to [`ENRICH`](/reference/query-languages/esql/commands/processing-commands.md#esql-enrich) in the fact that they both help you join data together. You should use `LOOKUP JOIN` when:
 
 * Your enrichment data changes frequently
 * You want to avoid index-time processing
@@ -47,13 +30,10 @@ in the fact that they both help you join data together. You should use
 
 ## How the command works [esql-how-lookup-join-works]
 
-The `LOOKUP JOIN` command adds fields from the lookup index as new columns to
-your results table based on matching values in the join field.
+The `LOOKUP JOIN` command adds fields from the lookup index as new columns to your results table based on matching values in the join field.
 
 The command requires two parameters:
-
-- The name of the lookup index (which must have the `lookup` [
-  `index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting))
+- The name of the lookup index (which must have the `lookup` [`index.mode setting`](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting))
 - The name of the field to join on
 
 ```esql
@@ -61,22 +41,16 @@ LOOKUP JOIN <lookup_index> ON <field_name>
 ```
 
 :::{image} ../images/esql-lookup-join.png
-:alt: Illustration of the `LOOKUP JOIN` command, where the input table is joined
-with a lookup index to create an enriched output table.
+:alt: Illustration of the `LOOKUP JOIN` command, where the input table is joined with a lookup index to create an enriched output table.
 :::
 
-If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means
-that if no rows match in the lookup index, the incoming row is retained and
-`null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds
-one row per match.
+If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that if no rows match in the lookup index, the incoming row is retained and `null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
 
 ## Example
 
-You can run this example for yourself if you'd like to see how it works, by
-setting up the indices and adding sample data.
+You can run this example for yourself if you'd like to see how it works, by setting up the indices and adding sample data.
 
 ### Sample data
-
 :::{dropdown} Expand for setup instructions
 
 **Set up indices**
@@ -99,7 +73,6 @@ PUT threat_list
   }
 }
 ```
-
 ```console
 PUT firewall_logs
 {
@@ -117,9 +90,7 @@ PUT firewall_logs
 
 **Add sample data**
 
-Next, let's add some sample data to both indices. The `threat_list` index
-contains known malicious IPs, while the `firewall_logs` index contains logs of
-network traffic.
+Next, let's add some sample data to both indices. The `threat_list` index contains known malicious IPs, while the `firewall_logs` index contains logs of network traffic.
 
 ```console
 POST threat_list/_bulk
@@ -142,7 +113,6 @@ POST firewall_logs/_bulk
 {"index":{}}
 {"timestamp":"2025-04-23T10:00:30Z","source.ip":"192.0.2.1","destination.ip":"10.0.0.100","action":"allow","bytes_transferred":512}
 ```
-
 :::
 
 ### Query the data
@@ -158,38 +128,31 @@ FROM firewall_logs # The source index
 
 ### Response
 
-A successful query will output a table. In this example, you can see that the
-`source.ip` field from the `firewall_logs` index is matched with the `source.ip`
-field in the `threat_list` index, and the corresponding `threat_level` and
-`threat_type` fields are added to the output.
+A successful query will output a table. In this example, you can see that the `source.ip` field from the `firewall_logs` index is matched with the `source.ip` field in the `threat_list` index, and the corresponding `threat_level` and `threat_type` fields are added to the output.
 
-| source.ip    | action | threat_type | threat_level |
-|--------------|--------|-------------|--------------|
-| 203.0.113.5  | allow  | C2_SERVER   | high         |
-| 198.51.100.2 | block  | SCANNER     | medium       |
-| 203.0.113.5  | allow  | C2_SERVER   | high         |
+|source.ip|action|threat_type|threat_level|
+|---|---|---|---|
+|203.0.113.5|allow|C2_SERVER|high|
+|198.51.100.2|block|SCANNER|medium|
+|203.0.113.5|allow|C2_SERVER|high|
 
 ### Additional examples
 
-Refer to the examples section of the [
-`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join)
-command reference for more examples.
+Refer to the examples section of the [`LOOKUP JOIN`](/reference/query-languages/esql/commands/processing-commands.md#esql-lookup-join) command reference for more examples.
 
 ## Prerequisites [esql-lookup-join-prereqs]
 
 ### Index configuration
 
-Indices used for lookups must be configured with the [
-`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
+Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
 ### Data type compatibility
 
-Join keys must have compatible data types between the source and lookup indices.
-Types within the same compatibility group can be joined together:
+Join keys must have compatible data types between the source and lookup indices. Types within the same compatibility group can be joined together:
 
 | Compatibility group    | Types                                                                               | Notes                                                                            |
 |------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------------------------------|
-| **Numeric family**     | `byte`, `short`, `integer`, `long`, `half_float`, `float`, `scaled_float`, `double` | All compatible                                                                   |
+| **Numeric family**     | `byte`, `short`, `integer`, `long`, `half_float`, `float`, `scaled_float`, `double` | All compatible                    |
 | **Keyword family**     | `keyword`, `text.keyword`                                                           | Text fields only as join key on left-hand side and must have `.keyword` subfield |
 | **Date (Exact)**       | `date`                                                                              | Must match exactly                                                               |
 | **Date Nanos (Exact)** | `date_nanos`                                                                        | Must match exactly                                                               |
@@ -201,9 +164,7 @@ To obtain a join key with a compatible type, use a [conversion function](/refere
 
 ### Unsupported Types
 
-In addition to
-the [{{esql}} unsupported field types](/reference/query-languages/esql/limitations.md#_unsupported_types),
-`LOOKUP JOIN` does not support:
+In addition to the [{{esql}} unsupported field types](/reference/query-languages/esql/limitations.md#_unsupported_types), `LOOKUP JOIN` does not support:
 
 * `VERSION`
 * `UNSIGNED_LONG`
@@ -216,14 +177,11 @@ For a complete list of all types supported in `LOOKUP JOIN`, refer to the [`LOOK
 
 ## Usage notes
 
-This section covers important details about `LOOKUP JOIN` that impact query
-behavior and results. Review these details to ensure your queries work as
-expected and to troubleshoot unexpected results.
+This section covers important details about `LOOKUP JOIN` that impact query behavior and results. Review these details to ensure your queries work as expected and to troubleshoot unexpected results.
 
 ### Handling name collisions
 
-When fields from the lookup index match existing column names, the new columns
-override the existing ones.
+When fields from the lookup index match existing column names, the new columns override the existing ones.
 Before the `LOOKUP JOIN` command, preserve columns by either:
 
 * Using `RENAME` to assign non-conflicting names
@@ -239,24 +197,11 @@ any `LOOKUP JOIN`s.
 
 The following are the current limitations with `LOOKUP JOIN`:
 
-* Indices in [
-  `lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting)
-  are always single-sharded.
-* Cross cluster search is unsupported initially. Both source and lookup indices
-  must be local.
+* Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
+* Cross cluster search is unsupported initially. Both source and lookup indices must be local.
 * Currently, only matching on equality is supported.
-* `LOOKUP JOIN` can only use a single match field and a single index. Wildcards
-  are not supported.
-    * Aliases, datemath, and datastreams are supported, as long as the index
-      pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
-    * Limitation on matching on a single field is removed. You can use a
-      comma separated list of fields in the `ON` clause
-      {applies_to}`stack: ga 9.2.0`.
-* The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match
-  an existing field in the query. This may require `RENAME`s or `EVAL`s to
-  achieve.
-* The query will circuit break if there are too many matching documents in the
-  lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN`
-  works in batches of, normally, about 10,000 rows; a large amount of heap space
-  is needed if the matching documents from the lookup index for a batch are
-  multiple megabytes or larger. This is roughly the same as for `ENRICH`.
+* `LOOKUP JOIN` can only use a single match field and a single index. Wildcards are not supported.
+  * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
+  * Limitation on matching on a single field is removed. You can use a comma separated list of fields in the `ON` clause {applies_to}`stack: ga 9.2.0`.
+* The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
+* The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.

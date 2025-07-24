@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +36,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -265,92 +267,125 @@ public class SplitSourceService {
             return;
         }
 
-        if (split.targetsDone(indexShard.shardId().getId())) {
-            // TODO this is not really correct.
-            // This will block source shard recovery until we delete unowned documents and transition to DONE.
-            // It is not necessary and this shard is serving indexing traffic so this delay
-            // hurts.
-            // We should not block on this but also we need to make sure this eventually happens somehow.
-            // For simplicity it is done inline now.
-            moveToDone(indexShard, listener);
-            return;
-        }
-
         setupSplitProgressTracking(indexShard);
         listener.onResponse(null);
     }
 
     public void setupSplitProgressTracking(IndexShard indexShard) {
-        // Wait for all target shards to be DONE and once that is true execute source shard logic to move to DONE:
-        // 1. Delete unowned documents
-        // 2. Move to DONE
-        ClusterStateObserver observer = new ClusterStateObserver(
-            clusterService,
-            null,
-            logger,
-            clusterService.threadPool().getThreadContext()
-        );
-
-        var allTargetsAreDonePredicate = new Predicate<ClusterState>() {
+        var tracker = new SplitProgressTracker(indexShard, new ActionListener<>() {
             @Override
-            public boolean test(ClusterState state) {
-                IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                if (split == null) {
-                    // This is possible if the source shard failed right after setting up this listener,
-                    // recovered and successfully completed the split.
-                    // TODO we can even we see a completely different split here
-                    // TODO is project deletion possible here?
-                    return true;
-                }
-
-                if (onGoingSplits.containsKey(indexShard) == false) {
-                    // Shard was closed in the meantime.
-                    // It will pick this work up on recovery.
-                    return true;
-                }
-
-                return split.targetsDone(indexShard.shardId().getId());
+            public void onResponse(Void unused) {
+                logger.info(Strings.format("Split source shard %s successfully transitioned to DONE", indexShard.shardId()));
             }
-        };
 
-        observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
-            public void onNewClusterState(ClusterState state) {
-                IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
-                if (split == null) {
-                    return;
-                }
+            public void onFailure(Exception e) {
+                logger.warn(Strings.format("Error while tracking split progress in source shard %s: %s", indexShard.shardId(), e));
+            }
+        });
 
-                if (onGoingSplits.containsKey(indexShard) == false) {
-                    return;
-                }
+        tracker.run();
+    }
 
-                // It is possible that shard gets closed right after this line.
-                // It is not really a problem since delete of unowned documents is idempotent.
-                // TODO track the result of this operation, fail shard if it fails?
-                clusterService.threadPool().generic().submit(() -> moveToDone(indexShard, new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        logger.info(Strings.format("Split source shard %s successfully transitioned to DONE", indexShard.shardId()));
+    private class SplitProgressTracker extends RetryableAction<Void> {
+        private final IndexShard indexShard;
+
+        private SplitProgressTracker(IndexShard indexShard, ActionListener<Void> listener) {
+            super(
+                logger,
+                clusterService.threadPool(),
+                // this logic is not time-sensitive, retry delays do not need to be tight
+                TimeValue.timeValueSeconds(5), // initialDelay
+                TimeValue.timeValueSeconds(30), // maxDelayBound
+                TimeValue.MAX_VALUE, // timeoutValue
+                listener,
+                clusterService.threadPool().generic()
+            );
+            this.indexShard = indexShard;
+        }
+
+        @Override
+        public void tryAction(ActionListener<Void> listener) {
+            // Wait for all target shards to be DONE and once that is true execute source shard logic to move to DONE:
+            // 1. Delete unowned documents
+            // 2. Move to DONE
+            ClusterStateObserver observer = new ClusterStateObserver(
+                clusterService,
+                null,
+                logger,
+                clusterService.threadPool().getThreadContext()
+            );
+
+            var allTargetsAreDonePredicate = new Predicate<ClusterState>() {
+                @Override
+                public boolean test(ClusterState state) {
+                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                    if (split == null) {
+                        // This is possible if the source shard failed right after setting up this listener,
+                        // recovered and successfully completed the split.
+                        // TODO we can even we see a completely different split here
+                        // TODO is project deletion possible here?
+                        return true;
                     }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(Strings.format("Error while tracking split progress in source shard %s: %s", indexShard.shardId(), e));
+                    if (onGoingSplits.containsKey(indexShard) == false) {
+                        // Shard was closed in the meantime.
+                        // It will pick this work up on recovery.
+                        return true;
                     }
-                }));
-            }
 
-            @Override
-            public void onClusterServiceClose() {
-                // nothing to do
-            }
+                    if (indexShard.state() != IndexShardState.STARTED) {
+                        // State can be POST_RECOVERY here because split progress tracking is set up during recovery.
+                        // It's possible that the very first cluster state we observe has all targets in DONE but the recovery hasn't
+                        // completed yet.
+                        // We need to be STARTED to properly execute deletion of unowned documents so we'll wait for the cluster state
+                        // change that sets this shard to STARTED.
+                        // CLOSED is also possible if state change is applied to the shard but not yet reflected in the `onGoingSplits`.
+                        // In this case we will eventually observe this change via `onGoingSplits` and handle it properly.
+                        return false;
+                    }
 
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                assert false;
+                    return split.targetsDone(indexShard.shardId().getId());
+                }
+            };
+
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    IndexReshardingState.Split split = getSplit(state, indexShard.shardId().getIndex());
+                    if (split == null) {
+                        return;
+                    }
+
+                    if (onGoingSplits.containsKey(indexShard) == false) {
+                        return;
+                    }
+
+                    // It is possible that shard gets closed right after this line.
+                    // It is not a problem since delete of unowned documents is idempotent.
+                    clusterService.threadPool().generic().submit(() -> moveToDone(indexShard, listener));
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    // nothing to do
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    assert false;
+                }
+            }, allTargetsAreDonePredicate);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (e instanceof IndexShardClosedException) {
+                // Shard is closed, but it was not reflected in `onGoingSplits`, we'll resume the tracking logic on next recovery.
+                return false;
             }
-        }, allTargetsAreDonePredicate);
+            return true;
+        }
     }
 
     public void cancelSplits(IndexShard indexShard) {

@@ -44,6 +44,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     File buildFile
     File propertiesFile
     File projectDir
+    File versionPropertiesFile
 
     protected boolean configurationCacheCompatible = true
     protected boolean buildApiRestrictionsDisabled = false
@@ -54,6 +55,18 @@ abstract class AbstractGradleFuncTest extends Specification {
         settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
         propertiesFile = testProjectDir.newFile('gradle.properties')
+        File buildToolsDir = testProjectDir.newFolder("build-tools-internal")
+        versionPropertiesFile = new File(buildToolsDir, 'version.properties')
+        versionPropertiesFile.text = """
+            elasticsearch     = 9.1.0
+            lucene            = 10.2.2
+
+            bundled_jdk_vendor = openjdk
+            bundled_jdk = 24+36@1f9ff9062db4449d8ca828c504ffae90
+            minimumJdkVersion = 21
+            minimumRuntimeJava = 21
+            minimumCompilerJava = 21
+        """
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
 

@@ -136,7 +136,7 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
         );
     }
 
-    public void testMovementBetweenNodesWithNoThreadPoolStats() {
+    public void testMovementBetweenNodesWithNoThreadPoolAndWriteLoadStats() {
         final var originalNode0WriteLoadStats = randomBoolean() ? randomUsageStats() : null;
         final var originalNode1WriteLoadStats = randomBoolean() ? randomUsageStats() : null;
         final var allocation = createRoutingAllocation(

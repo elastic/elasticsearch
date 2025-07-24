@@ -4,30 +4,42 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.enrich;
+package org.elasticsearch.test.enrich;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
-
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import org.junit.ClassRule;
 
 public class EnrichSecurityFailureIT extends ESRestTestCase {
 
+    public static final String ADMIN_USER = "test_admin";
+    public static final String ENRICH_USER = "test_enrich_no_privs";
+    public static final String TEST_PASSWORD = "x-pack-test-password";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = CommonEnrichRestTestCase.enrichCluster("basic", true)
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user(ADMIN_USER, TEST_PASSWORD, "superuser", true)
+        .user(ENRICH_USER, TEST_PASSWORD, "enrich_no_privs", false)
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test_enrich_no_privs", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return CommonEnrichRestTestCase.authRequestHeaderSetting(ENRICH_USER, TEST_PASSWORD);
     }
 
     @Override
     protected Settings restAdminSettings() {
-        String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+        return CommonEnrichRestTestCase.authRequestHeaderSetting(ADMIN_USER, TEST_PASSWORD);
     }
 
     public void testFailure() throws Exception {

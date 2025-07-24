@@ -11,10 +11,14 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -33,6 +37,27 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
+
+    static LocalClusterSpecBuilder<ElasticsearchCluster> enrichCluster(String license, boolean isSecurityEnabled) {
+        return ElasticsearchCluster.local()
+            .module("analysis-common")
+            .module("ingest-common")
+            .module("mapper-extras")
+            .module("x-pack-enrich")
+            .module("x-pack-monitoring")
+            .module("x-pack-ilm")
+            .module("wildcard")
+            .setting("xpack.security.enabled", Boolean.toString(isSecurityEnabled))
+            .setting("xpack.license.self_generated.type", license)
+            // silence stats collector errors (we don't want to add all xpack modules here)
+            .setting("logger.org.elasticsearch.xpack.monitoring.collector", "fatal")
+            .setting("xpack.monitoring.collection.enabled", "true");
+    }
+
+    static Settings authRequestHeaderSetting(String user, String password) {
+        String token = basicAuthHeaderValue(user, new SecureString(password.toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
 
     private List<String> cleanupPipelines = new ArrayList<>();
 

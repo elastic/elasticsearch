@@ -17,8 +17,9 @@ import org.elasticsearch.compute.aggregation.SampleDoubleAggregatorFunctionSuppl
 import org.elasticsearch.compute.aggregation.SampleIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SampleLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -33,13 +35,15 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPostOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeLimit;
 
-public class Sample extends AggregateFunction implements ToAggregator {
+public class Sample extends AggregateFunction implements ToAggregator, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sample", Sample::new);
 
     @FunctionInfo(
@@ -110,14 +114,14 @@ public class Sample extends AggregateFunction implements ToAggregator {
             return new TypeResolution("Unresolved children");
         }
         var typeResolution = isType(field(), dt -> dt != DataType.UNSIGNED_LONG, sourceText(), FIRST, "any type except unsigned_long").and(
-            isNotNullAndFoldable(limitField(), sourceText(), SECOND)
+            isNotNull(limitField(), sourceText(), SECOND)
         ).and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
         if (typeResolution.unresolved()) {
             return typeResolution;
         }
-        int limit = limitValue();
-        if (limit <= 0) {
-            return new TypeResolution(format(null, "Limit must be greater than 0 in [{}], found [{}]", sourceText(), limit));
+        TypeResolution result = resolveTypeLimit(limitField(), sourceText(), forPreOptimizationValidation(limitField()));
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
         }
         return TypeResolution.TYPE_RESOLVED;
     }
@@ -164,11 +168,15 @@ public class Sample extends AggregateFunction implements ToAggregator {
     }
 
     private int limitValue() {
-        return (int) limitField().fold(FoldContext.small() /* TODO remove me */);
+        return FunctionUtils.limitValue(limitField(), sourceText());
     }
 
     Expression uuid() {
         return parameters().get(1);
     }
 
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        FunctionUtils.resolveTypeLimit(limitField(), sourceText(), forPostOptimizationValidation(limitField(), failures));
+    }
 }

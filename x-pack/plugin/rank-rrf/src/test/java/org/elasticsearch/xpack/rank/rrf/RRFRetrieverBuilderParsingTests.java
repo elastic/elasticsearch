@@ -107,6 +107,28 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
         return new NamedXContentRegistry(entries);
     }
 
+    private void checkRRFRetrieverParsing(String restContent) throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder parsed = (RRFRetrieverBuilder) source.retriever();
+            assertThat(parsed.minScore(), equalTo(20f));
+            assertThat(parsed.retrieverName(), equalTo("foo_rrf"));
+            try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
+                SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
+                    parseSerialized,
+                    true,
+                    searchUsageHolder,
+                    nf -> true
+                );
+                assertThat(deserializedSource.retriever(), instanceOf(RRFRetrieverBuilder.class));
+                RRFRetrieverBuilder deserialized = (RRFRetrieverBuilder) source.retriever();
+                assertThat(parsed, equalTo(deserialized));
+            }
+        }
+    }
+
     public void testRRFRetrieverParsing() throws IOException {
         String restContent = """
             {
@@ -134,24 +156,99 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
               }
             }
             """;
-        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
-        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
-            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
-            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
-            RRFRetrieverBuilder parsed = (RRFRetrieverBuilder) source.retriever();
-            assertThat(parsed.minScore(), equalTo(20f));
-            assertThat(parsed.retrieverName(), equalTo("foo_rrf"));
-            try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
-                SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
-                    parseSerialized,
-                    true,
-                    searchUsageHolder,
-                    nf -> true
-                );
-                assertThat(deserializedSource.retriever(), instanceOf(RRFRetrieverBuilder.class));
-                RRFRetrieverBuilder deserialized = (RRFRetrieverBuilder) source.retriever();
-                assertThat(parsed, equalTo(deserialized));
+        checkRRFRetrieverParsing(restContent);
+    }
+
+    public void testRRFRetrieverParsingWithWeights() throws IOException {
+        String restContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {
+                      "retriever": {
+                        "test": {
+                          "value": "first"
+                        }
+                      },
+                      "weight": 2.0
+                    },
+                    {
+                      "retriever": {
+                        "test": {
+                          "value": "second"
+                        }
+                      },
+                      "weight": 0.5
+                    }
+                  ],
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
             }
-        }
+            """;
+        checkRRFRetrieverParsing(restContent);
+    }
+
+    public void testRRFRetrieverParsingWithMixedWeights() throws IOException {
+        String restContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {
+                      "test": {
+                        "value": "no_weight"
+                      }
+                    },
+                    {
+                      "retriever": {
+                        "test": {
+                          "value": "with_weight"
+                        }
+                      },
+                      "weight": 1.5
+                    }
+                  ],
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+        checkRRFRetrieverParsing(restContent);
+    }
+
+    public void testRRFRetrieverParsingWithDefaultWeights() throws IOException {
+        String restContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {
+                      "test": {
+                        "value": "first"
+                      }
+                    },
+                    {
+                      "test": {
+                        "value": "second"
+                      }
+                    }
+                  ],
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+        checkRRFRetrieverParsing(restContent);
     }
 }

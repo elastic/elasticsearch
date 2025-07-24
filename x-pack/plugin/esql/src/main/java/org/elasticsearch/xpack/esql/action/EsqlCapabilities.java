@@ -1304,7 +1304,12 @@ public class EsqlCapabilities {
         /**
          * Support for the options field of CATEGORIZE.
          */
-        CATEGORIZE_OPTIONS;
+        CATEGORIZE_OPTIONS,
+
+        /**
+         * Support correct counting of skipped shards.
+         */
+        CORRECT_SKIPPED_SHARDS_COUNT;
 
         private final boolean enabled;
 

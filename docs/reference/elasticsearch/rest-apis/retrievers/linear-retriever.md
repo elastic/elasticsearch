@@ -78,7 +78,7 @@ Each entry in the `retrievers` array specifies the following parameters:
     See [normalizers](#linear-retriever-normalizers) for supported values.
     Defaults to `none`.
 
-See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
+See also [this hybrid search example](retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
 
 ## Normalizers [linear-retriever-normalizers]
 
@@ -90,4 +90,4 @@ The `linear` retriever supports the following normalizers:
     ```
     score = (score - min) / (max - min)
     ```
-* `l2_norm`: Normalizes scores using the L2 norm of the score values
+* `l2_norm`: Normalizes scores using the L2 norm of the score values {applies_to}`stack: ga 9.1`

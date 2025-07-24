@@ -48,15 +48,14 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
     private final DenseVectorFieldMapper.ElementType elementType;
     private final String indexType;
 
-
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
         for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
-            params.add(new Object[] {DenseVectorFieldMapper.ElementType.FLOAT, indexType });
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.FLOAT, indexType });
         }
         for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
-            params.add(new Object[] {DenseVectorFieldMapper.ElementType.BYTE, indexType });
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BYTE, indexType });
         }
 
         // Remove flat index types, as knn does not do a top k for flat
@@ -64,10 +63,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         return params;
     }
 
-    public KnnFunctionIT(
-        @Name("elementType") DenseVectorFieldMapper.ElementType elementType,
-        @Name("indexType") String indexType
-    ) {
+    public KnnFunctionIT(@Name("elementType") DenseVectorFieldMapper.ElementType elementType, @Name("indexType") String indexType) {
         this.elementType = elementType;
         this.indexType = indexType;
     }

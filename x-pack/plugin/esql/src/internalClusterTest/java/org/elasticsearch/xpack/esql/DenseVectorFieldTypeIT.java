@@ -44,10 +44,7 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         "bbq_flat",
         "flat"
     );
-    public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Set.of(
-        "hnsw",
-        "flat"
-    );
+    public static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Set.of("hnsw", "flat");
 
     private final ElementType elementType;
     private final boolean synthetic;
@@ -59,16 +56,16 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         List<Object[]> params = new ArrayList<>();
         // Indexed field types
         for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
-            params.add(new Object[] {ElementType.FLOAT, indexType, true, false });
+            params.add(new Object[] { ElementType.FLOAT, indexType, true, false });
         }
         for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
-            params.add(new Object[] {ElementType.BYTE, indexType, true, false });
+            params.add(new Object[] { ElementType.BYTE, indexType, true, false });
         }
         for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT)) {
             // No indexing
-            params.add(new Object[]{elementType, null, false, false});
+            params.add(new Object[] { elementType, null, false, false });
             // No indexing, synthetic source
-            params.add(new Object[]{elementType, null, false, true});
+            params.add(new Object[] { elementType, null, false, true });
         }
         return params;
     }

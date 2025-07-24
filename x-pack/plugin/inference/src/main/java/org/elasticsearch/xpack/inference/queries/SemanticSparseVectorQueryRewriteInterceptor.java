@@ -43,14 +43,18 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     @Override
     protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
+        QueryBuilder finalQueryBuilder;
         if (inferenceIdsIndices.size() == 1) {
             // Simple case, everything uses the same inference ID
             String searchInferenceId = inferenceIdsIndices.keySet().iterator().next();
-            return buildNestedQueryFromSparseVectorQuery(queryBuilder, searchInferenceId);
+            finalQueryBuilder = buildNestedQueryFromSparseVectorQuery(queryBuilder, searchInferenceId);
         } else {
             // Multiple inference IDs, construct a boolean query
-            return buildInferenceQueryWithMultipleInferenceIds(queryBuilder, inferenceIdsIndices);
+            finalQueryBuilder = buildInferenceQueryWithMultipleInferenceIds(queryBuilder, inferenceIdsIndices);
         }
+        finalQueryBuilder.queryName(queryBuilder.queryName());
+        finalQueryBuilder.boost(queryBuilder.boost());
+        return finalQueryBuilder;
     }
 
     private QueryBuilder buildInferenceQueryWithMultipleInferenceIds(
@@ -82,7 +86,14 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         boolQueryBuilder.should(
             createSubQueryForIndices(
                 indexInformation.nonInferenceIndices(),
-                createSubQueryForIndices(indexInformation.nonInferenceIndices(), sparseVectorQueryBuilder)
+                new SparseVectorQueryBuilder(
+                    sparseVectorQueryBuilder.getFieldName(),
+                    sparseVectorQueryBuilder.getQueryVectors(),
+                    sparseVectorQueryBuilder.getInferenceId(),
+                    sparseVectorQueryBuilder.getQuery(),
+                    sparseVectorQueryBuilder.shouldPruneTokens(),
+                    sparseVectorQueryBuilder.getTokenPruningConfig()
+                )
             )
         );
         // We always perform nested subqueries on semantic_text fields, to support
@@ -95,6 +106,8 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 )
             );
         }
+        boolQueryBuilder.boost(queryBuilder.boost());
+        boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }
 

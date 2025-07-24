@@ -116,7 +116,7 @@ public class SageMakerModel extends Model {
             getConfigurations(),
             getSecrets(),
             serviceSettings,
-            taskSettings.updatedTaskSettings(taskSettingsOverride),
+            taskSettings.override(taskSettingsOverride),
             awsSecretSettings
         );
     }

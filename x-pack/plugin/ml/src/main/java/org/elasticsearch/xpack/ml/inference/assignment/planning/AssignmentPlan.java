@@ -47,6 +47,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
      */
     public record Deployment(
         String deploymentId,
+        String modelId,
         long memoryBytes,
         int allocations,
         int threadsPerAllocation,
@@ -59,6 +60,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
     ) {
         public Deployment(
             String deploymentId,
+            String modelId,
             long modelBytes,
             int allocations,
             int threadsPerAllocation,
@@ -70,6 +72,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         ) {
             this(
                 deploymentId,
+                modelId,
                 modelBytes,
                 allocations,
                 threadsPerAllocation,
@@ -96,7 +99,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         public long estimateMemoryUsageBytes(int allocations) {
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                deploymentId,
+                modelId,
                 memoryBytes,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes,
@@ -106,24 +109,23 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         long estimateAdditionalMemoryUsageBytes(int allocationsOld, int allocationsNew) {
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                deploymentId,
+                modelId,
                 memoryBytes,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes,
                 allocationsNew
             ) - StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                deploymentId,
+                modelId,
                 memoryBytes,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes,
                 allocationsOld
             );
-
         }
 
         long minimumMemoryRequiredBytes() {
             return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                deploymentId,
+                modelId,
                 memoryBytes,
                 perDeploymentMemoryBytes,
                 perAllocationMemoryBytes,

@@ -1308,6 +1308,11 @@ public class EsqlCapabilities {
         DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * l1 norm vector similarity function
+         */
+        L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the options field of CATEGORIZE.
          */
         CATEGORIZE_OPTIONS,

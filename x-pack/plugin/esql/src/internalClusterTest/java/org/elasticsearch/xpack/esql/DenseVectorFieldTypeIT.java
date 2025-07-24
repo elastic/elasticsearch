@@ -207,12 +207,13 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                         case BYTE:
                             vector.add(randomByte());
                             break;
-                        default: throw new IllegalArgumentException("Unexpected element type: " + elementType);
+                        default:
+                            throw new IllegalArgumentException("Unexpected element type: " + elementType);
                     }
                 }
+                docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
+                indexedVectors.put(i, vector);
             }
-            docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
-            indexedVectors.put(i, vector);
         }
 
         indexRandom(true, docs);

@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -510,7 +509,7 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            double allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
+            double allocationUtilization = executor.getUtilization();
             final long afterPreviousCollectNanos = System.nanoTime();
 
             var metricValue = metricAsserter.assertLatestMetricValueMatches(
@@ -540,7 +539,7 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
+            allocationUtilization = executor.getUtilization();
             final long afterMetricsCollectedNanos = System.nanoTime();
 
             // Calculate upper bound on utilisation metric

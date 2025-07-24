@@ -422,6 +422,20 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         public Builder assignModelToNode(Deployment deployment, Node node, int allocations, long requiredMemory) {
             if (allocations <= 0) {
+        /**
+         * Assigns a model to a node with the specified number of allocations.
+         * This method checks if the node has enough memory and cores available
+         * to accommodate the model's requirements. If the node has enough resources,
+         * it updates the assignment and the remaining resources accordingly.
+         *
+         * @param deployment the model to assign
+         * @param node the node to which the model is assigned
+         * @param newAllocations the number of new allocations to assign
+         * @param requiredMemory the memory required for the assignment
+         * @return this builder instance for chaining
+         */
+        public Builder assignModelToNode(Deployment deployment, Node node, int newAllocations, long requiredMemory) {
+            if (newAllocations <= 0) {
                 return this;
             }
             if (requiredMemory > remainingNodeMemory.get(node)) {
@@ -429,18 +443,18 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                     "not enough memory on node ["
                         + node.id()
                         + "] to assign ["
-                        + allocations
+                        + newAllocations
                         + "] allocations to deployment ["
                         + deployment.deploymentId()
                         + "]"
                 );
             }
-            if (deployment.priority == Priority.NORMAL && allocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
+            if (deployment.priority == Priority.NORMAL && newAllocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough cores on node ["
                         + node.id()
                         + "] to assign ["
-                        + allocations
+                        + newAllocations
                         + "] allocations to deployment ["
                         + deployment.deploymentId()
                         + "]; required threads per allocation ["
@@ -449,13 +463,13 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 );
             }
 
-            assignments.get(deployment).compute(node, (n, remAllocations) -> remAllocations + allocations);
+            assignments.get(deployment).compute(node, (n, assignedAllocations) -> assignedAllocations + newAllocations);
             accountMemory(deployment, node, requiredMemory);
 
             if (deployment.priority == Priority.NORMAL) {
-                remainingNodeCores.compute(node, (n, remCores) -> remCores - allocations * deployment.threadsPerAllocation());
+                remainingNodeCores.compute(node, (n, remCores) -> remCores - newAllocations * deployment.threadsPerAllocation());
             }
-            remainingModelAllocations.compute(deployment, (m, remModelThreads) -> remModelThreads - allocations);
+            remainingModelAllocations.compute(deployment, (m, remModelThreads) -> remModelThreads - newAllocations);
             return this;
         }
 

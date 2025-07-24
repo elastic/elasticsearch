@@ -267,8 +267,28 @@ POST test-index/_search
 ```
 
 1. Specifies the maximum number of fragments to return.
-2. Sorts highlighted fragments by score when set to `score`. By default,
+2. Sorts returned most relevant highlighted fragments by score when set to `score`. By default,
    fragments will be output in the order they appear in the field (order: none).
+
+To use the `semantic` highlighter to view indexed chunks in the order which they
+were indexed and no scoring,
+use the `match_all` query to retrieve each chunk in the order which it appears
+in the document:
+
+```console
+POST test-index/_search
+{
+    "query": {
+        "match_all": {}
+    },
+    "highlight": {
+        "fields": {
+            "my_semantic_field": {
+                "number_of_fragments": 5
+            }
+        }
+    }
+}
 
 Highlighting is supported on fields other than semantic_text. However, if you
 want to restrict highlighting to the semantic highlighter and return no

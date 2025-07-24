@@ -11,6 +11,15 @@ package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TRANSPORT_VERSION_NAMES_ATTRIBUTE;
+import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
 
 public class TransportVersionGlobalManagementPlugin implements Plugin<Project> {
 
@@ -18,6 +27,33 @@ public class TransportVersionGlobalManagementPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
 
+        DependencyHandler depsHandler = project.getDependencies();
+        List<Dependency> tvDependencies = new ArrayList<>();
+        // TODO: created a named configuration so deps can be added dynamically?
+        for (String baseProjectPath : List.of(":modules", ":plugins", ":x-pack:plugin")) {
+            Project baseProject = project.project(baseProjectPath);
+            for (var pluginProject : baseProject.getSubprojects()) {
+                if (pluginProject.getParent() != baseProject) {
+                    continue; // skip nested projects
+                }
+                tvDependencies.add(depsHandler.create(pluginProject));
+            }
+        }
+        tvDependencies.add(depsHandler.create(":server"));
 
+        Configuration tvNamesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
+        tvNamesConfig.attributes(attrs -> {
+            attrs.attribute(ARTIFACT_TYPE_ATTRIBUTE, "csv");
+            attrs.attribute(TRANSPORT_VERSION_NAMES_ATTRIBUTE, true);
+        });
+
+        var validateTask = project.getTasks().register("validateTransportVersionConstants", ValidateTransportVersionConstantsTask.class, t -> {
+            t.setGroup("Transport Versions");
+            t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
+            t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
+            t.getNamesFiles().setFrom(tvNamesConfig);
+        });
+
+        project.getTasks().named("check").configure(t -> t.dependsOn(validateTask));
     }
 }

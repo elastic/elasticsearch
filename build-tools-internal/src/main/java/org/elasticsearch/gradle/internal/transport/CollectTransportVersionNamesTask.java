@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * This task locates all method invocations of org.elasticsearch.TransportVersion#getName(java.lang.String) in the
+ * This task locates all method invocations of org.elasticsearch.TransportVersion#fromName(java.lang.String) in the
  * provided directory, and then records the value of string literals passed as arguments. It then records each
  * string on a newline in the provided output file.
  */

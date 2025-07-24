@@ -11,42 +11,46 @@ package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
+import org.gradle.api.Project;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.file.Directory;
+
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-public class TransportVersionUtils {
+class TransportVersionUtils {
 
-    public record TransportVersionSetData(String name, List<Integer> ids) {
+    static final Attribute<Boolean> TRANSPORT_VERSION_NAMES_ATTRIBUTE = Attribute.of("transport-version-names", Boolean.class);
+
+    record TransportVersionData(String name, List<Integer> ids) { }
+
+    static TransportVersionData readDataFile(Path file) throws IOException {
+        assert file.endsWith(".csv");
+        String rawName = file.getFileName().toString();
+        String name = rawName.substring(0, rawName.length() - 4);
+        List<Integer> ids = new ArrayList<>();
+
+        for (String rawId : Files.readString(file, StandardCharsets.UTF_8).split(",")) {
+            try {
+                ids.add(Integer.parseInt(rawId));
+            } catch (NumberFormatException e) {
+                throw new IOException("Failed to parse id " + rawId + " in " + file, e);
+            }
+        }
+
+        if (Comparators.isInOrder(ids, Comparator.naturalOrder()) == false) {
+            throw new IOException("invalid transport version data file [" + file + "], ids are not in sorted");
+        }
+        return new TransportVersionData(name, ids);
     }
 
-    public static TransportVersionSetData readDataFile(File file) {
-        try (BufferedReader reader = new BufferedReader(new FileReader(file, StandardCharsets.UTF_8))) {
-            String[] parts = reader.readLine().replaceAll("\\s+", "").split("\\|");
-            if (parts.length < 2) {
-                throw new IllegalStateException("Invalid transport version file format, "
-                    + "must have both name and id(s): [" + file.getAbsolutePath() + "]");
-            }
-            if (reader.readLine() != null) {
-                throw new IllegalStateException("Invalid transport version file format, "
-                    + "data file must contain only one line: [" + file.getAbsolutePath() + "]");
-            }
-            String name = parts[0];
-            var ids = Arrays.stream(parts).skip(1).map(Integer::parseInt).toList();
-            var areIdsSorted = Comparators.isInOrder(ids, Comparator.naturalOrder());
-            if (areIdsSorted == false) {
-                throw new IllegalStateException("invalid transport version file format, "
-                    + "ids are not in order: [" + file.getAbsolutePath() + "], ");
-            }
-            return new TransportVersionSetData(name, ids);
-        } catch (IOException ioe) {
-            throw new UncheckedIOException("cannot parse transport version [" + file.getAbsolutePath() + "]", ioe);
-        }
+    static Directory getConstantsDirectory(Project project) {
+        Directory serverDir = project.getRootProject().project(":server").getLayout().getProjectDirectory();
+        return serverDir.dir("src/main/resources/transport/constants");
     }
 }

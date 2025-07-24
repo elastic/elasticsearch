@@ -87,22 +87,22 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
      * This method takes in the parameter {@code latest} which is the highest valid transport version id
      * supported by this node. Versions newer than the current transport version id for this node are discarded.
      */
-    public static TransportVersion fromInputStream(String path, InputStream stream, Integer latest) {
+    public static TransportVersion fromInputStream(String path, boolean nameInFile, InputStream stream, Integer latest) {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
             String line = reader.readLine();
-            String[] parts = line.replaceAll("\\s+", "").split("\\|");
+            String[] parts = line.replaceAll("\\s+", "").split(",");
             String check;
             while ((check = reader.readLine()) != null) {
                 if (check.replaceAll("\\s+", "").isEmpty() == false) {
                     throw new IllegalArgumentException("invalid transport version file format [" + path + "]");
                 }
             }
-            if (parts.length < 2) {
+            if (parts.length < (nameInFile ? 2 : 1)) {
                 throw new IllegalStateException("invalid transport version file format [" + path + "]");
             }
-            String name = parts[0];
+            String name = nameInFile ? parts[0] : path.substring(path.lastIndexOf('/') + 1, path.length() - 4);
             List<Integer> ids = new ArrayList<>();
-            for (int i = 1; i < parts.length; ++i) {
+            for (int i = nameInFile ? 1 : 0; i < parts.length; ++i) {
                 try {
                     ids.add(Integer.parseInt(parts[i]));
                 } catch (NumberFormatException nfe) {
@@ -376,14 +376,14 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
         private static Map<String, TransportVersion> loadTransportVersionsByName() {
             Map<String, TransportVersion> transportVersions = new HashMap<>();
 
-            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".txt";
+            String latestLocation = "/transport/latest/" + Version.CURRENT.major + "." + Version.CURRENT.minor + ".csv";
             int latestId = -1;
             try (InputStream inputStream = TransportVersion.class.getResourceAsStream(latestLocation)) {
                 // this check is required until bootstrapping for the new transport versions format is completed;
                 // when load is false, we will only use the transport versions in the legacy format;
                 // load becomes false if we don't find the latest or manifest files required for the new format
                 if (inputStream != null) {
-                    TransportVersion latest = fromInputStream(latestLocation, inputStream, Integer.MAX_VALUE);
+                    TransportVersion latest = fromInputStream(latestLocation, true, inputStream, Integer.MAX_VALUE);
                     if (latest == null) {
                         throw new IllegalStateException(
                             "invalid latest transport version for minor version ["
@@ -419,7 +419,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                         if (inputStream == null) {
                             throw new IllegalStateException("transport version file not found at [" + versionLocation + "]");
                         }
-                        TransportVersion transportVersion = TransportVersion.fromInputStream(versionLocation, inputStream, latestId);
+                        TransportVersion transportVersion = TransportVersion.fromInputStream(versionLocation, false, inputStream, latestId);
                         if (transportVersion != null) {
                             transportVersions.put(transportVersion.name(), transportVersion);
                         }

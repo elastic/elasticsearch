@@ -33,7 +33,10 @@ dependencies {
   clusterModules project(xpackModule('wildcard'))
 }
 
-addQaCheckDependencies(project)
+tasks.named('yamlRestTest') {
+  // single tests can be run using the same cluster configuration as used for Java REST tests, but cleanup inbetween tests fails
+  usesDefaultDistribution("cleanUpCluster fails if not using the default distribution")
+}
 
 restResources {
   restApi {

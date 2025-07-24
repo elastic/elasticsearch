@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.enrich;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -18,16 +19,9 @@ public class EnrichRestIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("ingest-common")
-        .module("mapper-extras")
-        .module("x-pack-enrich")
-        .module("x-pack-monitoring")
-        .module("x-pack-ilm")
-        .module("wildcard")
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "basic")
-        // silence stats collector errors (we don't want to add all xpack modules here)
-        .setting("logger.org.elasticsearch.xpack.monitoring.collector", "fatal")
-        .setting("xpack.monitoring.collection.enabled", "true")
         .build();
 
     @Override

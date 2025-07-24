@@ -32,7 +32,8 @@ service.
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
 the embedding generation, indexing, and query to use.
-{applies_to}`stack: ga 9.1` Newly created indices with `semantic_text` fields using dense embeddings will be
+
+{applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically.
 
@@ -120,13 +121,13 @@ for the field. Currently, `dense_vector` index options are supported.
 For text embeddings, `index_options` may match any allowed
 [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
 
-`chunking_settings`
+`chunking_settings` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Settings for chunking text into smaller passages.
 If specified, these will override the chunking settings set in the {{infer-cap}}
 endpoint associated with `inference_id`.
 If chunking settings are updated, they will not be applied to existing documents
 until they are reindexed.
-{applies_to}`stack: ga 9.1` To completely disable chunking, use the `none` chunking strategy.
+To completely disable chunking, use the `none` chunking strategy.
 
     **Valid values for `chunking_settings`**:
 

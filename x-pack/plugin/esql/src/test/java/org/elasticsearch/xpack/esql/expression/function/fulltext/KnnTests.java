@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
@@ -143,5 +144,22 @@ public class KnnTests extends AbstractFunctionTestCase {
         );
         // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
         return newExpression.replaceChildren(expression.children());
+    }
+
+    public void testSerializationOfSimple() {
+        // do nothing
+        assumeTrue("can't serialize function", canSerialize());
+        Expression expression = buildFieldExpression(testCase);
+        if (expression instanceof Knn knn) {
+            // The K parameter is not serialized, so we need to remove it from the children
+            // before we compare the serialization results
+            List<Expression> newChildren = knn.children();
+            newChildren.set(2, null); // remove the k parameter
+            Expression knnWithoutK = knn.replaceChildren(newChildren);
+            assertSerialization(knnWithoutK, testCase.getConfiguration());
+        } else {
+            // If not a Knn instance we fail the test as it is supposed to be a Knn function
+            fail("Expression is not Knn");
+        }
     }
 }

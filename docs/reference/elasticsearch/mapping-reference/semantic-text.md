@@ -32,7 +32,8 @@ service.
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
 the embedding generation, indexing, and query to use.
-Newly created indices with `semantic_text` fields using dense embeddings will be
+
+{applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically.
 
@@ -185,6 +186,15 @@ For more details on chunking and how to configure chunking settings,
 see [Configuring chunking](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference)
 in the Inference API documentation.
 
+Refer
+to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
+to learn more about semantic search using `semantic_text`.
+
+### Pre-chunking [pre-chunking]
+```{applies_to}
+stack: ga 9.1
+```
+
 You can pre-chunk the input by sending it to Elasticsearch as an array of
 strings.
 Example:
@@ -230,10 +240,6 @@ PUT test-index/_doc/1
     * Some services (such as OpenAI) will return an error.
     * Others (such as `elastic` and `elasticsearch`) will automatically truncate
       the input.
-
-Refer
-to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
-to learn more about semantic search using `semantic_text`.
 
 ## Extracting relevant fragments from semantic text [semantic-text-highlighting]
 
@@ -298,6 +304,11 @@ specified. It enables you to quickstart your semantic search by providing
 automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
+### Customizing using `semantic_text` parameters [custom-by-parameters]
+```{applies_to}
+stack: ga 9.1
+```
+
 If you want to override those defaults and customize the embeddings that
 `semantic_text` indexes, you can do so by
 modifying [parameters](#semantic-text-params):
@@ -330,6 +341,24 @@ PUT my-index-000004
   }
 }
 ```
+
+### Customizing using ingest pipelines [custom-by-pipelines]
+```{applies_to}
+stack: ga 9.0
+```
+
+In case you want to customize data indexing, use the
+[`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
+or [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
+field types and create an ingest pipeline with an 
+[{{infer}} processor](/reference/enrich-processor/inference-processor.md) to
+generate the embeddings.
+[This tutorial](docs-content://solutions/search/semantic-search/semantic-search-inference.md)
+walks you through the process. In these cases - when you use `sparse_vector` or
+`dense_vector` field types instead of the `semantic_text` field type to
+customize indexing - using the
+[`semantic_query`](/reference/query-languages/query-dsl/query-dsl-semantic-query.md)
+is not supported for querying the field data.
 
 ## Updates to `semantic_text` fields [update-script]
 

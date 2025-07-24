@@ -112,10 +112,14 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
                 var values = valuesList.get(id);
                 assertEquals(id, values.get(0));
                 List<Number> vectors = (List<Number>) values.get(1);
-                assertNotNull(vectors);
-                assertEquals(vector.size(), vectors.size());
-                for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(vector.get(i).floatValue(), vectors.get(i).floatValue(), 0F);
+                if (vector == null) {
+                    assertNull(vectors);
+                } else {
+                    assertNotNull(vectors);
+                    assertEquals(vector.size(), vectors.size());
+                    for (int i = 0; i < vector.size(); i++) {
+                        assertEquals(vector.get(i).floatValue(), vectors.get(i).floatValue(), 0F);
+                    }
                 }
             });
         }
@@ -134,12 +138,18 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             valuesList.forEach(value -> {
                 assertEquals(2, value.size());
                 Integer id = (Integer) value.get(0);
-                List<Number> vector = (List<Number>) value.get(1);
-                assertNotNull(vector);
                 List<Number> expectedVector = indexedVectors.get(id);
-                assertNotNull(expectedVector);
-                for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(expectedVector.get(i).floatValue(), vector.get(i).floatValue(), 0F);
+                List<Number> vector = (List<Number>) value.get(1);
+                if (expectedVector == null) {
+                    assertNull(vector);
+                } else {
+                    assertNotNull(vector);
+                    assertEquals(expectedVector.size(), vector.size());
+                    assertNotNull(vector);
+                    assertNotNull(expectedVector);
+                    for (int i = 0; i < vector.size(); i++) {
+                        assertEquals(expectedVector.get(i).floatValue(), vector.get(i).floatValue(), 0F);
+                    }
                 }
             });
         }
@@ -185,15 +195,20 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
             List<Number> vector = new ArrayList<>(numDims);
-            for (int j = 0; j < numDims; j++) {
-                switch (elementType) {
-                    case FLOAT:
-                        vector.add(randomFloatBetween(-1F, 1F, true));
-                        break;
-                    case BYTE:
-                        vector.add(randomByte());
-                        break;
-                    default: throw new IllegalArgumentException("Unexpected element type: " + elementType);
+            if (rarely()) {
+                docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i));
+                indexedVectors.put(i, null);
+            } else {
+                for (int j = 0; j < numDims; j++) {
+                    switch (elementType) {
+                        case FLOAT:
+                            vector.add(randomFloatBetween(-1F, 1F, true));
+                            break;
+                        case BYTE:
+                            vector.add(randomByte());
+                            break;
+                        default: throw new IllegalArgumentException("Unexpected element type: " + elementType);
+                    }
                 }
             }
             docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);

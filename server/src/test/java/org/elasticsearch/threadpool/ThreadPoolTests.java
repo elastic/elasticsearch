@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -490,38 +491,50 @@ public class ThreadPoolTests extends ESTestCase {
 
     public void testDetailedUtilizationMetric() throws Exception {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
 
-        final ThreadPool threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
-            meterRegistry,
-            builtInExecutorBuilders
+        final String threadPoolName = randomIdentifier();
+        final MetricAsserter metricAsserter = new MetricAsserter(meterRegistry, threadPoolName);
+        final int maxThreadPoolSize = randomIntBetween(5, 10);
+        final int minThreadPoolSize = randomIntBetween(0, maxThreadPoolSize);
+        final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = asInstanceOf(
+            TaskExecutionTimeTrackingEsThreadPoolExecutor.class,
+            EsExecutors.newScaling(
+                threadPoolName,
+                minThreadPoolSize,
+                maxThreadPoolSize,
+                randomLongBetween(5, 10),
+                TimeUnit.SECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(randomIdentifier()),
+                new ThreadContext(Settings.EMPTY),
+                EsExecutors.TaskTrackingConfig.builder()
+                    .trackExecutionTime(EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+                    // For this test we should always recalculate
+                    .utilizationRefreshInterval(TimeValue.ZERO)
+                    .build()
+            )
         );
+        executor.setupMetrics(meterRegistry, threadPoolName);
+
         try {
-            // write thread pool is tracked
-            final String threadPoolName = ThreadPool.Names.WRITE;
-            final MetricAsserter metricAsserter = new MetricAsserter(meterRegistry, threadPoolName);
-            final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);
-            final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = asInstanceOf(
-                TaskExecutionTimeTrackingEsThreadPoolExecutor.class,
-                threadPool.executor(threadPoolName)
-            );
-
-            final long beforePreviousCollectNanos = System.nanoTime();
+            // Utilization should be zero to begin with
             meterRegistry.getRecorder().collect();
-            double allocationUtilization = executor.getUtilization();
-            final long afterPreviousCollectNanos = System.nanoTime();
-
-            var metricValue = metricAsserter.assertLatestMetricValueMatches(
+            metricAsserter.assertLatestMetricValueMatches(
                 InstrumentType.DOUBLE_GAUGE,
                 ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
                 Measurement::getDouble,
                 equalTo(0.0d)
             );
-            logger.info("---> Utilization metric data points, APM: " + metricValue + ", Allocation: " + allocationUtilization);
-            assertThat(allocationUtilization, equalTo(0.0d));
+
+            // Run a task through to establish a lower/upper bound on the poll interval
+            final long beforePreviousPollNanos = System.nanoTime();
+            safeGet(executor.submit(() -> {}));
+            // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to run
+            assertBusy(() -> assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L)));
+            final long afterPreviousPollNanos = System.nanoTime();
 
             final AtomicLong minimumDurationNanos = new AtomicLong(Long.MAX_VALUE);
+            final AtomicLong beforeEndNanos = new AtomicLong();
             final long beforeStartNanos = System.nanoTime();
             final CyclicBarrier barrier = new CyclicBarrier(2);
             Future<?> future = executor.submit(() -> {
@@ -529,6 +542,7 @@ public class ThreadPoolTests extends ESTestCase {
                 safeSleep(100);
                 safeAwait(barrier);
                 minimumDurationNanos.set(System.nanoTime() - innerStartTimeNanos);
+                beforeEndNanos.set(System.nanoTime());
             });
             safeAwait(barrier);
             safeGet(future);
@@ -536,34 +550,31 @@ public class ThreadPoolTests extends ESTestCase {
 
             // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to run
             assertBusy(() -> assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L)));
+            final long afterEndNanos = System.nanoTime();
 
-            final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            allocationUtilization = executor.getUtilization();
-            final long afterMetricsCollectedNanos = System.nanoTime();
 
-            // Calculate upper bound on utilisation metric
-            final long minimumPollIntervalNanos = beforeMetricsCollectedNanos - afterPreviousCollectNanos;
-            final long minimumMaxExecutionTimeNanos = minimumPollIntervalNanos * threadPoolInfo.getMax();
+            // Calculate upper bound on utilization metric
+            final long minimumPollIntervalNanos = beforeEndNanos.get() - afterPreviousPollNanos;
+            final long minimumMaxExecutionTimeNanos = minimumPollIntervalNanos * maxThreadPoolSize;
             final double maximumUtilization = (double) maxDurationNanos / minimumMaxExecutionTimeNanos;
 
-            // Calculate lower bound on utilisation metric
-            final long maximumPollIntervalNanos = afterMetricsCollectedNanos - beforePreviousCollectNanos;
-            final long maximumMaxExecutionTimeNanos = maximumPollIntervalNanos * threadPoolInfo.getMax();
+            // Calculate lower bound on utilization metric
+            final long maximumPollIntervalNanos = afterEndNanos - beforePreviousPollNanos;
+            final long maximumMaxExecutionTimeNanos = maximumPollIntervalNanos * maxThreadPoolSize;
             final double minimumUtilization = (double) minimumDurationNanos.get() / maximumMaxExecutionTimeNanos;
 
             logger.info("Utilization must be in [{}, {}]", minimumUtilization, maximumUtilization);
             Matcher<Double> matcher = allOf(greaterThan(minimumUtilization), lessThan(maximumUtilization));
-            metricValue = metricAsserter.assertLatestMetricValueMatches(
+            var utilizationValue = metricAsserter.assertLatestMetricValueMatches(
                 InstrumentType.DOUBLE_GAUGE,
                 ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
                 Measurement::getDouble,
                 matcher
             );
-            logger.info("---> Utilization metric data points, APM: " + metricValue + ", Allocation: " + allocationUtilization);
-            assertThat(allocationUtilization, matcher);
+            logger.info("---> Utilization metric: " + utilizationValue);
         } finally {
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }
     }
 

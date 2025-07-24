@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.List;
@@ -584,19 +585,12 @@ public class EsExecutors {
         private final boolean trackOngoingTasks;
         private final boolean trackMaxQueueLatency;
         private final double executionTimeEwmaAlpha;
+        private final TimeValue utilizationRefreshInterval;
 
-        public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
-            false,
-            false,
-            false,
-            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
-        );
-        public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
-            true,
-            false,
-            false,
-            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
-        );
+        public static final TaskTrackingConfig DO_NOT_TRACK = TaskTrackingConfig.builder().build();
+        public static final TaskTrackingConfig DEFAULT = TaskTrackingConfig.builder()
+            .trackExecutionTime(DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST)
+            .build();
 
         /**
          * @param trackExecutionTime Whether to track execution stats
@@ -608,12 +602,14 @@ public class EsExecutors {
             boolean trackExecutionTime,
             boolean trackOngoingTasks,
             boolean trackMaxQueueLatency,
-            double executionTimeEWMAAlpha
+            double executionTimeEWMAAlpha,
+            TimeValue utilizationRefreshInterval
         ) {
             this.trackExecutionTime = trackExecutionTime;
             this.trackOngoingTasks = trackOngoingTasks;
             this.trackMaxQueueLatency = trackMaxQueueLatency;
             this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
+            this.utilizationRefreshInterval = utilizationRefreshInterval;
         }
 
         public boolean trackExecutionTime() {
@@ -632,6 +628,10 @@ public class EsExecutors {
             return executionTimeEwmaAlpha;
         }
 
+        public TimeValue getUtilizationRefreshInterval() {
+            return utilizationRefreshInterval;
+        }
+
         public static Builder builder() {
             return new Builder();
         }
@@ -641,6 +641,7 @@ public class EsExecutors {
             private boolean trackOngoingTasks = false;
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+            private TimeValue utilizationRefreshInterval = TimeValue.timeValueSeconds(30);
 
             public Builder() {}
 
@@ -660,8 +661,19 @@ public class EsExecutors {
                 return this;
             }
 
+            public Builder utilizationRefreshInterval(TimeValue utilizationRefreshInterval) {
+                this.utilizationRefreshInterval = utilizationRefreshInterval;
+                return this;
+            }
+
             public TaskTrackingConfig build() {
-                return new TaskTrackingConfig(trackExecutionTime, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
+                return new TaskTrackingConfig(
+                    trackExecutionTime,
+                    trackOngoingTasks,
+                    trackMaxQueueLatency,
+                    ewmaAlpha,
+                    utilizationRefreshInterval
+                );
             }
         }
     }

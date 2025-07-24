@@ -41,7 +41,6 @@ import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UT
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
     public static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 18;
     private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
-    private static final long UTILISATION_REFRESH_INTERVAL_NANOS = TimeValue.timeValueSeconds(45).nanos();
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
@@ -52,7 +51,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
     private final boolean trackMaxQueueLatency;
     private final LongAccumulator maxQueueLatencyMillisSinceLastPoll = new LongAccumulator(Long::max, 0);
-    private final UtilizationTracker utilizationTracker = new UtilizationTracker();
+    private final UtilizationTracker utilizationTracker;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -73,6 +72,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
+        this.utilizationTracker = new UtilizationTracker(trackingConfig.getUtilizationRefreshInterval());
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -151,7 +151,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     /**
      * Returns the fraction of the maximum possible thread time that was actually used recently.
      *
-     * This value is updated approximately every {@link #UTILISATION_REFRESH_INTERVAL_NANOS}
+     * This value is updated approximately every {@link TaskTrackingConfig#getUtilizationRefreshInterval()}
      *
      * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started
      * earlier, contributing a larger execution time.
@@ -249,9 +249,15 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * Uses the difference of {@link #totalExecutionTime} since the last calculation to determine how much activity has occurred.
      */
     private class UtilizationTracker {
-        final AtomicLong lastCalculatedTime = new AtomicLong(System.nanoTime());
+        private final long refreshIntervalNanos;
+        private final AtomicLong lastCalculatedTime;
         volatile long lastTotalExecutionTime = 0;
         volatile double lastUtilization = 0;
+
+        UtilizationTracker(TimeValue refreshInterval) {
+            this.refreshIntervalNanos = refreshInterval.nanos();
+            this.lastCalculatedTime = new AtomicLong(System.nanoTime() - refreshIntervalNanos);
+        }
 
         /**
          * If our utilization value is stale, recalculate it
@@ -259,9 +265,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         public void recalculateUtilizationIfDue() {
             final long now = System.nanoTime();
             final long lastCalcTimeCopy = lastCalculatedTime.get();
-            if (now - lastCalcTimeCopy > UTILISATION_REFRESH_INTERVAL_NANOS) {
+            if (now - lastCalcTimeCopy > refreshIntervalNanos) {
 
-                // UTILISATION_REFRESH_INTERVAL should be large enough that this
+                // `refreshIntervalNanos` should be large enough that this
                 // compare-and-swap is enough to avoid concurrency issues here
                 if (lastCalculatedTime.compareAndSet(lastCalcTimeCopy, now)) {
                     final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();

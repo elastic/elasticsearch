@@ -80,9 +80,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.time.Instant;
 import java.time.InstantSource;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -572,9 +569,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     public static void validateNoSystemPropertiesInPipelineConfig(final Map<String, Object> pipelineConfig) {
-        if (pipelineConfig.containsKey(Pipeline.CREATED_DATE_KEY)) {
+        if (pipelineConfig.containsKey(Pipeline.CREATED_DATE_MILLIS)) {
+            throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system: created_date_millis.");
+        } else if (pipelineConfig.containsKey(Pipeline.CREATED_DATE)) {
             throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system: created_date.");
-        } else if (pipelineConfig.containsKey(Pipeline.MODIFIED_DATE_KEY)) {
+        } else if (pipelineConfig.containsKey(Pipeline.MODIFIED_DATE_MILLIS)) {
+            throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system: modified_date_millis.");
+        } else if (pipelineConfig.containsKey(Pipeline.MODIFIED_DATE)) {
             throw new ElasticsearchParseException("Provided a pipeline property which is managed by the system: modified_date.");
         }
     }
@@ -593,8 +594,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             Map<String, Object> currentConfigWithoutSystemProps = new HashMap<>(
                 currentIngestMetadata.getPipelines().get(request.getId()).getConfig()
             );
-            currentConfigWithoutSystemProps.remove(Pipeline.CREATED_DATE_KEY);
-            currentConfigWithoutSystemProps.remove(Pipeline.MODIFIED_DATE_KEY);
+            currentConfigWithoutSystemProps.remove(Pipeline.CREATED_DATE_MILLIS);
+            currentConfigWithoutSystemProps.remove(Pipeline.MODIFIED_DATE_MILLIS);
 
             return newPipelineConfig.equals(currentConfigWithoutSystemProps);
         }
@@ -693,10 +694,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Used in this class and externally by the {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
      */
     public static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
-        // always output millis even if instantSource returns millis == 0
-        private static final DateTimeFormatter ISO8601_WITH_MILLIS_FORMATTER = new DateTimeFormatterBuilder().appendInstant(3)
-            .toFormatter(Locale.ROOT);
-
         private final PutPipelineRequest request;
         private final InstantSource instantSource;
 
@@ -779,20 +776,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
             }
 
-            final String iso8601WithMillisNow = ISO8601_WITH_MILLIS_FORMATTER.format(
-                instantSource.instant().truncatedTo(ChronoUnit.MILLIS)
-            );
+            final long nowMillis = instantSource.millis();
             if (existingPipeline == null) {
-                newPipelineConfig.put(Pipeline.CREATED_DATE_KEY, iso8601WithMillisNow);
+                newPipelineConfig.put(Pipeline.CREATED_DATE_MILLIS, nowMillis);
             } else {
-                Object existingCreatedAt = existingPipeline.getConfig().get(Pipeline.CREATED_DATE_KEY);
+                Object existingCreatedAt = existingPipeline.getConfig().get(Pipeline.CREATED_DATE_MILLIS);
                 // only set/carry over `created_date` if existing pipeline already has it.
                 // would be confusing if existing pipelines were all updated to have `created_date` set to now.
                 if (existingCreatedAt != null) {
-                    newPipelineConfig.put(Pipeline.CREATED_DATE_KEY, existingCreatedAt);
+                    newPipelineConfig.put(Pipeline.CREATED_DATE_MILLIS, existingCreatedAt);
                 }
             }
-            newPipelineConfig.put(Pipeline.MODIFIED_DATE_KEY, iso8601WithMillisNow);
+            newPipelineConfig.put(Pipeline.MODIFIED_DATE_MILLIS, nowMillis);
 
             pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), newPipelineConfig));
             return new IngestMetadata(pipelines);

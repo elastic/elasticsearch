@@ -20,7 +20,10 @@ setup:
 
   - do:
       ingest.get_pipeline:
+        human: true
         id: "my_pipeline"
+  - gte: { my_pipeline.created_date_millis: 0 }
+  - gte: { my_pipeline.modified_date_millis: 0 }
   - match: { my_pipeline.created_date: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
   - match: { my_pipeline.modified_date: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
 
@@ -37,6 +40,34 @@ setup:
           }
   - match: { status: 400 }
   - match: { error.reason: "Provided a pipeline property which is managed by the system: created_date." }
+
+---
+"Test PUT setting created_date_millis":
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "processors": [],
+            "created_date_millis": 0
+          }
+  - match: { status: 400 }
+  - match: { error.reason: "Provided a pipeline property which is managed by the system: created_date_millis." }
+
+---
+"Test PUT setting modified_date_millis":
+  - do:
+      catch: bad_request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [],
+            "modified_date_millis": 0
+          }
+  - match: { status: 400 }
+  - match: { error.reason: "Provided a pipeline property which is managed by the system: modified_date_millis." }
 
 ---
 "Test PUT setting modified_date":

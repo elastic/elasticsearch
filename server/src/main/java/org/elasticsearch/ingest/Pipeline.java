@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.script.ScriptService;
 
-import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -36,8 +35,10 @@ public final class Pipeline {
     public static final String META_KEY = "_meta";
     public static final String FIELD_ACCESS_PATTERN = "field_access_pattern";
     public static final String DEPRECATED_KEY = "deprecated";
-    public static final String CREATED_DATE_KEY = "created_date";
-    public static final String MODIFIED_DATE_KEY = "modified_date";
+    public static final String CREATED_DATE_MILLIS = "created_date_millis";
+    public static final String CREATED_DATE = "created_date";
+    public static final String MODIFIED_DATE_MILLIS = "modified_date_millis";
+    public static final String MODIFIED_DATE = "modified_date";
 
     private final String id;
     @Nullable
@@ -172,8 +173,8 @@ public final class Pipeline {
             processorFactories,
             projectId
         );
-        String createdDate = ConfigurationUtils.readOptionalStringOrLongProperty(null, null, config, CREATED_DATE_KEY);
-        String modifiedDate = ConfigurationUtils.readOptionalStringOrLongProperty(null, null, config, MODIFIED_DATE_KEY);
+        String createdDate = ConfigurationUtils.readOptionalStringOrLongProperty(null, null, config, CREATED_DATE_MILLIS);
+        String modifiedDate = ConfigurationUtils.readOptionalStringOrLongProperty(null, null, config, MODIFIED_DATE_MILLIS);
         if (config.isEmpty() == false) {
             throw new ElasticsearchParseException(
                 "pipeline ["
@@ -186,8 +187,8 @@ public final class Pipeline {
             throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
         CompoundProcessor compoundProcessor = new CompoundProcessor(false, processors, onFailureProcessors);
-        Long createdDateMillis = createdDate == null ? null : Instant.parse(createdDate).toEpochMilli();
-        Long modifiedDateMillis = modifiedDate == null ? null : Instant.parse(modifiedDate).toEpochMilli();
+        Long createdDateMillis = createdDate == null ? null : Long.valueOf(createdDate);
+        Long modifiedDateMillis = modifiedDate == null ? null : Long.valueOf(modifiedDate);
         return new Pipeline(
             id,
             description,

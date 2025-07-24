@@ -253,15 +253,15 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
 
     private Map<String, Object> configForTransport(final TransportVersion transportVersion) {
         final boolean transportSupportsNewProperties = transportVersion.onOrAfter(TransportVersions.PIPELINE_TRACKING_INFO);
-        final boolean noNewProperties = config.containsKey(Pipeline.CREATED_DATE_KEY) == false
-            && config.containsKey(Pipeline.MODIFIED_DATE_KEY) == false;
+        final boolean noNewProperties = config.containsKey(Pipeline.CREATED_DATE_MILLIS) == false
+            && config.containsKey(Pipeline.MODIFIED_DATE_MILLIS) == false;
 
         if (transportSupportsNewProperties || noNewProperties) {
             return config;
         }
         final Map<String, Object> configWithoutNewSystemProperties = new HashMap<>(config);
-        configWithoutNewSystemProperties.remove(Pipeline.CREATED_DATE_KEY);
-        configWithoutNewSystemProperties.remove(Pipeline.MODIFIED_DATE_KEY);
+        configWithoutNewSystemProperties.remove(Pipeline.CREATED_DATE_MILLIS);
+        configWithoutNewSystemProperties.remove(Pipeline.MODIFIED_DATE_MILLIS);
         return Collections.unmodifiableMap(configWithoutNewSystemProperties);
     }
 }

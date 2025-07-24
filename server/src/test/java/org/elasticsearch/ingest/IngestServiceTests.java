@@ -834,12 +834,6 @@ public class IngestServiceTests extends ESTestCase {
         Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline.getCreatedDateMillis().orElseThrow(), is(0L));
         assertThat(pipeline.getModifiedDateMillis().orElseThrow(), is(0L));
-        // test PipelineConfiguration has millis part in iso8601 even if instantSource provides millis part == 0
-        final Map<String, Object> clusterStatePipelineConfig = ((IngestMetadata) clusterState.metadata()
-            .getProject(projectId)
-            .custom(IngestMetadata.TYPE)).getPipelines().get(id).getConfig();
-        assertThat(clusterStatePipelineConfig.get(Pipeline.CREATED_DATE_KEY), is("1970-01-01T00:00:00.000Z"));
-        assertThat(clusterStatePipelineConfig.get(Pipeline.MODIFIED_DATE_KEY), is("1970-01-01T00:00:00.000Z"));
 
         // overwrite existing pipeline:
         putRequest = putJsonPipelineRequest(id, """

@@ -94,12 +94,13 @@ abstract class AbstractPreserveAllocations {
         AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, deployments);
         for (Node n : nodes) {
             for (Deployment deploymentAllocationsToPreserve : deployments) {
-//            for (int i = 0; i < deployments.size(); i++) {
-//                Deployment deploymentAllocationsToPreserve = deployments.get(i);
+                // for (int i = 0; i < deployments.size(); i++) {
+                // Deployment deploymentAllocationsToPreserve = deployments.get(i);
 
                 // if the model m is already allocated on the node n and I want to preserve this allocation
                 int preservedAllocations = addPreservedAllocations(n, deploymentAllocationsToPreserve);
-                logger.info("Node [{}] has {} preserved allocations for deployment [{}]",
+                logger.info(
+                    "Node [{}] has {} preserved allocations for deployment [{}]",
                     n.id(),
                     preservedAllocations,
                     deploymentAllocationsToPreserve.deploymentId()
@@ -114,7 +115,7 @@ abstract class AbstractPreserveAllocations {
                             n.id()
                         );
                         mergedPlanBuilder.assignModelToNode(deploymentAllocationsToPreserve, n, preservedAllocations, requiredMemory);
-//                        deployments.get(i).currentAllocationsByNodeId().put(n.id(), preservedAllocations);
+                        // deployments.get(i).currentAllocationsByNodeId().put(n.id(), preservedAllocations);
                     }
                 }
             }
@@ -136,8 +137,13 @@ abstract class AbstractPreserveAllocations {
 
                 // Calculate memory for ONLY the additional allocations (beyond what's already assigned)
                 // This is important because getDeploymentMemoryRequirement already accounts for existing and pending allocations
-                long requiredMemory = mergedPlanBuilder.getDeploymentMemoryRequirement(deploymentNewAllocations, n, additionalAllocationsToAssign);
-                if (additionalAllocationsToAssign > 0 && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, additionalAllocationsToAssign, requiredMemory)) {
+                long requiredMemory = mergedPlanBuilder.getDeploymentMemoryRequirement(
+                    deploymentNewAllocations,
+                    n,
+                    additionalAllocationsToAssign
+                );
+                if (additionalAllocationsToAssign > 0
+                    && mergedPlanBuilder.canAssign(deploymentNewAllocations, n, additionalAllocationsToAssign, requiredMemory)) {
                     mergedPlanBuilder.assignModelToNode(deploymentNewAllocations, n, additionalAllocationsToAssign);
                 }
             }

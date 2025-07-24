@@ -436,7 +436,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
             logger.debug(
                 "Memory calculation for [{}] on node [{}]: current=[{}], pending=[{}], additional=[{}]",
-                deployment.deploymentId(), node.id(), currentAllocations, pendingAllocations, additionalAllocations
+                deployment.deploymentId(),
+                node.id(),
+                currentAllocations,
+                pendingAllocations,
+                additionalAllocations
             );
 
             if (totalExistingAllocations > 0) {
@@ -483,8 +487,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
          */
         public Builder assignModelToNode(Deployment deployment, Node node, int additionalAllocations, long requiredMemory) {
 
-            logger.info("Assigning [{}] allocations of [{}] to node [{}]",
-                additionalAllocations, deployment.deploymentId(), node.id());
+            logger.info("Assigning [{}] allocations of [{}] to node [{}]", additionalAllocations, deployment.deploymentId(), node.id());
 
             if (additionalAllocations <= 0) {
                 return this;
@@ -493,8 +496,12 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             int currentAllocations = getCurrentAllocations(deployment, node);
             int pendingAllocations = getPendingAllocations(deployment, node);
 
-            logger.info("Before assignment - current: [{}], pending: [{}], additional: [{}]",
-                currentAllocations, pendingAllocations, additionalAllocations);
+            logger.info(
+                "Before assignment - current: [{}], pending: [{}], additional: [{}]",
+                currentAllocations,
+                pendingAllocations,
+                additionalAllocations
+            );
 
             if (requiredMemory > remainingNodeMemory.get(node)) {
                 throw new IllegalArgumentException(
@@ -507,7 +514,8 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                         + "]"
                 );
             }
-            if (deployment.priority == Priority.NORMAL && additionalAllocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
+            if (deployment.priority == Priority.NORMAL
+                && additionalAllocations * deployment.threadsPerAllocation() > remainingNodeCores.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough cores on node ["
                         + node.id()

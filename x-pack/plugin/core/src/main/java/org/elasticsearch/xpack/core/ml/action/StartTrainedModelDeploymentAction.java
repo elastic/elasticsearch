@@ -809,8 +809,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
             Thread.dumpStack();
         }
 
-        logger.info("Call to estimateMemoryUsageBytes with modelId [{}], totalDefinitionLength [{}], perDeploymentMemoryBytes [{}], perAllocationMemoryBytes [{}], numberOfAllocations [{}]",
-            modelId, totalDefinitionLength, perDeploymentMemoryBytes, perAllocationMemoryBytes, numberOfAllocations);
+        logger.info(
+            "Call to estimateMemoryUsageBytes with modelId [{}], totalDefinitionLength [{}], perDeploymentMemoryBytes [{}], perAllocationMemoryBytes [{}], numberOfAllocations [{}]",
+            modelId,
+            totalDefinitionLength,
+            perDeploymentMemoryBytes,
+            perAllocationMemoryBytes,
+            numberOfAllocations
+        );
 
         if (numberOfAllocations == 0) {
             return 0;

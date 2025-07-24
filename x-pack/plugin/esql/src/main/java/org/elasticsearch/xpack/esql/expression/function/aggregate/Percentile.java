@@ -174,7 +174,7 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
             return ((Number) literal.value()).intValue();
         }
         throw new EsqlIllegalArgumentException(
-            format(null, "Percentile value must be a constant integer in [{}], found [{}]", source(), percentile)
+            format(null, "Percentile value must be a constant number in [{}], found [{}]", source(), percentile)
         );
     }
 

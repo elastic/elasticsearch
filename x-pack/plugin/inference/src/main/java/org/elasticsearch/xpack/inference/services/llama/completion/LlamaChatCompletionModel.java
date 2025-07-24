@@ -33,6 +33,7 @@ public class LlamaChatCompletionModel extends LlamaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to chat completion
+     * @param taskSettings the settings for the task, such as user or other parameters
      * @param secrets the secret settings for the model, such as API keys or tokens
      * @param context the context for parsing configuration settings
      */
@@ -61,6 +62,7 @@ public class LlamaChatCompletionModel extends LlamaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to chat completion
+     * @param taskSettings the settings for the task, such as user or other parameters
      * @param secrets the secret settings for the model, such as API keys or tokens
      */
     public LlamaChatCompletionModel(
@@ -75,6 +77,14 @@ public class LlamaChatCompletionModel extends LlamaModel {
         setPropertiesFromServiceSettings(serviceSettings);
     }
 
+    /**
+     * Factory method to create a LlamaChatCompletionModel with overridden task settings based on the request.
+     * If the request does not specify task settings, the original model is returned.
+     *
+     * @param model the original LlamaChatCompletionModel
+     * @param taskSettings the task settings to override, which may include parameters like user
+     * @return a new LlamaChatCompletionModel with overridden task settings or the original model if no overrides are specified
+     */
     public static LlamaChatCompletionModel of(LlamaChatCompletionModel model, Map<String, Object> taskSettings) {
         if (taskSettings == null || taskSettings.isEmpty()) {
             return model;

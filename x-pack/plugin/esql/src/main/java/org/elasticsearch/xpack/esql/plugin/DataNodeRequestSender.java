@@ -186,7 +186,7 @@ abstract class DataNodeRequestSender {
     }
 
     private void trySendingRequestsForPendingShards(TargetShards targetShards, ComputeListener computeListener) {
-        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        assert ThreadPool.assertCurrentThreadPool(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME, ThreadPool.Names.SEARCH);
         changed.set(true);
         final ActionListener<Void> listener = computeListener.acquireAvoid();
         try {

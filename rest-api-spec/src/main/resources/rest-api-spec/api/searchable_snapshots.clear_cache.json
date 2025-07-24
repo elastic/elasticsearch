@@ -50,10 +50,6 @@
         ],
         "default": "open",
         "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
-      },
-      "index": {
-        "type": "list",
-        "description": "A comma-separated list of index name to limit the operation"
       }
     }
   }

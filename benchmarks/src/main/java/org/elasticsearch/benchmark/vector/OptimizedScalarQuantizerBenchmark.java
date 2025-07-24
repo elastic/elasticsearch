@@ -43,7 +43,6 @@ public class OptimizedScalarQuantizerBenchmark {
 
     float[] vector;
     float[] centroid;
-    byte[] legacyDestination;
     int[] destination;
 
     @Param({ "1", "4", "7" })
@@ -55,7 +54,6 @@ public class OptimizedScalarQuantizerBenchmark {
     public void init() {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         // random byte arrays for binary methods
-        legacyDestination = new byte[dims];
         destination = new int[dims];
         vector = new float[dims];
         centroid = new float[dims];
@@ -66,16 +64,9 @@ public class OptimizedScalarQuantizerBenchmark {
     }
 
     @Benchmark
-    public byte[] scalar() {
-        osq.legacyScalarQuantize(vector, legacyDestination, bits, centroid);
-        return legacyDestination;
-    }
-
-    @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public byte[] legacyVector() {
-        osq.legacyScalarQuantize(vector, legacyDestination, bits, centroid);
-        return legacyDestination;
+    public int[] scalar() {
+        osq.scalarQuantize(vector, destination, bits, centroid);
+        return destination;
     }
 
     @Benchmark

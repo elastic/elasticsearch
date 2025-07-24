@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -250,5 +251,111 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             }
             """;
         checkRRFRetrieverParsing(restContent);
+    }
+
+    public void testRRFRetrieverComponentErrorCases() throws IOException {
+        // Test case 1: Multiple retrievers in same component
+        String multipleRetrieversContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {
+                      "retriever": { "test": { "value": "first" } },
+                      "standard": { "query": { "match_all": {} } }
+                    }
+                  ],
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+
+        expectParsingException(multipleRetrieversContent, "only one retriever can be specified");
+
+        // Test case 2: Weight without retriever
+        String weightOnlyContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {
+                      "weight": 2.0
+                    }
+                  ],
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+
+        expectParsingException(weightOnlyContent, "retriever component must contain a retriever");
+
+        // Test case 3: Empty retriever component
+        String emptyComponentContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {}
+                  ],
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+
+        expectParsingException(emptyComponentContent, "retriever component must contain a retriever");
+
+        // Test case 4: Negative weight
+        String negativeWeightContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {
+                      "retriever": { "test": { "value": "test" } },
+                      "weight": -1.0
+                    }
+                  ],
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+
+        expectParsingException(negativeWeightContent, "weight] must be non-negative");
+    }
+
+    private void expectParsingException(String restContent, String expectedMessageFragment) throws IOException {
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+            Exception exception = expectThrows(Exception.class, () -> {
+                new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            });
+
+            String message = exception.getMessage();
+            if (exception.getCause() != null) {
+                message = exception.getCause().getMessage();
+            }
+
+            assertThat(
+                "Expected error message to contain: " + expectedMessageFragment + ", but got: " + message,
+                message,
+                containsString(expectedMessageFragment)
+            );
+        }
     }
 }

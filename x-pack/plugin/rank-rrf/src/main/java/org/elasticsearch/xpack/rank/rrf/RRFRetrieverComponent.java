@@ -77,38 +77,71 @@ public class RRFRetrieverComponent implements ToXContentObject {
     }
 
     public static RRFRetrieverComponent fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
-        RetrieverBuilder innerRetriever = null;
-        float weight = DEFAULT_WEIGHT;
-
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(), "[{}] expected object", parser.currentToken());
+            throw new ParsingException(parser.getTokenLocation(), "expected object but found [{}]", parser.currentToken());
         }
 
-        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            var name = parser.currentName();
+        // Peek at the first field to determine the format
+        XContentParser.Token token = parser.nextToken();
+        if (token == XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "retriever component must contain a retriever");
+        }
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "expected field name but found [{}]", token);
+        }
 
-            if (name.equals(RETRIEVER_FIELD.getPreferredName())) {
-                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new ParsingException(parser.getTokenLocation(), "[{}] expected object", parser.currentToken());
+        String firstFieldName = parser.currentName();
+
+        // Check if this is a structured component (starts with "retriever" or "weight")
+        if (RETRIEVER_FIELD.match(firstFieldName, parser.getDeprecationHandler())
+            || WEIGHT_FIELD.match(firstFieldName, parser.getDeprecationHandler())) {
+            // This is a structured component - parse manually
+            RetrieverBuilder retriever = null;
+            Float weight = null;
+
+            do {
+                String fieldName = parser.currentName();
+                if (RETRIEVER_FIELD.match(fieldName, parser.getDeprecationHandler())) {
+                    if (retriever != null) {
+                        throw new ParsingException(parser.getTokenLocation(), "only one retriever can be specified");
+                    }
+                    parser.nextToken();
+                    parser.nextToken();
+                    String retrieverType = parser.currentName();
+                    retriever = parser.namedObject(RetrieverBuilder.class, retrieverType, context);
+                    context.trackRetrieverUsage(retriever.getName());
+                    parser.nextToken();
+                } else if (WEIGHT_FIELD.match(fieldName, parser.getDeprecationHandler())) {
+                    if (weight != null) {
+                        throw new ParsingException(parser.getTokenLocation(), "[weight] field can only be specified once");
+                    }
+                    parser.nextToken();
+                    weight = parser.floatValue();
+                } else {
+                    if (retriever != null) {
+                        throw new ParsingException(parser.getTokenLocation(), "only one retriever can be specified");
+                    }
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "unknown field [{}], expected [{}] or [{}]",
+                        fieldName,
+                        RETRIEVER_FIELD.getPreferredName(),
+                        WEIGHT_FIELD.getPreferredName()
+                    );
                 }
-                parser.nextToken();
+            } while (parser.nextToken() == XContentParser.Token.FIELD_NAME);
 
-                name = parser.currentName();
-                innerRetriever = parser.namedObject(RetrieverBuilder.class, name, context);
-                parser.nextToken();
-            } else if (name.equals(WEIGHT_FIELD.getPreferredName())) {
-                if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
-                    throw new ParsingException(parser.getTokenLocation(), "[{}] expected number", parser.currentToken());
-                }
-
-                weight = parser.floatValue();
-            } else {
-                innerRetriever = parser.namedObject(RetrieverBuilder.class, name, context);
-                context.trackRetrieverUsage(innerRetriever.getName());
-                parser.nextToken();
-                break;
+            if (retriever == null) {
+                throw new ParsingException(parser.getTokenLocation(), "retriever component must contain a retriever");
             }
+
+            return new RRFRetrieverComponent(retriever, weight);
+        } else {
+            RetrieverBuilder retriever = parser.namedObject(RetrieverBuilder.class, firstFieldName, context);
+            context.trackRetrieverUsage(retriever.getName());
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            }
+            return new RRFRetrieverComponent(retriever, DEFAULT_WEIGHT);
         }
-        return new RRFRetrieverComponent(innerRetriever, weight);
     }
 }

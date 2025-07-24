@@ -21,6 +21,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Simulates the impact to each node's write-load in response to the movement of individual
+ * shards around the cluster.
+ */
 public class WriteLoadPerShardSimulator {
 
     private final ObjectDoubleMap<String> simulatedWriteLoadDeltas;

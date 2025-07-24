@@ -112,10 +112,10 @@ class RoundToLong {
 
     @Evaluator(extraName = "6")
     static long process(
-        long field,
-        @Fixed long p0,
-        @Fixed long p1,
-        @Fixed long p2,
+        long field,      // hack to keep the formatter happy.
+        @Fixed long p0,  // int is so short this should be on one line but double is not.
+        @Fixed long p1,  // That's not compatible with the templates.
+        @Fixed long p2,  // So we comment to make the formatter not try to change the line.
         @Fixed long p3,
         @Fixed long p4,
         @Fixed long p5
@@ -140,10 +140,10 @@ class RoundToLong {
 
     @Evaluator(extraName = "7")
     static long process(
-        long field,
-        @Fixed long p0,
-        @Fixed long p1,
-        @Fixed long p2,
+        long field,      // hack to keep the formatter happy.
+        @Fixed long p0,  // int is so short this should be on one line but double is not.
+        @Fixed long p1,  // That's not compatible with the templates.
+        @Fixed long p2,  // So we comment to make the formatter not try to change the line.
         @Fixed long p3,
         @Fixed long p4,
         @Fixed long p5,
@@ -245,6 +245,7 @@ class RoundToLong {
         }
         return p8;
     }
+
     @Evaluator(extraName = "10")
     static long process(
         long field,

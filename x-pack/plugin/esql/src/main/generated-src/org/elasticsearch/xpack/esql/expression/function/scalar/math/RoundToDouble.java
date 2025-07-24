@@ -112,10 +112,10 @@ class RoundToDouble {
 
     @Evaluator(extraName = "6")
     static double process(
-        double field,
-        @Fixed double p0,
-        @Fixed double p1,
-        @Fixed double p2,
+        double field,      // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
         @Fixed double p3,
         @Fixed double p4,
         @Fixed double p5
@@ -140,10 +140,10 @@ class RoundToDouble {
 
     @Evaluator(extraName = "7")
     static double process(
-        double field,
-        @Fixed double p0,
-        @Fixed double p1,
-        @Fixed double p2,
+        double field,      // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
         @Fixed double p3,
         @Fixed double p4,
         @Fixed double p5,
@@ -245,6 +245,7 @@ class RoundToDouble {
         }
         return p8;
     }
+
     @Evaluator(extraName = "10")
     static double process(
         double field,

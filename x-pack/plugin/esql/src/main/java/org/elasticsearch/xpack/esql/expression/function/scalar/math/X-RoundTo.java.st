@@ -112,10 +112,10 @@ class RoundTo$Type$ {
 
     @Evaluator(extraName = "6")
     static $type$ process(
-        $type$ field,
-        @Fixed $type$ p0,
-        @Fixed $type$ p1,
-        @Fixed $type$ p2,
+        $type$ field,      // hack to keep the formatter happy.
+        @Fixed $type$ p0,  // int is so short this should be on one line but double is not.
+        @Fixed $type$ p1,  // That's not compatible with the templates.
+        @Fixed $type$ p2,  // So we comment to make the formatter not try to change the line.
         @Fixed $type$ p3,
         @Fixed $type$ p4,
         @Fixed $type$ p5
@@ -140,10 +140,10 @@ class RoundTo$Type$ {
 
     @Evaluator(extraName = "7")
     static $type$ process(
-        $type$ field,
-        @Fixed $type$ p0,
-        @Fixed $type$ p1,
-        @Fixed $type$ p2,
+        $type$ field,      // hack to keep the formatter happy.
+        @Fixed $type$ p0,  // int is so short this should be on one line but double is not.
+        @Fixed $type$ p1,  // That's not compatible with the templates.
+        @Fixed $type$ p2,  // So we comment to make the formatter not try to change the line.
         @Fixed $type$ p3,
         @Fixed $type$ p4,
         @Fixed $type$ p5,
@@ -245,6 +245,7 @@ class RoundTo$Type$ {
         }
         return p8;
     }
+
     @Evaluator(extraName = "10")
     static $type$ process(
         $type$ field,

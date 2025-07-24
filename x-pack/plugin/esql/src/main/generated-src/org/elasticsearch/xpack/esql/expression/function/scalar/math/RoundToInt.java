@@ -112,10 +112,10 @@ class RoundToInt {
 
     @Evaluator(extraName = "6")
     static int process(
-        int field,
-        @Fixed int p0,
-        @Fixed int p1,
-        @Fixed int p2,
+        int field,      // hack to keep the formatter happy.
+        @Fixed int p0,  // int is so short this should be on one line but double is not.
+        @Fixed int p1,  // That's not compatible with the templates.
+        @Fixed int p2,  // So we comment to make the formatter not try to change the line.
         @Fixed int p3,
         @Fixed int p4,
         @Fixed int p5
@@ -140,10 +140,10 @@ class RoundToInt {
 
     @Evaluator(extraName = "7")
     static int process(
-        int field,
-        @Fixed int p0,
-        @Fixed int p1,
-        @Fixed int p2,
+        int field,      // hack to keep the formatter happy.
+        @Fixed int p0,  // int is so short this should be on one line but double is not.
+        @Fixed int p1,  // That's not compatible with the templates.
+        @Fixed int p2,  // So we comment to make the formatter not try to change the line.
         @Fixed int p3,
         @Fixed int p4,
         @Fixed int p5,
@@ -245,6 +245,7 @@ class RoundToInt {
         }
         return p8;
     }
+
     @Evaluator(extraName = "10")
     static int process(
         int field,

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +40,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
 
     public InferenceRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
+        assumeTrue("Rerank snippets does not work in release builds", Build.current().isSnapshot());
     }
 
     @Override

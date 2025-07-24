@@ -2,5 +2,5 @@
 
 **Description**
 
-Computes the MD5 hash of the input (if the MD5 hash is available on the JVM).
+Calculates the l1 norm between two dense_vectors.
 

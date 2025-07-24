@@ -1,0 +1,4 @@
+pr: 130982
+summary: Support chained IndexReader wrappers for extensible Field-Level Security, Document-Level Security, and custom features like Field Masking
+area: Search Security
+type: enhancement

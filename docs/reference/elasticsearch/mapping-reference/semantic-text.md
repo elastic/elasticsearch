@@ -190,9 +190,7 @@ Refer
 to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
 to learn more about semantic search using `semantic_text`.
 
-### Pre-chunking [pre-chunking]
-
-{applies_to}`stack: ga 9.1`
+### Pre-chunking {applies_to}`stack: ga 9.1` [pre-chunking]
 
 You can pre-chunk the input by sending it to Elasticsearch as an array of
 strings.
@@ -340,9 +338,7 @@ PUT my-index-000004
 }
 ```
 
-### Customizing using ingest pipelines [custom-by-pipelines]
-
-{applies_to}`stack: ga 9.0`
+### Customizing using ingest pipelines {applies_to}`stack: ga 9.0` [custom-by-pipelines]
 
 In case you want to customize data indexing, use the
 [`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)

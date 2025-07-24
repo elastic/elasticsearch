@@ -184,7 +184,7 @@ public class CacheTests extends ESTestCase {
                 cache.invalidate(entry);
             }
 
-            Cache.CacheStats stats = cache.stats();
+            Cache.Stats stats = cache.stats();
             assertEquals(expectedHits, stats.getHits());
             assertEquals(expectedMisses, stats.getMisses());
             assertEquals(invalidations, stats.getEvictions());

@@ -518,6 +518,9 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
   method: testUpdates
   issue: https://github.com/elastic/elasticsearch/issues/131795
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testDifferentDimensions {functionName=v_dot_product similarityFunction=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/131845
 
 # Examples:
 #

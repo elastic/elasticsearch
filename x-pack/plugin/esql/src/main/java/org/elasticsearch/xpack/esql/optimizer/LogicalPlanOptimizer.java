@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceKnnWithNoPushedDownFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceRegexMatch;
@@ -194,6 +195,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownAndCombineLimits(),
             new PushDownAndCombineFilters(),
             new PushDownConjunctionsToKnnPrefilters(),
+            new ReplaceKnnWithNoPushedDownFilters(),
             new PushDownAndCombineSample(),
             new PushDownInferencePlan(),
             new PushDownEval(),

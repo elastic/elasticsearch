@@ -27,8 +27,10 @@ public final class VectorWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWritables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
 
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled()) {
+        if (EsqlCapabilities.Cap.KNN_FUNCTION_V4.isEnabled()) {
             entries.add(Knn.ENTRY);
+            // ExactNN is needed as a KNN optimization
+            entries.add(ExactNN.ENTRY);
         }
         if (EsqlCapabilities.Cap.COSINE_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             entries.add(CosineSimilarity.ENTRY);

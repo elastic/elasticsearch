@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -48,6 +47,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAnalysisPlanVerificationAware, TelemetryAware, SortAgnostic {
@@ -152,7 +152,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         out.writeNamedWriteable(policyName());
         out.writeNamedWriteable(matchField());
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeString(BytesRefs.toString(policyName().fold(FoldContext.small() /* TODO remove me */))); // old policy name
+            out.writeString(BytesRefs.toString(literalValueOf(policyName()))); // old policy name
         }
         policy().writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {

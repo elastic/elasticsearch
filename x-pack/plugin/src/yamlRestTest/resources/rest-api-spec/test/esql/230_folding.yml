@@ -678,3 +678,34 @@ CIDR_MATCH with non-foldable CIDRs:
             | WHERE CIDR_MATCH(ip, CONCAT(TO_STRING(ip), "/8"), "127.0.0.3/32") | LIMIT 5
   - length: { values: 3 }
 
+---
+Employee name equals:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE CONCAT("Alice"," Smith") == name
+            | KEEP hire_date, salary, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.2: "Alice Smith" }
+
+---
+Employee name in list:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE name in (CONCAT("Alice"," Smith"), CONCAT("fake", " name"))
+            | KEEP hire_date, salary, name
+            | LIMIT 5
+  - match: { columns.0.name: "hire_date" }
+  - match: { columns.1.name: "salary" }
+  - match: { columns.2.name: "name" }
+  - length: { values: 1 }
+  - match: { values.0.2: "Alice Smith" }

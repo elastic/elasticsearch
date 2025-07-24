@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -232,8 +232,8 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
     }
 
     private RangeQuery translate(TranslatorHandler handler) {
-        Object l = valueOf(FoldContext.small() /* TODO remove me */, lower);
-        Object u = valueOf(FoldContext.small() /* TODO remove me */, upper);
+        Object l = literalValueOf(lower);
+        Object u = literalValueOf(upper);
         String format = null;
 
         DataType dataType = value.dataType();

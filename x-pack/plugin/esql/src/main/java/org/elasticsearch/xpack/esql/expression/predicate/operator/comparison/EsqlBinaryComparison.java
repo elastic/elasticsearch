@@ -51,7 +51,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.extractLiteralOrReturnSelf;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
@@ -378,7 +379,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     private Query translate(TranslatorHandler handler) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
         String name = handler.nameOf(attribute);
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = extractLiteralOrReturnSelf(right());
         String format = null;
         boolean isDateLiteralComparison = false;
 
@@ -478,7 +479,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         if ((left() instanceof FieldAttribute) == false || left().dataType().isNumeric() == false) {
             return null;
         }
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = literalValueOf(right());
 
         // Comparisons with multi-values always return null in ESQL.
         if (value instanceof List<?>) {

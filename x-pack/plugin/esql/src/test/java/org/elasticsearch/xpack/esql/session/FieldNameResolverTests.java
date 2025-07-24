@@ -11,10 +11,14 @@ import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 
-import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
@@ -22,7 +26,7 @@ import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class IndexResolverFieldNamesTests extends ESTestCase {
+public class FieldNameResolverTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
 
@@ -1475,19 +1479,22 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testEnrichOnDefaultFieldWithKeep() {
-        Set<String> fieldNames = fieldNames("""
-            from employees
-            | enrich languages_policy
-            | keep emp_no""", Set.of("language_name"));
-        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "language_name", "language_name.*")));
+        assertFieldNames(
+            """
+                from employees
+                | enrich languages_policy
+                | keep emp_no""",
+            enrichResolutionWith("language_name"),
+            Set.of("emp_no", "emp_no.*", "language_name", "language_name.*"),
+            Set.of()
+        );
     }
 
     public void testDissectOverwriteName() {
-        Set<String> fieldNames = fieldNames("""
+        assertFieldNames("""
             from employees
             | dissect first_name "%{first_name} %{more}"
-            | keep emp_no, first_name, more""", Set.of());
-        assertThat(fieldNames, equalTo(Set.of("emp_no", "emp_no.*", "first_name", "first_name.*")));
+            | keep emp_no, first_name, more""", Set.of("emp_no", "emp_no.*", "first_name", "first_name.*"));
     }
 
     /**
@@ -1496,45 +1503,38 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
       */
     public void testAvoidGrokAttributesRemoval() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        Set<String> fieldNames = fieldNames("""
+        assertFieldNames("""
             from message_types
             | eval type = 1
             | lookup join message_types_lookup on message
             | drop  message
             | grok type "%{WORD:b}"
             | stats x = max(b)
-            | keep x""", Set.of());
-        assertThat(fieldNames, equalTo(Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*")));
+            | keep x""", Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*"));
     }
 
     public void testAvoidGrokAttributesRemoval2() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        Set<String> fieldNames = fieldNames("""
+        assertFieldNames("""
             from sample_data
             | dissect message "%{type}"
             | drop type
             | lookup join message_types_lookup on message
             | stats count = count(*) by type
             | keep count
-            | sort count""", Set.of());
-        assertThat(fieldNames, equalTo(Set.of("type", "message", "count", "message.*", "type.*", "count.*")));
+            | sort count""", Set.of("type", "message", "count", "message.*", "type.*", "count.*"));
     }
 
     public void testAvoidGrokAttributesRemoval3() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        Set<String> fieldNames = fieldNames("""
+        assertFieldNames("""
             from sample_data
             | grok message "%{WORD:type}"
             | drop type
             | lookup join message_types_lookup on message
             | stats max = max(event_duration) by type
             | keep max
-            | sort max""", Set.of());
-        assertThat(
-            fieldNames,
-            equalTo(Set.of("type", "event_duration", "message", "max", "event_duration.*", "message.*", "type.*", "max.*"))
-        );
-
+            | sort max""", Set.of("type", "event_duration", "message", "max", "event_duration.*", "message.*", "type.*", "max.*"));
     }
 
     /**
@@ -1542,15 +1542,14 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
      */
     public void testAvoidGrokAttributesRemoval4() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        Set<String> fieldNames = fieldNames("""
+        assertFieldNames("""
             from message_types
             | eval type = 1
             | lookup join message_types_lookup on message
             | drop  message
             | grok type "%{WORD:b}"
             | stats x = max(b)
-            | keep x""", Set.of());
-        assertThat(fieldNames, equalTo(Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*")));
+            | keep x""", Set.of("x", "b", "type", "message", "x.*", "message.*", "type.*", "b.*"));
     }
 
     /**
@@ -1558,44 +1557,41 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
      */
     public void testAvoidGrokAttributesRemoval5() {
         assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
-        Set<String> fieldNames = fieldNames("""
-            FROM sample_data, employees
-            | EVAL client_ip = client_ip::keyword
-            | RENAME languages AS language_code
-            | LOOKUP JOIN clientips_lookup ON client_ip
-            | EVAL type = 1::keyword
-            | EVAL type = 2
-            | LOOKUP JOIN message_types_lookup ON message
-            | LOOKUP JOIN languages_lookup ON language_code
-            | DISSECT type "%{type_as_text}"
-            | KEEP message
-            | WHERE message IS NOT NULL
-            | SORT message DESC
-            | LIMIT 1""", Set.of());
-        assertThat(
-            fieldNames,
-            equalTo(
-                Set.of(
-                    "message",
-                    "type",
-                    "languages",
-                    "client_ip",
-                    "language_code",
-                    "language_code.*",
-                    "client_ip.*",
-                    "message.*",
-                    "type.*",
-                    "languages.*"
-                )
+        assertFieldNames(
+            """
+                FROM sample_data, employees
+                | EVAL client_ip = client_ip::keyword
+                | RENAME languages AS language_code
+                | LOOKUP JOIN clientips_lookup ON client_ip
+                | EVAL type = 1::keyword
+                | EVAL type = 2
+                | LOOKUP JOIN message_types_lookup ON message
+                | LOOKUP JOIN languages_lookup ON language_code
+                | DISSECT type "%{type_as_text}"
+                | KEEP message
+                | WHERE message IS NOT NULL
+                | SORT message DESC
+                | LIMIT 1""",
+            Set.of(
+                "message",
+                "type",
+                "languages",
+                "client_ip",
+                "language_code",
+                "language_code.*",
+                "client_ip.*",
+                "message.*",
+                "type.*",
+                "languages.*"
             )
+
         );
     }
 
     public void testEnrichOnDefaultField() {
-        Set<String> fieldNames = fieldNames("""
+        assertFieldNames("""
             from employees
-            | enrich languages_policy""", Set.of("language_name"));
-        assertThat(fieldNames, equalTo(ALL_FIELDS));
+            | enrich languages_policy""", enrichResolutionWith("language_name"), ALL_FIELDS, Set.of());
     }
 
     public void testMetrics() {
@@ -1605,21 +1601,19 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'TS' expecting {"));
             return;
         }
-        Set<String> fieldNames = fieldNames(query, Set.of());
-        assertThat(
-            fieldNames,
-            equalTo(
-                Set.of(
-                    "@timestamp",
-                    "@timestamp.*",
-                    "network.total_bytes_in",
-                    "network.total_bytes_in.*",
-                    "network.total_cost",
-                    "network.total_cost.*",
-                    "cluster",
-                    "cluster.*"
-                )
+        assertFieldNames(
+            query,
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "network.total_bytes_in",
+                "network.total_bytes_in.*",
+                "network.total_cost",
+                "network.total_cost.*",
+                "cluster",
+                "cluster.*"
             )
+
         );
     }
 
@@ -2147,24 +2141,30 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
         assertFieldNames(" FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )", ALL_FIELDS);
     }
 
-    private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {
-        var preAnalysisResult = new EsqlSession.PreAnalysisResult(null);
-        return EsqlSession.fieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), enrichPolicyMatchFields, preAnalysisResult)
-            .fieldNames();
-    }
-
     private void assertFieldNames(String query, Set<String> expected) {
-        Set<String> fieldNames = fieldNames(query, Collections.emptySet());
-        assertThat(fieldNames, equalTo(expected));
+        assertFieldNames(query, new EnrichResolution(), expected, Set.of());
     }
 
     private void assertFieldNames(String query, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = EsqlSession.fieldNames(
+        assertFieldNames(query, new EnrichResolution(), expected, wildCardIndices);
+    }
+
+    private void assertFieldNames(String query, EnrichResolution enrichResolution, Set<String> expected, Set<String> wildCardIndices) {
+        var preAnalysisResult = FieldNamesResolver.resolveFieldNames(
             parser.createStatement(query, EsqlTestUtils.TEST_CFG),
-            Set.of(),
-            new EsqlSession.PreAnalysisResult(null)
+            enrichResolution
         );
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
+    }
+
+    private static EnrichResolution enrichResolutionWith(String enrichPolicyMatchField) {
+        var enrichResolution = new EnrichResolution();
+        enrichResolution.addResolvedPolicy(
+            "policy",
+            Enrich.Mode.ANY,
+            new ResolvedEnrichPolicy(enrichPolicyMatchField, null, List.of(), Map.of(), Map.of())
+        );
+        return enrichResolution;
     }
 }

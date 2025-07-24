@@ -2133,7 +2133,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             Set.of(
                 "x",
                 "y",
-                "_fork",
                 "a",
                 "c",
                 "abc",
@@ -2142,7 +2141,6 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 "z",
                 "xyz",
                 "def.*",
-                "_fork.*",
                 "y.*",
                 "x.*",
                 "xyz.*",
@@ -2190,6 +2188,23 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             " FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )",
             Set.of("gender", "salary", "gender.*", "salary.*")
         );
+    }
+
+    public void testNullString() {
+        assertFieldNames("""
+             FROM sample_data
+            | EVAL x = null::string
+            | STATS COUNT() BY category=CATEGORIZE(x)
+            | SORT category""", Set.of("_index"));
+    }
+
+    public void testNullStringWithFork() {
+        assertFieldNames("""
+             FROM sample_data
+            | EVAL x = null::string
+            | STATS COUNT() BY category=CATEGORIZE(x)
+            | SORT category
+            | FORK (WHERE true) (WHERE true) | WHERE _fork == "fork1" | DROP _fork""", Set.of("_index"));
     }
 
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {

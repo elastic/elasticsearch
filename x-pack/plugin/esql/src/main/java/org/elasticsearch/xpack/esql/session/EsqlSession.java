@@ -858,6 +858,7 @@ public class EsqlSession {
                     forkRefsResult.addAll(referencesBuilder.get());
                 }
 
+                forkRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
                 referencesBuilder.set(forkRefsResult);
                 return false;
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect

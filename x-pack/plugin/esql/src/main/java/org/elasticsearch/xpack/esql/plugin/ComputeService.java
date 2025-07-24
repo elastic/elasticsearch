@@ -687,7 +687,7 @@ public class ComputeService {
 
         @Override
         public boolean isIndexed(FieldAttribute.FieldName field) {
-            throw new UnsupportedOperationException();
+            return false;
         }
 
         @Override
@@ -740,10 +740,6 @@ public class ComputeService {
     // FIXME(gal, NOCOMMIT) unyuck (there should be a better way of figuring out if we need to use TOP_N or not)
     private static Optional<PhysicalPlan> getChild(EsqlFlags flags, Configuration configuration, FoldContext foldCtx, PhysicalPlan plan) {
         var localPlan = PlannerUtils.localPlan(flags, configuration.withoutTopNHack(), foldCtx, plan, new SearchStatsHacks());
-        var localPlanWithHack = PlannerUtils.localPlan(flags, configuration, foldCtx, plan, new SearchStatsHacks());
-        if (localPlan.equals(localPlanWithHack)) {
-            return Optional.empty();
-        }
         PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
             var child = topN.child();
             return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));

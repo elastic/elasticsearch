@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
-import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -21,13 +20,11 @@ public class RemoveProjectAfterTopNHack extends PhysicalOptimizerRules.Parameter
     LocalPhysicalOptimizerContext> {
 
     @Override
-    protected PhysicalPlan rule(ProjectExec plan, LocalPhysicalOptimizerContext context) {
+    protected PhysicalPlan rule(ProjectExec project, LocalPhysicalOptimizerContext context) {
         // return plan;
-        if (plan.child() instanceof FieldExtractExec fieldExtract) {
-            if (fieldExtract.child() instanceof TopNExec topN) {
-                return topN;
-            }
+        if (project.child() instanceof TopNExec topN) {
+            return new ProjectExec(project.source(), topN, new InsertFieldExtraction().rule(topN, context).output());
         }
-        return plan;
+        return project;
     }
 }

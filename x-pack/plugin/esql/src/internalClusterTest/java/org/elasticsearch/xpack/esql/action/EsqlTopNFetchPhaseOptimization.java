@@ -19,12 +19,16 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.junit.Before;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
 
@@ -33,12 +37,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 // Verifies that the value source reader operator is optimized into the data node instead of the worker node.
-@ESIntegTestCase.ClusterScope(numDataNodes = 3)
+@ESIntegTestCase.ClusterScope(numDataNodes = 1)
+// FIXME(gal, NOCOMMIT) remove, for debugging only
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
+
 public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
     private static final int SHARD_COUNT = 10;
 
     @Before
-    public void setupIndex() throws IOException {
+    public void setupIndex() throws Exception {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
 
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
@@ -55,11 +62,37 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
             bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i, "bar", i + ""));
         }
         bulk.get();
+
+        mapping = JsonXContent.contentBuilder().startObject();
+        mapping.startObject("properties");
+        {
+            mapping.startObject("id").field("type", "keyword").endObject();
+            mapping.startObject("name").field("type", "keyword").endObject();
+            mapping.startObject("shape").field("type", "shape").endObject();
+        }
+        mapping.endObject();
+        client().admin()
+            .indices()
+            .prepareCreate("countries_bbox_web")
+            .setSettings(indexSettings(10, 0))
+            .setMapping(mapping.endObject())
+            .get();
+
+        var csvFile = CsvTestsDataLoader.parseCsvFile(
+            CsvTestsDataLoader.CSV_DATASET_MAP.get("countries_bbox_web"),
+            "countries_bbox_web",
+            false
+        );
+        bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        byte[] bytes = csvFile.getBytes(StandardCharsets.UTF_8);
+        bulk.add(bytes, 0, bytes.length, XContentType.JSON);
+        bulk.get();
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockSearchService.TestPlugin.class);
+        return CollectionUtils.appendToCopyNoNullElements(super.nodePlugins(), MockSearchService.TestPlugin.class, SpatialPlugin.class);
     }
 
     @Override
@@ -110,9 +143,9 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
                     Settings.builder()
                         // Configured to ensure that there is only one worker handling all the shards, so that we can assert the correct
                         // expected behavior.
-                        .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 3)
+                        .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1)
                         .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), SHARD_COUNT)
-                        .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 3)
+                        .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
                         .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), true)
                         .build()
                 )

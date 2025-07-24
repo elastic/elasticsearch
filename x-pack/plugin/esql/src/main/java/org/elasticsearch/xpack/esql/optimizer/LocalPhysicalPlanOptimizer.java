@@ -64,7 +64,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, boolean applyTopNHack) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
         esSourceRules.add(new ReplaceSourceAttributes());
-        if (optimizeForEsSource) {
+        if (applyTopNHack) {
+            esSourceRules.add(new RemoveProjectAfterTopNHack());
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
@@ -75,20 +76,36 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
         // execute the rules multiple times to improve the chances of things being pushed down
         @SuppressWarnings("unchecked")
-        var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
+        var pushdown1 = new Batch<PhysicalPlan>("Push to ES 1", Limiter.ONCE, foo(applyTopNHack, true));
+        var pushdown2 = new Batch<PhysicalPlan>("Push to ES 2", foo(applyTopNHack, false));
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
 
         List<Rule<?, PhysicalPlan>> fieldExtractionRules = new ArrayList<>(5);
         fieldExtractionRules.add(new InsertFieldExtraction());
-        if (applyTopNHack) {
-            fieldExtractionRules.add(new RemoveProjectAfterTopNHack());
-        }
         fieldExtractionRules.add(new SpatialDocValuesExtraction());
         fieldExtractionRules.add(new SpatialShapeBoundsExtraction());
         fieldExtractionRules.add(new ParallelizeTimeSeriesSource());
 
         var fieldExtractionBatch = new Batch<PhysicalPlan>("Field extraction", Limiter.ONCE, fieldExtractionRules.toArray(Rule[]::new));
-        return List.of(pushdown, fieldExtractionBatch);
+        return List.of(pushdown1, pushdown2, fieldExtractionBatch);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static Rule[] foo(boolean applyTopNHack, boolean first) {
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
+        esSourceRules.add(new ReplaceSourceAttributes());
+        if (applyTopNHack) {
+            if (first) {
+                esSourceRules.add(new RemoveProjectAfterTopNHack());
+            }
+            esSourceRules.add(new PushTopNToSource());
+            esSourceRules.add(new PushLimitToSource());
+            esSourceRules.add(new PushFiltersToSource());
+            esSourceRules.add(new PushSampleToSource());
+            esSourceRules.add(new PushStatsToSource());
+            esSourceRules.add(new EnableSpatialDistancePushdown());
+        }
+        return esSourceRules.toArray(Rule[]::new);
     }
 }

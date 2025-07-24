@@ -47,6 +47,96 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         super(state, rawVectorsReader);
     }
 
+    // FIXME: build a common scorer?
+    @Override
+    CentroidQueryScorer getOneBitCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
+        throws IOException {
+        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        final float globalCentroidDp = fieldEntry.globalCentroidDp();
+        final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+        final int[] scratch = new int[targetQuery.length];
+        final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
+            ArrayUtil.copyArray(targetQuery),
+            scratch,
+            (byte) 4,
+            fieldEntry.globalCentroid()
+        );
+
+        // FIXME: l2 normalize here?
+        final int discretizedDimensions = discretize(fieldInfo.getVectorDimension(), 64);
+        final byte[] quantized = new byte[QUERY_BITS * discretizedDimensions / 8];
+        transposeHalfByte(scratch, quantized);
+        final ES91OSQVectorsScorer scorer = ESVectorUtil.getES91OSQVectorsScorer(centroids, fieldInfo.getVectorDimension());
+        return new CentroidQueryScorer() {
+            private final float[] centroidCorrectiveValues = new float[3];
+
+            @Override
+            public int size() {
+                return numCentroids;
+            }
+
+            @Override
+            public long postingListOffset(int centroidOrdinal) throws IOException {
+                throw new UnsupportedOperationException("can not retrieve posting lists offset from one bit centroid scorer");
+            }
+
+            @Override
+            public void bulkScore(NeighborQueue queue) throws IOException {
+                // FIXME: pull out common code between this and the bulk vector scorer
+                final float[] scores = new float[BULK_SIZE];
+
+                centroids.seek(0L);
+
+                // block processing
+                int limit = numCentroids - BULK_SIZE + 1;
+                int i = 0;
+                for (; i < limit; i += BULK_SIZE) {
+                    scorer.scoreBulk(
+                        quantized,
+                        queryParams.lowerInterval(),
+                        queryParams.upperInterval(),
+                        queryParams.quantizedComponentSum(),
+                        queryParams.additionalCorrection(),
+                        fieldInfo.getVectorSimilarityFunction(),
+                        globalCentroidDp,
+                        scores
+                    );
+                    for (int j = 0; j < BULK_SIZE; j++) {
+                        queue.add(i+j, scores[j]);
+                    }
+                }
+                // process tail
+                for (; i < numCentroids; i++) {
+                    queue.add(i, score());
+                }
+            }
+
+            @Override
+            public float score(int centroidOrdinal) throws IOException {
+                throw new UnsupportedOperationException("can only bulk score centroids with one bit scorer");
+            }
+
+            private float score() throws IOException {
+                final float qcDist = scorer.quantizeScore(quantized);
+                centroids.readFloats(centroidCorrectiveValues, 0, 3);
+                final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
+                return scorer.score(
+                    queryParams.lowerInterval(),
+                    queryParams.upperInterval(),
+                    queryParams.quantizedComponentSum(),
+                    queryParams.additionalCorrection(),
+                    fieldInfo.getVectorSimilarityFunction(),
+                    globalCentroidDp,
+                    centroidCorrectiveValues[0],
+                    centroidCorrectiveValues[1],
+                    quantizedCentroidComponentSum,
+                    centroidCorrectiveValues[2],
+                    qcDist
+                );
+            }
+        };
+    }
+
     @Override
     CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
         throws IOException {
@@ -69,8 +159,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             int currentCentroid = -1;
             long postingListOffset;
             private final float[] centroidCorrectiveValues = new float[3];
-            private final long quantizeCentroidsLength = (long) numCentroids * (fieldInfo.getVectorDimension() + 3 * Float.BYTES
+            private final long oneBitQuantizeCentroidByteSize = (long) BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64) / 8;
+            private final long oneBitQuantizeCentroidsLength = (long) numCentroids * (oneBitQuantizeCentroidByteSize + 3 * Float.BYTES
                 + Short.BYTES);
+            private final long quantizationCentroidByteSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
+            private final long quantizeCentroidsLength = (long) numCentroids * quantizationCentroidByteSize;
 
             @Override
             public int size() {
@@ -80,19 +173,26 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             @Override
             public long postingListOffset(int centroidOrdinal) throws IOException {
                 if (centroidOrdinal != currentCentroid) {
-                    centroids.seek(quantizeCentroidsLength + (long) Long.BYTES * centroidOrdinal);
+                    centroids.seek(oneBitQuantizeCentroidsLength + quantizeCentroidsLength + (long) Long.BYTES * centroidOrdinal);
                     postingListOffset = centroids.readLong();
                     currentCentroid = centroidOrdinal;
                 }
                 return postingListOffset;
             }
 
+            @Override
             public void bulkScore(NeighborQueue queue) throws IOException {
                 // TODO: bulk score centroids like we do with posting lists
-                centroids.seek(0L);
+                centroids.seek(oneBitQuantizeCentroidsLength);
                 for (int i = 0; i < numCentroids; i++) {
                     queue.add(i, score());
                 }
+            }
+
+            @Override
+            public float score(int centroidOrdinal) throws IOException {
+                centroids.seek(oneBitQuantizeCentroidsLength + quantizationCentroidByteSize * centroidOrdinal);
+                return score();
             }
 
             private float score() throws IOException {

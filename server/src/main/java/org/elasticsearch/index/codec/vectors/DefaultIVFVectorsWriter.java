@@ -292,10 +292,46 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         int[] quantizedScratch = new int[fieldInfo.getVectorDimension()];
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
-        final byte[] quantized = new byte[fieldInfo.getVectorDimension()];
+        final byte[] oneBitQuantized = new byte[BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64) / 8];
+        final byte[] fourBitquantized = new byte[fieldInfo.getVectorDimension()];
         // TODO do we want to store these distances as well for future use?
         // TODO: sort centroids by global centroid (was doing so previously here)
         // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned
+
+        DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, centroidOutput);
+        bulkWriter.writeVectors(new QuantizedVectorValues() {
+            int currOrd = -1;
+            OptimizedScalarQuantizer.QuantizationResult corrections;
+
+            @Override
+            public int count() {
+                return centroidSupplier.size();
+            }
+
+            @Override
+            public byte[] next() throws IOException {
+                currOrd++;
+                float[] centroid = centroidSupplier.centroid(currOrd);
+                System.arraycopy(centroid, 0, centroidScratch, 0, centroid.length);
+                this.corrections = osq.scalarQuantize(
+                    centroidScratch,
+                    quantizedScratch,
+                    (byte) 1,
+                    globalCentroid
+                );
+                BQVectorUtils.packAsBinary(quantizedScratch, oneBitQuantized);
+                return oneBitQuantized;
+            }
+
+            @Override
+            public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
+                if (currOrd == -1) {
+                    throw new IllegalStateException("No centroid read yet, call readQuantizedVector first");
+                }
+                return corrections;
+            }
+        });
+
         for (int i = 0; i < centroidSupplier.size(); i++) {
             float[] centroid = centroidSupplier.centroid(i);
             System.arraycopy(centroid, 0, centroidScratch, 0, centroid.length);
@@ -306,9 +342,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 globalCentroid
             );
             for (int j = 0; j < quantizedScratch.length; j++) {
-                quantized[j] = (byte) quantizedScratch[j];
+                fourBitquantized[j] = (byte) quantizedScratch[j];
             }
-            writeQuantizedValue(centroidOutput, quantized, result);
+            writeQuantizedValue(centroidOutput, fourBitquantized, result);
         }
         // write the centroid offsets at the end of the file
         for (int i = 0; i < centroidSupplier.size(); i++) {

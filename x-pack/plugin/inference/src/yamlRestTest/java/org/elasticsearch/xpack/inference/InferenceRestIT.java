@@ -40,7 +40,10 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
 
     public InferenceRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
-        assumeTrue("Rerank snippets does not work in release builds", Build.current().isSnapshot());
+        String testPath = testCandidate.getTestPath();
+        if (testPath.startsWith("inference/70_text_similarity_rank_retriever") && testPath.toLowerCase().contains("snippet")) {
+            assumeTrue("Rerank snippets does not work in release builds", Build.current().isSnapshot());
+        }
     }
 
     @Override

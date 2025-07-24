@@ -86,6 +86,7 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
             bulkInferenceRunner.executeBulk(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
         } catch (Exception e) {
             listener.onFailure(e);
+            throw e;
         }
     }
 
@@ -112,6 +113,9 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 outputBuilder.addInferenceResponse(response);
             }
             return addOutputBlock(ongoingInferenceResult.inputPage, outputBuilder.buildOutput());
+        } catch (Exception e) {
+            releaseFetchedOnAnyThread(ongoingInferenceResult);
+            throw e;
         }
     }
 

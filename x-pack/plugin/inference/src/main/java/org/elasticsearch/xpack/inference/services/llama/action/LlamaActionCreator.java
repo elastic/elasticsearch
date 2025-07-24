@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.llama.completion.LlamaCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddingsModel;
@@ -26,7 +25,9 @@ import org.elasticsearch.xpack.inference.services.llama.embeddings.LlamaEmbeddin
 import org.elasticsearch.xpack.inference.services.llama.request.completion.LlamaChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.llama.request.embeddings.LlamaEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.services.openai.response.OpenAiEmbeddingsResponseEntity;
 
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
@@ -44,7 +45,7 @@ public class LlamaActionCreator implements LlamaActionVisitor {
 
     private static final ResponseHandler EMBEDDINGS_HANDLER = new LlamaEmbeddingsResponseHandler(
         "llama text embedding",
-        HuggingFaceEmbeddingsResponseEntity::fromResponse
+        OpenAiEmbeddingsResponseEntity::fromResponse
     );
     private static final ResponseHandler COMPLETION_HANDLER = new LlamaCompletionResponseHandler(
         "llama completion",
@@ -66,34 +67,36 @@ public class LlamaActionCreator implements LlamaActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(LlamaEmbeddingsModel model) {
+    public ExecutableAction create(LlamaEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = LlamaEmbeddingsModel.of(model, taskSettings);
         var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
-            model,
+            overriddenModel,
             EMBEDDINGS_HANDLER,
             embeddingsInput -> new LlamaEmbeddingsRequest(
                 serviceComponents.truncator(),
-                truncate(embeddingsInput.getStringInputs(), model.getServiceSettings().maxInputTokens()),
-                model
+                truncate(embeddingsInput.getStringInputs(), overriddenModel.getServiceSettings().maxInputTokens()),
+                overriddenModel
             ),
             EmbeddingsInput.class
         );
 
-        var errorMessage = buildErrorMessage(TaskType.TEXT_EMBEDDING, model.getInferenceEntityId());
+        var errorMessage = buildErrorMessage(TaskType.TEXT_EMBEDDING, overriddenModel.getInferenceEntityId());
         return new SenderExecutableAction(sender, manager, errorMessage);
     }
 
     @Override
-    public ExecutableAction create(LlamaChatCompletionModel model) {
+    public ExecutableAction create(LlamaChatCompletionModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = LlamaChatCompletionModel.of(model, taskSettings);
         var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
-            model,
+            overriddenModel,
             COMPLETION_HANDLER,
-            inputs -> new LlamaChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
+            inputs -> new LlamaChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), overriddenModel),
             ChatCompletionInput.class
         );
 
-        var errorMessage = buildErrorMessage(TaskType.COMPLETION, model.getInferenceEntityId());
+        var errorMessage = buildErrorMessage(TaskType.COMPLETION, overriddenModel.getInferenceEntityId());
         return new SingleInputSenderExecutableAction(sender, manager, errorMessage, COMPLETION_ERROR_PREFIX);
     }
 

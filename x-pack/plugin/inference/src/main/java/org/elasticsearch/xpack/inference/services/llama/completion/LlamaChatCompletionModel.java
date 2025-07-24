@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.llama.completion;
 
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -17,6 +16,8 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaModel;
 import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionVisitor;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionRequestTaskSettings;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
 
 import java.util.Map;
 
@@ -40,6 +41,7 @@ public class LlamaChatCompletionModel extends LlamaModel {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -48,6 +50,7 @@ public class LlamaChatCompletionModel extends LlamaModel {
             taskType,
             service,
             LlamaChatCompletionServiceSettings.fromMap(serviceSettings, context),
+            OpenAiChatCompletionTaskSettings.fromMap(taskSettings),
             retrieveSecretSettings(secrets)
         );
     }
@@ -65,13 +68,24 @@ public class LlamaChatCompletionModel extends LlamaModel {
         TaskType taskType,
         String service,
         LlamaChatCompletionServiceSettings serviceSettings,
+        OpenAiChatCompletionTaskSettings taskSettings,
         SecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE),
-            new ModelSecrets(secrets)
-        );
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
         setPropertiesFromServiceSettings(serviceSettings);
+    }
+
+    public static LlamaChatCompletionModel of(LlamaChatCompletionModel model, Map<String, Object> taskSettings) {
+        if (taskSettings == null || taskSettings.isEmpty()) {
+            return model;
+        }
+
+        var requestTaskSettings = OpenAiChatCompletionRequestTaskSettings.fromMap(taskSettings);
+        return new LlamaChatCompletionModel(model, OpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+    }
+
+    private LlamaChatCompletionModel(LlamaChatCompletionModel originalModel, OpenAiChatCompletionTaskSettings taskSettings) {
+        super(originalModel, taskSettings);
     }
 
     /**
@@ -100,6 +114,7 @@ public class LlamaChatCompletionModel extends LlamaModel {
             model.getTaskType(),
             model.getConfigurations().getService(),
             overriddenServiceSettings,
+            model.getTaskSettings(),
             model.getSecretSettings()
         );
     }
@@ -126,7 +141,12 @@ public class LlamaChatCompletionModel extends LlamaModel {
      * @return an ExecutableAction representing this model
      */
     @Override
-    public ExecutableAction accept(LlamaActionVisitor creator) {
-        return creator.create(this);
+    public ExecutableAction accept(LlamaActionVisitor creator, Map<String, Object> taskSettings) {
+        return creator.create(this, taskSettings);
+    }
+
+    @Override
+    public OpenAiChatCompletionTaskSettings getTaskSettings() {
+        return (OpenAiChatCompletionTaskSettings) super.getTaskSettings();
     }
 }

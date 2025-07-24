@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.inference.external.http.retry.RetrySetting
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerManagerTests.mockThrottlerManager;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -77,6 +78,14 @@ public class LlamaActionCreatorTests extends ESTestCase {
     }
 
     public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction() throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction("overridden_user");
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_WithoutUser() throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction(null);
+    }
+
+    private void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction(String user) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
@@ -84,27 +93,45 @@ public class LlamaActionCreatorTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "embeddings": [
-                        [
-                            -0.0123,
-                            0.123
-                        ]
-                    ]
-                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "embedding": [
+                                -0.123,
+                                0.123
+                            ],
+                            "index": 0
+                        }
+                    ],
+                    "model": "all-MiniLM-L6-v2",
+                    "usage": {
+                        "prompt_tokens": 4,
+                        "total_tokens": 4
+                    }
+                }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<InferenceServiceResults> listener = createEmbeddingsFuture(sender, createWithEmptySettings(threadPool));
+            PlainActionFuture<InferenceServiceResults> listener = createEmbeddingsFuture(sender, createWithEmptySettings(threadPool), user);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(TextEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.0123F, 0.123F }))));
+            assertThat(result.asMap(), is(TextEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.123F, 0.123F }))));
 
-            assertEmbeddingsRequest();
+            assertEmbeddingsRequest(user);
         }
     }
 
     public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction() throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction("overridden_user");
+    }
+
+    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_WithoutUser() throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction(null);
+    }
+
+    private void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction(String user) throws IOException {
         var settings = buildSettingsWithRetryFields(
             TimeValue.timeValueMillis(1),
             TimeValue.timeValueMinutes(1),
@@ -116,32 +143,33 @@ public class LlamaActionCreatorTests extends ESTestCase {
             sender.start();
 
             String responseJson = """
-                [
-                    {
-                        "embeddings": [
-                            [
-                                -0.0123,
-                                0.123
-                            ]
-                        ]
-                    {
-                ]
+                {
+                    "invalid_field": "unexpected"
+                }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<InferenceServiceResults> listener = createEmbeddingsFuture(sender, createWithEmptySettings(threadPool));
+            PlainActionFuture<InferenceServiceResults> listener = createEmbeddingsFuture(sender, createWithEmptySettings(threadPool), user);
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
+                is("Failed to send Llama text_embedding request from inference entity id [id]. Cause: Required [data]")
             );
 
-            assertEmbeddingsRequest();
+            assertEmbeddingsRequest(user);
         }
     }
 
     public void testExecute_ReturnsSuccessfulResponse_ForCompletionAction() throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForCompletionAction("overridden_user");
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForCompletionAction_WithoutUser() throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForCompletionAction(null);
+    }
+
+    private void testExecute_ReturnsSuccessfulResponse_ForCompletionAction(String user) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
@@ -182,17 +210,25 @@ public class LlamaActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<InferenceServiceResults> listener = createCompletionFuture(sender, createWithEmptySettings(threadPool));
+            PlainActionFuture<InferenceServiceResults> listener = createCompletionFuture(sender, createWithEmptySettings(threadPool), user);
 
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("Hello there, how may I assist you today?"))));
 
-            assertCompletionRequest();
+            assertCompletionRequest(user);
         }
     }
 
     public void testExecute_FailsFromInvalidResponseFormat_ForCompletionAction() throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForCompletionAction("overridden_user");
+    }
+
+    public void testExecute_FailsFromInvalidResponseFormat_ForCompletionAction_WithoutUser() throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForCompletionAction(null);
+    }
+
+    private void testExecute_FailsFromInvalidResponseFormat_ForCompletionAction(String user) throws IOException {
         var settings = buildSettingsWithRetryFields(
             TimeValue.timeValueMillis(1),
             TimeValue.timeValueMinutes(1),
@@ -212,7 +248,8 @@ public class LlamaActionCreatorTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = createCompletionFuture(
                 sender,
-                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator())
+                new ServiceComponents(threadPool, mockThrottlerManager(), settings, TruncatorTests.createTruncator()),
+                user
             );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
@@ -221,14 +258,15 @@ public class LlamaActionCreatorTests extends ESTestCase {
                 is("Failed to send Llama completion request from inference entity id [id]. Cause: Required [choices]")
             );
 
-            assertCompletionRequest();
+            assertCompletionRequest(user);
         }
     }
 
-    private PlainActionFuture<InferenceServiceResults> createEmbeddingsFuture(Sender sender, ServiceComponents threadPool) {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("model", getUrl(webServer), "secret");
+    private PlainActionFuture<InferenceServiceResults> createEmbeddingsFuture(Sender sender, ServiceComponents threadPool, String user) {
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("model", getUrl(webServer), "secret", user);
         var actionCreator = new LlamaActionCreator(sender, threadPool);
-        var action = actionCreator.create(model);
+        var overriddenTaskSettings = createRequestTaskSettingsMap(user);
+        var action = actionCreator.create(model, overriddenTaskSettings);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
@@ -239,36 +277,47 @@ public class LlamaActionCreatorTests extends ESTestCase {
         return listener;
     }
 
-    private PlainActionFuture<InferenceServiceResults> createCompletionFuture(Sender sender, ServiceComponents threadPool) {
-        var model = LlamaChatCompletionModelTests.createCompletionModel("model", getUrl(webServer), "secret");
+    private PlainActionFuture<InferenceServiceResults> createCompletionFuture(Sender sender, ServiceComponents threadPool, String user) {
+        var model = LlamaChatCompletionModelTests.createCompletionModel("model", getUrl(webServer), "secret", user);
         var actionCreator = new LlamaActionCreator(sender, threadPool);
-        var action = actionCreator.create(model);
+        var overriddenTaskSettings = createRequestTaskSettingsMap(user);
+        var action = actionCreator.create(model, overriddenTaskSettings);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(new ChatCompletionInput(List.of("Hello"), false), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
         return listener;
     }
 
-    private void assertCompletionRequest() throws IOException {
+    private void assertCompletionRequest(String user) throws IOException {
         assertCommonRequestProperties();
 
         var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-        assertThat(requestMap.size(), is(4));
+        if (user == null) {
+            assertThat(requestMap.size(), is(4));
+        } else {
+            assertThat(requestMap.size(), is(5));
+        }
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "Hello"))));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("n"), is(1));
         assertThat(requestMap.get("stream"), is(false));
+        assertThat(requestMap.get("user"), is(user));
     }
 
     @SuppressWarnings("unchecked")
-    private void assertEmbeddingsRequest() throws IOException {
+    private void assertEmbeddingsRequest(String user) throws IOException {
         assertCommonRequestProperties();
 
         var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-        assertThat(requestMap.size(), is(2));
-        assertThat(requestMap.get("contents"), instanceOf(List.class));
-        var inputList = (List<String>) requestMap.get("contents");
+        if (user == null) {
+            assertThat(requestMap.size(), is(2));
+        } else {
+            assertThat(requestMap.size(), is(3));
+        }
+        assertThat(requestMap.get("input"), instanceOf(List.class));
+        var inputList = (List<String>) requestMap.get("input");
         assertThat(inputList, contains("abc"));
+        assertThat(requestMap.get("user"), is(user));
     }
 
     private void assertCommonRequestProperties() {

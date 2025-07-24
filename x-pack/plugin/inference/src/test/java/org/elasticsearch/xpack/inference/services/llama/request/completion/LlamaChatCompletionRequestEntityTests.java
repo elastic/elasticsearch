@@ -25,25 +25,26 @@ public class LlamaChatCompletionRequestEntityTests extends ESTestCase {
     private static final String ROLE = "user";
 
     public void testModelUserFieldsSerialization() throws IOException {
-        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
-            new UnifiedCompletionRequest.ContentString("Hello, world!"),
-            ROLE,
-            null,
-            null
-        );
-        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
-        messageList.add(message);
+        testModelUserFieldsSerialization("user", """
+            {
+                "messages": [{
+                        "content": "Hello, world!",
+                        "role": "user"
+                    }
+                ],
+                "model": "model",
+                "n": 1,
+                "stream": true,
+                "stream_options": {
+                    "include_usage": true
+                },
+                "user": "user"
+            }
+            """);
+    }
 
-        var unifiedRequest = UnifiedCompletionRequest.of(messageList);
-
-        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
-        LlamaChatCompletionModel model = LlamaChatCompletionModelTests.createChatCompletionModel("model", "url", "api-key");
-
-        LlamaChatCompletionRequestEntity entity = new LlamaChatCompletionRequestEntity(unifiedChatInput, model);
-
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        String expectedJson = """
+    public void testModelUserFieldsSerialization_NoUser() throws IOException {
+        testModelUserFieldsSerialization(null, """
             {
                 "messages": [{
                         "content": "Hello, world!",
@@ -57,8 +58,28 @@ public class LlamaChatCompletionRequestEntityTests extends ESTestCase {
                     "include_usage": true
                 }
             }
-            """;
-        assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
+            """);
     }
 
+    private static void testModelUserFieldsSerialization(String user, String expectedJson) throws IOException {
+        UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
+            new UnifiedCompletionRequest.ContentString("Hello, world!"),
+            ROLE,
+            null,
+            null
+        );
+        var messageList = new ArrayList<UnifiedCompletionRequest.Message>();
+        messageList.add(message);
+
+        var unifiedRequest = UnifiedCompletionRequest.of(messageList);
+
+        UnifiedChatInput unifiedChatInput = new UnifiedChatInput(unifiedRequest, true);
+        LlamaChatCompletionModel model = LlamaChatCompletionModelTests.createChatCompletionModel("model", "url", "api-key", user);
+
+        LlamaChatCompletionRequestEntity entity = new LlamaChatCompletionRequestEntity(unifiedChatInput, model);
+
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        entity.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertEquals(XContentHelper.stripWhitespace(expectedJson), Strings.toString(builder));
+    }
 }

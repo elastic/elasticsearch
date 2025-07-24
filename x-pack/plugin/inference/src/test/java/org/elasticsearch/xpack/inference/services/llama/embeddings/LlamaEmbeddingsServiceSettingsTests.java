@@ -39,6 +39,8 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
     private static final SimilarityMeasure SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
     private static final int MAX_INPUT_TOKENS = 128;
     private static final int RATE_LIMIT = 2;
+    private static final Boolean DIMENSIONS_SET_BY_USER = Boolean.TRUE;
+    private static final String DIMENSIONS_SET_BY_USER_FIELD = "dimensions_set_by_user";
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
@@ -48,6 +50,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 SIMILARITY_MEASURE.toString(),
                 DIMENSIONS,
                 MAX_INPUT_TOKENS,
+                DIMENSIONS_SET_BY_USER,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
             ),
             ConfigurationParseContext.PERSISTENT
@@ -62,6 +65,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     DIMENSIONS,
                     SIMILARITY_MEASURE,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new RateLimitSettings(RATE_LIMIT)
                 )
             )
@@ -78,6 +82,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -99,6 +104,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -120,6 +126,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -141,6 +148,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -163,6 +171,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 null,
                 DIMENSIONS,
                 MAX_INPUT_TOKENS,
+                DIMENSIONS_SET_BY_USER,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
             ),
             ConfigurationParseContext.PERSISTENT
@@ -177,6 +186,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     DIMENSIONS,
                     null,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new RateLimitSettings(RATE_LIMIT)
                 )
             )
@@ -193,6 +203,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     "by_size",
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -215,6 +226,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 SIMILARITY_MEASURE.toString(),
                 null,
                 MAX_INPUT_TOKENS,
+                DIMENSIONS_SET_BY_USER,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
             ),
             ConfigurationParseContext.PERSISTENT
@@ -229,6 +241,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     null,
                     SIMILARITY_MEASURE,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new RateLimitSettings(RATE_LIMIT)
                 )
             )
@@ -245,6 +258,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     0,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -266,6 +280,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     -10,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -285,6 +300,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 SIMILARITY_MEASURE.toString(),
                 DIMENSIONS,
                 null,
+                DIMENSIONS_SET_BY_USER,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
             ),
             ConfigurationParseContext.PERSISTENT
@@ -299,6 +315,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     DIMENSIONS,
                     SIMILARITY_MEASURE,
                     null,
+                    DIMENSIONS_SET_BY_USER,
                     new RateLimitSettings(RATE_LIMIT)
                 )
             )
@@ -315,6 +332,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     0,
+                    DIMENSIONS_SET_BY_USER,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -336,6 +354,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     -10,
+                    DIMENSIONS_SET_BY_USER,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -349,7 +368,15 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
 
     public void testFromMap_NoRateLimit_Success() {
         var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(MODEL_ID, CORRECT_URL, SIMILARITY_MEASURE.toString(), DIMENSIONS, MAX_INPUT_TOKENS, null),
+            buildServiceSettingsMap(
+                MODEL_ID,
+                CORRECT_URL,
+                SIMILARITY_MEASURE.toString(),
+                DIMENSIONS,
+                MAX_INPUT_TOKENS,
+                DIMENSIONS_SET_BY_USER,
+                null
+            ),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -362,6 +389,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     DIMENSIONS,
                     SIMILARITY_MEASURE,
                     MAX_INPUT_TOKENS,
+                    DIMENSIONS_SET_BY_USER,
                     new RateLimitSettings(3000)
                 )
             )
@@ -375,6 +403,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
             DIMENSIONS,
             SIMILARITY_MEASURE,
             MAX_INPUT_TOKENS,
+            DIMENSIONS_SET_BY_USER,
             new RateLimitSettings(3)
         );
 
@@ -391,7 +420,8 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 "max_input_tokens": 128,
                 "rate_limit": {
                     "requests_per_minute": 3
-                }
+                },
+                "dimensions_set_by_user": true
             }
             """)));
     }
@@ -404,6 +434,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
             DIMENSIONS,
             SIMILARITY_MEASURE,
             MAX_INPUT_TOKENS,
+            DIMENSIONS_SET_BY_USER,
             new RateLimitSettings(3)
         );
         settings.writeTo(outputBuffer);
@@ -437,12 +468,14 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
         var similarityMeasure = randomFrom(SimilarityMeasure.values());
         var dimensions = randomIntBetween(32, 256);
         var maxInputTokens = randomIntBetween(128, 256);
+        var dimensionsSetByUser = randomBoolean();
         return new LlamaEmbeddingsServiceSettings(
             modelId,
             url,
             dimensions,
             similarityMeasure,
             maxInputTokens,
+            dimensionsSetByUser,
             RateLimitSettingsTests.createRandom()
         );
     }
@@ -453,6 +486,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
         @Nullable String similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
+        @Nullable Boolean dimensionsSetByUser,
         @Nullable HashMap<String, Integer> rateLimitSettings
     ) {
         HashMap<String, Object> result = new HashMap<>();
@@ -470,6 +504,9 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
         }
         if (maxInputTokens != null) {
             result.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
+        }
+        if (dimensionsSetByUser != null) {
+            result.put(DIMENSIONS_SET_BY_USER_FIELD, dimensionsSetByUser);
         }
         if (rateLimitSettings != null) {
             result.put(RateLimitSettings.FIELD_NAME, rateLimitSettings);

@@ -24,6 +24,8 @@ setup:
                 dims: 3
                 index: true
                 similarity: l2_norm
+              ip:
+                type: ip
 
   - do:
       bulk:
@@ -31,11 +33,11 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100, "name": "Alice Smith", "image_vector": [ 0.1, 0.2, 0.3 ] }
+          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100, "name": "Alice Smith", "image_vector": [ 0.1, 0.2, 0.3 ], "ip": "192.168.1.1" }
           - { "index": { } }
-          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200, "name": "Bob Johnson", "image_vector": [ 0.4, 0.5, 0.6 ] }
+          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200, "name": "Bob Johnson", "image_vector": [ 0.4, 0.5, 0.6 ], "ip": "192.168.1.2" }
           - { "index": { } }
-          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith", "image_vector": [ 0.7, 0.8, 0.9 ] }
+          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith", "image_vector": [ 0.7, 0.8, 0.9 ], "ip": "10.168.1.2" }
 
 ---
 TOP function with constant folding:
@@ -654,3 +656,25 @@ MV_SORT with invalid non-foldable order:
             | EVAL sa = mv_sort(a, CONCAT(str, "DESC")) | LIMIT 1
   - match: { error.type: "illegal_argument_exception" }
   - contains: { error.reason: "Invalid order value in [mv_sort(a, CONCAT(str, \"DESC\"))], expected one of [ASC, DESC] but got [REVERSEDESC]" }
+
+---
+CIDR_MATCH with multiple CIDRs:
+  - do:
+      esql.query:
+        body:
+          query: |
+            ROW ip1 = "127.0.0.3"
+            | WHERE CIDR_MATCH(TO_IP(ip1), CONCAT("127", ".0.0.2/32"), "127.0.0.3/32") | LIMIT 5
+  - match: { columns.0.name: "ip1" }
+  - match: { values.0.0: "127.0.0.3" }
+
+---
+CIDR_MATCH with non-foldable CIDRs:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE CIDR_MATCH(ip, CONCAT(TO_STRING(ip), "/8"), "127.0.0.3/32") | LIMIT 5
+  - length: { values: 3 }
+

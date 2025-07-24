@@ -18,8 +18,8 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collections;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Simulates the impact to each node's write-load in response to the movement of individual
@@ -54,19 +54,25 @@ public class WriteLoadPerShardSimulator {
     }
 
     public Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools() {
-        return originalNodeUsageStatsForThreadPools.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-            if (simulatedWriteLoadDeltas.containsKey(e.getKey())) {
-                return new NodeUsageStatsForThreadPools(
-                    e.getKey(),
+        final Map<String, NodeUsageStatsForThreadPools> adjustedNodeUsageStatsForThreadPools = Maps.newMapWithExpectedSize(
+            originalNodeUsageStatsForThreadPools.size()
+        );
+        for (Map.Entry<String, NodeUsageStatsForThreadPools> entry : originalNodeUsageStatsForThreadPools.entrySet()) {
+            if (simulatedWriteLoadDeltas.containsKey(entry.getKey())) {
+                var adjustedValue = new NodeUsageStatsForThreadPools(
+                    entry.getKey(),
                     Maps.copyMapWithAddedOrReplacedEntry(
-                        e.getValue().threadPoolUsageStatsMap(),
+                        entry.getValue().threadPoolUsageStatsMap(),
                         "write",
-                        replaceWritePoolStats(e.getValue(), simulatedWriteLoadDeltas.get(e.getKey()))
+                        replaceWritePoolStats(entry.getValue(), simulatedWriteLoadDeltas.get(entry.getKey()))
                     )
                 );
+                adjustedNodeUsageStatsForThreadPools.put(entry.getKey(), adjustedValue);
+            } else {
+                adjustedNodeUsageStatsForThreadPools.put(entry.getKey(), entry.getValue());
             }
-            return e.getValue();
-        }));
+        }
+        return Collections.unmodifiableMap(adjustedNodeUsageStatsForThreadPools);
     }
 
     private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats replaceWritePoolStats(

@@ -19,7 +19,6 @@ import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -43,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -210,14 +210,21 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     @Override
     public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        int precision = this.precision == null
-            ? DEFAULT_PRECISION
-            : ((Number) this.precision.fold(FoldContext.small() /* TODO remove me */)).intValue();
+        int precision = this.precision == null ? DEFAULT_PRECISION : precisionValue();
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
         }
         return SUPPLIERS.get(type).apply(precision);
+    }
+
+    private int precisionValue() {
+        if (precision instanceof Literal literal) {
+            return ((Number) literal.value()).intValue();
+        }
+        throw new EsqlIllegalArgumentException(
+            format(null, "Precision value must be a constant integer in [{}], found [{}]", source(), precision)
+        );
     }
 
     @Override

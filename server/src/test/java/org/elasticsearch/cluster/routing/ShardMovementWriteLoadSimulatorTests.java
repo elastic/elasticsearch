@@ -78,7 +78,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
 
         // Relocate a random shard from node_0 to node_1
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
-        final long expectedShardSize = randomNonNegativeLong();
+        final var expectedShardSize = randomNonNegativeLong();
         final var moveShardTuple = allocation.routingNodes().relocateShard(randomShard, "node_1", expectedShardSize, "testing", NOOP);
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());
         final ShardRouting movedAndStartedShard = allocation.routingNodes().startShard(moveShardTuple.v2(), NOOP, expectedShardSize);
@@ -86,7 +86,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final var calculatedNodeUsageStats = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
         assertThat(calculatedNodeUsageStats, Matchers.aMapWithSize(2));
 
-        double shardWriteLoad = allocation.clusterInfo().getShardWriteLoads().get(randomShard.shardId());
+        final var shardWriteLoad = allocation.clusterInfo().getShardWriteLoads().get(randomShard.shardId());
         final var expectedUtilisationReductionAtSource = shardWriteLoad / originalNode0ThreadPoolStats.totalThreadPoolThreads();
         final var expectedUtilisationIncreaseAtDestination = shardWriteLoad / originalNode1ThreadPoolStats.totalThreadPoolThreads();
 
@@ -136,7 +136,7 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         final var shardMovementWriteLoadSimulator = new ShardMovementWriteLoadSimulator(allocation);
 
         // Relocate a random shard from node_0 to node_1
-        final long expectedShardSize = randomNonNegativeLong();
+        final var expectedShardSize = randomNonNegativeLong();
         final var randomShard = randomFrom(StreamSupport.stream(allocation.routingNodes().node("node_0").spliterator(), false).toList());
         final var moveShardTuple = allocation.routingNodes().relocateShard(randomShard, "node_1", expectedShardSize, "testing", NOOP);
         shardMovementWriteLoadSimulator.simulateShardStarted(moveShardTuple.v2());

@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -77,14 +78,22 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
         final var calculatedNodeUsageStates = writeLoadPerShardSimulator.nodeUsageStatsForThreadPools();
         assertThat(calculatedNodeUsageStates, Matchers.aMapWithSize(2));
 
+        double shardWriteLoad = allocation.clusterInfo().getShardWriteLoads().get(randomShard.shardId());
+        final var expectedUtilisationReductionAtSource = shardWriteLoad / originalNode0WriteLoadStats.totalThreadPoolThreads();
+        final var expectedUtilisationIncreaseAtDestination = shardWriteLoad / originalNode1WriteLoadStats.totalThreadPoolThreads();
+
         // Some node_0 utilization should have been moved to node_1
         assertThat(
-            getAverageWritePoolUtilization(writeLoadPerShardSimulator, "node_0"),
-            lessThan(originalNode0WriteLoadStats.averageThreadPoolUtilization())
+            (double) originalNode0WriteLoadStats.averageThreadPoolUtilization() - getAverageWritePoolUtilization(
+                writeLoadPerShardSimulator,
+                "node_0"
+            ),
+            closeTo(expectedUtilisationReductionAtSource, 0.001f)
         );
         assertThat(
-            getAverageWritePoolUtilization(writeLoadPerShardSimulator, "node_1"),
-            greaterThan(originalNode1WriteLoadStats.averageThreadPoolUtilization())
+            (double) getAverageWritePoolUtilization(writeLoadPerShardSimulator, "node_1") - originalNode1WriteLoadStats
+                .averageThreadPoolUtilization(),
+            closeTo(expectedUtilisationIncreaseAtDestination, 0.001f)
         );
     }
 

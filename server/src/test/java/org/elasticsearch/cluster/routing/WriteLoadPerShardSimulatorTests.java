@@ -75,8 +75,8 @@ public class WriteLoadPerShardSimulatorTests extends ESTestCase {
         final var moveShardTuple = allocation.routingNodes().relocateShard(randomShard, "node_1", randomNonNegativeLong(), "testing", NOOP);
         writeLoadPerShardSimulator.simulateShardStarted(moveShardTuple.v2());
 
-        final var calculatedNodeUsageStates = writeLoadPerShardSimulator.nodeUsageStatsForThreadPools();
-        assertThat(calculatedNodeUsageStates, Matchers.aMapWithSize(2));
+        final var calculatedNodeUsageStats = writeLoadPerShardSimulator.nodeUsageStatsForThreadPools();
+        assertThat(calculatedNodeUsageStats, Matchers.aMapWithSize(2));
 
         double shardWriteLoad = allocation.clusterInfo().getShardWriteLoads().get(randomShard.shardId());
         final var expectedUtilisationReductionAtSource = shardWriteLoad / originalNode0WriteLoadStats.totalThreadPoolThreads();

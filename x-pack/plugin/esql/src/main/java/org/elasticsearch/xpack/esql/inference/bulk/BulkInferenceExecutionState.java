@@ -82,14 +82,23 @@ public class BulkInferenceExecutionState {
     }
 
     /**
-     * * Handles an exception thrown during inference execution.
-     *  Records the failure and marks the corresponding sequence number as processed.
+     * Records an inference exception for a specific sequence number.
+     * <p>
+     * When any inference request fails, this method:
+     * 1. Adds the failure to the failure collector (which automatically finishes the bulk operation)
+     * 2. Marks the sequence number as processed to maintain checkpoint consistency
+     * 3. Clears all buffered responses since the bulk operation has failed
+     * </p>
+     * <p>
+     * The fail-fast behavior ensures that once any request fails, the entire bulk operation
+     * terminates quickly rather than continuing to process remaining requests.
+     * </p>
      *
-     *  @param seqNo The sequence number of the inference request.
-     *  @param e     The exception
+     * @param seqNo The sequence number of the failed request
+     * @param e     The exception that occurred during inference
      */
     public synchronized void onInferenceException(long seqNo, Exception e) {
-        failureCollector.unwrapAndCollect(e);
+        addFailure(e);  // This automatically calls finish() to terminate the bulk operation
         checkpoint.markSeqNoAsProcessed(seqNo);
         bufferedResponses.clear();
     }
@@ -117,15 +126,30 @@ public class BulkInferenceExecutionState {
         return failureCollector.getFailure();
     }
 
+    /**
+     * Adds a failure to the bulk execution and immediately terminates the operation.
+     * <p>
+     * This method implements fail-fast behavior by:
+     * 1. Recording the failure in the failure collector (which unwraps and processes the exception)
+     * 2. Immediately marking the bulk execution as finished to prevent further processing
+     * </p>
+     * <p>
+     * The automatic finishing ensures that once any error occurs, the bulk operation
+     * terminates quickly and resources are cleaned up promptly.
+     * </p>
+     *
+     * @param e The exception to record as a failure
+     */
     public void addFailure(Exception e) {
         failureCollector.unwrapAndCollect(e);
+        finish();  // Immediately terminate the bulk operation on any failure
     }
 
     /**
      * Indicates whether the entire bulk execution is marked as finished and all responses have been successfully persisted.
      */
     public boolean finished() {
-        return finished.get() && getMaxSeqNo() == getPersistedCheckpoint();
+        return finished.get() && (failureCollector.hasFailure() || getMaxSeqNo() == getPersistedCheckpoint());
     }
 
     /**

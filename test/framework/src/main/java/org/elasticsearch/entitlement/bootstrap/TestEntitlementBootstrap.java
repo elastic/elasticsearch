@@ -12,11 +12,11 @@ package org.elasticsearch.entitlement.bootstrap;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
@@ -54,6 +54,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TE
 import static org.elasticsearch.env.Environment.PATH_DATA_SETTING;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
 import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
+import static org.elasticsearch.env.Environment.PATH_SHARED_DATA_SETTING;
 
 public class TestEntitlementBootstrap {
 
@@ -85,10 +86,12 @@ public class TestEntitlementBootstrap {
         Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
         Path configDir = configPath != null ? configPath : homeDir.resolve("config");
         Collection<Path> dataDirs = dataDirs(settings, homeDir);
+        Collection<Path> sharedDataDir = sharedDataDir(settings);
         Collection<Path> repoDirs = repoDirs(settings);
         logger.debug("Registering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.add(configDir)));
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.addAll(dataDirs)));
+        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.addAll(sharedDataDir)));
         baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.addAll(repoDirs)));
         policyManager.reset();
     }
@@ -100,10 +103,12 @@ public class TestEntitlementBootstrap {
         Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
         Path configDir = configPath != null ? configPath : homeDir.resolve("config");
         Collection<Path> dataDirs = dataDirs(settings, homeDir);
+        Collection<Path> sharedDataDir = sharedDataDir(settings);
         Collection<Path> repoDirs = repoDirs(settings);
         logger.debug("Unregistering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.remove(configDir)));
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.removeAll(dataDirs)));
+        baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.removeAll(sharedDataDir)));
         baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.removeAll(repoDirs)));
         policyManager.reset();
     }
@@ -113,6 +118,11 @@ public class TestEntitlementBootstrap {
         return dataDirs.isEmpty()
             ? List.of(homeDir.resolve("data"))
             : dataDirs.stream().map(TestEntitlementBootstrap::absolutePath).toList();
+    }
+
+    private static Collection<Path> sharedDataDir(Settings settings) {
+        String sharedDataDir = PATH_SHARED_DATA_SETTING.get(settings);
+        return Strings.hasText(sharedDataDir) ? List.of(absolutePath(sharedDataDir)) : List.of();
     }
 
     private static Collection<Path> repoDirs(Settings settings) {

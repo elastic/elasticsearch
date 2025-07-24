@@ -74,6 +74,12 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      */
     @Override
     protected void performAsync(Page input, ActionListener<OngoingInferenceResult> listener) {
+        listener.delegateResponse((l, e) -> {
+            // Release the input page if anything goes wrong.
+            releasePageOnAnyThread(input);
+            l.onFailure(e);
+        });
+
         try {
             BulkInferenceRequestIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);
@@ -106,9 +112,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 outputBuilder.addInferenceResponse(response);
             }
             return addOutputBlock(ongoingInferenceResult.inputPage, outputBuilder.buildOutput());
-
-        } finally {
-            releaseFetchedOnAnyThread(ongoingInferenceResult);
         }
     }
 

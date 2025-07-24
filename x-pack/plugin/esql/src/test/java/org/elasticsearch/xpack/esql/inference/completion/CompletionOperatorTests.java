@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.inference.completion;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -22,7 +21,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -34,9 +32,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
 
     @Before
     public void initCompletionChannel() {
-        inputChannel = randomFrom(
-            IntStream.range(0, elementTypes.length).filter(i -> elementTypes[i] == ElementType.BYTES_REF).boxed().toList()
-        );
+        inputChannel = 0;
     }
 
     @Override

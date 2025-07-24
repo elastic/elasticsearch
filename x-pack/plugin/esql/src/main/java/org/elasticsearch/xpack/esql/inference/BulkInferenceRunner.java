@@ -246,7 +246,7 @@ public class BulkInferenceRunner {
      * @param bulkExecutionState The state tracker containing buffered responses
      * @param responseConsumer   Consumer to deliver responses to
      */
-    private synchronized void persistPendingResponses(
+    private void persistPendingResponses(
         BulkInferenceExecutionState bulkExecutionState,
         Consumer<InferenceAction.Response> responseConsumer
     ) {
@@ -258,7 +258,9 @@ public class BulkInferenceRunner {
                 if (bulkExecutionState.hasFailure() == false) {
                     try {
                         InferenceAction.Response response = bulkExecutionState.fetchBufferedResponse(persistedSeqNo);
-                        responseConsumer.accept(response);
+                        synchronized (this) {
+                            responseConsumer.accept(response);
+                        }
                     } catch (Exception e) {
                         bulkExecutionState.addFailure(e);
                     }

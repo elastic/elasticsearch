@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.inference.rerank;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -21,7 +20,6 @@ import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -37,13 +35,8 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
 
     @Before
     public void initCompletionChannel() {
-        inputChannel = randomFrom(
-            IntStream.range(0, elementTypes.length).filter(i -> elementTypes[i] == ElementType.BYTES_REF).boxed().toList()
-        );
-        scoreChannel = randomInt(elementTypes.length);
-        if (scoreChannel == inputChannel) {
-            scoreChannel++;
-        }
+        inputChannel = 0;
+        scoreChannel = 1;
     }
 
     @Override

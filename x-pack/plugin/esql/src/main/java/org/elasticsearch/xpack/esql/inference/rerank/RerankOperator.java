@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.esql.inference.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 
+import java.util.stream.IntStream;
+
 /**
  * {@link RerankOperator} is an inference operator that computes scores for rows using a reranking model.
  */
@@ -62,18 +64,20 @@ public class RerankOperator extends InferenceOperator {
 
     @Override
     protected Page addOutputBlock(Page inputPage, Block outputblock) {
-        int blockCount = Integer.max(inputPage.getBlockCount(), scoreChannel + 1);
-        Block[] blocks = new Block[blockCount];
+        Page outputPage = inputPage.appendBlock(outputblock);
 
-        for (int b = 0; b < blockCount; b++) {
-            if (b == scoreChannel) {
-                blocks[b] = outputblock;
-            } else {
-                blocks[b] = inputPage.getBlock(b);
-                blocks[b].incRef();
-            }
+        if (scoreChannel >= inputPage.getBlockCount()) {
+            return outputPage;
         }
-        return new Page(blocks);
+
+        try {
+            int[] projections = IntStream.range(0, inputPage.getBlockCount())
+                .map(b -> b == scoreChannel ? inputPage.getBlockCount() : b)
+                .toArray();
+            return outputPage.projectBlocks(projections);
+        } finally {
+            releasePageOnAnyThread(outputPage);
+        }
     }
 
     /**

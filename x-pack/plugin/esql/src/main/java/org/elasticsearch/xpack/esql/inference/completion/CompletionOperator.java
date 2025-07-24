@@ -49,8 +49,8 @@ public class CompletionOperator extends InferenceOperator {
     }
 
     @Override
-    protected Page addOutputBlock(Page input, Block outputblock) {
-        return input.shallowCopy().appendBlock(outputblock);
+    protected synchronized Page addOutputBlock(Page input, Block outputblock) {
+        return input.appendBlock(outputblock);
     }
 
     /**

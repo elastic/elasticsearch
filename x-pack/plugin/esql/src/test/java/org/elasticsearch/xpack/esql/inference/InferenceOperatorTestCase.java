@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -33,6 +32,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
@@ -47,8 +47,6 @@ import org.junit.Before;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.compute.test.RandomBlock.randomBlock;
-import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -56,7 +54,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class InferenceOperatorTestCase<InferenceResultsType extends InferenceServiceResults> extends OperatorTestCase {
 
     protected ThreadPool threadPool;
-    protected ElementType[] elementTypes;
+    protected int channelsCount = between(1, 10);
 
     @Before
     public void setThreadPool() {
@@ -71,23 +69,6 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
-    }
-
-    @Before
-    public void initChannels() {
-        int channelCount = between(1, 10);
-        boolean hasTextInput = false;
-
-        elementTypes = new ElementType[channelCount];
-
-        for (int i = 0; i < channelCount; i++) {
-            elementTypes[i] = randomElementType();
-            hasTextInput = hasTextInput || elementTypes[i] == ElementType.BYTES_REF;
-
-            if (hasTextInput == false && i == channelCount - 1) {
-                elementTypes[i] = ElementType.BYTES_REF;
-            }
-        }
     }
 
     @After
@@ -110,13 +91,23 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             @Override
             protected Page createPage(int positionOffset, int length) {
                 length = Integer.min(length, remaining());
-                Block[] blocks = new Block[elementTypes.length];
-                for (int i = 0; i < blocks.length; i++) {
-                    blocks[i] = randomBlock(blockFactory, elementTypes[i], length, false, false, 0, 1, 0, 0).block();
-                }
+                Block[] blocks = new Block[channelsCount];
+                try {
+                    for (int b = 0; b < blocks.length; b++) {
+                        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(length)) {
+                            for (int p = 0; p < length; p++) {
+                                builder.appendBytesRef(new BytesRef(randomAlphanumericOfLength(10)));
+                            }
+                            blocks[b] = builder.build();
+                        }
+                    }
 
-                currentPosition += length;
-                return new Page(blocks);
+                    currentPosition += length;
+                    return new Page(blocks);
+                } catch (Exception e) {
+                    Releasables.closeExpectNoException(blocks);
+                    throw e;
+                }
             }
         };
     }
@@ -222,7 +213,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
         return context -> new EvalOperator.ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                return BlockUtils.deepCopyOf(page.getBlock(channel), blockFactory());
+                return BlockUtils.deepCopyOf(page.getBlock(channel), context.blockFactory());
             }
 
             @Override

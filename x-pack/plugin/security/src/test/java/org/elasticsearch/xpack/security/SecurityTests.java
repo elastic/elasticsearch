@@ -1267,10 +1267,6 @@ public class SecurityTests extends ESTestCase {
         assertFalse(authContext.containsKey("apikey.name"));
     }
 
-    /**
-     * Tests getAuthContextForSlowLog for an API Key authentication scenario.
-     * Covers a part of the 'else' branch where authentication is NOT cross-cluster.
-     */
     public void testAuthContextForSlowLog_LocalAccess_ApiKeyAuthentication() throws Exception {
         createComponents(Settings.EMPTY);
         AuthenticationContextSerializer serializer = new AuthenticationContextSerializer();

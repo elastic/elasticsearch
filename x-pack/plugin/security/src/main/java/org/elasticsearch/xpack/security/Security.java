@@ -2416,13 +2416,6 @@ public class Security extends Plugin
         return Map.of();
     }
 
-    /**
-     * Helper method to populate authentication context fields for slow logs.
-     * This logic is common for both direct authentications and the nested
-     * original authentication in cross-cluster access scenarios.
-     *
-     * @param auth The Authentication object to extract details from.
-     */
     private Map<String, String> createAuthContextMap(Authentication auth) {
         Map<String, String> authContext = new HashMap<>();
 

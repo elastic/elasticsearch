@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -180,20 +179,19 @@ public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSec
             assertOK(searchResponse);
 
             // Verify slow log contains correct authentication context from the original user
-            // The key test: slow logs should show the original user from querying cluster
             Map<String, Object> expectedAuthContext = Map.of(
                 "user.name",
-                "slow_log_test_user",          // Original user from querying cluster
+                "slow_log_test_user",
                 "user.realm",
-                "_es_api_key",             // User's realm on querying cluster
+                "_es_api_key",
                 "user.full_name",
                 "Slow Log Test User",
                 "auth.type",
-                "API_KEY",                     // Authentication type
+                "API_KEY",
                 "apikey.id",
-                apiKeyId,                      // API key from querying cluster
+                apiKeyId,
                 "apikey.name",
-                "slow_log_test_api_key"      // API key name
+                "slow_log_test_api_key"
             );
 
             verifySlowLogAuthenticationContext(expectedAuthContext);
@@ -205,7 +203,6 @@ public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSec
 
         // Fulfilling cluster setup
         {
-            // Create an index for run-as testing with slow log enabled
             final Request createIndexRequest = new Request("PUT", "/run_as_test");
             createIndexRequest.setJsonEntity("""
                 {
@@ -283,16 +280,15 @@ public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSec
             final Response runAsResponse = client().performRequest(runAsSearchRequest);
             assertOK(runAsResponse);
 
-            // Verify slow log shows both authenticating and effective users from querying cluster
             Map<String, Object> expectedRunAsAuthContext = Map.of(
                 "user.name",
-                "run_as_user",                    // Authenticating user from querying cluster
+                "run_as_user",
                 "user.realm",
                 "default_native",
                 "user.full_name",
                 "Run As User",
                 "user.effective.name",
-                "target_user",          // Effective user from querying cluster
+                "target_user",
                 "user.effective.realm",
                 "default_native",
                 "user.effective.full_name",
@@ -315,7 +311,6 @@ public class RemoteClusterSecuritySlowLogRestIT extends AbstractRemoteClusterSec
                 String lastLogLine = lines.get(lines.size() - 1);
                 Map<String, Object> logEntry = XContentHelper.convertToMap(XContentType.JSON.xContent(), lastLogLine, true);
 
-                // Verify that the log entry contains the expected authentication context
                 for (Map.Entry<String, Object> expectedEntry : expectedAuthContext.entrySet()) {
                     assertThat(
                         "Slow log should contain " + expectedEntry.getKey() + " with value " + expectedEntry.getValue(),

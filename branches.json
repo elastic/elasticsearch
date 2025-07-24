@@ -11,7 +11,7 @@
     },
     {
       "branch" : "9.0",
-      "version" : "9.0.4"
+      "version" : "9.0.5"
     },
     {
       "branch" : "8.19",
@@ -19,11 +19,11 @@
     },
     {
       "branch" : "8.18",
-      "version" : "8.18.4"
+      "version" : "8.18.5"
     },
     {
       "branch" : "8.17",
-      "version" : "8.17.9"
+      "version" : "8.17.10"
     },
     {
       "branch" : "7.17",

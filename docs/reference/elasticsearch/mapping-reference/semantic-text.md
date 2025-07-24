@@ -111,13 +111,13 @@ the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/ope
 to create the endpoint. If not specified, the {{infer}} endpoint defined by
 `inference_id` will be used at both index and query time.
 
-`index_options`
+`index_options` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Specifies the index options to override default values
 for the field. Currently, `dense_vector` index options are supported.
 For text embeddings, `index_options` may match any allowed
 [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
 
-`chunking_settings`
+`chunking_settings` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Settings for chunking text into smaller passages.
 If specified, these will override the chunking settings set in the {{infer-cap}}
 endpoint associated with `inference_id`.
@@ -127,8 +127,8 @@ To completely disable chunking, use the `none` chunking strategy.
 
     **Valid values for `chunking_settings`**:
 
-    `type`
-    :   Indicates the type of chunking strategy to use. Valid values are `none`, `word` or
+    `strategy`
+    :   Indicates the strategy of chunking strategy to use. Valid values are `none`, `word` or
     `sentence`. Required.
 
     `max_chunk_size`
@@ -144,7 +144,8 @@ To completely disable chunking, use the `none` chunking strategy.
     or `1`. Required for `sentence` type chunking settings
 
 ::::{warning}
-When using the `none` chunking strategy, if the input exceeds the maximum token limit of the underlying model, some
+When using the `none` chunking strategy, if the input exceeds the maximum token
+limit of the underlying model, some
 services (such as OpenAI) may return an
 error. In contrast, the `elastic` and `elasticsearch` services will
 automatically truncate the input to fit within the
@@ -295,7 +296,8 @@ automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
 If you want to override those defaults and customize the embeddings that
-`semantic_text` indexes, you can do so by modifying [parameters](#semantic-text-params):
+`semantic_text` indexes, you can do so by
+modifying [parameters](#semantic-text-params):
 
 - Use `index_options` to specify alternate index options such as specific
   `dense_vector` quantization methods

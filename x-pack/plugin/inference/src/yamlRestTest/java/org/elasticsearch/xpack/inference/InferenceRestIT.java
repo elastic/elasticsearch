@@ -23,6 +23,7 @@ import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class InferenceRestIT extends ESClientYamlSuiteTestCase {
@@ -41,7 +42,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
     public InferenceRestIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
         String testPath = testCandidate.getTestPath();
-        if (testPath.startsWith("inference/70_text_similarity_rank_retriever") && testPath.toLowerCase().contains("snippet")) {
+        if (testPath.startsWith("inference/70_text_similarity_rank_retriever") && testPath.toLowerCase(Locale.ROOT).contains("snippet")) {
             assumeTrue("Rerank snippets does not work in release builds", Build.current().isSnapshot());
         }
     }

@@ -9,12 +9,10 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 
 public class LocateTransportVersionsPlugin implements Plugin<Project> {
@@ -22,19 +20,17 @@ public class LocateTransportVersionsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        var config = project.getConfigurations().create("locateTransportVersionsConfig");
 
         final var checkTransportVersion = project.getTasks().register("locateTransportVersions", LocateTransportVersionsTask.class, t -> {
+            t.setGroup("Transport Versions");
+            t.setDescription("Collects all TransportVersion names used throughout the project");
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            FileCollection dependencyJars = project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME);
-            FileCollection compiledPluginClasses = mainSourceSet.getOutput().getClassesDirs();
-            FileCollection clasDirs = dependencyJars.plus(compiledPluginClasses)
-                .minus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME));
+            FileCollection clasDirs = mainSourceSet.getRuntimeClasspath();
             t.getClassDirs().set(clasDirs);
-
             t.getOutputFile().set(project.getLayout().getBuildDirectory().file(TRANSPORT_VERSION_NAMES_FILE));
         });
 
+        var config = project.getConfigurations().create("locateTransportVersionsConfig");
         project.getArtifacts().add(config.getName(), checkTransportVersion);
     }
 }

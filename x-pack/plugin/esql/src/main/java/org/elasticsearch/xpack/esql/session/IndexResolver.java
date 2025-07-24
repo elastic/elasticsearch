@@ -262,7 +262,7 @@ public class IndexResolver {
 
     private static FieldCapabilitiesRequest createFieldCapsRequest(String index, Set<String> fieldNames, QueryBuilder requestFilter) {
         FieldCapabilitiesRequest req = new FieldCapabilitiesRequest().indices(Strings.commaDelimitedListToStringArray(index));
-        req.fields(fieldNames.toArray(String[]::new));
+        req.fields(ALL_FIELDS.toArray(String[]::new));
         req.includeUnmapped(true);
         req.indexFilter(requestFilter);
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved

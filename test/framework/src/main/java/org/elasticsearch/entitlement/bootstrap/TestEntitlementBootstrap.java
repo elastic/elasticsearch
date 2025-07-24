@@ -91,7 +91,13 @@ public class TestEntitlementBootstrap {
         Collection<Path> dataDirs = dataDirs(settings, homeDir);
         Collection<Path> sharedDataDir = sharedDataDir(settings);
         Collection<Path> repoDirs = repoDirs(settings);
-        logger.debug("Registering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
+        logger.debug(
+            "Registering node dirs: config [{}], dataDirs [{}], sharedDataDir [{}], repoDirs [{}]",
+            configDir,
+            dataDirs,
+            sharedDataDir,
+            repoDirs
+        );
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.add(configDir)));
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.addAll(dataDirs)));
         baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.addAll(sharedDataDir)));
@@ -109,7 +115,13 @@ public class TestEntitlementBootstrap {
         Collection<Path> dataDirs = dataDirs(settings, homeDir);
         Collection<Path> sharedDataDir = sharedDataDir(settings);
         Collection<Path> repoDirs = repoDirs(settings);
-        logger.debug("Unregistering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
+        logger.debug(
+            "Unregistering node dirs: config [{}], dataDirs [{}], sharedDataDir [{}], repoDirs [{}]",
+            configDir,
+            dataDirs,
+            sharedDataDir,
+            repoDirs
+        );
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.remove(configDir)));
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.removeAll(dataDirs)));
         baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.removeAll(sharedDataDir)));

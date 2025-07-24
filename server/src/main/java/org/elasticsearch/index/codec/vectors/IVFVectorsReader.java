@@ -254,7 +254,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
         final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
 
-        // TODO : eval this
         List<Float> centroidScores = centroidQueryScorer.scores();
         if (centroidQueue.size() > 2 && centroidScores.size() > nProbe) {
             // Calculate distances between first and last centroids in queue

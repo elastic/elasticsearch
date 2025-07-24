@@ -13,6 +13,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
@@ -21,8 +24,10 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,7 +37,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
 
-    private static final Set<String> DENSE_VECTOR_INDEX_TYPES = Set.of(
+    private static final Set<String> ALL_DENSE_VECTOR_INDEX_TYPES = Set.of(
         "int8_hnsw",
         "hnsw",
         "int4_hnsw",
@@ -42,32 +47,48 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         "bbq_flat",
         "flat"
     );
+    private static final Set<String> NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES = Set.of(
+        "hnsw",
+        "flat"
+    );
 
+    private final ElementType elementType;
+    private final boolean synthetic;
     private final String indexType;
     private final boolean index;
-    private final boolean synthetic;
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         List<Object[]> params = new ArrayList<>();
         // Indexed field types
-        for (String indexType : DENSE_VECTOR_INDEX_TYPES) {
-            params.add(new Object[] { indexType, true, false });
+        for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
+            params.add(new Object[] {ElementType.FLOAT, indexType, true, false });
         }
-        // No indexing
-        params.add(new Object[] { null, false, false });
-        // No indexing, synthetic source
-        params.add(new Object[] { null, false, true });
+        for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
+            params.add(new Object[] {ElementType.BYTE, indexType, true, false });
+        }
+        for (ElementType elementType : List.of(ElementType.BYTE, ElementType.FLOAT)) {
+            // No indexing
+            params.add(new Object[]{elementType, null, false, false});
+            // No indexing, synthetic source
+            params.add(new Object[]{elementType, null, false, true});
+        }
         return params;
     }
 
-    public DenseVectorFieldTypeIT(@Name("indexType") String indexType, @Name("index") boolean index, @Name("synthetic") boolean synthetic) {
+    public DenseVectorFieldTypeIT(
+        @Name("elementType") ElementType elementType,
+        @Name("indexType") String indexType,
+        @Name("index") boolean index,
+        @Name("synthetic") boolean synthetic
+    ) {
+        this.elementType = elementType;
         this.indexType = indexType;
         this.index = index;
         this.synthetic = synthetic;
     }
 
-    private final Map<Integer, List<Float>> indexedVectors = new HashMap<>();
+    private final Map<Integer, List<Number>> indexedVectors = new HashMap<>();
 
     public void testRetrieveFieldType() {
         var query = """
@@ -93,11 +114,11 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             indexedVectors.forEach((id, vector) -> {
                 var values = valuesList.get(id);
                 assertEquals(id, values.get(0));
-                List<Float> vectors = (List<Float>) values.get(1);
+                List<Number> vectors = (List<Number>) values.get(1);
                 assertNotNull(vectors);
                 assertEquals(vector.size(), vectors.size());
                 for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(vector.get(i), vectors.get(i), 0F);
+                    assertEquals(vector.get(i).floatValue(), vectors.get(i).floatValue(), 0F);
                 }
             });
         }
@@ -114,15 +135,14 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
             assertEquals(valuesList.size(), indexedVectors.size());
             valuesList.forEach(value -> {
-                ;
                 assertEquals(2, value.size());
                 Integer id = (Integer) value.get(0);
-                List<Float> vector = (List<Float>) value.get(1);
+                List<Number> vector = (List<Number>) value.get(1);
                 assertNotNull(vector);
-                List<Float> expectedVector = indexedVectors.get(id);
+                List<Number> expectedVector = indexedVectors.get(id);
                 assertNotNull(expectedVector);
                 for (int i = 0; i < vector.size(); i++) {
-                    assertEquals(expectedVector.get(i), vector.get(i), 0F);
+                    assertEquals(expectedVector.get(i).floatValue(), vector.get(i).floatValue(), 0F);
                 }
             });
         }
@@ -167,9 +187,18 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
         int numDocs = randomIntBetween(10, 100);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            List<Float> vector = new ArrayList<>(numDims);
+            List<Number> vector = new ArrayList<>(numDims);
             for (int j = 0; j < numDims; j++) {
-                vector.add(randomFloat());
+                switch (elementType) {
+                    case FLOAT:
+                        // Normalized values to avoid normalizing the comparison
+                        vector.add(randomFloatBetween(-1F, 1F, true));
+                        break;
+                    case BYTE:
+                        vector.add(randomByte());
+                        break;
+                    default: throw new IllegalArgumentException("Unexpected element type: " + elementType);
+                }
             }
             docs[i] = prepareIndex("test").setId("" + i).setSource("id", String.valueOf(i), "vector", vector);
             indexedVectors.put(i, vector);
@@ -188,9 +217,14 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             .endObject()
             .startObject("vector")
             .field("type", "dense_vector")
+            .field("element_type", elementType.toString().toLowerCase(Locale.ROOT))
             .field("index", index);
         if (index) {
-            mapping.field("similarity", "l2_norm");
+            mapping.field(
+                "similarity",
+                // Let's not use others to avoid vector normalization
+                randomFrom("l2_norm", "max_inner_product")
+            );
         }
         if (indexType != null) {
             mapping.startObject("index_options").field("type", indexType).endObject();

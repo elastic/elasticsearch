@@ -67,7 +67,7 @@ import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     private static final long SHALLOW_RAM_BYTES_USED =
-        RamUsageEstimator.shallowSizeOfInstance(Lucene99FlatVectorsWriter.class);
+        RamUsageEstimator.shallowSizeOfInstance(ES91BFloat16FlatVectorsWriter.class);
 
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorData;
@@ -81,13 +81,13 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         segmentWriteState = state;
         String metaFileName =
             IndexFileNames.segmentFileName(
-                state.segmentInfo.name, state.segmentSuffix, Lucene99FlatVectorsFormat.META_EXTENSION);
+                state.segmentInfo.name, state.segmentSuffix, ES91BFloat16FlatVectorsFormat.META_EXTENSION);
 
         String vectorDataFileName =
             IndexFileNames.segmentFileName(
                 state.segmentInfo.name,
                 state.segmentSuffix,
-                Lucene99FlatVectorsFormat.VECTOR_DATA_EXTENSION);
+                ES91BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION);
 
         try {
             meta = state.directory.createOutput(metaFileName, state.context);
@@ -95,14 +95,14 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
             CodecUtil.writeIndexHeader(
                 meta,
-                Lucene99FlatVectorsFormat.META_CODEC_NAME,
-                Lucene99FlatVectorsFormat.VERSION_CURRENT,
+                ES91BFloat16FlatVectorsFormat.META_CODEC_NAME,
+                ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix);
             CodecUtil.writeIndexHeader(
                 vectorData,
-                Lucene99FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
-                Lucene99FlatVectorsFormat.VERSION_CURRENT,
+                ES91BFloat16FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
+                ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
                 state.segmentSuffix);
         } catch (Throwable t) {
@@ -160,7 +160,7 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
         switch (fieldData.fieldInfo.getVectorEncoding()) {
             case BYTE -> writeByteVectors(fieldData);
-            case FLOAT32 -> writeFloat32Vectors(fieldData);
+            case FLOAT32 -> writeBFloat16Vectors(fieldData);
         }
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
@@ -168,11 +168,12 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             fieldData.fieldInfo, maxDoc, vectorDataOffset, vectorDataLength, fieldData.docsWithField);
     }
 
-    private void writeFloat32Vectors(FieldWriter<?> fieldData) throws IOException {
+    private void writeBFloat16Vectors(FieldWriter<?> fieldData) throws IOException {
         final ByteBuffer buffer =
-            ByteBuffer.allocate(fieldData.dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (Object v : fieldData.vectors) {
-            buffer.asFloatBuffer().put((float[]) v);
+            short[] data = BFloat16.floatToBFloat16((float[]) v);
+            buffer.asShortBuffer().put(data);
             vectorData.writeBytes(buffer.array(), buffer.array().length);
         }
     }
@@ -195,21 +196,22 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         long vectorDataOffset =
             switch (fieldData.fieldInfo.getVectorEncoding()) {
                 case BYTE -> writeSortedByteVectors(fieldData, ordMap);
-                case FLOAT32 -> writeSortedFloat32Vectors(fieldData, ordMap);
+                case FLOAT32 -> writeSortedBFloat16Vectors(fieldData, ordMap);
             };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
         writeMeta(fieldData.fieldInfo, maxDoc, vectorDataOffset, vectorDataLength, newDocsWithField);
     }
 
-    private long writeSortedFloat32Vectors(FieldWriter<?> fieldData, int[] ordMap)
+    private long writeSortedBFloat16Vectors(FieldWriter<?> fieldData, int[] ordMap)
         throws IOException {
         long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
         final ByteBuffer buffer =
-            ByteBuffer.allocate(fieldData.dim * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int ordinal : ordMap) {
             float[] vector = (float[]) fieldData.vectors.get(ordinal);
-            buffer.asFloatBuffer().put(vector);
+            short[] data = BFloat16.floatToBFloat16(vector);
+            buffer.asShortBuffer().put(data);
             vectorData.writeBytes(buffer.array(), buffer.array().length);
         }
         return vectorDataOffset;
@@ -383,13 +385,14 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         IndexOutput output, FloatVectorValues floatVectorValues) throws IOException {
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
         ByteBuffer buffer =
-            ByteBuffer.allocate(floatVectorValues.dimension() * VectorEncoding.FLOAT32.byteSize)
+            ByteBuffer.allocate(floatVectorValues.dimension() * BFloat16.BYTES)
                 .order(ByteOrder.LITTLE_ENDIAN);
         KnnVectorValues.DocIndexIterator iter = floatVectorValues.iterator();
         for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
             // write vector
             float[] value = floatVectorValues.vectorValue(iter.index());
-            buffer.asFloatBuffer().put(value);
+            short[] data = BFloat16.floatToBFloat16(value);
+            buffer.asShortBuffer().put(data);
             output.writeBytes(buffer.array(), buffer.limit());
             docsWithField.add(docV);
         }
@@ -416,14 +419,14 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             int dim = fieldInfo.getVectorDimension();
             return switch (fieldInfo.getVectorEncoding()) {
                 case BYTE ->
-                    new Lucene99FlatVectorsWriter.FieldWriter<byte[]>(fieldInfo) {
+                    new FieldWriter<byte[]>(fieldInfo) {
                         @Override
                         public byte[] copyValue(byte[] value) {
                             return ArrayUtil.copyOfSubArray(value, 0, dim);
                         }
                     };
                 case FLOAT32 ->
-                    new Lucene99FlatVectorsWriter.FieldWriter<float[]>(fieldInfo) {
+                    new FieldWriter<float[]>(fieldInfo) {
                         @Override
                         public float[] copyValue(float[] value) {
                             return ArrayUtil.copyOfSubArray(value, 0, dim);

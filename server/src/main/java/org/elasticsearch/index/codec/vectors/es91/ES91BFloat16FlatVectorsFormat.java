@@ -23,6 +23,7 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene99.ES91BFloat16FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
@@ -33,7 +34,7 @@ import java.io.IOException;
 public class ES91BFloat16FlatVectorsFormat extends FlatVectorsFormat {
 
     static final String NAME = "ES91BFloat16FlatVectorsFormat";
-    static final String META_CODEC_NAME = "Lucene99FlatVectorsFormatMeta";
+    static final String META_CODEC_NAME = "ES91BFloat16FlatVectorsFormatMeta";
     static final String VECTOR_DATA_CODEC_NAME = "ES91BFloat16FlatVectorsFormatData";
     static final String META_EXTENSION = "vemf";
     static final String VECTOR_DATA_EXTENSION = "vec";
@@ -52,12 +53,12 @@ public class ES91BFloat16FlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new Lucene99FlatVectorsWriter(state, vectorsScorer);
+        return new ES91BFloat16FlatVectorsWriter(state, vectorsScorer);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene99FlatVectorsReader(state, vectorsScorer);
+        return new ES91BFloat16FlatVectorsReader(state, vectorsScorer);
     }
 
     @Override

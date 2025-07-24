@@ -17,7 +17,7 @@
  *
  * Modifications copyright (C) 2024 Elasticsearch B.V.
  */
-package org.apache.lucene.codecs.lucene99;
+package org.elasticsearch.index.codec.vectors.es91;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
@@ -51,6 +51,7 @@ import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.elasticsearch.index.codec.vectors.es91.ES91BFloat16FlatVectorsFormat;
 
 /**
  * Reads vectors from the index segments.
@@ -60,13 +61,13 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE =
-        RamUsageEstimator.shallowSizeOfInstance(Lucene99FlatVectorsFormat.class);
+        RamUsageEstimator.shallowSizeOfInstance(ES91BFloat16FlatVectorsFormat.class);
 
     private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
 
-    public Lucene99FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer)
+    public ES91BFloat16FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer)
         throws IOException {
         super(scorer);
         int versionMeta = readMetadata(state);
@@ -76,8 +77,8 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
                 openDataInput(
                     state,
                     versionMeta,
-                    Lucene99FlatVectorsFormat.VECTOR_DATA_EXTENSION,
-                    Lucene99FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
+                    ES91BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION,
+                    ES91BFloat16FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
                     // Flat formats are used to randomly access vectors from their node ID that is stored
                     // in the HNSW graph.
                     state.context.withHints(
@@ -91,7 +92,7 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
     private int readMetadata(SegmentReadState state) throws IOException {
         String metaFileName =
             IndexFileNames.segmentFileName(
-                state.segmentInfo.name, state.segmentSuffix, Lucene99FlatVectorsFormat.META_EXTENSION);
+                state.segmentInfo.name, state.segmentSuffix, ES91BFloat16FlatVectorsFormat.META_EXTENSION);
         int versionMeta = -1;
         try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
             Throwable priorE = null;
@@ -99,9 +100,9 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
                 versionMeta =
                     CodecUtil.checkIndexHeader(
                         meta,
-                        Lucene99FlatVectorsFormat.META_CODEC_NAME,
-                        Lucene99FlatVectorsFormat.VERSION_START,
-                        Lucene99FlatVectorsFormat.VERSION_CURRENT,
+                        ES91BFloat16FlatVectorsFormat.META_CODEC_NAME,
+                        ES91BFloat16FlatVectorsFormat.VERSION_START,
+                        ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
                         state.segmentInfo.getId(),
                         state.segmentSuffix);
                 readFields(meta, state.fieldInfos);
@@ -129,8 +130,8 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
                 CodecUtil.checkIndexHeader(
                     in,
                     codecName,
-                    Lucene99FlatVectorsFormat.VERSION_START,
-                    Lucene99FlatVectorsFormat.VERSION_CURRENT,
+                    ES91BFloat16FlatVectorsFormat.VERSION_START,
+                    ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
                     state.segmentInfo.getId(),
                     state.segmentSuffix);
             if (versionMeta != versionVectorData) {
@@ -164,13 +165,13 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     @Override
     public long ramBytesUsed() {
-        return Lucene99FlatVectorsReader.SHALLOW_SIZE + fields.ramBytesUsed();
+        return ES91BFloat16FlatVectorsReader.SHALLOW_SIZE + fields.ramBytesUsed();
     }
 
     @Override
     public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
         final FieldEntry entry = getFieldEntryOrThrow(fieldInfo.name);
-        return Map.of(Lucene99FlatVectorsFormat.VECTOR_DATA_EXTENSION, entry.vectorDataLength());
+        return Map.of(ES91BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION, entry.vectorDataLength());
     }
 
     @Override
@@ -215,7 +216,7 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
     @Override
     public FloatVectorValues getFloatVectorValues(String field) throws IOException {
         final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.FLOAT32);
-        return OffHeapFloatVectorValues.load(
+        return OffHeapBFloat16VectorValues.load(
             fieldEntry.similarityFunction,
             vectorScorer,
             fieldEntry.ordToDoc,
@@ -229,7 +230,7 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
     @Override
     public ByteVectorValues getByteVectorValues(String field) throws IOException {
         final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.BYTE);
-        return OffHeapByteVectorValues.load(
+        return OffHeapBFloat16VectorValues.load(
             fieldEntry.similarityFunction,
             vectorScorer,
             fieldEntry.ordToDoc,
@@ -320,7 +321,7 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
             int byteSize =
                 switch (info.getVectorEncoding()) {
                     case BYTE -> Byte.BYTES;
-                    case FLOAT32 -> Float.BYTES;
+                    case FLOAT32 -> BFloat16.BYTES;
                 };
             long vectorBytes = Math.multiplyExact((long) infoVectorDimension, byteSize);
             long numBytes = Math.multiplyExact(vectorBytes, size);

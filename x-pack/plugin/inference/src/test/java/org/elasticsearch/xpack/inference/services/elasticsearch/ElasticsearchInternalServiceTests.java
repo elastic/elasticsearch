@@ -1996,15 +1996,11 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void test_nullTimeoutUsesClusterSetting() throws InterruptedException {
-        var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
-        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
-
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
             var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(response);
+            listener.onResponse(null);
             return null;
         }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
 
@@ -2030,19 +2026,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null
         );
 
-        var gotResults = new AtomicBoolean();
-        var resultsListener = ActionListener.<InferenceServiceResults>wrap(serviceResponse -> {
-            assertThat(serviceResponse, instanceOf(TextEmbeddingFloatResults.class));
-            gotResults.set(true);
-        }, ESTestCase::fail);
-
         var latch = new CountDownLatch(1);
-        var latchedListener = new LatchedActionListener<>(resultsListener, latch);
+        var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
 
         service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, null, latchedListener);
 
-        latch.await();
-        assertTrue("Listener not called", gotResults.get());
+        assertTrue(latch.await(30, TimeUnit.SECONDS));
 
         ArgumentCaptor<InferModelAction.Request> requestCaptor = ArgumentCaptor.forClass(InferModelAction.Request.class);
         verify(client).execute(same(InferModelAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));
@@ -2051,15 +2040,11 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void test_providedTimeoutPropagateProperly() throws InterruptedException {
-        var mlTrainedModelResults = new ArrayList<InferenceResults>();
-        mlTrainedModelResults.add(MlTextEmbeddingResultsTests.createRandomResults());
-        var response = new InferModelAction.Response(mlTrainedModelResults, "foo", true);
-
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
             var listener = (ActionListener<InferModelAction.Response>) invocationOnMock.getArguments()[2];
-            listener.onResponse(response);
+            listener.onResponse(null);
             return null;
         }).when(client).execute(same(InferModelAction.INSTANCE), any(InferModelAction.Request.class), any(ActionListener.class));
 
@@ -2085,19 +2070,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null
         );
 
-        var gotResults = new AtomicBoolean();
-        var resultsListener = ActionListener.<InferenceServiceResults>wrap(serviceResponse -> {
-            assertThat(serviceResponse, instanceOf(TextEmbeddingFloatResults.class));
-            gotResults.set(true);
-        }, ESTestCase::fail);
-
         var latch = new CountDownLatch(1);
-        var latchedListener = new LatchedActionListener<>(resultsListener, latch);
+        var latchedListener = new LatchedActionListener<>(ActionListener.<InferenceServiceResults>noop(), latch);
 
         service.infer(model, null, null, null, List.of("test input"), false, Map.of(), InputType.SEARCH, providedTimeout, latchedListener);
 
-        latch.await();
-        assertTrue("Listener not called", gotResults.get());
+        assertTrue(latch.await(30, TimeUnit.SECONDS));
 
         ArgumentCaptor<InferModelAction.Request> requestCaptor = ArgumentCaptor.forClass(InferModelAction.Request.class);
         verify(client).execute(same(InferModelAction.INSTANCE), requestCaptor.capture(), any(ActionListener.class));

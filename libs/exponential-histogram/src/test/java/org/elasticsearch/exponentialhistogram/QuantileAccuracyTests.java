@@ -18,7 +18,6 @@ import org.apache.commons.math3.distribution.RealDistribution;
 import org.apache.commons.math3.distribution.UniformRealDistribution;
 import org.apache.commons.math3.distribution.WeibullDistribution;
 import org.apache.commons.math3.random.Well19937c;
-import org.apache.commons.math3.stat.descriptive.rank.Percentile;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -79,7 +78,7 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testPercentileOverlapsZeroBucket() {
-        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(-2.0, -1, 0, 0, 0, 1, 1);
+        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(-3.0, -2, -1, 0, 0, 0, 1, 2, 3);
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 8.0 / 16.0), equalTo(0.0));
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 7.0 / 16.0), equalTo(0.0));
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 9.0 / 16.0), equalTo(0.0));
@@ -215,30 +214,22 @@ public class QuantileAccuracyTests extends ESTestCase {
         ExponentialHistogram histogram = ExponentialHistogramGenerator.createFor(bucketCount, values);
         Arrays.sort(values);
 
-        // Calculate exact percentiles
-        Percentile exactPercentile = new Percentile();
-        exactPercentile.setData(values);
-
         double allowedError = getMaximumRelativeError(values, bucketCount);
         double maxError = 0;
 
         // Compare histogram quantiles with exact quantiles
         for (double q : QUANTILES_TO_TEST) {
-            double exactValue;
-            if (q == 0) {
-                exactValue = Arrays.stream(values).min().getAsDouble();
-            } else if (q == 1) {
-                exactValue = Arrays.stream(values).max().getAsDouble();
-            } else {
-                double lower = values[Math.clamp((int) (Math.floor((values.length + 1) * q) - 1), 0, values.length - 1)];
-                double upper = values[Math.clamp((int) (Math.ceil((values.length + 1) * q) - 1), 0, values.length - 1)];
-                if (lower < 0 && upper > 0) {
-                    // the percentile lies directly between a sign change and we interpolate linearly in-between
-                    // in this case the relative error bound does not hold
-                    continue;
-                }
-                exactValue = exactPercentile.evaluate(q * 100);
+            double percentileRank = q * (values.length - 1);
+            int lowerRank = (int) Math.floor(percentileRank);
+            int upperRank = (int) Math.ceil(percentileRank);
+            double upperFactor = percentileRank - lowerRank;
+
+            if (values[lowerRank] < 0 && values[upperRank] > 0) {
+                // the percentile lies directly between a sign change and we interpolate linearly in-between
+                // in this case the relative error bound does not hold
+                continue;
             }
+            double exactValue = values[lowerRank] * (1 - upperFactor) + values[upperRank] * upperFactor;
 
             double histoValue = ExponentialHistogramQuantile.getQuantile(histogram, q);
 

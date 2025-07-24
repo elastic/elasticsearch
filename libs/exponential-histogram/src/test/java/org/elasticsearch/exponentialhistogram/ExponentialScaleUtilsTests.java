@@ -41,13 +41,16 @@ public class ExponentialScaleUtilsTests extends ESTestCase {
 
     public void testMaxIndex() {
         assertThat(getMaximumScaleIncrease(MAX_INDEX), equalTo(0));
+        assertThat(getMaximumScaleIncrease(MAX_INDEX - 1), equalTo(0));
         assertThat(getMaximumScaleIncrease(MAX_INDEX >> 1), equalTo(1));
         assertThrows(ArithmeticException.class, () -> Math.multiplyExact(MAX_INDEX, 4));
     }
 
     public void testMinIndex() {
         assertThat(getMaximumScaleIncrease(MIN_INDEX), equalTo(0));
-        assertThat(getMaximumScaleIncrease(MIN_INDEX >> 1), equalTo(1));
+        assertThat(getMaximumScaleIncrease(MIN_INDEX + 1), equalTo(0));
+        assertThat(getMaximumScaleIncrease(MIN_INDEX >> 1), equalTo(0));
+        assertThat(getMaximumScaleIncrease((MIN_INDEX + 1) >> 1), equalTo(1));
         assertThrows(ArithmeticException.class, () -> Math.multiplyExact(MIN_INDEX, 4));
     }
 

@@ -42,7 +42,7 @@ public class ExponentialHistogramQuantile {
             return Double.NaN;
         }
 
-        double exactRank = Math.max(0, Math.min(totalCount - 1, (totalCount + 1) * quantile - 1));
+        double exactRank = quantile * (totalCount - 1);
         long lowerRank = (long) Math.floor(exactRank);
         long upperRank = (long) Math.ceil(exactRank);
         double upperFactor = exactRank - lowerRank;
@@ -88,7 +88,7 @@ public class ExponentialHistogramQuantile {
                 rank - negativeValuesCount - zeroCount
             );
             if ((rank - 1) < negativeValuesCount) {
-                // previous value falls into the negative bucket range or is -1
+                // previous value falls into the negative bucket range or has rank -1 and therefore doesn't exist
                 return new ValueAndPreviousValue(-getFirstBucketMidpoint(histo.negativeBuckets()), result.valueAtRank);
             } else if ((rank - 1) < (negativeValuesCount + zeroCount)) {
                 // previous value falls into the zero bucket

@@ -115,6 +115,9 @@ public class ExponentialHistogramGenerator {
         valueBuffer.reset();
         int scale = valueBuffer.scale();
 
+        // Buckets must be provided in ascending index-order
+        // for the negative range, smaller bigger correspond to -INF and smaller ones closer to zero
+        // therefore we have to iterate the negative values in reverse order, from the value closest to -INF to the value closest to zero
         for (int i = negativeValuesCount - 1; i >= 0; i--) {
             long count = 1;
             long index = computeIndex(rawValueBuffer[i], scale);

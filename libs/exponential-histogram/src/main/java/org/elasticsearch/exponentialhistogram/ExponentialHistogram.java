@@ -31,8 +31,9 @@ import java.util.OptionalLong;
  */
 public interface ExponentialHistogram {
 
-    // TODO(b/128622): support min/max/sum/count storage and merging
-    // TODO(b/128622): Add special positive and negative infinity buckets to allow representation of explicit bucket histograms with open boundaries
+    // TODO(b/128622): support min/max/sum/count storage and merging.
+    // TODO(b/128622): Add special positive and negative infinity buckets
+    // to allow representation of explicit bucket histograms with open boundaries.
 
     // A scale of 38 is the largest scale where we don't run into problems at the borders due to floating-point precision when computing
     // indices for double values.

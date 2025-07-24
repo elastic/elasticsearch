@@ -17,7 +17,7 @@ import java.util.OptionalLong;
  * Consumers must ensure that if the histogram is mutated, all previously acquired {@link BucketIterator}
  * instances are no longer used.
  */
-public final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
+final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
 
     // These arrays represent both the positive and the negative buckets.
     // They store all negative buckets first, in ascending index order, followed by all positive buckets, also in ascending index order.
@@ -48,7 +48,7 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
      *
      * @param bucketCapacity the maximum total number of positive and negative buckets this histogram can hold.
      */
-    public FixedCapacityExponentialHistogram(int bucketCapacity) {
+    FixedCapacityExponentialHistogram(int bucketCapacity) {
         bucketIndices = new long[bucketCapacity];
         bucketCounts = new long[bucketCapacity];
         reset();
@@ -154,6 +154,9 @@ public final class FixedCapacityExponentialHistogram implements ExponentialHisto
             reset();
         }
 
+        /**
+         * @return the array index of the first bucket of this set of buckets within {@link #bucketCounts} and {@link #bucketIndices}.
+         */
         abstract int startSlot();
 
         final void reset() {

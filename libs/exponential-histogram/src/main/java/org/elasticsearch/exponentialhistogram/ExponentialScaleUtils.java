@@ -139,21 +139,21 @@ public class ExponentialScaleUtils {
         }
         // scaleA <= scaleB
         int shifts = scaleB - scaleA;
-        int maxScaleAdjustment = getMaximumScaleIncreaseIgnoringIndexLimits(idxA);
-        if (maxScaleAdjustment < shifts) {
-            // We would overflow if we adjusted A to the scale of B.
-            // If A is negative, scaling would produce a number less than Long.MIN_VALUE, so it is smaller than B.
-            // If A is positive, scaling would produce a number greater than Long.MAX_VALUE, so it is larger than B.
-            // If A is zero, shifting and scale adjustment have no effect.
-            if (idxA == 0) {
-                return Long.compare(0, idxB);
+
+        long scaledDownB = idxB >> shifts;
+        int result = Long.compare(idxA, scaledDownB);
+        if (result == 0) {
+            // the scaled down values are equal
+            // this means that b is bigger if it has a "fractional" part, which corresponds to the bits that were removed on the right-shift
+            assert (1L << shifts) > 0;
+            long shiftedAway = idxB & ((1L << shifts) - 1);
+            if (shiftedAway > 0) {
+                return -1;
             } else {
-                return idxA < 0 ? -1 : +1;
+                return 0;
             }
-        } else {
-            long adjustedIdxA = idxA << shifts;
-            return Long.compare(adjustedIdxA, idxB);
         }
+        return result;
     }
 
     /**
@@ -165,13 +165,14 @@ public class ExponentialScaleUtils {
      */
     public static int getMaximumScaleIncrease(long index) {
         checkIndexBounds(index);
-        return getMaximumScaleIncreaseIgnoringIndexLimits(index);
-    }
-
-    private static int getMaximumScaleIncreaseIgnoringIndexLimits(long index) {
-        if (index < 0) {
-            index = ~index;
-        }
+        // Scale increase by one corresponds to a left shift, which in turn is the same as multiplying by two.
+        // Because we know that MIN_INDEX = -MAX_INDEX, we can just compute the maximum increase of the absolute index.
+        // This allows us to reason only about non-negative indices further below.
+        index = Math.abs(index);
+        // the maximum scale increase is defined by how many left-shifts we can do without growing beyond MAX_INDEX
+        // MAX_INDEX is defined as a number where the left MAX_INDEX_BITS are all ones.
+        // So in other words, we must ensure that the leftmost (64 - MAX_INDEX_BITS) remain zero,
+        // which is exactly what the formula below does.
         return Long.numberOfLeadingZeros(index) - (64 - MAX_INDEX_BITS);
     }
 
@@ -200,10 +201,13 @@ public class ExponentialScaleUtils {
     }
 
     /**
-     * Computes (2^2^(-scale))^index,
+     * Computes (2^(2^-scale))^index,
      * allowing also indices outside of the [{@link ExponentialHistogram#MIN_INDEX}, {@link ExponentialHistogram#MAX_INDEX}] range.
      */
     static double exponentiallyScaledToDoubleValue(long index, int scale) {
+        // Math.exp is expected to be faster and more accurate than Math.pow
+        // For that reason we use (2^(2^-scale))^index = 2^( (2^-scale) * index) = (e^ln(2))^( (2^-scale) * index)
+        // = e^( ln(2) * (2^-scale) * index)
         double inverseFactor = Math.scalb(LN_2, -scale);
         return Math.exp(inverseFactor * index);
     }

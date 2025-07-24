@@ -65,13 +65,28 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     @SuppressWarnings("unchecked")
-    public void forEachDown(Consumer<? super T> action) {
-        action.accept((T) this);
+    public boolean forEachDownMayReturnEarly(Function<? super T, Boolean> action) {
+        if (action.apply((T) this) == false) {
+            // Early return.
+            return false;
+        }
         // please do not refactor it to a for-each loop to avoid
         // allocating iterator that performs concurrent modification checks and extra stack frames
         for (int c = 0, size = children.size(); c < size; c++) {
-            children.get(c).forEachDown(action);
+            if (children.get(c).forEachDownMayReturnEarly(action) == false) {
+                return false;
+            }
         }
+        return true;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void forEachDown(Consumer<? super T> action) {
+        forEachDownMayReturnEarly(p -> {
+            action.accept(p);
+            // No early return.
+            return true;
+        });
     }
 
     @SuppressWarnings("unchecked")

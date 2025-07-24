@@ -2080,7 +2080,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                    (WHERE d > 1000 AND e == "aaa" | EVAL c = a + 200)
             | WHERE x > y
             | KEEP a, b, c, d, x
-            """, Set.of("a", "x", "y", "d", "e", "e.*", "d.*", "y.*", "x.*", "a.*"));
+            """, Set.of("a", "x", "y", "c", "d", "e", "e.*", "d.*", "y.*", "x.*", "a.*", "c.*"));
     }
 
     public void testForkFieldsWithKeepBeforeFork() {
@@ -2114,7 +2114,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             | FORK (WHERE c > 1 AND a < 10000 | EVAL d = a + 500)
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, ALL_FIELDS);
+            """, Set.of("x", "y", "a", "c", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
     }
 
     public void testForkFieldsWithEnrichAndLookupJoins() {
@@ -2164,11 +2164,32 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                    (EVAL z = a * b | STATS m = max(z))
                    (STATS x = count(*), y=min(z))
             | WHERE x > y
-            """, Set.of("c", "a", "z", "z.*", "a.*", "c.*"));
+            """, Set.of("x", "y", "c", "a", "z", "y.*", "x.*", "z.*", "a.*", "c.*"));
+    }
+
+    public void testForkWithStatsInAllBranches1() {
+        assertFieldNames("""
+            FROM employees
+            | FORK
+                   ( STATS x = min(last_name))
+                   ( EVAL last_name = first_name  | STATS y = max(last_name))
+            """, Set.of("first_name", "last_name", "first_name.*", "last_name.*"));
+    }
+
+    public void testForkWithStatsInAllBranches2() {
+        assertFieldNames("""
+            FROM employees
+            | FORK
+                   ( EVAL last_name = first_name  | STATS y = VALUES(last_name))
+                   ( STATS x = VALUES(last_name))
+            """, Set.of("first_name", "last_name", "first_name.*", "last_name.*"));
     }
 
     public void testForkWithStatsAndWhere() {
-        assertFieldNames(" FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )", ALL_FIELDS);
+        assertFieldNames(
+            " FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )",
+            Set.of("gender", "salary", "gender.*", "salary.*")
+        );
     }
 
     private Set<String> fieldNames(String query, Set<String> enrichPolicyMatchFields) {

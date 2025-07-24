@@ -120,6 +120,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -851,33 +852,7 @@ public class EsqlSession {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 
-        Holder<Boolean> projectAfterFork = new Holder<>(false);
-        Holder<Boolean> hasFork = new Holder<>(false);
-
-        parsed.forEachDown(plan -> {
-            if (projectAll.get()) {
-                return;
-            }
-
-            if (hasFork.get() == false && shouldCollectReferencedFields(plan, inlinestatsAggs)) {
-                projectAfterFork.set(true);
-            }
-
-            if (plan instanceof Fork fork && projectAfterFork.get() == false) {
-                hasFork.set(true);
-                fork.children().forEach(child -> {
-                    if (child.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false) {
-                        projectAll.set(true);
-                    }
-                });
-            }
-        });
-
-        if (projectAll.get()) {
-            return result.withFieldNames(IndexResolver.ALL_FIELDS);
-        }
-
-        var referencesBuilder = AttributeSet.builder();
+        var referencesBuilder = new Holder<>(AttributeSet.builder());
         // "keep" and "drop" attributes are special whenever a wildcard is used in their name, as the wildcard can cover some
         // attributes ("lookup join" generated columns among others); steps like removal of Aliases should ignore fields matching the
         // wildcards.
@@ -894,19 +869,35 @@ public class EsqlSession {
         // lookup indices where we request "*" because we may require all their fields
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
-        boolean[] canRemoveAliases = new boolean[] { true };
+        var canRemoveAliases = new Holder<>(true);
 
-        parsed.forEachDown(p -> {// go over each plan top-down
-            if (p instanceof RegexExtract re) { // for Grok and Dissect
+        var processingLambda = new Holder<Function<LogicalPlan, Boolean>>();
+        processingLambda.set((LogicalPlan p) -> {// go over each plan top-down
+            if (p instanceof Fork fork) {
+                // Early return from forEachDown. We will iterate over the children manually.
+                var forkRefsResult = AttributeSet.builder();
+                forkRefsResult.addAll(referencesBuilder.get());
+
+                for (var child : fork.children()) {
+                    referencesBuilder.set(AttributeSet.builder());
+                    var return_result = child.forEachDownMayReturnEarly(processingLambda.get());
+                    // No nested Forks for now...
+                    assert return_result;
+                    forkRefsResult.addAll(referencesBuilder.get());
+                }
+
+                referencesBuilder.set(forkRefsResult);
+                return false;
+            } else if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
-                referencesBuilder.addAll(re.input().references());
+                referencesBuilder.get().addAll(re.input().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
                 AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
                 // Enrich adds an EmptyAttribute if no match field is specified
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
-                referencesBuilder.addAll(enrichRefs);
+                referencesBuilder.get().addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
                     joinRefs.addAll(usingJoinType.columns());
@@ -919,15 +910,15 @@ public class EsqlSession {
                     joinRefs.addAll(keepRefs);
                 }
             } else {
-                referencesBuilder.addAll(p.references());
+                referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    referencesBuilder.add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.get().add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
                 }
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
                     var ua = new UnresolvedAttribute(up.source(), up.name());
-                    referencesBuilder.add(ua);
+                    referencesBuilder.get().add(ua);
                     if (p instanceof Keep) {
                         keepRefs.add(ua);
                     } else if (p instanceof Drop) {
@@ -952,10 +943,10 @@ public class EsqlSession {
             //
             // and ips_policy enriches the results with the same name ip field),
             // these aliases should be kept in the list of fields.
-            if (canRemoveAliases[0] && p.anyMatch(EsqlSession::couldOverrideAliases)) {
-                canRemoveAliases[0] = false;
+            if (canRemoveAliases.get() && p.anyMatch(EsqlSession::couldOverrideAliases)) {
+                canRemoveAliases.set(false);
             }
-            if (canRemoveAliases[0]) {
+            if (canRemoveAliases.get()) {
                 // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
                 // for example "from test | eval x = salary | stats max = max(x) by gender"
                 // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
@@ -971,15 +962,18 @@ public class EsqlSession {
                     if (fieldNames.contains(ne.name())) {
                         return;
                     }
-                    referencesBuilder.removeIf(
-                        attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr))
-                    );
+                    referencesBuilder.get()
+                        .removeIf(attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr)));
                 });
             }
+
+            // No early return.
+            return true;
         });
+        parsed.forEachDownMayReturnEarly(processingLambda.get());
 
         // Add JOIN ON column references afterward to avoid Alias removal
-        referencesBuilder.addAll(joinRefs);
+        referencesBuilder.get().addAll(joinRefs);
         // If any JOIN commands need wildcard field-caps calls, persist the index names
         if (wildcardJoinIndices.isEmpty() == false) {
             result = result.withWildcardJoinIndices(wildcardJoinIndices);
@@ -987,8 +981,8 @@ public class EsqlSession {
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead
-        referencesBuilder.removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
-        Set<String> fieldNames = referencesBuilder.build().names();
+        referencesBuilder.get().removeIf(a -> a instanceof MetadataAttribute || MetadataAttribute.isSupported(a.name()));
+        Set<String> fieldNames = referencesBuilder.get().build().names();
 
         if (fieldNames.isEmpty() && enrichPolicyMatchFields.isEmpty()) {
             // there cannot be an empty list of fields, we'll ask the simplest and lightest one instead: _index

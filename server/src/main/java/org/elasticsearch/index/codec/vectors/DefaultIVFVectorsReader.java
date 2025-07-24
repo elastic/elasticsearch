@@ -15,7 +15,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
@@ -24,6 +23,7 @@ import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.IntPredicate;
 
@@ -47,42 +47,60 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         super(state, rawVectorsReader);
     }
 
-    // FIXME: build a common scorer?
     @Override
-    CentroidQueryScorer getOneBitCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
+    CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, int numOversampled, IndexInput centroids, float[] targetQuery)
         throws IOException {
+
+        final float[] centroidCorrectiveValues = new float[3];
+
+        // constants
+        final long oneBitQuantizeCentroidByteSize = (long) BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64) / 8;
+        final long oneBitQuantizeCentroidsLength = (long) numCentroids * (oneBitQuantizeCentroidByteSize + 3 * Float.BYTES + Short.BYTES);
+        final long quantizationCentroidByteSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
+        final long quantizeCentroidsLength = (long) numCentroids * quantizationCentroidByteSize;
+
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
+
+        // quantize the query
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         final int[] scratch = new int[targetQuery.length];
+
+        // FIXME: do l2normalize here?
+        final float[] scratchTarget = new float[targetQuery.length];
+        System.arraycopy(targetQuery, 0, scratchTarget, 0, targetQuery.length);
+        if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
+            VectorUtil.l2normalize(scratchTarget);
+        }
         final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
-            ArrayUtil.copyArray(targetQuery),
+            scratchTarget,
             scratch,
             (byte) 4,
             fieldEntry.globalCentroid()
         );
 
-        // FIXME: l2 normalize here?
+        // pack the quantized value the way the one bit scorer expects it as 4 bits
         final int discretizedDimensions = discretize(fieldInfo.getVectorDimension(), 64);
-        final byte[] quantized = new byte[QUERY_BITS * discretizedDimensions / 8];
-        transposeHalfByte(scratch, quantized);
-        final ES91OSQVectorsScorer scorer = ESVectorUtil.getES91OSQVectorsScorer(centroids, fieldInfo.getVectorDimension());
-        return new CentroidQueryScorer() {
-            private final float[] centroidCorrectiveValues = new float[3];
+        final byte[] oneBitQuantized = new byte[QUERY_BITS * discretizedDimensions / 8];
+        transposeHalfByte(scratch, oneBitQuantized);
 
-            @Override
-            public int size() {
-                return numCentroids;
-            }
+        // pack the quantized value the way the four bit scorer expects it as single bytes instead of 4 bits
+        final byte[] fourBitQuantized = new byte[targetQuery.length];
+        for (int i = 0; i < fourBitQuantized.length; i++) {
+            fourBitQuantized[i] = (byte) scratch[i];
+        }
 
-            @Override
-            public long postingListOffset(int centroidOrdinal) throws IOException {
-                throw new UnsupportedOperationException("can not retrieve posting lists offset from one bit centroid scorer");
-            }
+        // setup to score the centroids
+        final ES91OSQVectorsScorer oneBitScorer = ESVectorUtil.getES91OSQVectorsScorer(centroids, fieldInfo.getVectorDimension());
+        final ES91Int4VectorsScorer fourBitScorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
 
+        final NeighborQueue oneBitCentroidQueue = new NeighborQueue(fieldEntry.numCentroids(), true);
+        final NeighborQueue fourBitCentroidQueue =  new NeighborQueue(numOversampled, true);
+
+        // FIXME: this adds a lot of complexity to this method consider moving it / discuss
+        OneBitCentroidScorer oneBitCentroidScorer = new OneBitCentroidScorer() {
             @Override
             public void bulkScore(NeighborQueue queue) throws IOException {
-                // FIXME: pull out common code between this and the bulk vector scorer
                 final float[] scores = new float[BULK_SIZE];
 
                 centroids.seek(0L);
@@ -91,8 +109,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 int limit = numCentroids - BULK_SIZE + 1;
                 int i = 0;
                 for (; i < limit; i += BULK_SIZE) {
-                    scorer.scoreBulk(
-                        quantized,
+                    oneBitScorer.scoreBulk(
+                        oneBitQuantized,
                         queryParams.lowerInterval(),
                         queryParams.upperInterval(),
                         queryParams.quantizedComponentSum(),
@@ -111,16 +129,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 }
             }
 
-            @Override
-            public float score(int centroidOrdinal) throws IOException {
-                throw new UnsupportedOperationException("can only bulk score centroids with one bit scorer");
-            }
-
             private float score() throws IOException {
-                final float qcDist = scorer.quantizeScore(quantized);
+                final float qcDist = oneBitScorer.quantizeScore(oneBitQuantized);
                 centroids.readFloats(centroidCorrectiveValues, 0, 3);
                 final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
-                return scorer.score(
+                return oneBitScorer.score(
                     queryParams.lowerInterval(),
                     queryParams.upperInterval(),
                     queryParams.quantizedComponentSum(),
@@ -135,120 +148,113 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 );
             }
         };
-    }
 
-    @Override
-    CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
-        throws IOException {
-        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
-        final float globalCentroidDp = fieldEntry.globalCentroidDp();
-        final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        final int[] scratch = new int[targetQuery.length];
-        final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
-            ArrayUtil.copyArray(targetQuery),
-            scratch,
-            (byte) 4,
-            fieldEntry.globalCentroid()
-        );
-        final byte[] quantized = new byte[targetQuery.length];
-        for (int i = 0; i < quantized.length; i++) {
-            quantized[i] = (byte) scratch[i];
-        }
-        final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
-        return new CentroidQueryScorer() {
-            int currentCentroid = -1;
-            long postingListOffset;
-            private final float[] centroidCorrectiveValues = new float[3];
-            private final long oneBitQuantizeCentroidByteSize = (long) BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64) / 8;
-            private final long oneBitQuantizeCentroidsLength = (long) numCentroids * (oneBitQuantizeCentroidByteSize + 3 * Float.BYTES
-                + Short.BYTES);
-            private final long quantizationCentroidByteSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
-            private final long quantizeCentroidsLength = (long) numCentroids * quantizationCentroidByteSize;
+        FourBitCentroidScorer fourBitCentroidScorer = centroidOrdinal -> {
+            centroids.seek(oneBitQuantizeCentroidsLength + quantizationCentroidByteSize * centroidOrdinal);
+            final float qcDist = fourBitScorer.int4DotProduct(fourBitQuantized);
+            centroids.readFloats(centroidCorrectiveValues, 0, 3);
+            final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
+            return int4QuantizedScore(
+                qcDist,
+                queryParams,
+                fieldInfo.getVectorDimension(),
+                centroidCorrectiveValues,
+                quantizedCentroidComponentSum,
+                globalCentroidDp,
+                fieldInfo.getVectorSimilarityFunction()
+            );
+        };
 
+        // populate the first set of centroids
+        oneBitCentroidScorer.bulkScore(oneBitCentroidQueue);
+        populateCentroidQueue(numOversampled, oneBitCentroidQueue, fourBitCentroidQueue, fourBitCentroidScorer);
+
+        return new CentroidIterator() {
             @Override
-            public int size() {
-                return numCentroids;
+            public boolean hasNext() {
+                return oneBitCentroidQueue.size() + fourBitCentroidQueue.size() > 0;
             }
 
-            @Override
-            public long postingListOffset(int centroidOrdinal) throws IOException {
-                if (centroidOrdinal != currentCentroid) {
-                    centroids.seek(oneBitQuantizeCentroidsLength + quantizeCentroidsLength + (long) Long.BYTES * centroidOrdinal);
-                    postingListOffset = centroids.readLong();
-                    currentCentroid = centroidOrdinal;
+            public long nextPostingListOffset() throws IOException {
+                int centroidOrdinal = fourBitCentroidQueue.pop();
+                if(oneBitCentroidQueue.size() > 0) {
+                    // TODO: it may be more efficient as far as disk reads to pop a set of ordinals,
+                    //  sort them, and do a batch read of for instance the next max(0.1f * rescoreSize, 1)
+                    int centroidOrd = oneBitCentroidQueue.pop();
+                    fourBitCentroidQueue.add(
+                        centroidOrd,
+                        fourBitCentroidScorer.score(centroidOrd)
+                    );
                 }
-                return postingListOffset;
-            }
 
-            @Override
-            public void bulkScore(NeighborQueue queue) throws IOException {
-                // TODO: bulk score centroids like we do with posting lists
-                centroids.seek(oneBitQuantizeCentroidsLength);
-                for (int i = 0; i < numCentroids; i++) {
-                    queue.add(i, score());
-                }
-            }
-
-            @Override
-            public float score(int centroidOrdinal) throws IOException {
-                centroids.seek(oneBitQuantizeCentroidsLength + quantizationCentroidByteSize * centroidOrdinal);
-                return score();
-            }
-
-            private float score() throws IOException {
-                final float qcDist = scorer.int4DotProduct(quantized);
-                centroids.readFloats(centroidCorrectiveValues, 0, 3);
-                final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
-                return int4QuantizedScore(
-                    qcDist,
-                    queryParams,
-                    fieldInfo.getVectorDimension(),
-                    centroidCorrectiveValues,
-                    quantizedCentroidComponentSum,
-                    globalCentroidDp,
-                    fieldInfo.getVectorSimilarityFunction()
-                );
-            }
-
-            // TODO can we do this in off-heap blocks?
-            private float int4QuantizedScore(
-                float qcDist,
-                OptimizedScalarQuantizer.QuantizationResult queryCorrections,
-                int dims,
-                float[] targetCorrections,
-                int targetComponentSum,
-                float centroidDp,
-                VectorSimilarityFunction similarityFunction
-            ) {
-                float ax = targetCorrections[0];
-                // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-                float lx = (targetCorrections[1] - ax) * FOUR_BIT_SCALE;
-                float ay = queryCorrections.lowerInterval();
-                float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
-                float y1 = queryCorrections.quantizedComponentSum();
-                float score = ax * ay * dims + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
-                if (similarityFunction == EUCLIDEAN) {
-                    score = queryCorrections.additionalCorrection() + targetCorrections[2] - 2 * score;
-                    return Math.max(1 / (1f + score), 0);
-                } else {
-                    // For cosine and max inner product, we need to apply the additional correction, which is
-                    // assumed to be the non-centered dot-product between the vector and the centroid
-                    score += queryCorrections.additionalCorrection() + targetCorrections[2] - centroidDp;
-                    if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                        return VectorUtil.scaleMaxInnerProductScore(score);
-                    }
-                    return Math.max((1f + score) / 2f, 0);
-                }
+                centroids.seek(oneBitQuantizeCentroidsLength + quantizeCentroidsLength + (long) Long.BYTES * centroidOrdinal);
+                return centroids.readLong();
             }
         };
     }
 
-    @Override
-    NeighborQueue scorePostingLists(FieldInfo fieldInfo, KnnCollector knnCollector, CentroidQueryScorer centroidQueryScorer, int nProbe)
-        throws IOException {
-        NeighborQueue neighborQueue = new NeighborQueue(centroidQueryScorer.size(), true);
-        centroidQueryScorer.bulkScore(neighborQueue);
-        return neighborQueue;
+    interface OneBitCentroidScorer {
+        void bulkScore(NeighborQueue queue) throws IOException;
+    }
+
+    interface FourBitCentroidScorer {
+        float score(int centroidOrdinal) throws IOException;
+    }
+
+    private static void populateCentroidQueue(
+        int rescoreSize,
+        NeighborQueue oneBitCentroidQueue,
+        NeighborQueue centroidQueue,
+        FourBitCentroidScorer centroidQueryScorer) throws IOException {
+
+        if(oneBitCentroidQueue.size() == 0) {
+            return;
+        }
+
+        int[] centroidOrdinalsToRescore = new int[Math.min(rescoreSize, oneBitCentroidQueue.size())];
+        for (int i = 0; i < centroidOrdinalsToRescore.length; i++) {
+            centroidOrdinalsToRescore[i] = oneBitCentroidQueue.pop();
+        }
+        // do this sort so we are seeking on disk in order
+        Arrays.sort(centroidOrdinalsToRescore);
+
+        // TODO: bulk read the in chunks where possible, group up sets of contiguous ordinals
+        for (int i = 0; i < centroidOrdinalsToRescore.length; i++) {
+            centroidQueue.add(
+                centroidOrdinalsToRescore[i],
+                centroidQueryScorer.score(centroidOrdinalsToRescore[i])
+            );
+        }
+    }
+
+    // TODO can we do this in off-heap blocks?
+    private float int4QuantizedScore(
+        float qcDist,
+        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
+        int dims,
+        float[] targetCorrections,
+        int targetComponentSum,
+        float centroidDp,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        float ax = targetCorrections[0];
+        float lx = (targetCorrections[1] - ax) * FOUR_BIT_SCALE;
+        float ay = queryCorrections.lowerInterval();
+        float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
+        float y1 = queryCorrections.quantizedComponentSum();
+        float score = ax * ay * dims + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
+        if (similarityFunction == EUCLIDEAN) {
+            score = queryCorrections.additionalCorrection() + targetCorrections[2] - 2 * score;
+            return Math.max(1 / (1f + score), 0);
+        } else {
+            // For cosine and max inner product, we need to apply the additional correction, which is
+            // assumed to be the non-centered dot-product between the vector and the centroid
+            score += queryCorrections.additionalCorrection() + targetCorrections[2] - centroidDp;
+            if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
+                return VectorUtil.scaleMaxInnerProductScore(score);
+            }
+            return Math.max((1f + score) / 2f, 0);
+        }
     }
 
     @Override

@@ -31,12 +31,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
@@ -91,10 +89,11 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidQueryScorer getOneBitCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
-        throws IOException;
-
-    abstract CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
+    abstract CentroidIterator getCentroidIterator(FieldInfo fieldInfo,
+                                                  int numCentroids,
+                                                  int numOversampled,
+                                                  IndexInput centroids,
+                                                  float[] target)
         throws IOException;
 
     private static IndexInput openDataInput(
@@ -242,34 +241,18 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         FieldEntry entry = fields.get(fieldInfo.number);
 
-        CentroidQueryScorer oneBitCentroidQueryScorer = getOneBitCentroidScorer(
-            fieldInfo,
-            entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
-            target
-        );
-
-        CentroidQueryScorer centroidQueryScorer = getCentroidScorer(
-            fieldInfo,
-            entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
-            target
-        );
-
         if (nProbe == DYNAMIC_NPROBE) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
             // scaling by the number of centroids vs. the nearest neighbors requested
             // not perfect, but a comparative heuristic.
             // we might want to utilize the total vector count as well, but this is a good start
-            nProbe = (int) Math.round(Math.log10(centroidQueryScorer.size()) * Math.sqrt(knnCollector.k()));
+            nProbe = (int) Math.round(Math.log10(entry.numCentroids) * Math.sqrt(knnCollector.k()));
             // clip to be between 1 and the number of centroids
-            nProbe = Math.max(Math.min(nProbe, centroidQueryScorer.size()), 1);
+            nProbe = Math.max(Math.min(nProbe, entry.numCentroids), 1);
         }
 
-        final int rescoreSize = Math.min((int) (nProbe * NPROBE_OVERSAMPLE), entry.numCentroids());
-        final NeighborQueue oneBitCentroidQueue = scorePostingLists(fieldInfo, knnCollector, oneBitCentroidQueryScorer, nProbe);
-        final NeighborQueue centroidQueue = new CentroidNeighborQueue(rescoreSize, true, oneBitCentroidQueue, centroidQueryScorer);
-
+        final int numOversampled = Math.min((int) (nProbe * NPROBE_OVERSAMPLE), entry.numCentroids());
+        CentroidIterator centroidIterator = getCentroidIterator(fieldInfo, entry.numCentroids, numOversampled, entry.centroidSlice(ivfCentroids), target);
         PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
         int centroidsVisited = 0;
         long expectedDocs = 0;
@@ -279,94 +262,26 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
 
-        while (centroidQueue.size() > 0 && centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k()) {
+        while (centroidIterator.hasNext() && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
             ++centroidsVisited;
             // todo do we actually need to know the score???
-            int centroidOrdinal = centroidQueue.pop();
+            long offset = centroidIterator.nextPostingListOffset();
             // todo do we need direct access to the raw centroid???, this is used for quantizing, maybe hydrating and quantizing
             // is enough?
-            expectedDocs += scorer.resetPostingsScorer(centroidQueryScorer.postingListOffset(centroidOrdinal));
+            expectedDocs += scorer.resetPostingsScorer(offset);
             actualDocs += scorer.visit(knnCollector);
         }
         if (acceptDocs != null) {
             float unfilteredRatioVisited = (float) expectedDocs / numVectors;
             int filteredVectors = (int) Math.ceil(numVectors * percentFiltered);
             float expectedScored = Math.min(2 * filteredVectors * unfilteredRatioVisited, expectedDocs / 2f);
-            while (centroidQueue.size() > 0 && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
-                int centroidOrdinal = centroidQueue.pop();
-                scorer.resetPostingsScorer(centroidQueryScorer.postingListOffset(centroidOrdinal));
+            while (centroidIterator.hasNext() && (actualDocs < expectedScored || actualDocs < knnCollector.k())) {
+                long offset = centroidIterator.nextPostingListOffset();
+                scorer.resetPostingsScorer(offset);
                 actualDocs += scorer.visit(knnCollector);
             }
         }
     }
-
-    class CentroidNeighborQueue extends NeighborQueue {
-        final NeighborQueue oneBitCentroidQueue;
-        CentroidQueryScorer centroidQueryScorer;
-
-        CentroidNeighborQueue(
-            int initialSize,
-            boolean maxHeap,
-            NeighborQueue oneBitCentroidQueue,
-            CentroidQueryScorer centroidQueryScorer) throws IOException {
-            super(initialSize, maxHeap);
-            this.oneBitCentroidQueue = oneBitCentroidQueue;
-            this.centroidQueryScorer = centroidQueryScorer;
-            populateCentroidQueue(initialSize, oneBitCentroidQueue, this, centroidQueryScorer);
-        }
-
-        @Override
-        public int size() {
-            return super.size() + oneBitCentroidQueue.size();
-        }
-
-        @Override
-        public int pop()  {
-            int nextOrd = super.pop();
-            if(oneBitCentroidQueue.size() > 0) {
-                // TODO: it may be more efficient as far as disk reads to pop a set of ordinals,
-                //  sort them, and do a batch read of for instance the next max(0.1f * rescoreSize, 1)
-                try {
-                    int centroidOrd = oneBitCentroidQueue.pop();
-                    this.add(
-                        centroidOrd,
-                        centroidQueryScorer.score(centroidOrd)
-                    );
-                } catch (IOException e) {
-                    // FIXME: bleh
-                    throw new RuntimeException(e);
-                }
-            }
-            return nextOrd;
-        }
-
-        private static void populateCentroidQueue(
-            int rescoreSize,
-            NeighborQueue oneBitCentroidQueue,
-            NeighborQueue centroidQueue,
-            CentroidQueryScorer centroidQueryScorer) throws IOException {
-
-            if(oneBitCentroidQueue.size() == 0) {
-                return;
-            }
-
-            int[] centroidOrdinalsToRescore = new int[Math.min(rescoreSize, oneBitCentroidQueue.size())];
-            for (int i = 0; i < centroidOrdinalsToRescore.length; i++) {
-                centroidOrdinalsToRescore[i] = oneBitCentroidQueue.pop();
-            }
-            // do this sort so we are seeking on disk in order
-            Arrays.sort(centroidOrdinalsToRescore);
-
-            // TODO: bulk read the in chunks where possible, group up sets of contiguous ordinals
-            for (int i = 0; i < centroidOrdinalsToRescore.length; i++) {
-                centroidQueue.add(
-                    centroidOrdinalsToRescore[i],
-                    centroidQueryScorer.score(centroidOrdinalsToRescore[i])
-                );
-            }
-        }
-    }
-
 
     @Override
     public final void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
@@ -380,13 +295,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             }
         }
     }
-
-    abstract NeighborQueue scorePostingLists(
-        FieldInfo fieldInfo,
-        KnnCollector knnCollector,
-        CentroidQueryScorer centroidQueryScorer,
-        int nProbe
-    ) throws IOException;
 
     @Override
     public void close() throws IOException {
@@ -410,14 +318,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     abstract PostingVisitor getPostingVisitor(FieldInfo fieldInfo, IndexInput postingsLists, float[] target, IntPredicate needsScoring)
         throws IOException;
 
-    interface CentroidQueryScorer {
-        int size();
-
-        long postingListOffset(int centroidOrdinal) throws IOException;
-
-        void bulkScore(NeighborQueue queue) throws IOException;
-
-        float score(int centroidOrdinal) throws IOException;
+    interface CentroidIterator {
+        boolean hasNext();
+        long nextPostingListOffset() throws IOException;
     }
 
     interface PostingVisitor {

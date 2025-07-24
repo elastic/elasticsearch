@@ -66,7 +66,7 @@ public class IVFVectorsFormat extends KnnVectorsFormat {
     public static final int MIN_VECTORS_PER_CLUSTER = 64;
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
     // TODO: expose oversampling as a param?
-    public static final float NPROBE_OVERSAMPLE = 0.25f;
+    public static final float NPROBE_OVERSAMPLE = 1f;
 
     private final int vectorPerCluster;
 

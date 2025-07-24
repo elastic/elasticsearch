@@ -3,7 +3,7 @@
 **Supported function named parameters**
 
 `output_format`
-:   (keyword) The output format of the categories. Defaults to regex. {applies_to}`stack: ga 9.2`}
+:   (keyword) The output format of the categories. Defaults to regex.
 
 `similarity_threshold`
 :   (integer) The minimum percentage of token weight that must match for text to be added to the category bucket. Must be between 1 and 100. The larger the value the narrower the categories. Larger values will increase memory usage and create narrower categories. Defaults to 70.

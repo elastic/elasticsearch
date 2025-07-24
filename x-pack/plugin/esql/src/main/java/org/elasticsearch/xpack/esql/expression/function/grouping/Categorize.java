@@ -105,7 +105,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
         @Param(name = "field", type = { "text", "keyword" }, description = "Expression to categorize") Expression field,
         @MapParam(
             name = "options",
-            description = "(Optional) Categorize additional options as <<esql-function-named-params,function named parameters>>.",
+            description = "(Optional) Categorize additional options as <<esql-function-named-params,function named parameters>>. {applies_to}`stack: ga 9.2`}",
             params = {
                 @MapParam.MapParamEntry(
                     name = ANALYZER,
@@ -117,7 +117,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                     name = OUTPUT_FORMAT,
                     type = "keyword",
                     valueHint = { "regex", "tokens" },
-                    description = "The output format of the categories. Defaults to regex. {applies_to}`stack: ga 9.2`}"
+                    description = "The output format of the categories. Defaults to regex."
                 ),
                 @MapParam.MapParamEntry(
                     name = SIMILARITY_THRESHOLD,

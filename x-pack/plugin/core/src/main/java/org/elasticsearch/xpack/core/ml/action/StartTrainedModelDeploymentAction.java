@@ -810,7 +810,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         }
 
         logger.info(
-            "Call to estimateMemoryUsageBytes with modelId [{}], totalDefinitionLength [{}], perDeploymentMemoryBytes [{}], perAllocationMemoryBytes [{}], numberOfAllocations [{}]",
+            "Call to estimateMemoryUsageBytes with modelId [{}], totalDefinitionLength [{}], perDeploymentMemoryBytes [{}], "
+                + "perAllocationMemoryBytes [{}], numberOfAllocations [{}]",
             modelId,
             totalDefinitionLength,
             perDeploymentMemoryBytes,

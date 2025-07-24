@@ -145,6 +145,7 @@ import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -498,15 +499,10 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.copyOf(getInferenceSettingsInternal());
+        return List.copyOf(new ArrayList<>(getInferenceSettings()));
     }
 
-    // only used in tests
     public static Set<Setting<?>> getInferenceSettings() {
-        return Set.copyOf(getInferenceSettingsInternal());
-    }
-
-    private static Set<Setting<?>> getInferenceSettingsInternal() {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(HttpSettings.getSettingsDefinitions());
         settings.addAll(HttpClientManager.getSettingsDefinitions());
@@ -518,7 +514,7 @@ public class InferencePlugin extends Plugin
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.add(INFERENCE_QUERY_TIMEOUT);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
-        return settings;
+        return Collections.unmodifiableSet(settings);
     }
 
     @Override

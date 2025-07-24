@@ -96,18 +96,48 @@ public abstract class AbstractContextlessScopedSettings extends AbstractScopedSe
         return (ctx, v) -> consumer.accept(v);
     }
 
+    /**
+     * Adds a settings consumer with a predicate that is only evaluated at update time.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     * @param <T>       The type of the setting's value.
+     * @param setting   The setting for which the updates are to be handled.
+     * @param consumer  A {@link BiConsumer} that will be executed with the updated setting value.
+     * @param validator an additional validator that is only applied to updates of this setting.
+     *                  This is useful to add additional validation to settings at runtime compared to at startup time.
+     */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
         super.addSettingsUpdateConsumer(setting, wrapIgnoringContext(consumer), validator);
     }
 
+    /**
+     * Adds a settings consumer.
+     * <p>
+     * Note: Only settings registered in {@link org.elasticsearch.cluster.ClusterModule} can be changed dynamically.
+     * </p>
+     */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer) {
         super.addSettingsUpdateConsumer(setting, wrapIgnoringContext(consumer));
     }
 
+    /**
+     * Adds a settings consumer that is only executed if any setting in the supplied list of settings is changed. In that case all the
+     * settings are specified in the argument are returned.
+     *
+     * Also automatically adds empty consumers for all settings in order to activate logging
+     */
     public synchronized void addSettingsUpdateConsumer(Consumer<Settings> consumer, List<? extends Setting<?>> settings) {
         super.addSettingsUpdateConsumer(wrapIgnoringContext(consumer), settings);
     }
 
+    /**
+     * Adds a settings consumer that is only executed if any setting in the supplied list of settings is changed. In that case all the
+     * settings are specified in the argument are returned.  The validator is run across all specified settings before the settings are
+     * applied.
+     *
+     * Also automatically adds empty consumers for all settings in order to activate logging
+     */
     public synchronized void addSettingsUpdateConsumer(
         Consumer<Settings> consumer,
         List<? extends Setting<?>> settings,
@@ -116,6 +146,10 @@ public abstract class AbstractContextlessScopedSettings extends AbstractScopedSe
         super.addSettingsUpdateConsumer(wrapIgnoringContext(consumer), settings, validator);
     }
 
+    /**
+     * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
+     * consumer in order to be processed correctly.
+     */
     public synchronized <T> void addAffixUpdateConsumer(
         Setting.AffixSetting<T> setting,
         BiConsumer<String, T> consumer,
@@ -124,10 +158,22 @@ public abstract class AbstractContextlessScopedSettings extends AbstractScopedSe
         super.addAffixUpdateConsumer(setting, wrapIgnoringContext(consumer), validator);
     }
 
+    /**
+     * Adds a affix settings consumer that accepts the settings for a group of settings. The consumer is only
+     * notified if at least one of the settings change.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     */
     public synchronized void addAffixGroupUpdateConsumer(List<Setting.AffixSetting<?>> settings, BiConsumer<String, Settings> consumer) {
         super.addAffixGroupUpdateConsumer(settings, wrapIgnoringContext(consumer));
     }
 
+    /**
+     * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
+     * consumer in order to be processed correctly. This consumer will get a namespace to value map instead of each individual namespace
+     * and value as in {@link #addAffixUpdateConsumer(Setting.AffixSetting, BiConsumer, BiConsumer)}
+     */
     public synchronized <T> void addAffixMapUpdateConsumer(
         Setting.AffixSetting<T> setting,
         Consumer<Map<String, T>> consumer,
@@ -136,6 +182,15 @@ public abstract class AbstractContextlessScopedSettings extends AbstractScopedSe
         super.addAffixMapUpdateConsumer(setting, wrapIgnoringContext(consumer), validator);
     }
 
+    /**
+     * Adds a settings consumer that accepts the values for two settings. The consumer is only notified if one or both settings change
+     * and if the provided validator succeeded.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     * This method registers a compound updater that is useful if two settings are depending on each other.
+     * The consumer is always provided with both values even if only one of the two changes.
+     */
     public synchronized <A, B> void addSettingsUpdateConsumer(
         Setting<A> a,
         Setting<B> b,
@@ -145,6 +200,10 @@ public abstract class AbstractContextlessScopedSettings extends AbstractScopedSe
         super.addSettingsUpdateConsumer(a, b, wrapIgnoringContext(consumer), validator);
     }
 
+    /**
+     * Adds a settings consumer that accepts the values for two settings.
+     * See {@link #addSettingsUpdateConsumer(Setting, Setting, BiConsumer, BiConsumer)} for details.
+     */
     public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer) {
         super.addSettingsUpdateConsumer(a, b, wrapIgnoringContext(consumer));
     }

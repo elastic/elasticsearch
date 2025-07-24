@@ -37,6 +37,8 @@ import java.util.regex.Pattern;
 /**
  * A basic setting service that can be used for per-index and per-cluster settings.
  * This service offers transactional application of updates settings.
+ *
+ * @param <C> type of context for which settings are updated
  */
 public abstract class AbstractScopedSettings<C> {
 
@@ -164,6 +166,9 @@ public abstract class AbstractScopedSettings<C> {
      * <p>
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
+     * @param <T>       The type of the setting's value.
+     * @param setting   The setting for which the updates are to be handled.
+     * @param consumer  A {@link BiConsumer} that will be executed with the updated setting value and context for which update happened.
      * @param validator an additional validator that is only applied to updates of this setting.
      *                  This is useful to add additional validation to settings at runtime compared to at startup time.
      */
@@ -514,7 +519,7 @@ public abstract class AbstractScopedSettings<C> {
     /**
      * Transactional interface to update settings.
      * @see Setting
-     * @param <C> the type of setting context
+     * @param <C> the type of context for which settings are updated
      * @param <T> the type of the value of the setting
      */
     public interface SettingUpdater<C, T> {
@@ -552,7 +557,7 @@ public abstract class AbstractScopedSettings<C> {
         }
 
         /**
-         * Returns a callable runnable that calls {@link #apply(Object, Settings, Settings)} if the settings
+         * Returns a callable runnable that calls {@link #apply(C, Settings, Settings)} if the settings
          * actually changed. This allows to defer the update to a later point in time while keeping type safety.
          * If the value didn't change the returned runnable is a noop.
          */

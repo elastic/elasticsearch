@@ -16,6 +16,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Encapsulates project level settings and its update listeners.
+ */
 public class ProjectScopedSettings extends AbstractScopedSettings<ProjectId> {
     private final Map<ProjectId, Settings> projectSettings = new ConcurrentHashMap<>();
 
@@ -27,12 +30,18 @@ public class ProjectScopedSettings extends AbstractScopedSettings<ProjectId> {
         this(Collections.emptySet());
     }
 
+    /**
+     * Retrieves a setting value for a specific project.
+     *
+     * @param projectId id of the project for which the setting value is to be retrieved
+     * @param setting the setting whose value needs to be fetched
+     * @return the value of the specified setting for the given project
+     */
     public <T> T get(ProjectId projectId, Setting<T> setting) {
         return setting.get(projectSettings.getOrDefault(projectId, Settings.EMPTY));
     }
 
     /**
-     *
      * Validates the given settings for the given project by running it through all update listeners without applying it. This
      * method will not change any settings but will fail if any of the settings can't be applied.
      */

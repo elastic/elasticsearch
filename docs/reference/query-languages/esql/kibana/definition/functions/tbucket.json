@@ -30,7 +30,8 @@
     }
   ],
   "examples" : [
-    "FROM sample_data\n| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(30 minutes)\n| SORT min"
+    "FROM sample_data\n| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)\n| SORT min",
+    "FROM sample_data\n| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(\"1 hour\")\n| SORT min"
   ],
   "preview" : false,
   "snapshot_only" : false

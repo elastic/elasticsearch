@@ -10,29 +10,28 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.DateEsField;
-import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
-// TODO: WIP
-public class TBucketTests extends AbstractAggregationTestCase {
+public class TBucketTests extends AbstractScalarFunctionTestCase {
     public TBucketTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -56,16 +55,7 @@ public class TBucketTests extends AbstractAggregationTestCase {
             Duration.ofDays(1L),
             "[86400000 in Z][fixed]"
         );
-
-        return parameterSuppliersFromTypedData(
-            anyNullIsNull(
-                suppliers,
-                (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataType.NULL
-                    ? DataType.NULL
-                    : original.expectedType(),
-                (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
-            )
-        );
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     private static void dateCasesWithSpan(
@@ -76,10 +66,10 @@ public class TBucketTests extends AbstractAggregationTestCase {
         Object span,
         String spanStr
     ) {
-        suppliers.add(new TestCaseSupplier(name, List.of(spanType), () -> {
+        suppliers.add(new TestCaseSupplier(name, List.of(spanType, DataType.DATETIME), () -> {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
             args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
-            // args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "timestamps"));
+            args.add(new TestCaseSupplier.TypedData(date.getAsLong(), DataType.DATETIME, "field"));
 
             return new TestCaseSupplier.TestCase(
                 args,
@@ -91,21 +81,21 @@ public class TBucketTests extends AbstractAggregationTestCase {
     }
 
     private static Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
-        // long millis = ((Number) typedData.get(1).data()).longValue();
-        // long expected = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis);
-        // LogManager.getLogger(getTestClass()).info("Expected: " + Instant.ofEpochMilli(expected));
-        // LogManager.getLogger(getTestClass()).info("Input: " + Instant.ofEpochMilli(millis));
-        // return equalTo(expected);
-        return equalTo(null);
+        long millis = ((Number) typedData.get(1).data()).longValue();
+        long expected = Rounding.builder(Rounding.DateTimeUnit.DAY_OF_MONTH).build().prepareForUnknown().round(millis);
+        LogManager.getLogger(getTestClass()).info("Expected: " + Instant.ofEpochMilli(expected));
+        LogManager.getLogger(getTestClass()).info("Input: " + Instant.ofEpochMilli(millis));
+        return equalTo(expected);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new TBucket(
-            source,
-            args.getFirst(),
-            new FieldAttribute(source, "@timestamp", DateEsField.dateEsField("@timestamp", Map.of(), false))
-        );
+        return new TBucket(source, args.get(0), args.get(1));
+    }
+
+    @Override
+    protected boolean canSerialize() {
+        return false;
     }
 
     public static List<DataType> signatureTypes(List<DataType> testCaseTypes) {

@@ -67,6 +67,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
 
 public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction, PostAnalysisPlanVerificationAware {
@@ -217,7 +218,7 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         if (result.unresolved()) {
             return result;
         }
-        result = resolveTypeQuery(query(), sourceText(), null);
+        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
         if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
             return result;
         }

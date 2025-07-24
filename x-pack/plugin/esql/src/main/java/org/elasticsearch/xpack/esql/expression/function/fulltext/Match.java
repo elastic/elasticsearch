@@ -79,6 +79,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.formatIncompatibleTypesMessage;
 
@@ -327,7 +328,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         if (result.unresolved()) {
             return result;
         }
-        result = resolveTypeQuery(query(), sourceText(), null);
+        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
         if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
             return result;
         }

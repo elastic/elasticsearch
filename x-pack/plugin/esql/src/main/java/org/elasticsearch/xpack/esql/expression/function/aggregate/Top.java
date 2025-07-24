@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
+import org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -48,6 +49,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPostOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPreOptimizationValidation;
 
 public class Top extends AggregateFunction implements ToAggregator, SurrogateExpression, PostOptimizationVerificationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Top", Top::new);
@@ -166,7 +169,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
             return result;
         }
-        result = resolveTypeOrder(null);
+        result = resolveTypeOrder(forPreOptimizationValidation(orderField()));
         if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
             return result;
         }
@@ -178,23 +181,20 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
      * During postOptimizationVerification folding is already done, so we also verify that it is definitively a literal
      */
     private TypeResolution resolveTypeLimit() {
-        return FunctionUtils.resolveTypeLimit(limitField(), sourceText(), null);
+        return FunctionUtils.resolveTypeLimit(limitField(), sourceText(), forPreOptimizationValidation(limitField()));
     }
 
     /**
      * We check that the order is not null and that if it is a literal, it is one of the two valid values: "asc" or "desc".
      * During postOptimizationVerification folding is already done, so we also verify that it is definitively a literal
      */
-    private Expression.TypeResolution resolveTypeOrder(Failures failures) {
-        FunctionUtils.TypeResolutionValidator validator = new FunctionUtils.TypeResolutionValidator(orderField(), failures);
+    private Expression.TypeResolution resolveTypeOrder(TypeResolutionValidator validator) {
         Expression order = orderField();
         if (order == null) {
-            validator.reportPreFoldingFailure(
-                new TypeResolution(format(null, "Order must be a valid string in [{}], found [{}]", sourceText(), order))
-            );
+            validator.invalid(new TypeResolution(format(null, "Order must be a valid string in [{}], found [{}]", sourceText(), order)));
         } else if (order instanceof Literal literal) {
             if (literal.value() == null) {
-                validator.reportPreFoldingFailure(
+                validator.invalid(
                     new TypeResolution(
                         format(
                             null,
@@ -209,7 +209,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
             } else {
                 String value = BytesRefs.toString(literal.value());
                 if (value == null || value.equalsIgnoreCase(ORDER_ASC) == false && value.equalsIgnoreCase(ORDER_DESC) == false) {
-                    validator.reportPreFoldingFailure(
+                    validator.invalid(
                         new TypeResolution(
                             format(
                                 null,
@@ -226,7 +226,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
         } else {
             // it is expected that the expression is a literal after folding
             // we fail if it is not a literal
-            validator.reportPostFoldingFailure(fail(order, "Order must be a valid string in [{}], found [{}]", sourceText(), order));
+            validator.invalidIfPostValidation(fail(order, "Order must be a valid string in [{}], found [{}]", sourceText(), order));
         }
         return validator.getResolvedType();
     }
@@ -238,11 +238,11 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     private void postOptimizationVerificationLimit(Failures failures) {
-        FunctionUtils.resolveTypeLimit(limitField(), sourceText(), failures);
+        FunctionUtils.resolveTypeLimit(limitField(), sourceText(), forPostOptimizationValidation(limitField(), failures));
     }
 
     private void postOptimizationVerificationOrder(Failures failures) {
-        resolveTypeOrder(failures);
+        resolveTypeOrder(forPostOptimizationValidation(orderField(), failures));
     }
 
     @Override
@@ -287,19 +287,12 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     @Override
     public Expression surrogate() {
         var s = source();
-        try {
-            if (limitValue() == 1) {
-                if (orderValue()) {
-                    return new Min(s, field());
-                } else {
-                    return new Max(s, field());
-                }
+        if (orderField() instanceof Literal && limitField() instanceof Literal && limitValue() == 1) {
+            if (orderValue()) {
+                return new Min(s, field());
+            } else {
+                return new Max(s, field());
             }
-        } catch (EsqlIllegalArgumentException e) {
-            // If the limit is not a literal or is not a positive integer, we cannot create a surrogate
-            // so we return null to indicate that no surrogate can be created.
-            // This is possible if the limit is an expression, and folding has not been done yet.
-            return null;
         }
         return null;
     }

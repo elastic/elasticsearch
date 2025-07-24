@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -175,46 +176,51 @@ public class ESTestCaseTests extends ESTestCase {
     }
 
     public void testRandomSubsetOfWithVarargs() {
-        List<Integer> result = ESTestCase.randomSubsetOf(2, 1, 2, 3, 4);
-        assertEquals(2, result.size());
-        assertTrue(Arrays.asList(1, 2, 3, 4).containsAll(result));
-    }
+        int randomListSize = randomInt(10);
+        List<Integer> randomList = randomList(randomListSize, () -> randomIntBetween(-100, 100));
 
-    public void testRandomSubsetOfWithVarargsAndSizeZero() {
-        List<Integer> result = ESTestCase.randomSubsetOf(0, 1, 2, 3);
-        assertEquals(0, result.size());
-    }
+        // 0 <= subsetSize <= listSize
+        int randomSubsetSize = randomInt(randomListSize);
 
-    public void testRandomSubsetOfWithVarargsAndSizeEqualsLength() {
-        List<Integer> result = ESTestCase.randomSubsetOf(3, 1, 2, 3);
-        assertEquals(3, result.size());
-        assertTrue(result.containsAll(Arrays.asList(1, 2, 3)));
+        // Uses the spread syntax to pass the list as an array of values (matching the var args parameter definition)
+        List<Integer> result = ESTestCase.randomSubsetOf(randomSubsetSize, randomList.toArray(new Integer[0]));
+        assertEquals(randomSubsetSize, result.size());
+        assertTrue(randomList.containsAll(result));
     }
 
     public void testRandomSubsetOfWithVarargsAndSizeTooLarge() {
+        int randomListSize = randomInt(10);
+        List<Integer> randomList = randomList(randomListSize, () -> randomIntBetween(-100, 100));
+
+        // listSize < subsetSize
+        int randomSubsetSize = randomIntBetween(randomListSize+1, 20);
+
         assertThrows(IllegalArgumentException.class, () ->
-            ESTestCase.randomSubsetOf(5, 1, 2, 3)
+            ESTestCase.randomSubsetOf(randomSubsetSize, randomList.toArray(new Integer[0]))
         );
     }
 
-    public void testRandomSubsetOfWithVarargsAndSizeTooSmall() {
+    public void testRandomSubsetOfWithVarargsAndNegativeSubsetSize() {
+        List<Integer> randomList = randomList(randomInt(10), () -> randomIntBetween(-100, 100));
+        int randomNegativeSubsetSize = -1 * randomIntBetween(1, 10);
+
         assertThrows(IllegalArgumentException.class, () ->
-            ESTestCase.randomSubsetOf(-1, 1, 2, 3)
+            ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList)
         );
     }
 
     public void testRandomSubsetOfWithCollection() {
-        List<String> input = Arrays.asList("a", "b", "c");
-        List<String> result = ESTestCase.randomSubsetOf(input);
-        assertTrue(result.size() >= 0 && result.size() <= input.size());
-        assertTrue(input.containsAll(result));
+        List<Integer> randomList = randomList(randomInt(10), () -> randomIntBetween(-100, 100));
+        List<Integer> result = ESTestCase.randomSubsetOf(randomList);
+        assertTrue(result.size() >= 0 && result.size() <= randomList.size());
+        assertTrue(randomList.containsAll(result));
     }
 
     public void testRandomNonEmptySubsetOf() {
-        List<String> input = Arrays.asList("a", "b", "c");
-        List<String> result = ESTestCase.randomNonEmptySubsetOf(input);
-        assertTrue(result.size() >= 1 && result.size() <= input.size());
-        assertTrue(input.containsAll(result));
+        List<Integer> randomList = randomList(randomIntBetween(1, 10), () -> randomIntBetween(-100, 100));
+        List<Integer> result = ESTestCase.randomNonEmptySubsetOf(randomList);
+        assertTrue(result.size() >= 1 && result.size() <= randomList.size());
+        assertTrue(randomList.containsAll(result));
     }
 
     public void testRandomNonEmptySubsetOfThrowsOnEmptyCollection() {
@@ -222,39 +228,33 @@ public class ESTestCaseTests extends ESTestCase {
         assertThat(ex.getMessage(), equalTo("Can't pick non-empty subset of an empty collection"));
     }
 
-    public void testRandomSubsetOfWithCollectionAndMaxSize() {
-        List<Integer> input = Arrays.asList(1, 2, 3, 4);
-        List<Integer> result = ESTestCase.randomSubsetOf(4, input);
-        assertEquals(4, result.size());
-        assertTrue(input.containsAll(result));
-    }
-
-    public void testRandomSubsetOfWithCollectionAndSizeZero() {
-        List<Integer> input = Arrays.asList(1, 2, 3, 4);
-        List<Integer> result = ESTestCase.randomSubsetOf(0, input);
-        assertEquals(0, result.size());
-    }
-
     public void testRandomSubsetOfWithCollectionAndSizeTooLarge() {
-        List<Integer> input = Arrays.asList(1, 2, 3);
+        int randomListSize = randomInt(10);
+        List<Integer> randomList = randomList(randomListSize, () -> randomIntBetween(-100, 100));
+
+        // listSize < subsetSize
+        int randomSubsetSize = randomIntBetween(randomListSize+1, 20);
+
         assertThrows(IllegalArgumentException.class, () ->
-            ESTestCase.randomSubsetOf(4, input)
+            ESTestCase.randomSubsetOf(randomSubsetSize, randomList)
         );
     }
 
-    public void testRandomSubsetOfWithCollectionAndSizeTooSmall() {
-        List<Integer> input = Arrays.asList(1, 2, 3);
+    public void testRandomSubsetOfWithCollectionAndNegativeSubsetSize() {
+        List<Integer> randomList = randomList(randomInt(10), () -> randomIntBetween(-100, 100));
+        int randomNegativeSubsetSize = -1 * randomIntBetween(1, 10);
+
         assertThrows(IllegalArgumentException.class, () ->
-            ESTestCase.randomSubsetOf(-1, input)
+            ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList)
         );
     }
 
     public void testShuffledList() {
-        List<Integer> input = Arrays.asList(1, 2, 3, 4, 5);
-        List<Integer> result = ESTestCase.shuffledList(input);
-        assertEquals(input.size(), result.size());
-        assertTrue(input.containsAll(result));
-        assertTrue(result.containsAll(input));
+        List<Integer> randomList = randomList(randomInt(100), () -> randomIntBetween(-100, 100));
+        List<Integer> result = ESTestCase.shuffledList(randomList);
+        assertEquals(randomList.size(), result.size());
+        assertTrue(randomList.containsAll(result));
+        assertTrue(result.containsAll(randomList));
     }
 
     public void testRandomNonNegativeLong() {

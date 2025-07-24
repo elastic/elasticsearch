@@ -248,19 +248,16 @@ class ValuesIntAggregator {
         private final NextValues nextValues;
 
         private GroupingState(DriverContext driverContext) {
-            IntArray _firstValues = null;
-            NextValues _nextValues = null;
+            this.blockFactory = driverContext.blockFactory();
+            boolean success = false;
             try {
-                _firstValues = driverContext.bigArrays().newIntArray(1, false);
-                _nextValues = new NextValues(driverContext.blockFactory());
-
-                this.firstValues = _firstValues;
-                _firstValues = null;
-                this.nextValues = _nextValues;
-                _nextValues = null;
-                this.blockFactory = driverContext.blockFactory();
+                this.firstValues = driverContext.bigArrays().newIntArray(1, false);
+                this.nextValues = new NextValues(driverContext.blockFactory());
+                success = true;
             } finally {
-                Releasables.closeExpectNoException(_firstValues, _nextValues);
+                if (success == false) {
+                    this.close();
+                }
             }
         }
 

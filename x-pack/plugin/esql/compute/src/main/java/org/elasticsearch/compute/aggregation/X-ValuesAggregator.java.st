@@ -360,33 +360,21 @@ $endif$
         private final NextValues nextValues;
 
         private GroupingState(DriverContext driverContext) {
-$if(BytesRef)$
-            BytesRefHash _bytes = null;
-            IntArray _firstValues = null;
-$else$
-            $Type$Array _firstValues = null;
-$endif$
-            NextValues _nextValues = null;
+            this.blockFactory = driverContext.blockFactory();
+            boolean success = false;
             try {
 $if(BytesRef)$
-                _bytes = new BytesRefHash(1, driverContext.bigArrays());
-                _firstValues = driverContext.bigArrays().newIntArray(1, true);
+                this.bytes = new BytesRefHash(1, driverContext.bigArrays());
+                this.firstValues = driverContext.bigArrays().newIntArray(1, true);
 $else$
-                _firstValues = driverContext.bigArrays().new$Type$Array(1, false);
+                this.firstValues = driverContext.bigArrays().new$Type$Array(1, false);
 $endif$
-                _nextValues = new NextValues(driverContext.blockFactory());
-
-$if(BytesRef)$
-                this.bytes = _bytes;
-                _bytes = null;
-$endif$
-                this.firstValues = _firstValues;
-                _firstValues = null;
-                this.nextValues = _nextValues;
-                _nextValues = null;
-                this.blockFactory = driverContext.blockFactory();
+                this.nextValues = new NextValues(driverContext.blockFactory());
+                success = true;
             } finally {
-                Releasables.closeExpectNoException($if(BytesRef)$_bytes, $endif$_firstValues, _nextValues);
+                if (success == false) {
+                    this.close();
+                }
             }
         }
 

@@ -120,7 +120,7 @@ class ValuesDoubleAggregator {
     /**
      * Values after the first in each group are collected in a hash, keyed by the pair of groupId and value.
      * When emitting the output, we need to iterate the hash one group at a time to build the output block,
-     * which can require O(N^2). To avoid this, we compute the counts for each group and remap the hash id
+     * which would require O(N^2). To avoid this, we compute the counts for each group and remap the hash id
      * to an array, allowing us to build the output in O(N) instead.
      */
     private static class NextValues implements Releasable {
@@ -241,19 +241,16 @@ class ValuesDoubleAggregator {
         private final NextValues nextValues;
 
         private GroupingState(DriverContext driverContext) {
-            DoubleArray _firstValues = null;
-            NextValues _nextValues = null;
+            this.blockFactory = driverContext.blockFactory();
+            boolean success = false;
             try {
-                _firstValues = driverContext.bigArrays().newDoubleArray(1, false);
-                _nextValues = new NextValues(driverContext.blockFactory());
-
-                this.firstValues = _firstValues;
-                _firstValues = null;
-                this.nextValues = _nextValues;
-                _nextValues = null;
-                this.blockFactory = driverContext.blockFactory();
+                this.firstValues = driverContext.bigArrays().newDoubleArray(1, false);
+                this.nextValues = new NextValues(driverContext.blockFactory());
+                success = true;
             } finally {
-                Releasables.closeExpectNoException(_firstValues, _nextValues);
+                if (success == false) {
+                    this.close();
+                }
             }
         }
 
@@ -294,6 +291,10 @@ class ValuesDoubleAggregator {
             }
         }
 
+        /**
+         * Returns true if the group has a value in firstValues; having a value in nextValues is optional.
+         * Returns false if the group does not have values in either firstValues or nextValues.
+         */
         private boolean hasValue(int groupId) {
             return seen == null || seen.get(groupId);
         }

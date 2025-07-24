@@ -126,11 +126,10 @@ public class StatelessClusterConsistencyService extends AbstractLifecycleCompone
      */
     public void ensureClusterStateConsistentWithRootBlob(ActionListener<Void> listener, final TimeValue timeout) {
         final var startingClusterState = clusterService.state();
-        final var startingStateLease = new StatelessLease(
-            startingClusterState.term(),
-            startingClusterState.nodes().getNodeLeftGeneration()
-        );
         final var startingClusterStateVersion = startingClusterState.version();
+        final var startingTerm = startingClusterState.term();
+        final var startingNodeLeftGeneration = startingClusterState.nodes().getNodeLeftGeneration();
+        final var startingProjectsMarkedForDeletionGeneration = StatelessLease.getProjectsMarkedForDeletionGeneration(startingClusterState);
         // Complete the immediate check listener along with the delayed listeners that were submitted before the check
         List<ActionListener<Void>> listenersToCall = new ArrayList<>(delayedListeners.size() + 1);
         listenersToCall.add(listener);
@@ -140,8 +139,13 @@ public class StatelessClusterConsistencyService extends AbstractLifecycleCompone
         }
         pendingDelayedListeners = false;
         ReadLease readLease = new ReadLease(timeout, listener.delegateFailureAndWrap((delegate, lease) -> {
-            if (lease.compareTo(startingStateLease) <= 0) {
-                assert lease.compareTo(startingStateLease) == 0 : lease + " vs " + startingStateLease;
+            final var startingStateLease = new StatelessLease(
+                startingTerm,
+                startingNodeLeftGeneration,
+                startingProjectsMarkedForDeletionGeneration
+            );
+            if (StatelessLease.compare(lease, startingStateLease) <= 0) {
+                assert StatelessLease.compare(lease, startingStateLease) == 0 : lease + " vs " + startingStateLease;
                 ActionListener.onResponse(listenersToCall, null);
             } else {
                 ClusterStateObserver observer = new ClusterStateObserver(
@@ -177,9 +181,13 @@ public class StatelessClusterConsistencyService extends AbstractLifecycleCompone
                         threadPool.generic().execute(() -> ActionListener.onFailure(listenersToCall, e));
                     }
                 }, clusterState -> {
-                    final var newStateLease = new StatelessLease(clusterState.term(), clusterState.nodes().getNodeLeftGeneration());
-                    assert startingStateLease.compareTo(newStateLease) <= 0 : startingStateLease + " vs " + newStateLease;
-                    return lease.compareTo(newStateLease) <= 0;
+                    final var newStateLease = new StatelessLease(
+                        clusterState.term(),
+                        clusterState.nodes().getNodeLeftGeneration(),
+                        StatelessLease.getProjectsMarkedForDeletionGeneration(clusterState)
+                    );
+                    assert StatelessLease.compare(startingStateLease, newStateLease) <= 0 : startingStateLease + " vs " + newStateLease;
+                    return StatelessLease.compare(lease, newStateLease) <= 0;
                 });
             }
         }));

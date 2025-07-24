@@ -115,8 +115,11 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         if (newNodes.isLocalNodeElectedMaster()) {
             super.writeClusterStateToDisk(clusterState);
 
-            if (newNodes.getNodeLeftGeneration() != getLastAcceptedState().nodes().getNodeLeftGeneration()) {
-                statelessElectionStrategy.onNodeLeft(clusterState.term(), newNodes.getNodeLeftGeneration());
+            long currentProjectsMarkedForDeletionGeneration = StatelessLease.getProjectsMarkedForDeletionGeneration(clusterState);
+            long lastProjectsMarkedForDeletionGeneration = StatelessLease.getProjectsMarkedForDeletionGeneration(getLastAcceptedState());
+            if (newNodes.getNodeLeftGeneration() != getLastAcceptedState().nodes().getNodeLeftGeneration()
+                || currentProjectsMarkedForDeletionGeneration != lastProjectsMarkedForDeletionGeneration) {
+                statelessElectionStrategy.updateLease(clusterState);
             }
         }
     }

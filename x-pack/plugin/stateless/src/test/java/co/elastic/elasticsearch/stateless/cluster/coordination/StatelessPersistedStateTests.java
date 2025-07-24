@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.cluster.coordination;
 
+import co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
@@ -38,12 +39,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
@@ -52,6 +55,7 @@ import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.Closeable;
 import java.io.FilterInputStream;
@@ -401,6 +405,86 @@ public class StatelessPersistedStateTests extends ESTestCase {
                 ClusterState clusterState = safeAwait(l -> node2PersistedState.getLatestStoredState(2, l));
                 assertThat(clusterState, is(notNullValue()));
             }
+        }
+    }
+
+    public void testUpdateLeaseInMixedCluster() throws Exception {
+        try (var ctx = createTestContext()) {
+            var localNode = ctx.getLocalNode();
+            var remoteNode = DiscoveryNodeUtils.create(
+                "remote-node",
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                Set.of(DiscoveryNodeRole.MASTER_ROLE)
+            );
+            final var term = 1L;
+            var persistedState = ctx.persistedState();
+            persistedState.setCurrentTerm(term);
+            // Write the matching lease
+            ctx.statelessNode.objectStoreService.getClusterStateBlobContainer()
+                .writeBlob(
+                    OperationPurpose.CLUSTER_STATE,
+                    StatelessElectionStrategy.LEASE_BLOB,
+                    new StatelessLease(StatelessLease.LEGACY_FORMAT_VERSION, term, 0L, 0L).asBytes(),
+                    false
+                );
+            // Cluster state with remote node on a version before STATELESS_LEASE_BLOB_V1_FORMAT, and local node
+            // as the current master and on STATELESS_LEASE_BLOB_V1_FORMAT
+            final var localNodeCompatibilityVersions = new CompatibilityVersions(
+                ServerlessTransportVersions.STATELESS_LEASE_BLOB_V1_FORMAT,
+                Map.of()
+            );
+            final var remoteNodeCompatibilityVersions = new CompatibilityVersions(
+                TransportVersionUtils.getPreviousVersion(ServerlessTransportVersions.STATELESS_LEASE_BLOB_V1_FORMAT),
+                Map.of()
+            );
+            final var state1 = ClusterState.builder(ClusterName.DEFAULT)
+                .version(1)
+                .nodes(
+                    DiscoveryNodes.builder()
+                        .add(localNode)
+                        .add(remoteNode)
+                        .localNodeId(localNode.getId())
+                        .masterNodeId(localNode.getId())
+                        .build()
+                )
+                .metadata(
+                    Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(term).build()).clusterUUIDCommitted(true)
+                )
+                .putCompatibilityVersions(localNode.getId(), localNodeCompatibilityVersions)
+                .putCompatibilityVersions(remoteNode.getId(), remoteNodeCompatibilityVersions)
+                .build();
+            persistedState.setLastAcceptedState(state1);
+            assertThat(
+                ctx.statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(term)
+                    .listBlobs(randomFrom(OperationPurpose.values())),
+                is(not(emptyMap()))
+            );
+            var leaseOptional = safeAwait(SubscribableListener.newForked(ctx.statelessNode.electionStrategy::readLease));
+            assertThat(leaseOptional.isPresent(), is(true));
+            assertThat(leaseOptional.get().formatVersion(), equalTo(StatelessLease.LEGACY_FORMAT_VERSION));
+            assertThat(leaseOptional.get().currentTerm(), equalTo(term));
+            assertThat(leaseOptional.get().nodeLeftGeneration(), equalTo(0L));
+            // node with the older version leaves
+            var clusterStateWithOneNode = ClusterState.builder(persistedState.getLastAcceptedState())
+                .nodes(DiscoveryNodes.builder(persistedState.getLastAcceptedState().nodes()).remove(remoteNode.getId()).build())
+                .nodeIdsToCompatibilityVersions(Map.of(localNode.getId(), localNodeCompatibilityVersions))
+                .incrementVersion()
+                .build();
+            persistedState.setLastAcceptedState(clusterStateWithOneNode);
+            assertThat(
+                ctx.statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(term)
+                    .listBlobs(randomFrom(OperationPurpose.values())),
+                is(not(emptyMap()))
+            );
+            var newLease = safeAwait(SubscribableListener.newForked(ctx.statelessNode.electionStrategy::readLease)).get();
+            assertThat(newLease.currentTerm(), equalTo(term));
+            assertThat(newLease.nodeLeftGeneration(), equalTo(1L));
+            assertThat(newLease.formatVersion(), equalTo(StatelessLease.V1_FORMAT_VERSION));
+            assertThat(newLease.projectsUnderDeletedGeneration(), equalTo(0L));
+            // clean up
+            ctx.statelessNode.objectStoreService.getClusterStateBlobContainer()
+                .deleteBlobsIgnoringIfNotExists(OperationPurpose.CLUSTER_STATE, Iterators.single(StatelessElectionStrategy.LEASE_BLOB));
         }
     }
 

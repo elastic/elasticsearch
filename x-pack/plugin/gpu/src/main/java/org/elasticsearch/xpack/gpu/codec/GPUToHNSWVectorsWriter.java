@@ -27,9 +27,11 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.apache.lucene.util.hnsw.HnswGraph.NodesIterator;
@@ -175,12 +177,15 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         private final Dataset dataset;
         private final float[][] vectors;
 
-        DatasetOrVectors(float[][] vectors) {
-            this(
+        static DatasetOrVectors fromArray(float[][] vectors) {
+            return new DatasetOrVectors(
                 vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? null : Dataset.ofArray(vectors),
                 vectors.length < MIN_NUM_VECTORS_FOR_GPU_BUILD ? vectors : null
             );
-            validateState();
+        }
+
+        static DatasetOrVectors fromDataset(Dataset dataset) {
+            return new DatasetOrVectors(dataset, null);
         }
 
         private DatasetOrVectors(Dataset dataset, float[][] vectors) {
@@ -210,7 +215,7 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
 
     private void writeField(FieldWriter fieldWriter) throws IOException {
         float[][] vectors = fieldWriter.flatFieldVectorsWriter.getVectors().toArray(float[][]::new);
-        writeFieldInternal(fieldWriter.fieldInfo, new DatasetOrVectors(vectors));
+        writeFieldInternal(fieldWriter.fieldInfo, DatasetOrVectors.fromArray(vectors));
     }
 
     private void writeSortingField(FieldWriter fieldData, Sorter.DocMap sortMap) throws IOException {
@@ -481,19 +486,31 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
             }
         }
         try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
-            // TODO: Improve this (not acceptable): pass tempRawVectorsFileName for the gpuIndex construction through MemorySegment
-            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, in, numVectors);
-            float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];
-            float[] vector;
-            for (int i = 0; i < numVectors; i++) {
-                vector = floatVectorValues.vectorValue(i);
-                System.arraycopy(vector, 0, vectors[i], 0, vector.length);
+            DatasetOrVectors datasetOrVectors;
+
+            var input = FilterIndexInput.unwrapOnlyTest(in);
+            if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
+                var ds = DatasetUtils.getInstance().fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension());
+                datasetOrVectors = DatasetOrVectors.fromDataset(ds);
+            } else {
+                var fa = copyVectorsIntoArray(in, fieldInfo, numVectors);
+                datasetOrVectors = DatasetOrVectors.fromArray(fa);
             }
-            DatasetOrVectors datasetOrVectors = new DatasetOrVectors(vectors);
             writeFieldInternal(fieldInfo, datasetOrVectors);
         } finally {
             org.apache.lucene.util.IOUtils.deleteFilesIgnoringExceptions(mergeState.segmentInfo.dir, tempRawVectorsFileName);
         }
+    }
+
+    static float[][] copyVectorsIntoArray(IndexInput in, FieldInfo fieldInfo, int numVectors) throws IOException {
+        final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, in, numVectors);
+        float[][] vectors = new float[numVectors][fieldInfo.getVectorDimension()];
+        float[] vector;
+        for (int i = 0; i < numVectors; i++) {
+            vector = floatVectorValues.vectorValue(i);
+            System.arraycopy(vector, 0, vectors[i], 0, vector.length);
+        }
+        return vectors;
     }
 
     private static int writeFloatVectorValues(FieldInfo fieldInfo, IndexOutput out, FloatVectorValues floatVectorValues)

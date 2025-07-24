@@ -33,7 +33,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             // Test integer
@@ -77,7 +77,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             // Test mixed array using List<Object> interface
@@ -129,7 +129,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             // Test nested object
@@ -179,7 +179,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             // Test metadata object
@@ -220,7 +220,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             // Test Map interface methods
@@ -258,7 +258,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             assertThat(source.get("maxInt"), equalTo(Integer.MAX_VALUE));
@@ -284,7 +284,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             assertThat(source.get("emptyString"), equalTo(""));
@@ -311,7 +311,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             ESONSource.ESONArray array = (ESONSource.ESONArray) source.get("testArray");
@@ -363,7 +363,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             // Test matrix (regular 2D array)
@@ -411,7 +411,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             ESONSource.ESONArray items = (ESONSource.ESONArray) source.get("items");
@@ -452,7 +452,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             ESONSource.ESONArray complex = (ESONSource.ESONArray) source.get("complex");
@@ -502,7 +502,7 @@ public class ESONSourceTests extends ESTestCase {
             """;
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             ESONSource.ESONObject source = builder.parse(parser);
 
             // Test array of only nulls

@@ -110,7 +110,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     ) {
         super(registry, deprecationHandler);
         this.root = root;
-        this.values = root.objectValues().get();
+        this.values = root.objectValues();
         // Start with the root object context
         this.currentContext = new ParseContext(root);
         contextStack.addFirst(currentContext);

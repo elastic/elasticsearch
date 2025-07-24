@@ -56,42 +56,6 @@ public class NodeBalanceStatsTests extends AbstractWireSerializingTestCase<Clust
         return createTestInstance();
     }
 
-    public void testSerializationWithTransportVersionV_8_7_0() throws IOException {
-        ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
-        // Serialization changes based on this version
-        final var oldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_0_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0)
-        );
-        ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
-
-        // Assert the default values are as expected
-        assertEquals(UNKNOWN, deserialized.nodeId());
-        assertEquals(List.of(), deserialized.roles());
-        assertEquals(UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE, deserialized.undesiredShardAllocations());
-        assertNull(deserialized.nodeWeight());
-    }
-
-    public void testSerializationWithTransportVersionV_8_8_0() throws IOException {
-        ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
-        // Serialization changes based on this version
-        final var oldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_8_8_0,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_12_0)
-        );
-        ClusterBalanceStats.NodeBalanceStats deserialized = copyInstance(instance, oldVersion);
-
-        // Assert the values are as expected
-        assertEquals(instance.nodeId(), deserialized.nodeId());
-        assertEquals(instance.roles(), deserialized.roles());
-
-        // Assert the default values are as expected
-        assertEquals(UNDESIRED_SHARD_ALLOCATION_DEFAULT_VALUE, deserialized.undesiredShardAllocations());
-        assertNull(deserialized.nodeWeight());
-    }
-
     public void testSerializationWithTransportVersionV_8_12_0() throws IOException {
         ClusterBalanceStats.NodeBalanceStats instance = createTestInstance();
         // Serialization changes based on this version

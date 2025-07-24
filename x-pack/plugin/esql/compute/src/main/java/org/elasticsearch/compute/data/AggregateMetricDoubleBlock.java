@@ -85,11 +85,18 @@ public sealed interface AggregateMetricDoubleBlock extends Block permits Aggrega
     }
 
     static int hash(AggregateMetricDoubleBlock block) {
+        final int positions = block.getPositionCount();
         int result = 1;
-        result = 31 * result + DoubleBlock.hash(block.minBlock());
-        result = 31 * result + DoubleBlock.hash(block.maxBlock());
-        result = 31 * result + DoubleBlock.hash(block.sumBlock());
-        result = 31 * result + IntBlock.hash(block.countBlock());
+        for (int pos = 0; pos < positions; pos++) {
+            if (block.isNull(pos)) {
+                result = 31 * result - 1;
+            } else {
+                result = 31 * result + DoubleBlock.hash(block.minBlock());
+                result = 31 * result + DoubleBlock.hash(block.maxBlock());
+                result = 31 * result + DoubleBlock.hash(block.sumBlock());
+                result = 31 * result + IntBlock.hash(block.countBlock());
+            }
+        }
         return result;
     }
 

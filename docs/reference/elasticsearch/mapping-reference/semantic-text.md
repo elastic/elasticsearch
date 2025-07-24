@@ -32,7 +32,7 @@ service.
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
 the embedding generation, indexing, and query to use.
-{applies_to}`stack: 9.1` Newly created indices with `semantic_text` fields using dense embeddings will be
+{applies_to}`stack: ga 9.1` Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically.
 
@@ -300,7 +300,7 @@ specified. It enables you to quickstart your semantic search by providing
 automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
-{applies_to}`stack: 9.1`
+{applies_to}`stack: ga 9.1`
 
 If you want to override those defaults and customize the embeddings that
 `semantic_text` indexes, you can do so by
@@ -335,7 +335,7 @@ PUT my-index-000004
 }
 ```
 
-{applies_to}`stack: 9.0`
+{applies_to}`stack: ga 9.0`
 
 In case you want to customize data indexing, use the
 [`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)

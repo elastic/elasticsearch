@@ -36,14 +36,15 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
 
         project.getArtifacts().add(transportVersionsConfig.getName(), collectTask);
 
-        var validateTask = project.getTasks().register("validateTransportVersionReferences", ValidateTransportVersionReferencesTask.class, t -> {
-            t.setGroup("Transport Versions");
-            t.setDescription("Validates that all TransportVersion names used in the project have an associated data file");
-            t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
-            t.getNamesFile().set(project.getLayout().getBuildDirectory().file(transportVersionsNamesFile));
-            t.dependsOn(collectTask);
+        var validateTask = project.getTasks()
+            .register("validateTransportVersionReferences", ValidateTransportVersionReferencesTask.class, t -> {
+                t.setGroup("Transport Versions");
+                t.setDescription("Validates that all TransportVersion names used in the project have an associated data file");
+                t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
+                t.getNamesFile().set(project.getLayout().getBuildDirectory().file(transportVersionsNamesFile));
+                t.dependsOn(collectTask);
 
-        });
+            });
 
         project.getTasks().named("check").configure(t -> t.dependsOn(validateTask));
     }

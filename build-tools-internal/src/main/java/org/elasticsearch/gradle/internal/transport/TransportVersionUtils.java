@@ -30,7 +30,7 @@ class TransportVersionUtils {
 
     static final Attribute<Boolean> TRANSPORT_VERSION_NAMES_ATTRIBUTE = Attribute.of("transport-version-names", Boolean.class);
 
-    record TransportVersionData(String name, List<Integer> ids) { }
+    record TransportVersionData(String name, List<Integer> ids) {}
 
     static TransportVersionData readDataFile(Path file) throws IOException {
         assert file.endsWith(".csv");

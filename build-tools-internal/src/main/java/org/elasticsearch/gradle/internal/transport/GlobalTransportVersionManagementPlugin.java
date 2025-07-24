@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
-    
+
     @Override
     public void apply(Project project) {
 
@@ -40,12 +40,13 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         Configuration tvNamesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
         tvNamesConfig.attributes(TransportVersionUtils::addTransportVersionNamesAttribute);
 
-        var validateTask = project.getTasks().register("validateTransportVersionConstants", ValidateTransportVersionConstantsTask.class, t -> {
-            t.setGroup("Transport Versions");
-            t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
-            t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
-            t.getNamesFiles().setFrom(tvNamesConfig);
-        });
+        var validateTask = project.getTasks()
+            .register("validateTransportVersionConstants", ValidateTransportVersionConstantsTask.class, t -> {
+                t.setGroup("Transport Versions");
+                t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
+                t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
+                t.getNamesFiles().setFrom(tvNamesConfig);
+            });
 
         project.getTasks().named("check").configure(t -> t.dependsOn(validateTask));
     }

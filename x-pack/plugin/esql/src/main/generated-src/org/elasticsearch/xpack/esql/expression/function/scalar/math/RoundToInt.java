@@ -93,6 +93,9 @@ class RoundToInt {
         return p3;
     }
 
+    /*
+     * Manual binary search for 5 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "5")
     static int process(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2, @Fixed int p3, @Fixed int p4) {
         if (field < p2) {
@@ -110,6 +113,9 @@ class RoundToInt {
         return p4;
     }
 
+    /*
+     * Manual binary search for 6 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "6")
     static int process(
         int field,      // hack to keep the formatter happy.
@@ -138,6 +144,9 @@ class RoundToInt {
         return p5;
     }
 
+    /*
+     * Manual binary search for 7 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "7")
     static int process(
         int field,      // hack to keep the formatter happy.
@@ -170,6 +179,9 @@ class RoundToInt {
         return p6;
     }
 
+    /*
+     * Manual binary search for 8 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "8")
     static int process(
         int field,
@@ -206,6 +218,9 @@ class RoundToInt {
         return p7;
     }
 
+    /*
+     * Manual binary search for 9 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "9")
     static int process(
         int field,
@@ -246,6 +261,9 @@ class RoundToInt {
         return p8;
     }
 
+    /*
+     * Manual binary search for 10 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "10")
     static int process(
         int field,

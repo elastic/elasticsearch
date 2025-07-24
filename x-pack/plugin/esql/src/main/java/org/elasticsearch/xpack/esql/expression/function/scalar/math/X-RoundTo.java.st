@@ -93,6 +93,9 @@ class RoundTo$Type$ {
         return p3;
     }
 
+    /*
+     * Manual binary search for 5 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "5")
     static $type$ process($type$ field, @Fixed $type$ p0, @Fixed $type$ p1, @Fixed $type$ p2, @Fixed $type$ p3, @Fixed $type$ p4) {
         if (field < p2) {
@@ -110,6 +113,9 @@ class RoundTo$Type$ {
         return p4;
     }
 
+    /*
+     * Manual binary search for 6 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "6")
     static $type$ process(
         $type$ field,      // hack to keep the formatter happy.
@@ -138,6 +144,9 @@ class RoundTo$Type$ {
         return p5;
     }
 
+    /*
+     * Manual binary search for 7 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "7")
     static $type$ process(
         $type$ field,      // hack to keep the formatter happy.
@@ -170,6 +179,9 @@ class RoundTo$Type$ {
         return p6;
     }
 
+    /*
+     * Manual binary search for 8 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "8")
     static $type$ process(
         $type$ field,
@@ -206,6 +218,9 @@ class RoundTo$Type$ {
         return p7;
     }
 
+    /*
+     * Manual binary search for 9 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "9")
     static $type$ process(
         $type$ field,
@@ -246,6 +261,9 @@ class RoundTo$Type$ {
         return p8;
     }
 
+    /*
+     * Manual binary search for 10 rounding points, it is faster than linear search or array style binary search.
+     */
     @Evaluator(extraName = "10")
     static $type$ process(
         $type$ field,

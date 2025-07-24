@@ -266,11 +266,12 @@ class ValuesLongAggregator {
             if (groupId > maxGroupId) {
                 firstValues = blockFactory.bigArrays().grow(firstValues, groupId + 1);
                 firstValues.set(groupId, v);
+                // We start in untracked mode, assuming every group has a value as an optimization to avoid allocating
+                // and updating the seen bitset. However, once some groups don't have values, we initialize the seen bitset,
+                // fill the groups that have values, and begin tracking incoming groups.
                 if (seen == null && groupId > maxGroupId + 1) {
                     seen = new BitArray(groupId + 1, blockFactory.bigArrays());
-                    if (maxGroupId >= 0) {
-                        seen.fill(0, maxGroupId, true);
-                    }
+                    seen.fill(0, maxGroupId + 1, true);
                 }
                 trackGroupId(groupId);
                 maxGroupId = groupId;

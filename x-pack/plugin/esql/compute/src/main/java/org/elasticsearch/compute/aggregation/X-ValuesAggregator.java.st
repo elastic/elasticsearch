@@ -194,7 +194,7 @@ $endif$
     /**
      * Values after the first in each group are collected in a hash, keyed by the pair of groupId and value.
      * When emitting the output, we need to iterate the hash one group at a time to build the output block,
-     * which can require O(N^2). To avoid this, we compute the counts for each group and remap the hash id
+     * which would require O(N^2). To avoid this, we compute the counts for each group and remap the hash id
      * to an array, allowing us to build the output in O(N) instead.
      */
     private static class NextValues implements Releasable {
@@ -419,11 +419,12 @@ $else$
             if (groupId > maxGroupId) {
                 firstValues = blockFactory.bigArrays().grow(firstValues, groupId + 1);
                 firstValues.set(groupId, v);
+                // We start in untracked mode, assuming every group has a value as an optimization to avoid allocating
+                // and updating the seen bitset. However, once some groups don't have values, we initialize the seen bitset,
+                // fill the groups that have values, and begin tracking incoming groups.
                 if (seen == null && groupId > maxGroupId + 1) {
                     seen = new BitArray(groupId + 1, blockFactory.bigArrays());
-                    if (maxGroupId >= 0) {
-                        seen.fill(0, maxGroupId, true);
-                    }
+                    seen.fill(0, maxGroupId + 1, true);
                 }
                 trackGroupId(groupId);
                 maxGroupId = groupId;
@@ -454,6 +455,10 @@ $else$
             }
         }
 
+        /**
+         * Returns true if the group has a value in firstValues; having a value in nextValues is optional.
+         * Returns false if the group does not have values in either firstValues or nextValues.
+         */
         private boolean hasValue(int groupId) {
             return seen == null || seen.get(groupId);
         }

@@ -261,7 +261,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             float lastCentroidScore = centroidScores.get(nProbe - 1);
             float scoreDifferencePercentage = Math.abs(firstCentroidScore - lastCentroidScore) / firstCentroidScore;
 
-            // If difference is small, increase nprobe to search more centroids
+            // If the difference is small, increase nprobe to search more centroids
             if (scoreDifferencePercentage < 0.001f) {
                 nProbe = Math.min(nProbe * 2, centroidQueryScorer.size());
             }

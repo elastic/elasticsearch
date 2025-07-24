@@ -90,4 +90,4 @@ The `linear` retriever supports the following normalizers:
     ```
     score = (score - min) / (max - min)
     ```
-* `l2_norm`: Normalizes scores using the L2 norm of the score values
+* `l2_norm`: Normalizes scores using the L2 norm of the score values {applies_to}`stack: ga 9.1`

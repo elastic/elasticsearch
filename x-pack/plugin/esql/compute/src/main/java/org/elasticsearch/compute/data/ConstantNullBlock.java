@@ -131,6 +131,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
 
     @Override
     public int hashCode() {
+        // The hashcode for ConstantNullBlock is calculated in this way so that
+        // we return the same hashcode for ConstantNullBlock as we would for block
+        // types that ConstantNullBlock implements that contain only null values.
+        // Example: a DoubleBlock with 8 positions that are all null will return
+        // the same hashcode as a ConstantNullBlock with a positionCount of 8.
         int result = 1;
         for (int pos = 0; pos < positionCount; pos++) {
             result = 31 * result - 1;

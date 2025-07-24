@@ -1341,7 +1341,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Builds a new ingest document from the passed-in index request.
      */
     private static IngestDocument newIngestDocument(final IndexRequest request) {
-        ESONSource.Builder builder = new ESONSource.Builder(false);
+        ESONSource.Builder builder = new ESONSource.Builder();
         try (
             XContentParser parser = XContentHelper.createParser(
                 XContentParserConfiguration.EMPTY,

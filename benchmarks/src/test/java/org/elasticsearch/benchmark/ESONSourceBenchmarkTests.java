@@ -48,7 +48,7 @@ public class ESONSourceBenchmarkTests extends ESTestCase {
                 source.length()
             )
         ) {
-            ESONSource.ESONObject root = new ESONSource.Builder(false).parse(parser);
+            ESONSource.ESONObject root = new ESONSource.Builder().parse(parser);
             System.err.println(root);
             XContentBuilder builder = XContentFactory.contentBuilder(JsonXContent.jsonXContent.type());
             root.toXContent(builder, ToXContent.EMPTY_PARAMS);

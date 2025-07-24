@@ -563,7 +563,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
         if (useStructuredSource) {
-            ESONSource.Builder builder = new ESONSource.Builder(false);
+            ESONSource.Builder builder = new ESONSource.Builder();
             try {
                 XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType);
                 structuredSource = builder.parse(parser);

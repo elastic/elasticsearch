@@ -2,6 +2,9 @@
 navigation_title: "Semantic text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/semantic-text.html
+applies_to:
+  stack: ga 9.1
+  serverless: ga
 ---
 
 # Semantic text field type [semantic-text]

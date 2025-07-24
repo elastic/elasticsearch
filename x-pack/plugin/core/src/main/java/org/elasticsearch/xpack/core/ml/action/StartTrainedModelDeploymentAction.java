@@ -805,9 +805,9 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     ) {
 
         // If numberOfAllocations is 7, print the call stack without stopping the application.
-        if (numberOfAllocations == 7) {
-            Thread.dumpStack();
-        }
+//        if (numberOfAllocations == 7) {
+//            Thread.dumpStack();
+//        }
 
         logger.info(
             "Call to estimateMemoryUsageBytes with modelId [{}], totalDefinitionLength [{}], perDeploymentMemoryBytes [{}], "

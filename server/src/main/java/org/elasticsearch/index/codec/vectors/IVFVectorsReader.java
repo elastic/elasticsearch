@@ -260,10 +260,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // Calculate distances between first and last centroids in queue
             float firstCentroidScore = centroidScores.getFirst();
             float lastCentroidScore = centroidScores.get(nProbe - 1);
-            float scoreDifference = Math.abs(firstCentroidScore - lastCentroidScore);
+            float scoreDifferencePercentage = Math.abs(firstCentroidScore - lastCentroidScore) / firstCentroidScore;
 
             // If difference is small, increase nprobe to search more centroids
-            if (scoreDifference < 0.1f) {
+            if (scoreDifferencePercentage < 0.001f) {
                 nProbe = Math.min(nProbe * 2, centroidQueryScorer.size());
             }
         }

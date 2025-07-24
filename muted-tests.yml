@@ -516,3 +516,6 @@ tests:
 - class: org.elasticsearch.packaging.test.PackageUpgradeTests
   method: test21CheckUpgradedVersion
   issue: https://github.com/elastic/elasticsearch/issues/123380
+- class: org.elasticsearch.packaging.test.PackageTests
+  method: test42BundledJdkRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/131890

@@ -186,6 +186,12 @@ For more details on chunking and how to configure chunking settings,
 see [Configuring chunking](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference)
 in the Inference API documentation.
 
+Refer
+to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
+to learn more about semantic search using `semantic_text`.
+
+### Pre-chunking [pre-chunking]
+
 {applies_to}`stack: ga 9.1`
 
 You can pre-chunk the input by sending it to Elasticsearch as an array of
@@ -233,10 +239,6 @@ PUT test-index/_doc/1
     * Some services (such as OpenAI) will return an error.
     * Others (such as `elastic` and `elasticsearch`) will automatically truncate
       the input.
-
-Refer
-to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
-to learn more about semantic search using `semantic_text`.
 
 ## Extracting relevant fragments from semantic text [semantic-text-highlighting]
 
@@ -301,6 +303,8 @@ specified. It enables you to quickstart your semantic search by providing
 automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
+### Customizing using `semantic_text` parameters [custom-by-parameters]
+
 {applies_to}`stack: ga 9.1`
 
 If you want to override those defaults and customize the embeddings that
@@ -335,6 +339,8 @@ PUT my-index-000004
   }
 }
 ```
+
+### Customizing using ingest pipelines [custom-by-pipelines]
 
 {applies_to}`stack: ga 9.0`
 

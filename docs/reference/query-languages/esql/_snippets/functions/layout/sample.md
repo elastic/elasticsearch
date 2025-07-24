@@ -2,7 +2,7 @@
 
 ## `SAMPLE` [esql-sample]
 ```{applies_to}
-stack: preview 9.1.0
+stack: ga 9.1.0
 ```
 
 **Syntax**

@@ -62,7 +62,7 @@ public class Sample extends AggregateFunction implements ToAggregator {
         description = "Collects sample values for a field.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "stats_sample", tag = "doc"),
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.1.0") }
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") }
 
     )
     public Sample(

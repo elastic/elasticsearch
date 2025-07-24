@@ -192,20 +192,16 @@ public class ESTestCaseTests extends ESTestCase {
         List<Integer> randomList = randomList(randomListSize, () -> randomIntBetween(-100, 100));
 
         // listSize < subsetSize
-        int randomSubsetSize = randomIntBetween(randomListSize+1, 20);
+        int randomSubsetSize = randomIntBetween(randomListSize + 1, 20);
 
-        assertThrows(IllegalArgumentException.class, () ->
-            ESTestCase.randomSubsetOf(randomSubsetSize, randomList.toArray(new Integer[0]))
-        );
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomSubsetSize, randomList.toArray(new Integer[0])));
     }
 
     public void testRandomSubsetOfWithVarargsAndNegativeSubsetSize() {
         List<Integer> randomList = randomList(randomInt(10), () -> randomIntBetween(-100, 100));
         int randomNegativeSubsetSize = -1 * randomIntBetween(1, 10);
 
-        assertThrows(IllegalArgumentException.class, () ->
-            ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList)
-        );
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList));
     }
 
     public void testRandomSubsetOfWithCollection() {
@@ -232,20 +228,16 @@ public class ESTestCaseTests extends ESTestCase {
         List<Integer> randomList = randomList(randomListSize, () -> randomIntBetween(-100, 100));
 
         // listSize < subsetSize
-        int randomSubsetSize = randomIntBetween(randomListSize+1, 20);
+        int randomSubsetSize = randomIntBetween(randomListSize + 1, 20);
 
-        assertThrows(IllegalArgumentException.class, () ->
-            ESTestCase.randomSubsetOf(randomSubsetSize, randomList)
-        );
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomSubsetSize, randomList));
     }
 
     public void testRandomSubsetOfWithCollectionAndNegativeSubsetSize() {
         List<Integer> randomList = randomList(randomInt(10), () -> randomIntBetween(-100, 100));
         int randomNegativeSubsetSize = -1 * randomIntBetween(1, 10);
 
-        assertThrows(IllegalArgumentException.class, () ->
-            ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList)
-        );
+        assertThrows(IllegalArgumentException.class, () -> ESTestCase.randomSubsetOf(randomNegativeSubsetSize, randomList));
     }
 
     public void testShuffledList() {

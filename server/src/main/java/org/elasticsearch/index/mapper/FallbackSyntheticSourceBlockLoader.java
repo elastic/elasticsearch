@@ -107,7 +107,10 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
             Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
             for (Object value : ignoredSource) {
-                IgnoredSourceFieldMapper.NameValue nameValue = (IgnoredSourceFieldMapper.NameValue) value;
+                IgnoredSourceFieldMapper.NameValue nameValue = (value instanceof IgnoredSourceFieldMapper.NameValue nVal)
+                    ? nVal
+                    : IgnoredSourceFieldMapper.decode(value);
+
                 if (fieldPaths.contains(nameValue.name())) {
                     valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
                 }

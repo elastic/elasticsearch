@@ -88,7 +88,6 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
     static class SFV extends StoredFieldVisitor {
 
-        boolean done;
         final List<Object> values = new ArrayList<>();
         final Set<String> potentialFieldsInIgnoreSource;
 
@@ -98,9 +97,7 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
 
         @Override
         public Status needsField(FieldInfo fieldInfo) throws IOException {
-            if (done) {
-                return Status.STOP;
-            } else if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
+            if (IgnoredSourceFieldMapper.NAME.equals(fieldInfo.name)) {
                 return Status.YES;
             } else {
                 return Status.NO;
@@ -111,24 +108,27 @@ class IgnoredSourceFieldLoader extends StoredFieldLoader {
         public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
             var result = IgnoredSourceFieldMapper.decodeIfMatch(value, potentialFieldsInIgnoreSource);
             if (result != null) {
-                // TODO: can't do this in case multiple entries for the same field name. (objects, arrays etc.)
-                // done = true;
                 values.add(result);
             }
         }
 
         void reset() {
             values.clear();
-            done = false;
         }
 
     }
 
     static boolean supports(StoredFieldsSpec spec) {
-        return spec.requiresSource() == false
-            && spec.requiresMetadata() == false
-            && spec.requiredStoredFields().size() == 1
-            && spec.requiredStoredFields().iterator().next().startsWith(IgnoredSourceFieldMapper.NAME);
+        if (spec.requiresSource() || spec.requiresMetadata()) {
+            return false;
+        }
+
+        for (String fieldName : spec.requiredStoredFields()) {
+            if (fieldName.startsWith(IgnoredSourceFieldMapper.NAME) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // TODO: use provided one

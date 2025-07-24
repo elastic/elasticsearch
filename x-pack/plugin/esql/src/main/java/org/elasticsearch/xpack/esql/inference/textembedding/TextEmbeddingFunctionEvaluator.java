@@ -21,9 +21,11 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluator {
@@ -42,18 +44,40 @@ public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluato
         assert f.inferenceId() != null && f.inferenceId().foldable() : "inferenceId should not be null and be foldable";
         assert f.inputText() != null && f.inputText().foldable() : "inputText should not be null and be foldable";
 
-        String inferenceId = BytesRefs.toString(f.inferenceId().fold(foldContext));
-        String inputText = BytesRefs.toString(f.inputText().fold(foldContext));
+        final String inferenceId = BytesRefs.toString(f.inferenceId().fold(foldContext));
+        final String inputText = BytesRefs.toString(f.inputText().fold(foldContext));
 
-        //bulkInferenceRunner.executeBulk(inferenceRequest(inferenceId, inputText), listener.map(this::parseInferenceResponse));
+        bulkInferenceRunner.executeBulk(new BulkInferenceRequestIterator() {
+            private final Iterator<InferenceAction.Request> it = List.of(inferenceRequest(inferenceId, inputText)).iterator();
+
+            @Override
+            public void close() {
+
+            }
+
+            @Override
+            public boolean hasNext() {
+                return it.hasNext();
+            }
+
+            @Override
+            public InferenceAction.Request next() {
+                return it.next();
+            }
+
+            @Override
+            public int estimatedSize() {
+                return 1;
+            }
+        }, listener.map(this::parseInferenceResponse));
     }
 
-    private InferenceAction.Request inferenceRequest(String inferenceId, String inputText) {
+    private static InferenceAction.Request inferenceRequest(String inferenceId, String inputText) {
         return InferenceAction.Request.builder(inferenceId, TaskType.TEXT_EMBEDDING).setInput(List.of(inputText)).build();
     }
 
-    private Literal parseInferenceResponse(InferenceAction.Response response) {
-        if (response.getResults() instanceof TextEmbeddingResults<?> textEmbeddingResults) {
+    private Literal parseInferenceResponse(List<InferenceAction.Response> responses) {
+        if (responses.getFirst().getResults() instanceof TextEmbeddingResults<?> textEmbeddingResults) {
             return parseInferenceResponse(textEmbeddingResults);
         }
         throw new IllegalArgumentException("Inference response should be of type TextEmbeddingResults");

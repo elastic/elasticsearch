@@ -267,7 +267,7 @@ POST test-index/_search
 ```
 
 1. Specifies the maximum number of fragments to return.
-2. Sorts returned most relevant highlighted fragments by score when set to `score`. By default,
+2. Sorts the most relevant highlighted fragments by score when set to `score`. By default,
    fragments will be output in the order they appear in the field (order: none).
 
 To use the `semantic` highlighter to view indexed chunks in the order which they

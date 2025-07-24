@@ -17,6 +17,7 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
 
@@ -32,10 +33,10 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
                 if (pluginProject.getParent() != baseProject) {
                     continue; // skip nested projects
                 }
-                tvDependencies.add(depsHandler.create(pluginProject));
+                tvDependencies.add(depsHandler.project(Map.of("path", pluginProject.getPath())));
             }
         }
-        tvDependencies.add(depsHandler.create(":server"));
+        tvDependencies.add(depsHandler.project(Map.of("path", ":server")));
 
         Configuration tvNamesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
         tvNamesConfig.attributes(TransportVersionUtils::addTransportVersionNamesAttribute);

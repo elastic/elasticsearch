@@ -40,13 +40,13 @@ class TransportVersionUtils {
 
         for (String rawId : Files.readString(file, StandardCharsets.UTF_8).split(",")) {
             try {
-                ids.add(Integer.parseInt(rawId));
+                ids.add(Integer.parseInt(rawId.strip()));
             } catch (NumberFormatException e) {
                 throw new IOException("Failed to parse id " + rawId + " in " + file, e);
             }
         }
 
-        if (Comparators.isInOrder(ids, Comparator.naturalOrder()) == false) {
+        if (Comparators.isInOrder(ids, Comparator.reverseOrder()) == false) {
             throw new IOException("invalid transport version data file [" + file + "], ids are not in sorted");
         }
         return new TransportVersionData(name, ids);

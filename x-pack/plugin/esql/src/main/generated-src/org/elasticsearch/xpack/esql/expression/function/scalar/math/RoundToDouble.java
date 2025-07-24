@@ -245,7 +245,6 @@ class RoundToDouble {
         }
         return p8;
     }
-
     @Evaluator(extraName = "10")
     static double process(
         double field,

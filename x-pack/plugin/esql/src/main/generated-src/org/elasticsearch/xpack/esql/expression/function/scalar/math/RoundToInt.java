@@ -111,7 +111,15 @@ class RoundToInt {
     }
 
     @Evaluator(extraName = "6")
-    static int process(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2, @Fixed int p3, @Fixed int p4, @Fixed int p5) {
+    static int process(
+        int field,
+        @Fixed int p0,
+        @Fixed int p1,
+        @Fixed int p2,
+        @Fixed int p3,
+        @Fixed int p4,
+        @Fixed int p5
+    ) {
         if (field < p2) {
             if (field < p1) {
                 return p0;
@@ -131,7 +139,16 @@ class RoundToInt {
     }
 
     @Evaluator(extraName = "7")
-    static int process(int field, @Fixed int p0, @Fixed int p1, @Fixed int p2, @Fixed int p3, @Fixed int p4, @Fixed int p5, @Fixed int p6) {
+    static int process(
+        int field,
+        @Fixed int p0,
+        @Fixed int p1,
+        @Fixed int p2,
+        @Fixed int p3,
+        @Fixed int p4,
+        @Fixed int p5,
+        @Fixed int p6
+    ) {
         if (field < p3) {
             if (field < p1) {
                 return p0;
@@ -228,7 +245,6 @@ class RoundToInt {
         }
         return p8;
     }
-
     @Evaluator(extraName = "10")
     static int process(
         int field,

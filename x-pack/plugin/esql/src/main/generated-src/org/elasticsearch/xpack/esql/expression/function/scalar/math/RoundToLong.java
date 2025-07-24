@@ -111,7 +111,15 @@ class RoundToLong {
     }
 
     @Evaluator(extraName = "6")
-    static long process(long field, @Fixed long p0, @Fixed long p1, @Fixed long p2, @Fixed long p3, @Fixed long p4, @Fixed long p5) {
+    static long process(
+        long field,
+        @Fixed long p0,
+        @Fixed long p1,
+        @Fixed long p2,
+        @Fixed long p3,
+        @Fixed long p4,
+        @Fixed long p5
+    ) {
         if (field < p2) {
             if (field < p1) {
                 return p0;
@@ -237,7 +245,6 @@ class RoundToLong {
         }
         return p8;
     }
-
     @Evaluator(extraName = "10")
     static long process(
         long field,

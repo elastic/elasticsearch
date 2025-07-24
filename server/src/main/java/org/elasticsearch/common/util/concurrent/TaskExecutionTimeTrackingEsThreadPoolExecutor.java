@@ -151,7 +151,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     /**
      * Returns the fraction of the maximum possible thread time that was actually used recently.
      *
-     * This value is updated every {@link #UTILISATION_REFRESH_INTERVAL_NANOS}
+     * This value is updated approximately every {@link #UTILISATION_REFRESH_INTERVAL_NANOS}
      *
      * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started
      * earlier, contributing a larger execution time.

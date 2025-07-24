@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.Java21EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.lang.foreign.AddressLayout;
 import java.lang.foreign.Arena;
@@ -26,8 +26,8 @@ import java.util.function.Consumer;
 
 public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java21EntitlementChecker {
 
-    public Java21ElasticsearchEntitlementChecker(PolicyManager policyManager) {
-        super(policyManager);
+    public Java21ElasticsearchEntitlementChecker(PolicyChecker policyChecker) {
+        super(policyChecker);
     }
 
     @Override
@@ -36,7 +36,7 @@ public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         AddressLayout that,
         MemoryLayout memoryLayout
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -47,7 +47,7 @@ public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         FunctionDescriptor function,
         Linker.Option... options
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -57,7 +57,7 @@ public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         FunctionDescriptor function,
         Linker.Option... options
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -69,12 +69,12 @@ public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         Arena arena,
         Linker.Option... options
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(Class<?> callerClass, MemorySegment that, long newSize) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -85,7 +85,7 @@ public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         Arena arena,
         Consumer<MemorySegment> cleanup
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -95,18 +95,18 @@ public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         Arena arena,
         Consumer<MemorySegment> cleanup
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, Arena arena) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena) {
-        policyManager.checkFileRead(callerClass, path);
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyChecker.checkFileRead(callerClass, path);
+        policyChecker.checkLoadingNativeLibraries(callerClass);
     }
 
     @Override
@@ -117,11 +117,11 @@ public class Java21ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
         Class<?> type,
         LinkOption... options
     ) {
-        policyManager.checkFileRead(callerClass, path);
+        policyChecker.checkFileRead(callerClass, path);
     }
 
     @Override
     public void checkExists(Class<?> callerClass, FileSystemProvider that, Path path, LinkOption... options) {
-        policyManager.checkFileRead(callerClass, path);
+        policyChecker.checkFileRead(callerClass, path);
     }
 }

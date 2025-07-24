@@ -106,7 +106,7 @@ import javax.net.ssl.SSLSocketFactory;
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
-    private final PolicyChecker policyChecker;
+    final PolicyChecker policyChecker;
 
     public ElasticsearchEntitlementChecker(PolicyChecker policyChecker) {
         this.policyChecker = policyChecker;

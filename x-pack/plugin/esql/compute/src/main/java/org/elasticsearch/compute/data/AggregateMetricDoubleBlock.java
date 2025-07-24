@@ -78,10 +78,19 @@ public sealed interface AggregateMetricDoubleBlock extends Block permits Aggrega
             if (block.isNull(pos)) {
                 result = 31 * result - 1;
             } else {
-                result = 31 * result + DoubleBlock.hash(block.minBlock());
-                result = 31 * result + DoubleBlock.hash(block.maxBlock());
-                result = 31 * result + DoubleBlock.hash(block.sumBlock());
-                result = 31 * result + IntBlock.hash(block.countBlock());
+                final int valueCount = block.getValueCount(pos);
+                result = 31 * result + valueCount;
+                final int firstValueIdx = block.getFirstValueIndex(pos);
+                for (int valueIndex = 0; valueIndex < valueCount; valueIndex++) {
+                    for (DoubleBlock b : List.of(block.minBlock(), block.maxBlock(), block.sumBlock())) {
+                        result *= 31;
+                        result += b.isNull(firstValueIdx + valueIndex) ? -1 : Double.hashCode(b.getDouble(firstValueIdx + valueIndex));
+                    }
+                    result *= 31;
+                    result += block.countBlock().isNull(firstValueIdx + valueIndex)
+                        ? -1
+                        : block.countBlock().getInt(firstValueIdx + valueIndex);
+                }
             }
         }
         return result;

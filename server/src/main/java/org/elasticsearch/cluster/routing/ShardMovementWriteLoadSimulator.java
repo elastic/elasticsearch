@@ -25,13 +25,13 @@ import java.util.Map;
  * Simulates the impact to each node's write-load in response to the movement of individual
  * shards around the cluster.
  */
-public class WriteLoadPerShardSimulator {
+public class ShardMovementWriteLoadSimulator {
 
     private final Map<String, NodeUsageStatsForThreadPools> originalNodeUsageStatsForThreadPools;
     private final ObjectDoubleMap<String> simulatedWriteLoadDeltas;
     private final Map<ShardId, Double> writeLoadsPerShard;
 
-    public WriteLoadPerShardSimulator(RoutingAllocation routingAllocation) {
+    public ShardMovementWriteLoadSimulator(RoutingAllocation routingAllocation) {
         this.originalNodeUsageStatsForThreadPools = routingAllocation.clusterInfo().getNodeUsageStatsForThreadPools();
         this.writeLoadsPerShard = routingAllocation.clusterInfo().getShardWriteLoads();
         this.simulatedWriteLoadDeltas = new ObjectDoubleHashMap<>();

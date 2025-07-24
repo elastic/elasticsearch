@@ -10,4 +10,8 @@ dependencies {
   // Requirement for some ESQL-specific utilities
   implementation project(':x-pack:plugin:esql')
   api project(xpackModule('esql:qa:testFixtures'))
+  implementation("org.testcontainers:testcontainers:${versions.testcontainer}")
+  runtimeOnly "com.github.docker-java:docker-java-transport-zerodep:${versions.dockerJava}"
+  runtimeOnly "com.github.docker-java:docker-java-transport:${versions.dockerJava}"
+  runtimeOnly "com.github.docker-java:docker-java-core:${versions.dockerJava}"
 }

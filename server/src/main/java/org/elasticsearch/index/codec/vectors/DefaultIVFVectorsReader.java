@@ -51,7 +51,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     }
 
     @Override
-    CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
+    CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery, int nProbe)
         throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
@@ -71,7 +71,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         return new CentroidQueryScorer() {
             int currentCentroid = -1;
             long postingListOffset;
-            final List<Float> scores = new ArrayList<>(numCentroids);
+            float diff = Float.NaN;
 
             private final float[] centroidCorrectiveValues = new float[3];
             private final long quantizeCentroidsLength = (long) numCentroids * (fieldInfo.getVectorDimension() + 3 * Float.BYTES
@@ -95,17 +95,23 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             public void bulkScore(NeighborQueue queue) throws IOException {
                 // TODO: bulk score centroids like we do with posting lists
                 centroids.seek(0L);
+                float nprobeScore = Float.NaN;
                 for (int i = 0; i < numCentroids; i++) {
                     float score = score();
                     queue.add(i, score);
-                    scores.add(score);
+                    if (i == nProbe - 1) {
+                        nprobeScore = score;
+                    }
                 }
-                scores.sort(Collections.reverseOrder());
+                if (Float.isNaN(nprobeScore) == false) {
+                    float topScore = queue.topScore();
+                    diff = (topScore - nprobeScore) / topScore;
+                }
             }
 
             @Override
-            public List<Float> scores() {
-                return scores;
+            public float scoreRatioAtNprobe() {
+                return diff;
             }
 
             private float score() throws IOException {

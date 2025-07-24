@@ -90,7 +90,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
+    abstract CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target, int nProbe)
         throws IOException;
 
     private static IndexInput openDataInput(
@@ -237,32 +237,30 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
-        CentroidQueryScorer centroidQueryScorer = getCentroidScorer(
-            fieldInfo,
-            entry.numCentroids,
-            entry.centroidSlice(ivfCentroids),
-            target
-        );
+        int numCentroids = entry.numCentroids;
         if (nProbe == DYNAMIC_NPROBE) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
             // scaling by the number of centroids vs. the nearest neighbors requested
             // not perfect, but a comparative heuristic.
             // we might want to utilize the total vector count as well, but this is a good start
-            nProbe = (int) Math.round(Math.log10(centroidQueryScorer.size()) * Math.sqrt(knnCollector.k()));
+            nProbe = (int) Math.round(Math.log10(numCentroids) * Math.sqrt(knnCollector.k()));
             // clip to be between 1 and the number of centroids
-            nProbe = Math.max(Math.min(nProbe, centroidQueryScorer.size()), 1);
+            nProbe = Math.max(Math.min(nProbe, numCentroids), 1);
         }
+
+        CentroidQueryScorer centroidQueryScorer = getCentroidScorer(
+            fieldInfo,
+            numCentroids,
+            entry.centroidSlice(ivfCentroids),
+            target,
+            nProbe
+        );
+
         final NeighborQueue centroidQueue = scorePostingLists(fieldInfo, knnCollector, centroidQueryScorer, nProbe);
 
-        List<Float> centroidScores = centroidQueryScorer.scores();
-        if (centroidQueue.size() > 2 && centroidScores.size() > nProbe) {
-            // Calculate distances between first and last centroids in queue
-            float firstCentroidScore = centroidScores.getFirst();
-            float lastCentroidScore = centroidScores.get(nProbe - 1);
-            float scoreDifferencePercentage = Math.abs(firstCentroidScore - lastCentroidScore) / firstCentroidScore;
-
+        if (centroidQueue.size() > 2 && numCentroids > nProbe) {
             // If the difference is small, increase nprobe to search more centroids
-            if (scoreDifferencePercentage < 0.001f) {
+            if (centroidQueryScorer.scoreRatioAtNprobe() < 0.001f) {
                 nProbe = (int) Math.min(nProbe * 1.1, centroidQueryScorer.size());
             }
         }
@@ -346,7 +344,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         void bulkScore(NeighborQueue queue) throws IOException;
 
-        List<Float> scores();
+        float scoreRatioAtNprobe();
+
     }
 
     interface PostingVisitor {

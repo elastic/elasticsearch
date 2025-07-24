@@ -27,14 +27,14 @@ import java.util.stream.Collectors;
  */
 public class WriteLoadPerShardSimulator {
 
+    private final Map<String, NodeUsageStatsForThreadPools> originalNodeUsageStatsForThreadPools;
     private final ObjectDoubleMap<String> simulatedWriteLoadDeltas;
-    private final RoutingAllocation routingAllocation;
     private final Map<ShardId, Double> writeLoadsPerShard;
 
     public WriteLoadPerShardSimulator(RoutingAllocation routingAllocation) {
-        this.routingAllocation = routingAllocation;
+        this.originalNodeUsageStatsForThreadPools = routingAllocation.clusterInfo().getNodeUsageStatsForThreadPools();
+        this.writeLoadsPerShard = routingAllocation.clusterInfo().getShardWriteLoads();
         this.simulatedWriteLoadDeltas = new ObjectDoubleHashMap<>();
-        writeLoadsPerShard = routingAllocation.clusterInfo().getShardWriteLoads();
     }
 
     public void simulateShardStarted(ShardRouting shardRouting) {
@@ -54,26 +54,22 @@ public class WriteLoadPerShardSimulator {
     }
 
     public Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools() {
-        return routingAllocation.clusterInfo()
-            .getNodeUsageStatsForThreadPools()
-            .entrySet()
-            .stream()
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
-                if (simulatedWriteLoadDeltas.containsKey(e.getKey())) {
-                    return new NodeUsageStatsForThreadPools(
-                        e.getKey(),
-                        Maps.copyMapWithAddedOrReplacedEntry(
-                            e.getValue().threadPoolUsageStatsMap(),
-                            "write",
-                            replaceWritePoolStats(e.getValue(), simulatedWriteLoadDeltas.get(e.getKey()))
-                        )
-                    );
-                }
-                return e.getValue();
-            }));
+        return originalNodeUsageStatsForThreadPools.entrySet().stream().collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> {
+            if (simulatedWriteLoadDeltas.containsKey(e.getKey())) {
+                return new NodeUsageStatsForThreadPools(
+                    e.getKey(),
+                    Maps.copyMapWithAddedOrReplacedEntry(
+                        e.getValue().threadPoolUsageStatsMap(),
+                        "write",
+                        replaceWritePoolStats(e.getValue(), simulatedWriteLoadDeltas.get(e.getKey()))
+                    )
+                );
+            }
+            return e.getValue();
+        }));
     }
 
-    private NodeUsageStatsForThreadPools.ThreadPoolUsageStats replaceWritePoolStats(
+    private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats replaceWritePoolStats(
         NodeUsageStatsForThreadPools value,
         double writeLoadDelta
     ) {

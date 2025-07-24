@@ -191,8 +191,9 @@ to [this tutorial](docs-content://solutions/search/semantic-search/semantic-sear
 to learn more about semantic search using `semantic_text`.
 
 ### Pre-chunking [pre-chunking]
-
-{applies_to}`stack: ga 9.1`
+```{applies_to}
+stack: ga 9.1
+```
 
 You can pre-chunk the input by sending it to Elasticsearch as an array of
 strings.
@@ -304,8 +305,9 @@ automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
 ### Customizing using `semantic_text` parameters [custom-by-parameters]
-
-{applies_to}`stack: ga 9.1`
+```{applies_to}
+stack: ga 9.1
+```
 
 If you want to override those defaults and customize the embeddings that
 `semantic_text` indexes, you can do so by
@@ -341,8 +343,9 @@ PUT my-index-000004
 ```
 
 ### Customizing using ingest pipelines [custom-by-pipelines]
-
-{applies_to}`stack: ga 9.0`
+```{applies_to}
+stack: ga 9.0
+```
 
 In case you want to customize data indexing, use the
 [`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)

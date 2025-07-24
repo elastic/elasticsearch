@@ -84,6 +84,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         this.projectsMarkedForDeletionGeneration = projectsMarkedForDeletionGeneration;
     }
 
+    public boolean hasProject(ProjectId projectId) {
+        return projectsEntries.containsKey(projectId);
+    }
+
     /**
      * Retrieves the settings for a specific project based on its project ID from the specified cluster state without creating a new object.
      * If you need a full state of the project rather than just its setting, please use {@link ClusterState#projectState(ProjectId)}
@@ -318,6 +322,12 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             return this;
         }
 
+        public Builder removeProject(ProjectId projectId) {
+            projectsEntries.remove(projectId);
+            projectsMarkedForDeletion.remove(projectId);
+            return this;
+        }
+
         public ProjectStateRegistry build() {
             final var unknownButUnderDeletion = Sets.difference(projectsMarkedForDeletion, projectsEntries.keys());
             if (unknownButUnderDeletion.isEmpty() == false) {
@@ -327,7 +337,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             }
             return new ProjectStateRegistry(
                 projectsEntries.build(),
-                projectsMarkedForDeletion,
+                Collections.unmodifiableSet(projectsMarkedForDeletion),
                 newProjectMarkedForDeletion ? projectsMarkedForDeletionGeneration + 1 : projectsMarkedForDeletionGeneration
             );
         }

@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
@@ -36,7 +36,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 /**
  * A request to get profiling details
  */
-public class GetStackTracesRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class GetStackTracesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField LIMIT_FIELD = new ParseField("limit");
@@ -398,8 +398,8 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     public int hashCode() {
         // The object representation of `query` may use Lucene's ByteRef to represent values. This class' hashCode implementation
         // uses StringUtils.GOOD_FAST_HASH_SEED which is reinitialized for each JVM. This means that hashcode is consistent *within*
-        // a JVM but will not be consistent across the cluster. As we use hashCode e.g. to initialize the random number generator in
-        // Resampler to produce a consistent downsampling results, relying on the default hashCode implementation of `query` will
+        // a JVM but will not be consistent across the cluster. As we use hashCode to initialize random number generators
+        // to produce consistent downsampling results, relying on the default hashCode implementation of `query` will
         // produce consistent results per node but not across the cluster. To avoid this, we produce the hashCode based on the
         // string representation instead, which will produce consistent results for the entire cluster and across node restarts.
         return Objects.hash(Objects.toString(query, "null"), sampleSize, Arrays.hashCode(indices), stackTraceIdsField);

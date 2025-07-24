@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
@@ -55,6 +56,7 @@ import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.R
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -943,16 +945,14 @@ public class IndicesPermissionTests extends ESTestCase {
 
     public void testResourceAuthorizedPredicateForDatastreams() {
         String dataStreamName = "logs-datastream";
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                List.of(Tuple.tuple(dataStreamName, 1)),
-                List.of(),
-                Instant.now().toEpochMilli(),
-                builder().build(),
-                1
-            ).getMetadata()
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple(dataStreamName, 1)),
+            List.of(),
+            Instant.now().toEpochMilli(),
+            builder().build(),
+            1
         );
-        DataStream dataStream = mb.dataStream(dataStreamName);
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
         IndexAbstraction backingIndex = new IndexAbstraction.ConcreteIndex(
             DataStreamTestHelper.createBackingIndex(dataStreamName, 1).build(),
             dataStream
@@ -993,19 +993,17 @@ public class IndicesPermissionTests extends ESTestCase {
             StringMatcher.of(),
             StringMatcher.of("a", "d")
         );
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                List.of(Tuple.tuple("a", 1), Tuple.tuple("b", 1), Tuple.tuple("c", 1), Tuple.tuple("d", 1)),
-                List.of(),
-                Instant.now().toEpochMilli(),
-                builder().build(),
-                1
-            ).getMetadata()
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(Tuple.tuple("a", 1), Tuple.tuple("b", 1), Tuple.tuple("c", 1), Tuple.tuple("d", 1)),
+            List.of(),
+            Instant.now().toEpochMilli(),
+            builder().build(),
+            1
         );
-        DataStream dataStreamA = mb.dataStream("a");
-        DataStream dataStreamB = mb.dataStream("b");
-        DataStream dataStreamC = mb.dataStream("c");
-        DataStream dataStreamD = mb.dataStream("d");
+        DataStream dataStreamA = project.dataStreams().get("a");
+        DataStream dataStreamB = project.dataStreams().get("b");
+        DataStream dataStreamC = project.dataStreams().get("c");
+        DataStream dataStreamD = project.dataStreams().get("d");
         IndexAbstraction concreteIndexA = concreteIndexAbstraction("a");
         IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
@@ -1032,28 +1030,26 @@ public class IndicesPermissionTests extends ESTestCase {
             StringMatcher.of("a", "f", "g"),
             StringMatcher.of("a", "d")
         );
-        Metadata.Builder mb = Metadata.builder(
-            DataStreamTestHelper.getClusterStateWithDataStreams(
-                List.of(
-                    Tuple.tuple("a", 1),
-                    Tuple.tuple("b", 1),
-                    Tuple.tuple("c", 1),
-                    Tuple.tuple("d", 1),
-                    Tuple.tuple("e", 1),
-                    Tuple.tuple("f", 1)
-                ),
-                List.of(),
-                Instant.now().toEpochMilli(),
-                builder().build(),
-                1
-            ).getMetadata()
+        final var project = DataStreamTestHelper.getProjectWithDataStreams(
+            List.of(
+                Tuple.tuple("a", 1),
+                Tuple.tuple("b", 1),
+                Tuple.tuple("c", 1),
+                Tuple.tuple("d", 1),
+                Tuple.tuple("e", 1),
+                Tuple.tuple("f", 1)
+            ),
+            List.of(),
+            Instant.now().toEpochMilli(),
+            builder().build(),
+            1
         );
-        DataStream dataStreamA = mb.dataStream("a");
-        DataStream dataStreamB = mb.dataStream("b");
-        DataStream dataStreamC = mb.dataStream("c");
-        DataStream dataStreamD = mb.dataStream("d");
-        DataStream dataStreamE = mb.dataStream("e");
-        DataStream dataStreamF = mb.dataStream("f");
+        DataStream dataStreamA = project.dataStreams().get("a");
+        DataStream dataStreamB = project.dataStreams().get("b");
+        DataStream dataStreamC = project.dataStreams().get("c");
+        DataStream dataStreamD = project.dataStreams().get("d");
+        DataStream dataStreamE = project.dataStreams().get("e");
+        DataStream dataStreamF = project.dataStreams().get("f");
         IndexAbstraction concreteIndexA = concreteIndexAbstraction("a");
         IndexAbstraction concreteIndexB = concreteIndexAbstraction("b");
         IndexAbstraction concreteIndexC = concreteIndexAbstraction("c");
@@ -1088,6 +1084,23 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(predicate.test(concreteIndexD, IndexComponentSelector.FAILURES), is(false));
         assertThat(predicate.test(concreteIndexE, IndexComponentSelector.FAILURES), is(false));
         assertThat(predicate.test(concreteIndexF, IndexComponentSelector.FAILURES), is(true));
+    }
+
+    public void testCheckResourcePrivilegesWithTooComplexAutomaton() {
+        IndicesPermission permission = new IndicesPermission.Builder(RESTRICTED_INDICES).addGroup(
+            IndexPrivilege.ALL,
+            FieldPermissions.DEFAULT,
+            null,
+            false,
+            "my-index"
+        ).build();
+
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> permission.checkResourcePrivileges(Set.of("****a*b?c**d**e*f??*g**h???i??*j*k*l*m*n???o*"), false, Set.of("read"), null)
+        );
+        assertThat(ex.getMessage(), containsString("index pattern [****a*b?c**d**e*f??*g**h???i??*j*k*l*m*n???o*]"));
+        assertThat(ex.getCause(), instanceOf(TooComplexToDeterminizeException.class));
     }
 
     private static IndexAbstraction concreteIndexAbstraction(String name) {

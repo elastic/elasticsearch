@@ -78,6 +78,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
@@ -1882,8 +1883,12 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(stats.numSegments(), equalTo(0));
         assertThat(stats.totalFields(), equalTo(0));
         assertThat(stats.fieldUsages(), equalTo(0L));
+        assertThat(stats.postingsInMemoryBytes(), equalTo(0L));
+
+        boolean postingsBytesTrackingEnabled = TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled();
+
         // index some documents
-        int numDocs = between(1, 10);
+        int numDocs = between(2, 10);
         for (int i = 0; i < numDocs; i++) {
             indexDoc(shard, "_doc", "first_" + i, """
                 {
@@ -1901,6 +1906,9 @@ public class IndexShardTests extends IndexShardTestCase {
         // _id(term), _source(0), _version(dv), _primary_term(dv), _seq_no(point,dv), f1(postings,norms),
         // f1.keyword(term,dv), f2(postings,norms), f2.keyword(term,dv),
         assertThat(stats.fieldUsages(), equalTo(13L));
+        // _id: (5,8), f1: 3, f1.keyword: 3, f2: 3, f2.keyword: 3
+        // 5 + 8 + 3 + 3 + 3 + 3 = 25
+        assertThat(stats.postingsInMemoryBytes(), equalTo(postingsBytesTrackingEnabled ? 25L : 0L));
         // don't re-compute on refresh without change
         if (randomBoolean()) {
             shard.refresh("test");
@@ -1919,11 +1927,18 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.getShardFieldStats(), sameInstance(stats));
         // index more docs
         numDocs = between(1, 10);
+        indexDoc(shard, "_doc", "first_0", """
+            {
+                "f1": "lorem",
+                "f2": "bar",
+                "f3": "sit amet"
+            }
+            """);
         for (int i = 0; i < numDocs; i++) {
-            indexDoc(shard, "_doc", "first_" + i, """
+            indexDoc(shard, "_doc", "first_" + i + 1, """
                 {
                     "f1": "foo",
-                    "f2": "bar",
+                    "f2": "ipsum",
                     "f3": "foobar"
                 }
                 """);
@@ -1948,6 +1963,11 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(stats.totalFields(), equalTo(21));
         // first segment: 13, second segment: 13 + f3(postings,norms) + f3.keyword(term,dv), and __soft_deletes to previous segment
         assertThat(stats.fieldUsages(), equalTo(31L));
+        // segment 1: 25 (see above)
+        // segment 2: _id: (5,6), f1: (3,5), f1.keyword: (3,5), f2: (3,5), f2.keyword: (3,5), f3: (4,3), f3.keyword: (6,8)
+        // (5+6) + (3+5) + (3+5) + (3+5) + (3+5) + (4+3) + (6+8) = 64
+        // 25 + 64 = 89
+        assertThat(stats.postingsInMemoryBytes(), equalTo(postingsBytesTrackingEnabled ? 89L : 0L));
         shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(true));
         stats = shard.getShardFieldStats();
         assertThat(stats.numSegments(), equalTo(1));
@@ -1955,6 +1975,8 @@ public class IndexShardTests extends IndexShardTestCase {
         // _id(term), _source(0), _version(dv), _primary_term(dv), _seq_no(point,dv), f1(postings,norms),
         // f1.keyword(term,dv), f2(postings,norms), f2.keyword(term,dv), f3(postings,norms), f3.keyword(term,dv), __soft_deletes
         assertThat(stats.fieldUsages(), equalTo(18L));
+        // _id: (5,8), f1: (3,5), f1.keyword: (3,5), f2: (3,5), f2.keyword: (3,5), f3: (4,3), f3.keyword: (6,8)
+        assertThat(stats.postingsInMemoryBytes(), equalTo(postingsBytesTrackingEnabled ? 66L : 0L));
         closeShards(shard);
     }
 
@@ -2842,7 +2864,7 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        target.restoreFromRepository(new RestoreOnlyRepository("test") {
+        target.restoreFromRepository(new RestoreOnlyRepository(randomProjectIdOrDefault(), "test") {
             @Override
             public void restoreShard(
                 Store store,
@@ -4482,7 +4504,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSupplyTombstoneDoc() throws Exception {
         IndexShard shard = newStartedShard();
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
-        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(id);
+        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(shard.indexSettings.seqNoIndexOptions(), id);
         assertThat(deleteTombstone.docs(), hasSize(1));
         LuceneDocument deleteDoc = deleteTombstone.docs().get(0);
         assertThat(
@@ -4499,7 +4521,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(deleteDoc.getField(SeqNoFieldMapper.TOMBSTONE_NAME).numericValue().longValue(), equalTo(1L));
 
         final String reason = randomUnicodeOfLength(200);
-        ParsedDocument noopTombstone = ParsedDocument.noopTombstone(reason);
+        ParsedDocument noopTombstone = ParsedDocument.noopTombstone(shard.indexSettings.seqNoIndexOptions(), reason);
         assertThat(noopTombstone.docs(), hasSize(1));
         LuceneDocument noopDoc = noopTombstone.docs().get(0);
         assertThat(
@@ -5064,7 +5086,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getIndexCommitListener(),
                 config.isPromotableToPrimary(),
                 config.getMapperService(),
-                config.getEngineResetLock()
+                config.getEngineResetLock(),
+                config.getMergeMetrics()
             );
             return new InternalEngine(configWithWarmer);
         });
@@ -5346,7 +5369,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     config.getIndexCommitListener(),
                     config.isPromotableToPrimary(),
                     config.getMapperService(),
-                    config.getEngineResetLock()
+                    config.getEngineResetLock(),
+                    config.getMergeMetrics()
                 );
                 lazyEngineConfig.set(engineConfigWithBlockingRefreshListener);
                 return new InternalEngine(engineConfigWithBlockingRefreshListener) {

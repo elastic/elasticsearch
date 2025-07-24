@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -86,8 +87,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
                 int numTags = 1 + random().nextInt(8);
                 for (int j = 0; j < numTags; j++) {
-                    d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j])));
+                    d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[(i + j) % tags.length])));
                 }
+
+                d.add(new BinaryDocValuesField("tags_as_bytes", new BytesRef(tags[i % tags.length])));
 
                 iw.addDocument(d);
                 if (i % 100 == 0) {
@@ -119,6 +122,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 assertNotNull(gaugeTwoDV);
                 var tagsDV = leaf.getSortedSetDocValues("tags");
                 assertNotNull(tagsDV);
+                var tagBytesDV = leaf.getBinaryDocValues("tags_as_bytes");
+                assertNotNull(tagBytesDV);
                 for (int i = 0; i < numDocs; i++) {
                     assertEquals(i, hostNameDV.nextDoc());
                     int batchIndex = i / numHosts;
@@ -161,6 +166,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         String actualTag = tagsDV.lookupOrd(ordinal).utf8ToString();
                         assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
                     }
+
+                    assertEquals(i, tagBytesDV.nextDoc());
+                    BytesRef tagBytesValue = tagBytesDV.binaryValue();
+                    assertTrue("unexpected bytes " + tagBytesValue, Arrays.binarySearch(tags, tagBytesValue.utf8ToString()) >= 0);
                 }
             }
         }
@@ -182,6 +191,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(new SortedNumericDocValuesField(timestampField, timestamp - 1));
                 d.add(new NumericDocValuesField("counter_1", counter1));
                 d.add(new SortedNumericDocValuesField("gauge_1", 2));
+                d.add(new BinaryDocValuesField("binary_1", new BytesRef("foo")));
                 iw.addDocument(d);
                 iw.commit();
             }
@@ -191,6 +201,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(new SortedNumericDocValuesField(timestampField, timestamp));
                 d.add(new SortedNumericDocValuesField("counter_2", counter2));
                 d.add(new SortedNumericDocValuesField("gauge_2", -2));
+                d.add(new BinaryDocValuesField("binary_2", new BytesRef("bar")));
                 iw.addDocument(d);
                 iw.commit();
             }
@@ -213,6 +224,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 assertNotNull(gaugeOneDV);
                 var gaugeTwoDV = leaf.getSortedNumericDocValues("gauge_2");
                 assertNotNull(gaugeTwoDV);
+                var binaryOneDV = leaf.getBinaryDocValues("binary_1");
+                assertNotNull(binaryOneDV);
+                var binaryTwoDv = leaf.getBinaryDocValues("binary_2");
+                assertNotNull(binaryTwoDv);
                 for (int i = 0; i < 2; i++) {
                     assertEquals(i, hostNameDV.nextDoc());
                     assertEquals("host-001", hostNameDV.lookupOrd(hostNameDV.ordValue()).utf8ToString());
@@ -242,6 +257,16 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         assertEquals(1, gaugeTwoDV.docValueCount());
                         long gaugeTwoValue = gaugeTwoDV.nextValue();
                         assertEquals(-2, gaugeTwoValue);
+                    }
+
+                    if (binaryOneDV.advanceExact(i)) {
+                        BytesRef binaryOneValue = binaryOneDV.binaryValue();
+                        assertEquals(new BytesRef("foo"), binaryOneValue);
+                    }
+
+                    if (binaryTwoDv.advanceExact(i)) {
+                        BytesRef binaryTwoValue = binaryTwoDv.binaryValue();
+                        assertEquals(new BytesRef("bar"), binaryTwoValue);
                     }
                 }
             }
@@ -299,6 +324,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     int randomIndex = random().nextInt(tags.length);
                     d.add(new SortedDocValuesField("other_tag", new BytesRef(tags[randomIndex])));
                 }
+                if (random().nextBoolean()) {
+                    int randomIndex = random().nextInt(tags.length);
+                    d.add(new BinaryDocValuesField("tags_as_bytes", new BytesRef(tags[randomIndex])));
+                }
 
                 iw.addDocument(d);
                 if (i % 100 == 0) {
@@ -332,6 +361,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 assertNotNull(tagsDV);
                 var otherTagDV = leaf.getSortedDocValues("other_tag");
                 assertNotNull(otherTagDV);
+                var tagBytesDV = leaf.getBinaryDocValues("tags_as_bytes");
+                assertNotNull(tagBytesDV);
                 for (int i = 0; i < numDocs; i++) {
                     assertEquals(i, hostNameDV.nextDoc());
                     int batchIndex = i / numHosts;
@@ -383,6 +414,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                         int ordinal = otherTagDV.ordValue();
                         String actualTag = otherTagDV.lookupOrd(ordinal).utf8ToString();
                         assertTrue("unexpected tag [" + actualTag + "]", Arrays.binarySearch(tags, actualTag) >= 0);
+                    }
+
+                    if (tagBytesDV.advanceExact(i)) {
+                        BytesRef tagBytesValue = tagBytesDV.binaryValue();
+                        assertTrue("unexpected bytes " + tagBytesValue, Arrays.binarySearch(tags, tagBytesValue.utf8ToString()) >= 0);
                     }
                 }
             }

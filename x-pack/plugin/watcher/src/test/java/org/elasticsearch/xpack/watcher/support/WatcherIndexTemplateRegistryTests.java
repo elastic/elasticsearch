@@ -21,15 +21,16 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.ProjectResolver;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -82,7 +83,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private Client client;
-    private ProjectResolver projectResolver;
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+    private final ProjectId projectId = ProjectId.DEFAULT;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -93,6 +95,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        when(client.projectClient(any())).thenReturn(client);
         AdminClient adminClient = mock(AdminClient.class);
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
@@ -117,8 +120,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             )
         );
         xContentRegistry = new NamedXContentRegistry(entries);
-        projectResolver = TestProjectResolvers.mustExecuteFirst();
-        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry, projectResolver);
+        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() {
@@ -156,8 +158,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            xContentRegistry,
-            projectResolver
+            xContentRegistry
         );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
@@ -209,8 +210,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            xContentRegistry,
-            projectResolver
+            xContentRegistry
         );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
@@ -340,9 +340,10 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
-                    .templates(indexTemplates)
                     .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .put(
+                        ProjectMetadata.builder(projectId).templates(indexTemplates).putCustom(IndexLifecycleMetadata.TYPE, ilmMeta).build()
+                    )
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())
@@ -385,7 +386,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             when(indexTemplate.indexPatterns()).thenReturn(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
             templates.put(template.getKey(), indexTemplate);
         }
-        metadataBuilder.indexTemplates(templates);
+        metadataBuilder.put(ProjectMetadata.builder(projectId).indexTemplates(templates));
 
         return ClusterState.builder(new ClusterName("foo")).metadata(metadataBuilder.build()).build();
     }

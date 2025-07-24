@@ -1,4 +1,6 @@
 project: 'Elasticsearch'
+products:
+  - id: elasticsearch
 max_toc_depth: 2
 exclude:
   - README.md
@@ -109,3 +111,6 @@ subs:
   feat-imp:   "feature importance"
   feat-imp-cap:   "Feature importance"
   nlp:   "natural language processing"
+  index-manage-app:   "Index Management"
+  connectors-app:   "Connectors"
+  ingest-pipelines-app:   "Ingest Pipelines"

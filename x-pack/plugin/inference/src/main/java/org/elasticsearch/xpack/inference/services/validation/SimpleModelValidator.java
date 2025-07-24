@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 
 public class SimpleModelValidator implements ModelValidator {
 

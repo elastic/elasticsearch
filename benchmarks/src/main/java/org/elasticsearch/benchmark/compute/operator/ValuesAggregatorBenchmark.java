@@ -21,10 +21,13 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -110,19 +113,24 @@ public class ValuesAggregatorBenchmark {
     @Param({ BYTES_REF, INT, LONG })
     public String dataType;
 
-    private static Operator operator(DriverContext driverContext, int groups, String dataType) {
+    private static Operator operator(DriverContext driverContext, int groups, String dataType, AggregatorMode mode) {
         if (groups == 1) {
             return new AggregationOperator(
-                List.of(supplier(dataType).aggregatorFactory(AggregatorMode.SINGLE, List.of(0)).apply(driverContext)),
+                List.of(supplier(dataType).aggregatorFactory(mode, List.of(0)).apply(driverContext)),
                 driverContext
             );
         }
         List<BlockHash.GroupSpec> groupSpec = List.of(new BlockHash.GroupSpec(0, ElementType.LONG));
         return new HashAggregationOperator(
-            List.of(supplier(dataType).groupingAggregatorFactory(AggregatorMode.SINGLE, List.of(1))),
+            List.of(supplier(dataType).groupingAggregatorFactory(mode, List.of(1))),
             () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
             driverContext
-        );
+        ) {
+            @Override
+            public Page getOutput() {
+                return super.getOutput();
+            }
+        };
     }
 
     private static AggregatorFunctionSupplier supplier(String dataType) {
@@ -169,6 +177,9 @@ public class ValuesAggregatorBenchmark {
 
                 // Check them
                 BytesRefBlock values = page.getBlock(1);
+                if (values.asOrdinals() == null) {
+                    throw new AssertionError(" expected ordinals; but got " + values);
+                }
                 for (int p = 0; p < groups; p++) {
                     checkExpectedBytesRef(prefix, values, p, expected.get(p));
                 }
@@ -282,11 +293,18 @@ public class ValuesAggregatorBenchmark {
         int blockLength = blockLength(groups);
         return switch (dataType) {
             case BYTES_REF -> {
-                try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(blockLength)) {
-                    for (int i = 0; i < blockLength; i++) {
-                        builder.appendBytesRef(KEYWORDS[i % KEYWORDS.length]);
+                try (
+                    BytesRefVector.Builder dict = blockFactory.newBytesRefVectorBuilder(blockLength);
+                    IntVector.Builder ords = blockFactory.newIntVectorBuilder(blockLength)
+                ) {
+                    final int dictLength = Math.min(blockLength, KEYWORDS.length);
+                    for (int i = 0; i < dictLength; i++) {
+                        dict.appendBytesRef(KEYWORDS[i]);
                     }
-                    yield builder.build();
+                    for (int i = 0; i < blockLength; i++) {
+                        ords.appendInt(i % dictLength);
+                    }
+                    yield new OrdinalBytesRefVector(ords.build(), dict.build()).asBlock();
                 }
             }
             case INT -> {
@@ -326,13 +344,21 @@ public class ValuesAggregatorBenchmark {
 
     private static void run(int groups, String dataType, int opCount) {
         DriverContext driverContext = driverContext();
-        try (Operator operator = operator(driverContext, groups, dataType)) {
-            Page page = page(groups, dataType);
-            for (int i = 0; i < opCount; i++) {
-                operator.addInput(page.shallowCopy());
+        try (Operator finalAggregator = operator(driverContext, groups, dataType, AggregatorMode.FINAL)) {
+            try (Operator initialAggregator = operator(driverContext, groups, dataType, AggregatorMode.INITIAL)) {
+                Page rawPage = page(groups, dataType);
+                for (int i = 0; i < opCount; i++) {
+                    initialAggregator.addInput(rawPage.shallowCopy());
+                }
+                initialAggregator.finish();
+                Page intermediatePage = initialAggregator.getOutput();
+                for (int i = 0; i < opCount; i++) {
+                    finalAggregator.addInput(intermediatePage.shallowCopy());
+                }
             }
-            operator.finish();
-            checkExpected(groups, dataType, operator.getOutput());
+            finalAggregator.finish();
+            Page outputPage = finalAggregator.getOutput();
+            checkExpected(groups, dataType, outputPage);
         }
     }
 

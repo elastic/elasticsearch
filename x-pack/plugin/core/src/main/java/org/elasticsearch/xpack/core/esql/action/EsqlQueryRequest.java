@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.core.esql.action;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 
-public abstract class EsqlQueryRequest extends ActionRequest {
+public abstract class EsqlQueryRequest extends LegacyActionRequest {
 
     protected EsqlQueryRequest() {}
 

@@ -112,6 +112,6 @@ public class IbmWatsonxEmbeddingsResponseEntityTests extends ESTestCase {
             )
         );
 
-        assertThat(thrownException.getMessage(), is("Failed to find required field [results] in IBM Watsonx embeddings response"));
+        assertThat(thrownException.getMessage(), is("Failed to find required field [results] in IBM watsonx embeddings response"));
     }
 }

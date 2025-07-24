@@ -9,11 +9,11 @@
 
 package org.elasticsearch.reservedstate.service;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -22,109 +22,62 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.DESCRIPTION_LENGTH_LIMIT_KEY;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.FAILURE_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.INACTIVE_SYMPTOM;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.NAME;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.NO_CHANGES_SYMPTOM;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.STALE_SETTINGS_IMPACT;
 import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService.SUCCESS_SYMPTOM;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo.INDETERMINATE;
+import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo.INITIAL_ACTIVE;
 
 /**
- * Here, we test {@link FileSettingsHealthIndicatorService} in isolation;
- * we do not test that {@link FileSettingsService} uses it correctly.
+ * Tests that {@link FileSettingsHealthIndicatorService} produces the right {@link HealthIndicatorResult}
+ * from a given {@link FileSettingsHealthInfo}.
  */
 public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
-
     FileSettingsHealthIndicatorService healthIndicatorService;
 
     @Before
     public void initialize() {
-        healthIndicatorService = new FileSettingsHealthIndicatorService(Settings.EMPTY);
+        healthIndicatorService = new FileSettingsHealthIndicatorService();
     }
 
-    public void testInitiallyGreen() {}
-
-    public void testStartAndStop() {
+    public void testGreenWhenInactive() {
+        var expected = new HealthIndicatorResult(NAME, GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
+        assertEquals(expected, healthIndicatorService.calculate(INDETERMINATE));
+        assertEquals(expected, healthIndicatorService.calculate(new FileSettingsHealthInfo(false, 0, 0, null)));
         assertEquals(
-            new HealthIndicatorResult("file_settings", GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
-        );
-        healthIndicatorService.startOccurred();
-        assertEquals(
-            new HealthIndicatorResult("file_settings", GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
-        );
-        healthIndicatorService.stopOccurred();
-        assertEquals(
-            new HealthIndicatorResult("file_settings", GREEN, INACTIVE_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
+            "Inactive should be GREEN regardless of other fields",
+            expected,
+            healthIndicatorService.calculate(new FileSettingsHealthInfo(false, 123, 123, "test"))
         );
     }
 
-    public void testGreenYellowYellowGreen() {
-        healthIndicatorService.startOccurred();
-        healthIndicatorService.changeOccurred();
-        // This is a strange case: a change occurred, but neither success nor failure have been reported yet.
-        // While the change is still in progress, we don't change the status.
-        assertEquals(
-            new HealthIndicatorResult("file_settings", GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
-        );
-
-        healthIndicatorService.failureOccurred("whoopsie 1");
-        assertEquals(
-            new HealthIndicatorResult(
-                "file_settings",
-                YELLOW,
-                FAILURE_SYMPTOM,
-                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 1L, "most_recent_failure", "whoopsie 1")),
-                STALE_SETTINGS_IMPACT,
-                List.of()
-            ),
-            healthIndicatorService.calculate(false, null)
-        );
-
-        healthIndicatorService.failureOccurred("whoopsie #2");
-        assertEquals(
-            new HealthIndicatorResult(
-                "file_settings",
-                YELLOW,
-                FAILURE_SYMPTOM,
-                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 2L, "most_recent_failure", "whoopsie #2")),
-                STALE_SETTINGS_IMPACT,
-                List.of()
-            ),
-            healthIndicatorService.calculate(false, null)
-        );
-
-        healthIndicatorService.successOccurred();
-        assertEquals(
-            new HealthIndicatorResult("file_settings", GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
-            healthIndicatorService.calculate(false, null)
-        );
+    public void testNoChangesYet() {
+        var expected = new HealthIndicatorResult(NAME, GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
+        assertEquals(expected, healthIndicatorService.calculate(INITIAL_ACTIVE));
+        assertEquals(expected, healthIndicatorService.calculate(new FileSettingsHealthInfo(true, 0, 0, null)));
     }
 
-    public void testDescriptionIsTruncated() {
-        checkTruncatedDescription(9, "123456789", "123456789");
-        checkTruncatedDescription(8, "123456789", "1234567…");
-        checkTruncatedDescription(1, "12", "…");
+    public void testSuccess() {
+        var expected = new HealthIndicatorResult(NAME, GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
+        assertEquals(expected, healthIndicatorService.calculate(INITIAL_ACTIVE.changed()));
+        assertEquals(expected, healthIndicatorService.calculate(INITIAL_ACTIVE.changed().successful()));
+        assertEquals(expected, healthIndicatorService.calculate(INITIAL_ACTIVE.changed().failed("whoops").successful()));
     }
 
-    private void checkTruncatedDescription(int lengthLimit, String description, String expectedTruncatedDescription) {
-        var service = new FileSettingsHealthIndicatorService(Settings.builder().put(DESCRIPTION_LENGTH_LIMIT_KEY, lengthLimit).build());
-        service.startOccurred();
-        service.changeOccurred();
-        service.failureOccurred(description);
-        assertEquals(
-            new HealthIndicatorResult(
-                "file_settings",
-                YELLOW,
-                FAILURE_SYMPTOM,
-                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 1L, "most_recent_failure", expectedTruncatedDescription)),
-                STALE_SETTINGS_IMPACT,
-                List.of()
-            ),
-            service.calculate(false, null)
-        );
+    public void testFailure() {
+        var info = INITIAL_ACTIVE.changed().failed("whoops");
+        assertEquals(yellow(1, "whoops"), healthIndicatorService.calculate(info));
+        info = info.failed("whoops again");
+        assertEquals(yellow(2, "whoops again"), healthIndicatorService.calculate(info));
+        info = info.successful().failed("uh oh");
+        assertEquals(yellow(1, "uh oh"), healthIndicatorService.calculate(info));
+    }
+
+    private HealthIndicatorResult yellow(long failureStreak, String mostRecentFailure) {
+        var details = new SimpleHealthIndicatorDetails(Map.of("failure_streak", failureStreak, "most_recent_failure", mostRecentFailure));
+        return new HealthIndicatorResult(NAME, YELLOW, FAILURE_SYMPTOM, details, STALE_SETTINGS_IMPACT, List.of());
     }
 }

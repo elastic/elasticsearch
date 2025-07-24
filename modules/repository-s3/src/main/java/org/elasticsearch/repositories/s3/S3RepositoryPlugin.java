@@ -13,8 +13,9 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -32,9 +33,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,20 +45,6 @@ import java.util.Map;
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
     private static final Logger logger = LogManager.getLogger(S3RepositoryPlugin.class);
-
-    static {
-        SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                // Eagerly load the RegionFromEndpointGuesser map from the resource file
-                MethodHandles.lookup().ensureInitialized(RegionFromEndpointGuesser.class);
-            } catch (IllegalAccessException unexpected) {
-                throw new AssertionError(unexpected);
-            }
-            return null;
-        });
-
-    }
 
     private final SetOnce<S3Service> service = new SetOnce<>();
     private final Settings settings;
@@ -75,6 +59,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     // proxy method for testing
     protected S3Repository createRepository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry registry,
         final ClusterService clusterService,
@@ -82,29 +67,43 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final RecoverySettings recoverySettings,
         final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics);
+        return new S3Repository(
+            projectId,
+            metadata,
+            registry,
+            service.get(),
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            s3RepositoriesMetrics
+        );
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
+        service.set(
+            s3Service(services.environment(), services.clusterService(), services.projectResolver(), services.resourceWatcherService())
+        );
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service.get());
     }
 
-    S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
-        return new S3Service(environment, nodeSettings, resourceWatcherService, S3RepositoryPlugin::getDefaultRegion);
+    S3Service s3Service(
+        Environment environment,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        ResourceWatcherService resourceWatcherService
+    ) {
+        return new S3Service(environment, clusterService, projectResolver, resourceWatcherService, S3RepositoryPlugin::getDefaultRegion);
     }
 
     private static Region getDefaultRegion() {
-        return AccessController.doPrivileged((PrivilegedAction<Region>) () -> {
-            try {
-                return DefaultAwsRegionProviderChain.builder().build().getRegion();
-            } catch (Exception e) {
-                logger.info("failed to obtain region from default provider chain", e);
-                return null;
-            }
-        });
+        try {
+            return DefaultAwsRegionProviderChain.builder().build().getRegion();
+        } catch (Exception e) {
+            logger.info("failed to obtain region from default provider chain", e);
+            return null;
+        }
     }
 
     @Override
@@ -119,7 +118,15 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final S3RepositoriesMetrics s3RepositoriesMetrics = new S3RepositoriesMetrics(repositoriesMetrics);
         return Collections.singletonMap(
             S3Repository.TYPE,
-            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics)
+            (projectId, metadata) -> createRepository(
+                projectId,
+                metadata,
+                registry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                s3RepositoriesMetrics
+            )
         );
     }
 
@@ -131,7 +138,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.SECRET_KEY_SETTING,
             S3ClientSettings.SESSION_TOKEN_SETTING,
             S3ClientSettings.ENDPOINT_SETTING,
-            S3ClientSettings.UNUSED_PROTOCOL_SETTING,
+            S3ClientSettings.PROTOCOL_SETTING,
             S3ClientSettings.PROXY_HOST_SETTING,
             S3ClientSettings.PROXY_PORT_SETTING,
             S3ClientSettings.PROXY_SCHEME_SETTING,
@@ -143,6 +150,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.UNUSED_USE_THROTTLE_RETRIES_SETTING,
             S3ClientSettings.USE_PATH_STYLE_ACCESS,
             S3ClientSettings.UNUSED_SIGNER_OVERRIDE,
+            S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER,
             S3ClientSettings.REGION,
             S3Service.REPOSITORY_S3_CAS_TTL_SETTING,
             S3Service.REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING,

@@ -51,7 +51,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.index.translog.Translog;
@@ -61,13 +60,11 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.lookup.SourceProvider;
-import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -88,7 +85,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -549,7 +545,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             SearchLookup lookup = new SearchLookup(
                 mapperService::fieldType,
                 fieldDataLookup(mapperService),
-                SourceProvider.fromStoredFields()
+                SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
             );
             ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
             IndexSearcher searcher = newSearcher(iw);
@@ -570,7 +566,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             MappedFieldType ft = mapperService.fieldType("field");
             SourceProvider sourceProvider = mapperService.mappingLookup().isSourceSynthetic() ? (ctx, doc) -> {
                 throw new IllegalArgumentException("Can't load source in scripts in synthetic mode");
-            } : SourceProvider.fromStoredFields();
+            } : SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics());
             SearchLookup searchLookup = new SearchLookup(null, null, sourceProvider);
             IndexFieldData<?> sfd = ft.fielddataBuilder(
                 new FieldDataContext(
@@ -869,7 +865,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         ValueFetcher nativeFetcher = ft.valueFetcher(searchExecutionContext, format);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
-            Source s = SourceProvider.fromStoredFields().getSource(ir.leaves().get(0), 0);
+            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                .getSource(ir.leaves().get(0), 0);
             docValueFetcher.setNextReader(ir.leaves().get(0));
             nativeFetcher.setNextReader(ir.leaves().get(0));
             List<Object> fromDocValues = docValueFetcher.fetchValues(s, 0, new ArrayList<>());
@@ -1055,24 +1052,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public record SyntheticSourceExample(
         CheckedConsumer<XContentBuilder, IOException> inputValue,
         CheckedConsumer<XContentBuilder, IOException> expectedForSyntheticSource,
-        CheckedConsumer<XContentBuilder, IOException> expectedForBlockLoader,
         CheckedConsumer<XContentBuilder, IOException> mapping
     ) {
         public SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {
-            this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(result), mapping);
-        }
-
-        /**
-         * Create an example that returns different results from doc values
-         * than from synthetic source.
-         */
-        public SyntheticSourceExample(
-            Object inputValue,
-            Object result,
-            Object blockLoaderResults,
-            CheckedConsumer<XContentBuilder, IOException> mapping
-        ) {
-            this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(blockLoaderResults), mapping);
+            this(b -> b.value(inputValue), b -> b.value(result), mapping);
         }
 
         public void buildInput(XContentBuilder b) throws IOException {
@@ -1092,13 +1075,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
             expectedForSyntheticSource.accept(b);
             return Strings.toString(b.endObject());
-        }
-
-        private Object expectedParsedForBlockLoader() throws IOException {
-            XContentBuilder b = JsonXContent.contentBuilder().startObject().field("field");
-            expectedForBlockLoader.accept(b);
-            String str = Strings.toString(b.endObject());
-            return XContentHelper.convertToMap(JsonXContent.jsonXContent, str, false).get("field");
         }
     }
 
@@ -1156,7 +1132,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 v.mapping.accept(b);
                 b.field("ignore_malformed", true);
             };
-            assertSyntheticSource(new SyntheticSourceExample(v.value, v.value, v.value, mapping));
+            assertSyntheticSource(new SyntheticSourceExample(v.value, v.value, mapping));
         }
     }
 
@@ -1375,215 +1351,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticEmptyListNoDocValuesLoader() throws IOException {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
         assertNoDocValueLoader(b -> b.startArray("field").endArray());
-    }
-
-    public final void testBlockLoaderFromColumnReader() throws IOException {
-        testBlockLoader(false, true);
-    }
-
-    public final void testBlockLoaderFromRowStrideReader() throws IOException {
-        testBlockLoader(false, false);
-    }
-
-    public final void testBlockLoaderFromColumnReaderWithSyntheticSource() throws IOException {
-        testBlockLoader(true, true);
-    }
-
-    public final void testBlockLoaderFromRowStrideReaderWithSyntheticSource() throws IOException {
-        testBlockLoader(true, false);
-    }
-
-    /**
-     *  Get the configuration for testing block loaders with this field. In particular, not all fields can be loaded from doc-values.
-     *  For most ESQL types the preference is to read from doc-values if they exist, so that is the default behaviour here.
-     *  However, for spatial types, the doc-values involve precision loss, and therefor it is preferable to read from source.
-     *  And for text fields, doc values are not easily convertable to original values either, so special cases exist.
-     */
-    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
-        MappedFieldType ft = mapper.fieldType(loaderFieldName);
-        return new BlockReaderSupport(ft.hasDocValues(), true, mapper, loaderFieldName);
-    }
-
-    /**
-     * This record encapsulates the test configuration for testing block loaders (used in ES|QL).
-     *
-     * @param columnAtATimeReader true if the field supports column at a time readers (doc-values)
-     * @param syntheticSource true if the field supports synthetic source
-     * @param mapper the mapper service to use for testing
-     * @param loaderFieldName the field name to use for loading the field
-     */
-    public record BlockReaderSupport(boolean columnAtATimeReader, boolean syntheticSource, MapperService mapper, String loaderFieldName) {
-        public BlockReaderSupport(boolean columnAtATimeReader, MapperService mapper, String loaderFieldName) {
-            this(columnAtATimeReader, true, mapper, loaderFieldName);
-        }
-
-        private BlockLoader getBlockLoader(FieldExtractPreference fieldExtractPreference) {
-            SearchLookup searchLookup = new SearchLookup(mapper.mappingLookup().fieldTypesLookup()::get, null, null);
-            return mapper.fieldType(loaderFieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
-                @Override
-                public String indexName() {
-                    return mapper.getIndexSettings().getIndex().getName();
-                }
-
-                @Override
-                public IndexSettings indexSettings() {
-                    return mapper.getIndexSettings();
-                }
-
-                @Override
-                public FieldExtractPreference fieldExtractPreference() {
-                    return fieldExtractPreference;
-                }
-
-                @Override
-                public SearchLookup lookup() {
-                    return searchLookup;
-                }
-
-                @Override
-                public Set<String> sourcePaths(String name) {
-                    return mapper.mappingLookup().sourcePaths(name);
-                }
-
-                @Override
-                public String parentField(String field) {
-                    return mapper.mappingLookup().parentField(field);
-                }
-
-                @Override
-                public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                    return (FieldNamesFieldMapper.FieldNamesFieldType) mapper.fieldType(FieldNamesFieldMapper.NAME);
-                }
-            });
-        }
-    }
-
-    private void testBlockLoader(boolean syntheticSource, boolean columnReader) throws IOException {
-        // TODO if we're not using synthetic source use a different sort of example. Or something.
-        var syntheticSourceSupport = syntheticSourceSupport(false, columnReader);
-        SyntheticSourceExample example = syntheticSourceSupport.example(5);
-        if (syntheticSource && columnReader == false) {
-            // The synthetic source testing support can't always handle now the difference between stored and synthetic source mode.
-            // In case of ignore above, the ignored values are always appended after the valid values
-            // (both if field has doc values or stored field). While stored source just reads original values (from _source) and there
-            // is no notion of values that are ignored.
-            // TODO: fix this by improving block loader support: https://github.com/elastic/elasticsearch/issues/115257
-            assumeTrue("inconsistent synthetic source testing support with ignore above", syntheticSourceSupport.ignoreAbove() == false);
-        }
-        XContentBuilder mapping = fieldMapping(example.mapping);
-        MapperService mapper = syntheticSource ? createSytheticSourceMapperService(mapping) : createMapperService(mapping);
-        BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field");
-        if (syntheticSource) {
-            // geo_point and point do not yet support synthetic source
-            assumeTrue(
-                "Synthetic source not completely supported for " + this.getClass().getSimpleName(),
-                blockReaderSupport.syntheticSource
-            );
-        }
-        var sourceLoader = mapper.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
-        testBlockLoader(columnReader, example, blockReaderSupport, sourceLoader);
-    }
-
-    protected final void testBlockLoader(
-        boolean columnReader,
-        SyntheticSourceExample example,
-        BlockReaderSupport blockReaderSupport,
-        SourceLoader sourceLoader
-    ) throws IOException {
-        // EXTRACT_SPATIAL_BOUNDS is not currently supported in this test path.
-        var fieldExtractPreference = columnReader ? FieldExtractPreference.DOC_VALUES : FieldExtractPreference.NONE;
-        BlockLoader loader = blockReaderSupport.getBlockLoader(fieldExtractPreference);
-        Function<Object, Object> valuesConvert = loadBlockExpected(blockReaderSupport, columnReader);
-        if (valuesConvert == null) {
-            assertNull(loader);
-            return;
-        }
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            LuceneDocument doc = blockReaderSupport.mapper.documentMapper().parse(source(b -> {
-                b.field("field");
-                example.inputValue.accept(b);
-            })).rootDoc();
-            iw.addDocument(doc);
-            iw.close();
-            try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                LeafReaderContext ctx = reader.leaves().get(0);
-                TestBlock block;
-                if (columnReader) {
-                    if (blockReaderSupport.columnAtATimeReader) {
-                        block = (TestBlock) loader.columnAtATimeReader(ctx)
-                            .read(TestBlock.factory(ctx.reader().numDocs()), TestBlock.docs(0));
-                    } else {
-                        assertNull(loader.columnAtATimeReader(ctx));
-                        return;
-                    }
-                } else {
-                    StoredFieldsSpec storedFieldsSpec = loader.rowStrideStoredFieldSpec();
-                    if (storedFieldsSpec.requiresSource()) {
-                        storedFieldsSpec = storedFieldsSpec.merge(
-                            new StoredFieldsSpec(true, storedFieldsSpec.requiresMetadata(), sourceLoader.requiredStoredFields())
-                        );
-                    }
-                    BlockLoaderStoredFieldsFromLeafLoader storedFieldsLoader = new BlockLoaderStoredFieldsFromLeafLoader(
-                        StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
-                        storedFieldsSpec.requiresSource() ? sourceLoader.leaf(ctx.reader(), null) : null
-                    );
-                    storedFieldsLoader.advanceTo(0);
-                    BlockLoader.Builder builder = loader.builder(TestBlock.factory(ctx.reader().numDocs()), 1);
-                    loader.rowStrideReader(ctx).read(0, storedFieldsLoader, builder);
-                    block = (TestBlock) builder.build();
-                }
-                Object inBlock = block.get(0);
-                if (inBlock != null) {
-                    if (inBlock instanceof List<?> l) {
-                        inBlock = l.stream().map(valuesConvert).toList();
-                    } else {
-                        inBlock = valuesConvert.apply(inBlock);
-                    }
-                }
-                Object expected = example.expectedParsedForBlockLoader();
-                if (List.of().equals(expected)) {
-                    assertThat(inBlock, nullValue());
-                    return;
-                }
-                if (expected instanceof List<?> l) {
-                    ListMatcher m = ListMatcher.matchesList();
-                    for (Object v : l) {
-                        m = m.item(blockItemMatcher(v));
-                    }
-                    assertMap((List<?>) inBlock, m);
-                    return;
-                }
-                @SuppressWarnings("unchecked")
-                Matcher<Object> e = (Matcher<Object>) blockItemMatcher(expected);
-                assertThat(inBlock, e);
-            }
-        }
-    }
-
-    /**
-     * Matcher for {@link #testBlockLoaderFromColumnReader} and {@link #testBlockLoaderFromRowStrideReader}.
-     */
-    protected Matcher<?> blockItemMatcher(Object expected) {
-        return equalTo(expected);
-    }
-
-    /**
-     * How {@link MappedFieldType#blockLoader} should load values or {@code null}
-     * if that method isn't supported by field being tested.
-     */
-    protected Function<Object, Object> loadBlockExpected() {
-        return null;
-    }
-
-    /**
-     * How {@link MappedFieldType#blockLoader} should load values or {@code null}
-     * if that method isn't supported by field being tested.
-     * This method should be overridden by fields that support different Block types
-     * when loading from doc values vs source.
-     */
-    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
-        return loadBlockExpected();
     }
 
     public final void testEmptyDocumentNoDocValueLoader() throws IOException {

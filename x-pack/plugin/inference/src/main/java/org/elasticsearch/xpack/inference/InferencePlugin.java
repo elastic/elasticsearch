@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
@@ -29,6 +30,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -118,6 +120,7 @@ import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.custom.CustomService;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
@@ -130,10 +133,15 @@ import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserService;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
+import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerClient;
+import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerService;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerConfiguration;
+import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModelBuilder;
+import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerSchemas;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
-import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -197,6 +205,7 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ElasticInferenceServiceComponents> elasticInferenceServiceComponents = new SetOnce<>();
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
+    private final SetOnce<ModelRegistry> modelRegistry = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -260,8 +269,8 @@ public class InferencePlugin extends Plugin
         var amazonBedrockRequestSenderFactory = new AmazonBedrockRequestSender.Factory(serviceComponents.get(), services.clusterService());
         amazonBedrockFactory.set(amazonBedrockRequestSenderFactory);
 
-        ModelRegistry modelRegistry = new ModelRegistry(services.clusterService(), services.client());
-        services.clusterService().addListener(modelRegistry);
+        modelRegistry.set(new ModelRegistry(services.clusterService(), services.client()));
+        services.clusterService().addListener(modelRegistry.get());
 
         if (inferenceServiceExtensions == null) {
             inferenceServiceExtensions = new ArrayList<>();
@@ -269,13 +278,17 @@ public class InferencePlugin extends Plugin
         var inferenceServices = new ArrayList<>(inferenceServiceExtensions);
         inferenceServices.add(this::getInferenceServiceFactories);
 
+        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
+        inferenceServiceSettings.init(services.clusterService());
+
         // Create a separate instance of HTTPClientManager with its own SSL configuration (`xpack.inference.elastic.http.ssl.*`).
         var elasticInferenceServiceHttpClientManager = HttpClientManager.create(
             settings,
             services.threadPool(),
             services.clusterService(),
             throttlerManager,
-            getSslService()
+            getSslService(),
+            inferenceServiceSettings.getConnectionTtl()
         );
 
         var elasticInferenceServiceRequestSenderFactory = new HttpRequestSender.Factory(
@@ -285,31 +298,47 @@ public class InferencePlugin extends Plugin
         );
         elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);
 
-        var inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
-        inferenceServiceSettings.init(services.clusterService());
-
         var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             inferenceServiceSettings.getElasticInferenceServiceUrl(),
             services.threadPool()
         );
 
+        var sageMakerSchemas = new SageMakerSchemas();
+        var sageMakerConfigurations = new LazyInitializable<>(new SageMakerConfiguration(sageMakerSchemas));
         inferenceServices.add(
             () -> List.of(
                 context -> new ElasticInferenceService(
                     elasicInferenceServiceFactory.get(),
                     serviceComponents.get(),
                     inferenceServiceSettings,
-                    modelRegistry,
-                    authorizationHandler
+                    modelRegistry.get(),
+                    authorizationHandler,
+                    context
+                ),
+                context -> new SageMakerService(
+                    new SageMakerModelBuilder(sageMakerSchemas),
+                    new SageMakerClient(
+                        new SageMakerClient.Factory(new HttpSettings(settings, services.clusterService())),
+                        services.threadPool()
+                    ),
+                    sageMakerSchemas,
+                    services.threadPool(),
+                    sageMakerConfigurations::getOrCompute,
+                    context
                 )
             )
         );
+
+        var meterRegistry = services.telemetryProvider().getMeterRegistry();
+        var inferenceStats = InferenceStats.create(meterRegistry);
+        var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(
             services.client(),
             services.threadPool(),
             services.clusterService(),
-            settings
+            settings,
+            inferenceStats
         );
 
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
@@ -317,26 +346,24 @@ public class InferencePlugin extends Plugin
         var serviceRegistry = new InferenceServiceRegistry(inferenceServices, factoryContext);
         serviceRegistry.init(services.client());
         for (var service : serviceRegistry.getServices().values()) {
-            service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
+            service.defaultConfigIds().forEach(modelRegistry.get()::addDefaultIds);
         }
         inferenceServiceRegistry.set(serviceRegistry);
 
         var actionFilter = new ShardBulkInferenceActionFilter(
             services.clusterService(),
             serviceRegistry,
-            modelRegistry,
+            modelRegistry.get(),
             getLicenseState(),
-            services.indexingPressure()
+            services.indexingPressure(),
+            inferenceStats
         );
         shardBulkInferenceActionFilter.set(actionFilter);
 
-        var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var inferenceStats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
-
         components.add(serviceRegistry);
-        components.add(modelRegistry);
+        components.add(modelRegistry.get());
         components.add(httpClientManager);
-        components.add(inferenceStats);
+        components.add(inferenceStatsBinding);
 
         // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
         // if the rate limiting feature flags are enabled, otherwise provide noop implementation
@@ -360,23 +387,25 @@ public class InferencePlugin extends Plugin
 
     public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
         return List.of(
-            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get()),
-            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get()),
-            context -> new OpenAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new CohereService(httpFactory.get(), serviceComponents.get()),
-            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get()),
-            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get()),
-            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get()),
-            context -> new MistralService(httpFactory.get(), serviceComponents.get()),
-            context -> new AnthropicService(httpFactory.get(), serviceComponents.get()),
-            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get()),
-            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get()),
-            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get()),
-            context -> new JinaAIService(httpFactory.get(), serviceComponents.get()),
-            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get()),
-            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get()),
-            ElasticsearchInternalService::new
+            context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new MistralService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context),
+            context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new IbmWatsonxService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new JinaAIService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new VoyageAIService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new DeepSeekService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new LlamaService(httpFactory.get(), serviceComponents.get(), context),
+            ElasticsearchInternalService::new,
+            context -> new CustomService(httpFactory.get(), serviceComponents.get(), context)
         );
     }
 
@@ -498,11 +527,16 @@ public class InferencePlugin extends Plugin
         return Map.of(SemanticInferenceMetadataFieldsMapper.NAME, SemanticInferenceMetadataFieldsMapper.PARSER);
     }
 
+    // Overridable for tests
+    protected Supplier<ModelRegistry> getModelRegistry() {
+        return () -> modelRegistry.get();
+    }
+
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
         return Map.of(
             SemanticTextFieldMapper.CONTENT_TYPE,
-            SemanticTextFieldMapper.PARSER,
+            SemanticTextFieldMapper.parser(getModelRegistry()),
             OffsetSourceFieldMapper.CONTENT_TYPE,
             OffsetSourceFieldMapper.PARSER
         );

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +32,7 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         public static Request parseRequest(String filterId, XContentParser parser) {
             MlFilter.Builder filter = MlFilter.STRICT_PARSER.apply(parser, null);

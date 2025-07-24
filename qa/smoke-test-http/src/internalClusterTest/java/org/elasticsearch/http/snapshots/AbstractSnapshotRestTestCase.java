@@ -14,11 +14,9 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.http.HttpSmokeTestCase;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public abstract class AbstractSnapshotRestTestCase extends HttpSmokeTestCase {
 
     /**

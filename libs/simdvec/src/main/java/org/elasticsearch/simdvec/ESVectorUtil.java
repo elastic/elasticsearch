@@ -9,11 +9,13 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
+import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -40,6 +42,14 @@ public class ESVectorUtil {
     }
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
+
+    public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
+    }
+
+    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
+    }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
@@ -148,31 +158,41 @@ public class ESVectorUtil {
     /**
      * Calculate the loss for optimized-scalar quantization for the given parameteres
      * @param target The vector being quantized, assumed to be centered
-     * @param interval The interval for which to calculate the loss
+     * @param lowerInterval The lower interval value for which to calculate the loss
+     * @param upperInterval The upper interval value for which to calculate the loss
      * @param points the quantization points
      * @param norm2 The norm squared of the target vector
      * @param lambda The lambda parameter for controlling anisotropic loss calculation
+     * @param quantize array to store the computed quantize vector.
+     *
      * @return The loss for the given parameters
      */
-    public static float calculateOSQLoss(float[] target, float[] interval, int points, float norm2, float lambda) {
-        assert interval.length == 2;
-        float step = ((interval[1] - interval[0]) / (points - 1.0F));
+    public static float calculateOSQLoss(
+        float[] target,
+        float lowerInterval,
+        float upperInterval,
+        int points,
+        float norm2,
+        float lambda,
+        int[] quantize
+    ) {
+        assert upperInterval >= lowerInterval;
+        float step = ((upperInterval - lowerInterval) / (points - 1.0F));
         float invStep = 1f / step;
-        return IMPL.calculateOSQLoss(target, interval, step, invStep, norm2, lambda);
+        return IMPL.calculateOSQLoss(target, lowerInterval, upperInterval, step, invStep, norm2, lambda, quantize);
     }
 
     /**
      * Calculate the grid points for optimized-scalar quantization
      * @param target The vector being quantized, assumed to be centered
-     * @param interval The interval for which to calculate the grid points
+     * @param quantize The quantize vector which should have at least the target vector length
      * @param points the quantization points
      * @param pts The array to store the grid points, must be of length 5
      */
-    public static void calculateOSQGridPoints(float[] target, float[] interval, int points, float[] pts) {
-        assert interval.length == 2;
+    public static void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
+        assert target.length <= quantize.length;
         assert pts.length == 5;
-        float invStep = (points - 1.0F) / (interval[1] - interval[0]);
-        IMPL.calculateOSQGridPoints(target, interval, points, invStep, pts);
+        IMPL.calculateOSQGridPoints(target, quantize, points, pts);
     }
 
     /**
@@ -210,5 +230,63 @@ public class ESVectorUtil {
         }
         assert stats.length == 6;
         IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
+    }
+
+    /**
+     * Calculates the difference between two vectors and stores the result in a third vector.
+     * @param v1 the first vector
+     * @param v2 the second vector
+     * @param result the result vector, must be the same length as the input vectors
+     */
+    public static void subtract(float[] v1, float[] v2, float[] result) {
+        if (v1.length != v2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + v2.length);
+        }
+        if (result.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + result.length + "!=" + v1.length);
+        }
+        for (int i = 0; i < v1.length; i++) {
+            result[i] = v1[i] - v2[i];
+        }
+    }
+
+    /**
+     * calculates the soar distance for a vector and a centroid
+     * @param v1 the vector
+     * @param centroid the centroid
+     * @param originalResidual the residual with the actually nearest centroid
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @return the soar distance
+     */
+    public static float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        if (v1.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + centroid.length);
+        }
+        if (originalResidual.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + originalResidual.length + "!=" + v1.length);
+        }
+        return IMPL.soarDistance(v1, centroid, originalResidual, soarLambda, rnorm);
+    }
+
+    /**
+     * Optimized-scalar quantization of the provided vector to the provided destination array.
+     *
+     * @param vector the vector to quantize
+     * @param destination the array to store the result
+     * @param lowInterval the minimum value, lower values in the original array will be replaced by this value
+     * @param upperInterval the maximum value, bigger values in the original array will be replaced by this value
+     * @param bit the number of bits to use for quantization, must be between 1 and 8
+     *
+     * @return return the sum of all the elements of the resulting quantized vector.
+     */
+    public static int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bit) {
+        if (vector.length > destination.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + vector.length + "!=" + destination.length);
+        }
+        if (bit <= 0 || bit > Byte.SIZE) {
+            throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
+        }
+        return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
     }
 }

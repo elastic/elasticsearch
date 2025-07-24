@@ -6,7 +6,6 @@ mapped_pages:
 
 # {{esql}} multivalued fields [esql-multivalued-fields]
 
-
 {{esql}} is fine reading from multivalued fields:
 
 $$$esql-multivalued-fields-reorders$$$

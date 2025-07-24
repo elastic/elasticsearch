@@ -19,7 +19,7 @@ import java.util.Objects;
 /**
  * Block implementation representing a constant null value.
  */
-final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
+public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     implements
         BooleanBlock,
         IntBlock,

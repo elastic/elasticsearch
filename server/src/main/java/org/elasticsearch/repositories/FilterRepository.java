@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
@@ -45,6 +46,11 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public ProjectId getProjectId() {
+        return in.getProjectId();
+    }
+
+    @Override
     public RepositoryMetadata getMetadata() {
         return in.getMetadata();
     }
@@ -61,8 +67,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
-        return in.getSnapshotGlobalMetadata(snapshotId);
+    public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId, boolean fromProjectMetadata) {
+        return in.getSnapshotGlobalMetadata(snapshotId, fromProjectMetadata);
     }
 
     @Override

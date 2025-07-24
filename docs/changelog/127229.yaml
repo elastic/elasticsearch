@@ -1,0 +1,6 @@
+pr: 127229
+summary: Return BAD_REQUEST when a field scorer references a missing field
+area: Ranking
+type: bug
+issues:
+ - 127162

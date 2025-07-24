@@ -674,6 +674,18 @@ max:integer
 13
 ;
 
+evalAfterStatsUsingSameName3
+required_capability: remove_empty_attribute_in_merging_output
+from employees 
+| stats  foo = min(emp_no), bar = count_distinct(emp_no) 
+| rename bar AS bug_here, foo AS baz, baz AS bug_here 
+| eval bug_here = "something"
+;
+
+bug_here:keyword
+something
+;
+
 evalAfterAvgGroupingUsingSameName
 required_capability: retain_aggregate_when_grouping
 from employees
@@ -751,4 +763,28 @@ g:integer   | max:integer
 12          | 2
 12          | 2
 12          | 2
+;
+
+evalAfterGroupingUsingSameName5
+required_capability: retain_aggregate_when_grouping
+required_capability: enrich_load
+required_capability: join_lookup_v12
+from firewall_logs,threat_list,airports 
+| keep `message`, `name`, source.IP, `type`, message 
+| enrich languages_policy on message 
+| drop type 
+| dissect name "%{message}"
+| rename language_name as message 
+| lookup join message_types_lookup on message 
+| rename `source.IP` AS EkooZqOYHpD, `EkooZqOYHpD` AS `XzWnUOjttGQD` 
+| drop `XzWnUOjttGQD` | stats  type = count_distinct(name), `name` = count(*), JhbpKFAaRq = count(*) 
+| limit 5791 
+| keep name 
+| eval  `name` = true, nhIWDevxEtU = null, name = true, `name` = 1, sPMxyWXGSHm = "a", TewXimOwcBYr = true 
+| stats  `nhIWDevxEtU` = min(name) by name 
+| eval  dsjbDWegyVkg = false, name = null, name = 1, nhIWDevxEtU = null, iPIbTFddDK = 1, rUvqtgSl = 1
+;
+
+dsjbDWegyVkg:boolean    | name:integer  | nhIWDevxEtU:null  | iPIbTFddDK:integer    | rUvqtgSl:integer
+false                   | 1             | null              | 1                     | 1
 ;

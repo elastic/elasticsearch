@@ -56,7 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CreateSystemIndicesIT extends ESIntegTestCase {
 
     @Before
@@ -104,7 +103,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      */
     public void testNonPrimarySystemIndexIsAutoCreatedViaConcreteName() throws Exception {
         final String nonPrimarySystemIndex = INDEX_NAME + "-2";
-        internalCluster().startNodes(1);
 
         // Trigger the creation of the system index
         indexDoc(nonPrimarySystemIndex, "1", "foo", "bar");
@@ -132,7 +130,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      */
     public void testNonPrimarySystemIndexCreationThrowsError() {
         final String nonPrimarySystemIndex = INDEX_NAME + "-2";
-        internalCluster().startNodes(1);
 
         // Create the system index
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createIndex(nonPrimarySystemIndex));
@@ -269,8 +266,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     private void doCreateTest(Runnable runnable, String concreteIndex) {
-        internalCluster().startNodes(1);
-
         // Trigger the creation of the system index
         runnable.run();
         ensureGreen(INDEX_NAME);
@@ -293,8 +288,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     }
 
     public void testConcurrentAutoCreates() throws InterruptedException {
-        internalCluster().startNodes(3);
-
         final Client client = client();
         final int count = randomIntBetween(5, 30);
         final CountDownLatch latch = new CountDownLatch(count);

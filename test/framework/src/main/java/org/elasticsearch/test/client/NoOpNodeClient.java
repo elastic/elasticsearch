@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -39,7 +40,7 @@ public class NoOpNodeClient extends NodeClient {
     private final AtomicLong executionCount = new AtomicLong(0);
 
     public NoOpNodeClient(ThreadPool threadPool) {
-        super(Settings.EMPTY, threadPool);
+        super(Settings.EMPTY, threadPool, TestProjectResolvers.mustExecuteFirst());
     }
 
     @Override

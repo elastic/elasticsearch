@@ -99,7 +99,7 @@ class S3RetryingInputStream extends InputStream {
                 }
                 this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
                 final var getObjectRequest = getObjectRequestBuilder.build();
-                final var getObjectResponse = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
+                final var getObjectResponse = clientReference.client().getObject(getObjectRequest);
                 this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(getObjectResponse.response()));
                 this.currentStream = getObjectResponse;
                 return;

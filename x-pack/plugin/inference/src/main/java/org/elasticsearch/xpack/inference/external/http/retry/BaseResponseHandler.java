@@ -36,7 +36,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     public static final String METHOD_NOT_ALLOWED = "Received a method not allowed status code";
 
     protected final String requestType;
-    private final ResponseParser parseFunction;
+    protected final ResponseParser parseFunction;
     private final Function<HttpResult, ErrorResponse> errorParseFunction;
     private final boolean canHandleStreamingResponses;
 
@@ -95,7 +95,7 @@ public abstract class BaseResponseHandler implements ResponseHandler {
 
     protected abstract void checkForFailureStatusCode(Request request, HttpResult result);
 
-    private void checkForErrorObject(Request request, HttpResult result) {
+    protected void checkForErrorObject(Request request, HttpResult result) {
         var errorEntity = errorParseFunction.apply(result);
 
         if (errorEntity.errorStructureFound()) {
@@ -116,12 +116,12 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
         return new ElasticsearchStatusException(
-            errorMessage(message, request, result, errorResponse, responseStatusCode),
+            constructErrorMessage(message, request, errorResponse, responseStatusCode),
             toRestStatus(responseStatusCode)
         );
     }
 
-    protected String errorMessage(String message, Request request, HttpResult result, ErrorResponse errorResponse, int statusCode) {
+    public static String constructErrorMessage(String message, Request request, ErrorResponse errorResponse, int statusCode) {
         return (errorResponse == null
             || errorResponse.errorStructureFound() == false
             || Strings.isNullOrEmpty(errorResponse.getErrorMessage()))

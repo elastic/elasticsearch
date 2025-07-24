@@ -134,17 +134,20 @@ abstract class DataNodeRequestSender {
                 var computeListener = new ComputeListener(
                     transportService.getThreadPool(),
                     runOnTaskFailure,
-                    listener.map(
-                        completionInfo -> new ComputeResponse(
+                    listener.map(completionInfo -> {
+                        final int totalSkipShards = targetShards.skippedShards() + skippedShards.get();
+                        final int failedShards = shardFailures.size();
+                        final int successfulShards = targetShards.totalShards() - totalSkipShards - failedShards;
+                        return new ComputeResponse(
                             completionInfo,
                             timeValueNanos(System.nanoTime() - startTimeInNanos),
                             targetShards.totalShards(),
-                            targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
-                            targetShards.skippedShards() + skippedShards.get(),
-                            shardFailures.size(),
+                            successfulShards,
+                            totalSkipShards,
+                            failedShards,
                             selectFailures()
-                        )
-                    )
+                        );
+                    })
                 )
             ) {
                 pendingShardIds.addAll(order(targetShards));
@@ -189,8 +192,22 @@ abstract class DataNodeRequestSender {
                     if (changed.compareAndSet(true, false) == false) {
                         break;
                     }
+                    var pendingRetries = new HashSet<ShardId>();
                     for (ShardId shardId : pendingShardIds) {
                         if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                            if (isRetryableFailure(shardFailures.get(shardId))) {
+                                pendingRetries.add(shardId);
+                            }
+                        }
+                    }
+                    if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
+                        for (var entry : resolveShards(pendingRetries).entrySet()) {
+                            targetShards.getShard(entry.getKey()).remainingNodes.addAll(entry.getValue());
+                        }
+                    }
+                    for (ShardId shardId : pendingShardIds) {
+                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()
+                            && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
                             shardFailures.compute(
                                 shardId,
                                 (k, v) -> new ShardFailure(
@@ -257,26 +274,11 @@ abstract class DataNodeRequestSender {
         final ActionListener<DriverCompletionInfo> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
 
-            private final Set<ShardId> pendingRetries = new HashSet<>();
-
             void onAfter(DriverCompletionInfo info) {
                 nodePermits.get(request.node).release();
                 if (concurrentRequests != null) {
                     concurrentRequests.release();
                 }
-
-                if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
-                    try {
-                        sendingLock.lock();
-                        var resolutions = resolveShards(pendingRetries);
-                        for (var entry : resolutions.entrySet()) {
-                            targetShards.shards.get(entry.getKey()).remainingNodes.addAll(entry.getValue());
-                        }
-                    } finally {
-                        sendingLock.unlock();
-                    }
-                }
-
                 trySendingRequestsForPendingShards(targetShards, computeListener);
                 listener.onResponse(info);
             }
@@ -293,7 +295,6 @@ abstract class DataNodeRequestSender {
                     final ShardId shardId = entry.getKey();
                     trackShardLevelFailure(shardId, false, entry.getValue());
                     pendingShardIds.add(shardId);
-                    maybeScheduleRetry(shardId, false, entry.getValue());
                 }
                 onAfter(response.completionInfo());
             }
@@ -303,7 +304,6 @@ abstract class DataNodeRequestSender {
                 for (ShardId shardId : request.shardIds) {
                     trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
-                    maybeScheduleRetry(shardId, receivedData, e);
                 }
                 onAfter(DriverCompletionInfo.EMPTY);
             }
@@ -315,14 +315,6 @@ abstract class DataNodeRequestSender {
                     onFailure(new TaskCancelledException("null"), true);
                 } else {
                     onResponse(new DataNodeComputeResponse(DriverCompletionInfo.EMPTY, Map.of()));
-                }
-            }
-
-            private void maybeScheduleRetry(ShardId shardId, boolean receivedData, Exception e) {
-                if (receivedData == false
-                    && targetShards.getShard(shardId).remainingNodes.isEmpty()
-                    && unwrapFailure(shardId, e) instanceof NoShardAvailableActionException) {
-                    pendingRetries.add(shardId);
                 }
             }
         });
@@ -388,6 +380,10 @@ abstract class DataNodeRequestSender {
     record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {}
 
     private record ShardFailure(boolean fatal, Exception failure) {}
+
+    private static boolean isRetryableFailure(ShardFailure failure) {
+        return failure != null && failure.fatal == false && failure.failure instanceof NoShardAvailableActionException;
+    }
 
     /**
      * Selects the next nodes to send requests to. Limits to at most one outstanding request per node.

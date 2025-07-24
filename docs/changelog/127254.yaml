@@ -1,0 +1,5 @@
+pr: 127254
+summary: "[ML] Add HuggingFace Chat Completion support to the Inference Plugin"
+area: Machine Learning
+type: enhancement
+issues: []

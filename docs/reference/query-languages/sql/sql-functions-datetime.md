@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-functions-datetime.html
 ---
 
-# Date/Time and Interval Functions and Operators [sql-functions-datetime]
+# Date/time and interval functions and operators [sql-functions-datetime]
 
 Elasticsearch SQL offers a wide range of facilities for performing date/time manipulations.
 
@@ -1153,7 +1153,7 @@ DAY_NAME(datetime_exp) <1>
 
 **Output**: string
 
-**Description**: Extract the day of the week from a date/datetime in text format (`Monday`, `Tuesday`…​).
+**Description**: Extract the day of the week from a date/datetime in text format (`Monday`, `Tuesday`… ).
 
 ```sql
 SELECT DAY_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS day;
@@ -1321,7 +1321,7 @@ MONTH_NAME(datetime_exp) <1>
 
 **Output**: string
 
-**Description**: Extract the month from a date/datetime in text format (`January`, `February`…​).
+**Description**: Extract the month from a date/datetime in text format (`January`, `February`… ).
 
 ```sql
 SELECT MONTH_NAME(CAST('2018-02-19T10:23:27Z' AS TIMESTAMP)) AS month;

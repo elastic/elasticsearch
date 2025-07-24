@@ -33,8 +33,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -93,8 +94,13 @@ public class FileSettingsServiceTests extends ESTestCase {
     private ReservedClusterStateService controller;
     private ThreadPool threadpool;
     private FileSettingsService fileSettingsService;
-    private FileSettingsHealthIndicatorService healthIndicatorService;
+    private FileSettingsHealthTracker healthIndicatorTracker;
     private Path watchedFile;
+
+    /**
+     * We're not testing health info publication here.
+     */
+    public static final FileSettingsHealthIndicatorPublisher NOOP_PUBLISHER = (f, a) -> {};
 
     @Before
     public void setUp() throws Exception {
@@ -141,8 +147,8 @@ public class FileSettingsServiceTests extends ESTestCase {
                 List.of()
             )
         );
-        healthIndicatorService = spy(new FileSettingsHealthIndicatorService(Settings.EMPTY));
-        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, healthIndicatorService));
+        healthIndicatorTracker = spy(new FileSettingsHealthTracker(Settings.EMPTY, NOOP_PUBLISHER));
+        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, healthIndicatorTracker));
         watchedFile = fileSettingsService.watchedFile();
     }
 
@@ -174,8 +180,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(fileSettingsService.watching());
         fileSettingsService.stop();
         assertFalse(fileSettingsService.watching());
-        verify(healthIndicatorService, times(1)).startOccurred();
-        verify(healthIndicatorService, times(1)).stopOccurred();
+        verify(healthIndicatorTracker, times(1)).startOccurred();
+        verify(healthIndicatorTracker, times(1)).stopOccurred();
     }
 
     public void testOperatorDirName() {
@@ -228,9 +234,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
-        assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService, times(1)).changeOccurred();
-        verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalStateException.class.getName())));
+        assertEquals(YELLOW, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker, times(1)).changeOccurred();
+        verify(healthIndicatorTracker, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalStateException.class.getName())));
     }
 
     @SuppressWarnings("unchecked")
@@ -263,9 +269,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(true));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
-        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService, times(1)).changeOccurred();
-        verify(healthIndicatorService, times(1)).successOccurred();
+        assertEquals(GREEN, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker, times(1)).changeOccurred();
+        verify(healthIndicatorTracker, times(1)).successOccurred();
     }
 
     @SuppressWarnings("unchecked")
@@ -318,9 +324,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(fileSettingsService, times(1)).processFile(eq(watchedFile), eq(false));
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
 
-        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService, times(2)).changeOccurred();
-        verify(healthIndicatorService, times(2)).successOccurred();
+        assertEquals(GREEN, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker, times(2)).changeOccurred();
+        verify(healthIndicatorTracker, times(2)).successOccurred();
     }
 
     public void testInvalidJSON() throws Exception {
@@ -362,8 +368,8 @@ public class FileSettingsServiceTests extends ESTestCase {
             argThat(e -> unwrapException(e) instanceof XContentParseException)
         );
 
-        assertEquals(YELLOW, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService, Mockito.atLeast(1)).failureOccurred(contains(XContentParseException.class.getName()));
+        assertEquals(YELLOW, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker, Mockito.atLeast(1)).failureOccurred(contains(XContentParseException.class.getName()));
     }
 
     /**
@@ -429,8 +435,8 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.close();
 
         // When the service is stopped, the health indicator should be green
-        assertEquals(GREEN, healthIndicatorService.calculate(false, null).status());
-        verify(healthIndicatorService).stopOccurred();
+        assertEquals(GREEN, currentHealthIndicatorResult().status());
+        verify(healthIndicatorTracker).stopOccurred();
 
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
@@ -503,6 +509,10 @@ public class FileSettingsServiceTests extends ESTestCase {
             Thread.currentThread().interrupt();
             fail(e, "longAwait: interrupted waiting for CountDownLatch to reach zero");
         }
+    }
+
+    private HealthIndicatorResult currentHealthIndicatorResult() {
+        return new FileSettingsService.FileSettingsHealthIndicatorService().calculate(healthIndicatorTracker.getCurrentInfo());
     }
 
 }

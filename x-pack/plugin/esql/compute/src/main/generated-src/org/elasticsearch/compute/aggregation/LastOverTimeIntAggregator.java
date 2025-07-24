@@ -20,8 +20,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
 /**
- * A time-series aggregation function that collects the most recent value of a time series in a specified interval.
- * This class is generated. Edit `X-LastOverTimeAggregator.java.st` instead.
+ * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
+ * This class is generated. Edit `X-ValueOverTimeAggregator.java.st` instead.
  */
 @GroupingAggregator(
     timeseries = true,
@@ -56,14 +56,6 @@ public class LastOverTimeIntAggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState otherState, int otherGroupId) {
-        if (otherGroupId < otherState.timestamps.size() && otherState.hasValue(otherGroupId)) {
-            var timestamp = otherState.timestamps.get(otherGroupId);
-            var value = otherState.values.get(otherGroupId);
-            current.collectValue(currentGroupId, timestamp, value);
-        }
-    }
-
     public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
         return state.evaluateFinal(selected, evalContext);
     }
@@ -72,6 +64,7 @@ public class LastOverTimeIntAggregator {
         private final BigArrays bigArrays;
         private LongArray timestamps;
         private IntArray values;
+        private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
             super(bigArrays);
@@ -91,18 +84,23 @@ public class LastOverTimeIntAggregator {
         }
 
         void collectValue(int groupId, long timestamp, int value) {
+            boolean updated = false;
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
-                if (hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
+                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
                     timestamps.set(groupId, timestamp);
-                    values.set(groupId, value);
+                    updated = true;
                 }
             } else {
                 timestamps = bigArrays.grow(timestamps, groupId + 1);
-                values = bigArrays.grow(values, groupId + 1);
                 timestamps.set(groupId, timestamp);
+                updated = true;
+            }
+            if (updated) {
+                values = bigArrays.grow(values, groupId + 1);
                 values.set(groupId, value);
             }
+            maxGroupId = Math.max(maxGroupId, groupId);
             trackGroupId(groupId);
         }
 

@@ -15,12 +15,14 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
+import static org.elasticsearch.compute.data.ElementType.NULL;
 import static org.elasticsearch.compute.data.ElementType.fromJava;
 
 public final class BlockUtils {
@@ -222,6 +224,13 @@ public final class BlockUtils {
         if (val == null) {
             return blockFactory.newConstantNullBlock(size);
         }
+        if (val instanceof Collection<?> collection) {
+            if (collection.isEmpty()) {
+                return constantBlock(blockFactory, NULL, val, size);
+            }
+            Object colVal = collection.iterator().next();
+            return constantBlock(blockFactory, fromJava(colVal.getClass()), colVal, size);
+        }
         return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
     }
 
@@ -234,14 +243,8 @@ public final class BlockUtils {
             case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
-            case COMPOSITE -> {
-                if (val instanceof AggregateMetricDoubleLiteral aggregateMetricDoubleLiteral) {
-                    yield blockFactory.newConstantAggregateMetricDoubleBlock(aggregateMetricDoubleLiteral, size);
-                }
-                throw new UnsupportedOperationException(
-                    "Composite block but received value that wasn't AggregateMetricDoubleLiteral [" + val + "]"
-                );
-            }
+            case AGGREGATE_METRIC_DOUBLE -> blockFactory.newConstantAggregateMetricDoubleBlock((AggregateMetricDoubleLiteral) val, size);
+            case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -285,17 +288,14 @@ public final class BlockUtils {
                 DocVector v = ((DocBlock) block).asVector();
                 yield new Doc(v.shards().getInt(offset), v.segments().getInt(offset), v.docs().getInt(offset));
             }
-            case COMPOSITE -> {
-                CompositeBlock compositeBlock = (CompositeBlock) block;
-                var minBlock = (DoubleBlock) compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex());
-                var maxBlock = (DoubleBlock) compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex());
-                var sumBlock = (DoubleBlock) compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex());
-                var countBlock = (IntBlock) compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex());
+            case COMPOSITE -> throw new IllegalArgumentException("can't read values from composite blocks");
+            case AGGREGATE_METRIC_DOUBLE -> {
+                AggregateMetricDoubleBlock aggBlock = (AggregateMetricDoubleBlock) block;
                 yield new AggregateMetricDoubleLiteral(
-                    minBlock.getDouble(offset),
-                    maxBlock.getDouble(offset),
-                    sumBlock.getDouble(offset),
-                    countBlock.getInt(offset)
+                    aggBlock.minBlock().getDouble(offset),
+                    aggBlock.maxBlock().getDouble(offset),
+                    aggBlock.sumBlock().getDouble(offset),
+                    aggBlock.countBlock().getInt(offset)
                 );
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");

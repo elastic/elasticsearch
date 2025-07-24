@@ -23,9 +23,13 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
+import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
 
@@ -60,9 +64,24 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
         return new Lucene99FlatVectorsWriter(state, vectorsScorer);
     }
 
+    static boolean shouldUseDirectIO(SegmentReadState state) {
+        assert ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO;
+        return FsDirectoryFactory.isHybridFs(state.directory)
+            && FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier;
+    }
+
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new DirectIOLucene99FlatVectorsReader(state, vectorsScorer);
+        if (shouldUseDirectIO(state) && state.context.context() == IOContext.Context.DEFAULT) {
+            // Use mmap for merges and direct I/O for searches.
+            // TODO: Open the mmap file with sequential access instead of random (current behavior).
+            return new MergeReaderWrapper(
+                new DirectIOLucene99FlatVectorsReader(state, vectorsScorer),
+                new Lucene99FlatVectorsReader(state, vectorsScorer)
+            );
+        } else {
+            return new Lucene99FlatVectorsReader(state, vectorsScorer);
+        }
     }
 
     @Override

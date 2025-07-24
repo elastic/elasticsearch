@@ -67,7 +67,11 @@ public class OpenAiChatCompletionResponseEntity {
      */
 
     public static ChatCompletionResults fromResponse(Request request, HttpResult response) throws IOException {
-        try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {
+        return fromResponse(response.body());
+    }
+
+    public static ChatCompletionResults fromResponse(byte[] response) throws IOException {
+        try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response)) {
             return CompletionResult.PARSER.apply(p, null).toChatCompletionResults();
         }
     }

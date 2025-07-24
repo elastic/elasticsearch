@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class EvalOperatorTests extends OperatorTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
-        return new TupleBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
+        return new TupleLongLongBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
     record Addition(DriverContext driverContext, int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
@@ -68,7 +68,7 @@ public class EvalOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new EvalOperator.EvalOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
             @Override
             public EvalOperator.ExpressionEvaluator get(DriverContext context) {

@@ -15,6 +15,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.aggregatemetric.mapper.datageneration.AggregateMetricDoubleDataSourceHandler;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -31,6 +32,11 @@ public class AggregateMetricDoubleFieldBlockLoaderTests extends BlockLoaderTestC
                 return new DataSourceResponse.ObjectArrayGenerator(Optional::empty);
             }
         }), params);
+    }
+
+    @Override
+    public void testBlockLoaderOfMultiField() throws IOException {
+        // Multi fields are noop for aggregate_metric_double.
     }
 
     @Override

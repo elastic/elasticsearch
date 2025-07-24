@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferen
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -44,7 +43,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
 
     private static ResponseHandler createAuthResponseHandler() {
         return new ElasticInferenceServiceResponseHandler(
-            String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
+            Strings.format("%s authorization", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
             ElasticInferenceServiceAuthorizationResponseEntity::fromResponse
         );
     }
@@ -120,7 +119,7 @@ public class ElasticInferenceServiceAuthorizationRequestHandler {
     }
 
     private TraceContext getCurrentTraceInfo() {
-        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
+        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
         var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
 
         return new TraceContext(traceParent, traceState);

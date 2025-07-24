@@ -72,8 +72,7 @@ import static org.mockito.Mockito.when;
  */
 public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
-    private TransformState<ClusterState> processJSON(ReservedSnapshotAction action, TransformState<ClusterState> prevState, String json)
-        throws Exception {
+    private TransformState processJSON(ReservedSnapshotAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(action.fromXContent(parser), prevState);
         }
@@ -91,7 +90,7 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(clusterName).build();
         ReservedSnapshotAction action = new ReservedSnapshotAction();
-        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of());
+        TransformState prevState = new TransformState(state, Set.of());
 
         String badPolicyJSON = """
             {
@@ -133,9 +132,9 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
 
         String emptyJSON = "";
 
-        TransformState<ClusterState> prevState = new TransformState<>(state, Set.of());
+        TransformState prevState = new TransformState(state, Set.of());
 
-        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -291,8 +290,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         ReservedClusterStateService controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(new ReservedClusterSettingsAction(clusterSettings), new ReservedRepositoryAction(repositoriesService)),
-            List.of()
+            List.of(new ReservedClusterSettingsAction(clusterSettings)),
+            List.of(new ReservedRepositoryAction(repositoriesService))
         );
 
         String testJSON = """
@@ -363,12 +362,8 @@ public class ReservedSnapshotLifecycleStateServiceTests extends ESTestCase {
         controller = new ReservedClusterStateService(
             clusterService,
             null,
-            List.of(
-                new ReservedClusterSettingsAction(clusterSettings),
-                new ReservedSnapshotAction(),
-                new ReservedRepositoryAction(repositoriesService)
-            ),
-            List.of()
+            List.of(new ReservedClusterSettingsAction(clusterSettings), new ReservedSnapshotAction()),
+            List.of(new ReservedRepositoryAction(repositoriesService))
         );
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {

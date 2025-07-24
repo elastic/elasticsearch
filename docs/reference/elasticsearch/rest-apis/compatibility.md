@@ -16,7 +16,7 @@ When an API is targeted for removal or is going to be changed in a non-compatibl
 
 When you request REST API compatibility, {{es}} attempts to honor the previous REST API version. {{es}} attempts to apply the most compatible URL, request body, response body, and HTTP parameters.
 
-For compatible APIs, this has no effect—​it only impacts calls to APIs that have breaking changes from the previous version. An error can still be returned in compatibility mode if {{es}} cannot automatically resolve the incompatibilities.
+For compatible APIs, this has no effect— it only impacts calls to APIs that have breaking changes from the previous version. An error can still be returned in compatibility mode if {{es}} cannot automatically resolve the incompatibilities.
 
 ::::{important}
 REST API compatibility does not guarantee the same behavior as the prior version. It instructs {{es}} to automatically resolve any incompatibilities so the request can be processed instead of returning an error.

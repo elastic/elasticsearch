@@ -12,9 +12,11 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask;
@@ -146,8 +148,12 @@ class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWri
      * @return the geoip downloader's task state or null if there is not a state to read
      */
     @Nullable
+    @FixForMultiProject(description = "Replace ProjectId.DEFAULT")
     static EnterpriseGeoIpTaskState getEnterpriseGeoIpTaskState(ClusterState state) {
-        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(state, EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER);
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(
+            state.metadata().getProject(ProjectId.DEFAULT),
+            EnterpriseGeoIpTask.ENTERPRISE_GEOIP_DOWNLOADER
+        );
         return (task == null) ? null : (EnterpriseGeoIpTaskState) task.getState();
     }
 

@@ -13,7 +13,6 @@ import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
-import jdk.incubator.vector.Vector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
@@ -31,6 +30,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     static final int VECTOR_BITSIZE;
 
     private static final VectorSpecies<Float> FLOAT_SPECIES;
+    private static final VectorSpecies<Integer> INTEGER_SPECIES;
     /** Whether integer vectors can be trusted to actually be fast. */
     static final boolean HAS_FAST_INTEGER_VECTORS;
 
@@ -38,6 +38,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         // default to platform supported bitsize
         VECTOR_BITSIZE = VectorShape.preferredShape().vectorBitSize();
         FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(VECTOR_BITSIZE));
+        INTEGER_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(VECTOR_BITSIZE));
 
         // hotspot misses some SSE intrinsics, workaround it
         // to be fair, they do document this thing only works well with AVX2/AVX3 and Neon
@@ -270,36 +271,26 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void calculateOSQGridPoints(float[] target, float[] interval, int points, float invStep, float[] pts) {
-        float a = interval[0];
-        float b = interval[1];
+    public void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
         int i = 0;
         float daa = 0;
         float dab = 0;
         float dbb = 0;
         float dax = 0;
         float dbx = 0;
-
-        FloatVector daaVec = FloatVector.zero(FLOAT_SPECIES);
-        FloatVector dabVec = FloatVector.zero(FLOAT_SPECIES);
-        FloatVector dbbVec = FloatVector.zero(FLOAT_SPECIES);
-        FloatVector daxVec = FloatVector.zero(FLOAT_SPECIES);
-        FloatVector dbxVec = FloatVector.zero(FLOAT_SPECIES);
-
         // if the array size is large (> 2x platform vector size), it's worth the overhead to vectorize
         if (target.length > 2 * FLOAT_SPECIES.length()) {
+            FloatVector daaVec = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector dabVec = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector dbbVec = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector daxVec = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector dbxVec = FloatVector.zero(FLOAT_SPECIES);
             FloatVector ones = FloatVector.broadcast(FLOAT_SPECIES, 1f);
             FloatVector pmOnes = FloatVector.broadcast(FLOAT_SPECIES, points - 1f);
             for (; i < FLOAT_SPECIES.loopBound(target.length); i += FLOAT_SPECIES.length()) {
                 FloatVector v = FloatVector.fromArray(FLOAT_SPECIES, target, i);
-                FloatVector vClamped = v.max(a).min(b);
-                Vector<Integer> xiqint = vClamped.sub(a)
-                    .mul(invStep)
-                    // round
-                    .add(0.5f)
-                    .convert(VectorOperators.F2I, 0);
-                FloatVector kVec = xiqint.convert(VectorOperators.I2F, 0).reinterpretAsFloats();
-                FloatVector sVec = kVec.div(pmOnes);
+                FloatVector oVec = IntVector.fromArray(INTEGER_SPECIES, quantize, i).convert(VectorOperators.I2F, 0).reinterpretAsFloats();
+                FloatVector sVec = oVec.div(pmOnes);
                 FloatVector smVec = ones.sub(sVec);
                 daaVec = fma(smVec, smVec, daaVec);
                 dabVec = fma(smVec, sVec, dabVec);
@@ -315,7 +306,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         }
 
         for (; i < target.length; i++) {
-            float k = Math.round((Math.min(Math.max(target[i], a), b) - a) * invStep);
+            float k = quantize[i];
             float s = k / (points - 1);
             float ms = 1f - s;
             daa = fma(ms, ms, daa);
@@ -333,9 +324,18 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float calculateOSQLoss(float[] target, float[] interval, float step, float invStep, float norm2, float lambda) {
-        float a = interval[0];
-        float b = interval[1];
+    public float calculateOSQLoss(
+        float[] target,
+        float lowerInterval,
+        float upperInterval,
+        float step,
+        float invStep,
+        float norm2,
+        float lambda,
+        int[] quantize
+    ) {
+        float a = lowerInterval;
+        float b = upperInterval;
         float xe = 0f;
         float e = 0f;
         FloatVector xeVec = FloatVector.zero(FLOAT_SPECIES);
@@ -346,8 +346,10 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             for (; i < FLOAT_SPECIES.loopBound(target.length); i += FLOAT_SPECIES.length()) {
                 FloatVector v = FloatVector.fromArray(FLOAT_SPECIES, target, i);
                 FloatVector vClamped = v.max(a).min(b);
-                Vector<Integer> xiqint = vClamped.sub(a).mul(invStep).add(0.5f).convert(VectorOperators.F2I, 0);
-                FloatVector xiq = xiqint.convert(VectorOperators.I2F, 0).reinterpretAsFloats().mul(step).add(a);
+                IntVector xiqint = vClamped.sub(a).mul(invStep).add(0.5f).convert(VectorOperators.F2I, 0).reinterpretAsInts();
+                xiqint.intoArray(quantize, i);
+                FloatVector quantizeVec = xiqint.convert(VectorOperators.I2F, 0).reinterpretAsFloats();
+                FloatVector xiq = quantizeVec.mul(step).add(a);
                 FloatVector xiiq = v.sub(xiq);
                 xeVec = fma(v, xiiq, xeVec);
                 eVec = fma(xiiq, xiiq, eVec);
@@ -357,14 +359,66 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         }
 
         for (; i < target.length; i++) {
+            quantize[i] = Math.round((Math.min(Math.max(target[i], a), b) - a) * invStep);
             // this is quantizing and then dequantizing the vector
-            float xiq = fma(step, Math.round((Math.min(Math.max(target[i], a), b) - a) * invStep), a);
+            float xiq = fma(step, quantize[i], a);
             // how much does the de-quantized value differ from the original value
             float xiiq = target[i] - xiq;
             e = fma(xiiq, xiiq, e);
             xe = fma(target[i], xiiq, xe);
         }
         return (1f - lambda) * xe * xe / norm2 + lambda * e;
+    }
+
+    @Override
+    public float soarDistance(float[] v1, float[] centroid, float[] originalResidual, float soarLambda, float rnorm) {
+        assert v1.length == centroid.length;
+        assert v1.length == originalResidual.length;
+        float proj = 0;
+        float dsq = 0;
+        int i = 0;
+        if (v1.length > 2 * FLOAT_SPECIES.length()) {
+            FloatVector projVec1 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector projVec2 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES);
+            int unrolledLimit = FLOAT_SPECIES.loopBound(v1.length) - FLOAT_SPECIES.length();
+            for (; i < unrolledLimit; i += 2 * FLOAT_SPECIES.length()) {
+                // one
+                FloatVector v1Vec0 = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+                FloatVector centroidVec0 = FloatVector.fromArray(FLOAT_SPECIES, centroid, i);
+                FloatVector originalResidualVec0 = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i);
+                FloatVector djkVec0 = v1Vec0.sub(centroidVec0);
+                projVec1 = fma(djkVec0, originalResidualVec0, projVec1);
+                acc1 = fma(djkVec0, djkVec0, acc1);
+
+                // two
+                FloatVector v1Vec1 = FloatVector.fromArray(FLOAT_SPECIES, v1, i + FLOAT_SPECIES.length());
+                FloatVector centroidVec1 = FloatVector.fromArray(FLOAT_SPECIES, centroid, i + FLOAT_SPECIES.length());
+                FloatVector originalResidualVec1 = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i + FLOAT_SPECIES.length());
+                FloatVector djkVec1 = v1Vec1.sub(centroidVec1);
+                projVec2 = fma(djkVec1, originalResidualVec1, projVec2);
+                acc2 = fma(djkVec1, djkVec1, acc2);
+            }
+            // vector tail
+            for (; i < FLOAT_SPECIES.loopBound(v1.length); i += FLOAT_SPECIES.length()) {
+                FloatVector v1Vec = FloatVector.fromArray(FLOAT_SPECIES, v1, i);
+                FloatVector centroidVec = FloatVector.fromArray(FLOAT_SPECIES, centroid, i);
+                FloatVector originalResidualVec = FloatVector.fromArray(FLOAT_SPECIES, originalResidual, i);
+                FloatVector djkVec = v1Vec.sub(centroidVec);
+                projVec1 = fma(djkVec, originalResidualVec, projVec1);
+                acc1 = fma(djkVec, djkVec, acc1);
+            }
+            proj += projVec1.add(projVec2).reduceLanes(ADD);
+            dsq += acc1.add(acc2).reduceLanes(ADD);
+        }
+        // tail
+        for (; i < v1.length; i++) {
+            float djk = v1[i] - centroid[i];
+            proj = fma(djk, originalResidual[i], proj);
+            dsq = fma(djk, djk, dsq);
+        }
+        return dsq + soarLambda * proj * proj / rnorm;
     }
 
     private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
@@ -739,5 +793,33 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         }
 
         return sum;
+    }
+
+    @Override
+    public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
+        float nSteps = ((1 << bits) - 1);
+        float step = (upperInterval - lowInterval) / nSteps;
+        int sumQuery = 0;
+        int i = 0;
+        if (vector.length > 2 * FLOAT_SPECIES.length()) {
+            int limit = FLOAT_SPECIES.loopBound(vector.length);
+            FloatVector lowVec = FloatVector.broadcast(FLOAT_SPECIES, lowInterval);
+            FloatVector upperVec = FloatVector.broadcast(FLOAT_SPECIES, upperInterval);
+            FloatVector stepVec = FloatVector.broadcast(FLOAT_SPECIES, step);
+            for (; i < limit; i += FLOAT_SPECIES.length()) {
+                FloatVector v = FloatVector.fromArray(FLOAT_SPECIES, vector, i);
+                FloatVector xi = v.max(lowVec).min(upperVec); // clamp
+                IntVector assignment = xi.sub(lowVec).div(stepVec).add(0.5f).convert(VectorOperators.F2I, 0).reinterpretAsInts(); // round
+                sumQuery += assignment.reduceLanes(ADD);
+                assignment.intoArray(destination, i);
+            }
+        }
+        for (; i < vector.length; i++) {
+            float xi = Math.min(Math.max(vector[i], lowInterval), upperInterval);
+            int assignment = Math.round((xi - lowInterval) / step);
+            sumQuery += assignment;
+            destination[i] = assignment;
+        }
+        return sumQuery;
     }
 }

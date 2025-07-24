@@ -261,7 +261,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         if (centroidQueue.size() > 2 && numCentroids > nProbe) {
             // If the difference is small, increase nprobe to search more centroids
             if (centroidQueryScorer.scoreRatioAtNprobe() < 0.001f) {
-                nProbe = (int) Math.min(nProbe * 1.1, centroidQueryScorer.size());
+                nProbe = (int) Math.min(nProbe * 2.0, numCentroids);
             }
         }
 

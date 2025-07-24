@@ -25,6 +25,7 @@ import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -95,16 +96,21 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             public void bulkScore(NeighborQueue queue) throws IOException {
                 // TODO: bulk score centroids like we do with posting lists
                 centroids.seek(0L);
-                float nprobeScore = Float.NaN;
+                float[] centroidsScratch = null;
+                if (numCentroids > nProbe) {
+                    centroidsScratch = new float[numCentroids];
+                }
                 for (int i = 0; i < numCentroids; i++) {
                     float score = score();
                     queue.add(i, score);
-                    if (i == nProbe - 1) {
-                        nprobeScore = score;
+                    if (numCentroids > nProbe) {
+                        centroidsScratch[i] = score;
                     }
                 }
-                if (Float.isNaN(nprobeScore) == false) {
-                    float topScore = queue.topScore();
+                if (numCentroids > nProbe) {
+                    Arrays.sort(centroidsScratch);
+                    float topScore = centroidsScratch[nProbe - 1];
+                    float nprobeScore = centroidsScratch[0];
                     diff = (topScore - nprobeScore) / topScore;
                 }
             }

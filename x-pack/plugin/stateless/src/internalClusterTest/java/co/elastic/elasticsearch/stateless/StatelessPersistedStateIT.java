@@ -55,6 +55,7 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
         try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
             BytesArray rootBlob = new BytesArray(inputStream.readAllBytes());
             StreamInput input = rootBlob.streamInput();
+            input.readInt();
             input.readLong();
             nodeLeftGenerationBeforeNodeLeft = input.readLong();
         }
@@ -65,8 +66,9 @@ public class StatelessPersistedStateIT extends AbstractStatelessIntegTestCase {
 
         try (InputStream inputStream = blobContainerForTermLease.readBlob(operationPurpose, "lease")) {
             BytesArray newRootBlob = new BytesArray(inputStream.readAllBytes());
-            assertThat(newRootBlob.length(), equalTo(16));
+            assertThat(newRootBlob.length(), equalTo(28));
             StreamInput input = newRootBlob.streamInput();
+            input.readInt();
             input.readLong();
             assertEquals(nodeLeftGenerationBeforeNodeLeft + 1, input.readLong());
         }

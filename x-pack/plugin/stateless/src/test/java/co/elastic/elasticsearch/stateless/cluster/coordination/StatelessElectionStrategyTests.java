@@ -51,6 +51,8 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static co.elastic.elasticsearch.stateless.cluster.coordination.StatelessLease.LEGACY_FORMAT_VERSION;
+import static co.elastic.elasticsearch.stateless.cluster.coordination.StatelessLease.V1_FORMAT_VERSION;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -276,7 +278,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                 assertThat(beforeCommitListener.isDone(), is(false));
 
                 if (retry == StatelessElectionStrategy.MAX_READ_CURRENT_LEASE_TERM_RETRIES - 1 && failAllReads == false) {
-                    registerValueRef.set(OptionalBytesReference.of(new StatelessLease(1, 0).asBytes()));
+                    registerValueRef.set(OptionalBytesReference.of(new StatelessLease(1, 0, 0).asBytes()));
                 }
 
                 deterministicTaskQueue.runAllRunnableTasks();
@@ -335,13 +337,80 @@ public class StatelessElectionStrategyTests extends ESTestCase {
     }
 
     public void testLeaseOrdering() {
-        final var term = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
-        assertThat(new StatelessLease(term, randomLong()), lessThan(new StatelessLease(term + 1, randomLong())));
-        assertThat(new StatelessLease(term, randomLong()), greaterThan(new StatelessLease(term - 1, randomLong())));
+        final var term = randomNonNegativeLong();
+        assertThat(
+            StatelessLease.compare(
+                new StatelessLease(
+                    randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION),
+                    term,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                ),
+                new StatelessLease(
+                    randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION),
+                    term + 1,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+            ),
+            lessThan(0)
+        );
+        assertThat(
+            StatelessLease.compare(
+                new StatelessLease(
+                    randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION),
+                    term,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                ),
+                new StatelessLease(
+                    randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION),
+                    term - 1,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+            ),
+            greaterThan(0)
+        );
 
-        final var gen = randomLongBetween(Long.MIN_VALUE + 1, Long.MAX_VALUE - 1);
-        assertThat(new StatelessLease(term, gen), lessThan(new StatelessLease(term, gen + 1)));
-        assertThat(new StatelessLease(term, gen), greaterThan(new StatelessLease(term, gen - 1)));
+        final var nodeLeftGen = randomNonNegativeLong();
+        assertThat(
+            StatelessLease.compare(
+                new StatelessLease(randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION), term, nodeLeftGen, randomNonNegativeLong()),
+                new StatelessLease(randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION), term, nodeLeftGen + 1, randomNonNegativeLong())
+            ),
+            lessThan(0)
+        );
+        assertThat(
+            StatelessLease.compare(
+                new StatelessLease(randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION), term, nodeLeftGen, randomNonNegativeLong()),
+                new StatelessLease(randomFrom(LEGACY_FORMAT_VERSION, V1_FORMAT_VERSION), term, nodeLeftGen - 1, randomNonNegativeLong())
+            ),
+            greaterThan(0)
+        );
+
+        final var projectsUnderDeletedGen = randomNonNegativeLong();
+        assertThat(
+            StatelessLease.compare(
+                new StatelessLease(term, nodeLeftGen, projectsUnderDeletedGen),
+                new StatelessLease(term, nodeLeftGen, projectsUnderDeletedGen + 1)
+            ),
+            lessThan(0)
+        );
+        assertThat(
+            StatelessLease.compare(
+                new StatelessLease(term, nodeLeftGen, projectsUnderDeletedGen),
+                new StatelessLease(term, nodeLeftGen, projectsUnderDeletedGen - 1)
+            ),
+            greaterThan(0)
+        );
+        assertThat(
+            StatelessLease.compare(
+                new StatelessLease(LEGACY_FORMAT_VERSION, term, nodeLeftGen, randomNonNegativeLong()),
+                new StatelessLease(term, nodeLeftGen, projectsUnderDeletedGen)
+            ),
+            equalTo(0)
+        );
     }
 
     static class Node extends Thread {

@@ -44,11 +44,13 @@ import java.util.OptionalLong;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.STATELESS_LEASE_BLOB_V1_FORMAT;
+
 public class StatelessElectionStrategy extends ElectionStrategy {
     private static final Logger logger = LogManager.getLogger(StatelessElectionStrategy.class);
 
     public static final String NAME = "stateless_election_strategy";
-    private static final String LEASE_BLOB = "lease";
+    public static final String LEASE_BLOB = "lease";
     static final TimeValue READ_CURRENT_LEASE_TERM_RETRY_DELAY = TimeValue.timeValueMillis(200);
     static final int MAX_READ_CURRENT_LEASE_TERM_RETRIES = 4;
     private final Supplier<BlobContainer> blobContainerSupplier;
@@ -105,7 +107,17 @@ public class StatelessElectionStrategy extends ElectionStrategy {
     public void onNewElection(DiscoveryNode candidateMasterNode, long proposedTerm, ActionListener<StartJoinRequest> listener) {
         readLease(listener.delegateFailure((delegate, currentLeaseOpt) -> {
             final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
-            final StatelessLease newLease = new StatelessLease(Math.max(proposedTerm, currentLease.currentTerm() + 1), 0);
+            // Use the same lease format version as the current lease since it is possible to have a mixed cluster and
+            // we don't have a way to check using th cluster state MinVersion here
+            final StatelessLease newLease = new StatelessLease(
+                currentLease.formatVersion(),
+                Math.max(proposedTerm, currentLease.currentTerm() + 1),
+                0,
+                // TODO: projectsUnderDeletedGeneration in the cluster state is ephemeral and is lost on a full cluster restart.
+                // we need to either reset projectsUnderDeletedGeneration too upon master election or persist it in the cluster metadata.
+                // https://elasticco.atlassian.net/browse/ES-12451
+                currentLease.projectsUnderDeletedGeneration()
+            );
 
             blobContainer().compareAndSetRegister(
                 OperationPurpose.CLUSTER_STATE,
@@ -127,7 +139,10 @@ public class StatelessElectionStrategy extends ElectionStrategy {
         }));
     }
 
-    public void onNodeLeft(long expectedTerm, long nodeLeftGeneration) {
+    public void updateLease(ClusterState clusterState) {
+        long expectedTerm = clusterState.term();
+        long nodeLeftGeneration = clusterState.nodes().getNodeLeftGeneration();
+        long projectsMarkedForDeletionGeneration = StatelessLease.getProjectsMarkedForDeletionGeneration(clusterState);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         readLease(future.delegateFailureAndWrap((delegate, currentLeaseOpt) -> {
             final StatelessLease currentLease = currentLeaseOpt.orElse(StatelessLease.ZERO);
@@ -139,18 +154,27 @@ public class StatelessElectionStrategy extends ElectionStrategy {
                 );
                 return;
             }
-            final StatelessLease newLease = new StatelessLease(currentLease.currentTerm(), nodeLeftGeneration);
-            if (nodeLeftGeneration <= currentLease.nodeLeftGeneration()) {
+            final StatelessLease newLease;
+            if (currentLease.formatVersion() == StatelessLease.LEGACY_FORMAT_VERSION
+                && clusterState.getMinTransportVersion().before(STATELESS_LEASE_BLOB_V1_FORMAT)) {
+                newLease = new StatelessLease(StatelessLease.LEGACY_FORMAT_VERSION, currentLease.currentTerm(), nodeLeftGeneration, 0);
+            } else {
+                newLease = new StatelessLease(currentLease.currentTerm(), nodeLeftGeneration, projectsMarkedForDeletionGeneration);
+            }
+            if (nodeLeftGeneration <= currentLease.nodeLeftGeneration()
+                && projectsMarkedForDeletionGeneration <= currentLease.projectsUnderDeletedGeneration()) {
                 assert nodeLeftGeneration == currentLease.nodeLeftGeneration()
+                    && projectsMarkedForDeletionGeneration == currentLease.projectsUnderDeletedGeneration()
                     : "tried to set [" + newLease + "] after [" + currentLease + "]";
                 delegate.onResponse(null);
                 return;
             }
+            final var newLeaseBytes = newLease.asBytes();
             blobContainer().compareAndSetRegister(
                 OperationPurpose.CLUSTER_STATE,
                 LEASE_BLOB,
                 currentLease.asBytes(),
-                newLease.asBytes(),
+                newLeaseBytes,
                 delegate.delegateFailure((delegate2, updated) -> {
                     if (updated) {
                         delegate2.onResponse(null);

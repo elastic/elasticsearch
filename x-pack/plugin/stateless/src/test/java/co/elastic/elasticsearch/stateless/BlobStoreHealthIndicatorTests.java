@@ -77,7 +77,9 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         nextTick.set(responseTime);
         listenerCaptor.getValue()
             .onResponse(
-                randomBoolean() ? Optional.empty() : Optional.of(new StatelessLease(randomNonNegativeInt(), randomNonNegativeInt()))
+                randomBoolean()
+                    ? Optional.empty()
+                    : Optional.of(new StatelessLease(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()))
             );
         long healthRequestTime = responseTime + randomIntBetween(1, 100);
         nextTick.set(healthRequestTime);
@@ -155,7 +157,9 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         nextTick.set(responseTime);
         listenerCaptor.getValue()
             .onResponse(
-                randomBoolean() ? Optional.empty() : Optional.of(new StatelessLease(randomNonNegativeInt(), randomNonNegativeInt()))
+                randomBoolean()
+                    ? Optional.empty()
+                    : Optional.of(new StatelessLease(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()))
             );
         long healthRequestTime = responseTime + randomIntBetween(1, 100);
         nextTick.set(healthRequestTime);
@@ -187,7 +191,11 @@ public class BlobStoreHealthIndicatorTests extends ESTestCase {
         indicator.runCheck();
         verify(electionStrategy, times(1)).readLease(listenerCaptor.capture());
         listenerCaptor.getValue()
-            .onResponse(randomBoolean() ? Optional.empty() : Optional.of(new StatelessLease(randomInt(), randomInt())));
+            .onResponse(
+                randomBoolean()
+                    ? Optional.empty()
+                    : Optional.of(new StatelessLease(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()))
+            );
         assertThat(indicator.getInProgress(), is(false));
         indicator.close();
     }

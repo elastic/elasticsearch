@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessLeaseIT;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -25,8 +26,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.JoinValidationService;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -41,8 +45,14 @@ import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class StatelessClusterConsistencyServiceIT extends AbstractStatelessIntegTestCase {
+
+    @Override
+    protected boolean multiProjectIntegrationTest() {
+        return true;
+    }
 
     public void testValidateClusterStateSuccessful() {
         startMasterOnlyNode();
@@ -231,5 +241,66 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
         }
 
         safeAwait(delayedChecksCompleted);
+    }
+
+    public void testConsistencyServiceConsidersProjectDeletions() throws Exception {
+        var masterNode = startMasterOnlyNode();
+        var indexNode = startIndexNode();
+        ensureStableCluster(2);
+        var projectId = randomUniqueProjectId();
+        try {
+            putProject(projectId);
+        } catch (Exception e) {
+            fail(e, "failed to create project [%s]", projectId);
+        }
+        var indexNodeTransport = MockTransportService.getInstance(indexNode);
+        final var blockStateCommit = new CountDownLatch(1);
+        indexNodeTransport.addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
+            safeAwait(blockStateCommit);
+            handler.messageReceived(request, channel, task);
+        });
+        final StatelessClusterConsistencyService consistencyService = internalCluster().getInstance(
+            StatelessClusterConsistencyService.class,
+            indexNode
+        );
+        // Mark the project for deletion
+        // TODO: do this via updating file-based settings once https://elasticco.atlassian.net/browse/ES-12375 is done
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    var builder = ProjectStateRegistry.builder(currentState);
+                    builder.markProjectForDeletion(projectId);
+                    return ClusterState.builder(currentState).putCustom(ProjectStateRegistry.TYPE, builder.build()).build();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail("Unexpected exception: " + e);
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {}
+            });
+        var objectStoreService = getObjectStoreService(masterNode);
+        assertBusy(() -> {
+            var lease = StatelessLeaseIT.readLease(objectStoreService);
+            assertThat(lease.projectsUnderDeletedGeneration(), equalTo(1L));
+        });
+        assertThat(
+            safeAwaitFailure(
+                SubscribableListener.<Void>newForked(
+                    l -> consistencyService.ensureClusterStateConsistentWithRootBlob(
+                        l,
+                        TimeValue.timeValueMillis(randomLongBetween(100, 500))
+                    )
+                )
+            ),
+            instanceOf(ElasticsearchTimeoutException.class)
+        );
+        blockStateCommit.countDown();
+        safeAwait(
+            SubscribableListener.<Void>newForked(l -> consistencyService.ensureClusterStateConsistentWithRootBlob(l, TEST_REQUEST_TIMEOUT))
+        );
     }
 }

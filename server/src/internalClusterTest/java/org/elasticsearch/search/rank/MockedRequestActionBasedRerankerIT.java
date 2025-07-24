@@ -275,7 +275,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                 l.onResponse(scores);
             });
 
-            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).toList();
+            List<String> featureData = Arrays.stream(featureDocs).map(x -> x.featureData).flatMap(List::stream).toList();
             TestRerankingActionRequest request = generateRequest(featureData);
             try {
                 ActionType<TestRerankingActionResponse> action = actionType();

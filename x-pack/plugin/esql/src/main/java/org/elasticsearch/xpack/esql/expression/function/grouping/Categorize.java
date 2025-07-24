@@ -117,7 +117,7 @@ public class Categorize extends GroupingFunction.NonEvaluatableGroupingFunction 
                     name = OUTPUT_FORMAT,
                     type = "keyword",
                     valueHint = { "regex", "tokens" },
-                    description = "The output format of the categories. Defaults to regex."
+                    description = "The output format of the categories. Defaults to regex. {applies_to}`stack: ga 9.2`}"
                 ),
                 @MapParam.MapParamEntry(
                     name = SIMILARITY_THRESHOLD,

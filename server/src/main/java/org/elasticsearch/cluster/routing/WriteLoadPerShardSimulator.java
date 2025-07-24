@@ -53,7 +53,10 @@ public class WriteLoadPerShardSimulator {
         }
     }
 
-    public Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools() {
+    /**
+     * Get the node usage stats with the simulated shard movements applied
+     */
+    public Map<String, NodeUsageStatsForThreadPools> simulatedNodeUsageStatsForThreadPools() {
         final Map<String, NodeUsageStatsForThreadPools> adjustedNodeUsageStatsForThreadPools = Maps.newMapWithExpectedSize(
             originalNodeUsageStatsForThreadPools.size()
         );

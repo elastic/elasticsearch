@@ -21,20 +21,20 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.inference.InferenceFunctionEvaluator;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluator {
 
-    private final InferenceRunner inferenceRunner;
+    private final BulkInferenceRunner bulkInferenceRunner;
 
     private final TextEmbedding f;
 
-    public TextEmbeddingFunctionEvaluator(TextEmbedding f, InferenceRunner inferenceRunner) {
+    public TextEmbeddingFunctionEvaluator(TextEmbedding f, BulkInferenceRunner bulkInferenceRunner) {
         this.f = f;
-        this.inferenceRunner = inferenceRunner;
+        this.bulkInferenceRunner = bulkInferenceRunner;
     }
 
     @Override
@@ -45,7 +45,7 @@ public class TextEmbeddingFunctionEvaluator implements InferenceFunctionEvaluato
         String inferenceId = BytesRefs.toString(f.inferenceId().fold(foldContext));
         String inputText = BytesRefs.toString(f.inputText().fold(foldContext));
 
-        inferenceRunner.execute(inferenceRequest(inferenceId, inputText), listener.map(this::parseInferenceResponse));
+        //bulkInferenceRunner.executeBulk(inferenceRequest(inferenceId, inputText), listener.map(this::parseInferenceResponse));
     }
 
     private InferenceAction.Request inferenceRequest(String inferenceId, String inputText) {

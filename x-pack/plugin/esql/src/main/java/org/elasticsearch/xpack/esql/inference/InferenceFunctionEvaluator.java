@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.esql.inference;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 
 public interface InferenceFunctionEvaluator {
 
     void eval(FoldContext foldContext, ActionListener<Expression> listener);
 
     interface Factory {
-        InferenceFunctionEvaluator get(InferenceRunner inferenceRunner);
+        InferenceFunctionEvaluator get(BulkInferenceRunner inferenceRunner);
     }
 }

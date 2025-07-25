@@ -498,6 +498,8 @@ public class ESONSource {
         }
 
         public Iterable<? extends Entry<?, ?>> entrySetNullInsteadOfRawValues() {
+            // TODO: Fix
+            ensureMaterializedMap();
             return this.entrySet(false, true);
         }
 
@@ -772,6 +774,8 @@ public class ESONSource {
         }
 
         public Iterator<Object> iteratorNullInsteadOfRawValues() {
+            // TODO: Fix
+            ensureMaterializedList();
             return iterator();
         }
 

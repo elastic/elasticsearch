@@ -296,10 +296,14 @@ Each entry in the `retrievers` array specifies the following parameters:
 
     * `none`
     * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
+    
         ```
         score = (score - min) / (max - min)
         ```
+        
     * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
+    See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
+
 
 `rank_window_size`
 :   (Optional, integer)

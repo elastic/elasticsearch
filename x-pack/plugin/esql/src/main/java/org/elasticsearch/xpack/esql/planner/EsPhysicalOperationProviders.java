@@ -129,7 +129,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
     private static String getFieldName(Attribute attr) {
         // Do not use the field attribute name, this can deviate from the field name for union types.
-        return attr instanceof FieldAttribute fa ? fa.fieldName() : attr.name();
+        return attr instanceof FieldAttribute fa ? fa.fieldName().string() : attr.name();
     }
 
     private BlockLoader getBlockLoaderFor(int shardId, Attribute attr, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
@@ -142,7 +142,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         BlockLoader blockLoader = shardContext.blockLoader(getFieldName(attr), isUnsupported, fieldExtractPreference);
         MultiTypeEsField unionTypes = findUnionTypes(attr);
         if (unionTypes != null) {
-            String indexName = shardContext.ctx.index().getName();
+            // Use the fully qualified name `cluster:index-name` because multiple types are resolved on coordinator with the cluster prefix
+            String indexName = shardContext.ctx.getFullyQualifiedIndex().getName();
             Expression conversion = unionTypes.getConversionExpressionForIndex(indexName);
             return conversion == null
                 ? BlockLoader.CONSTANT_NULLS

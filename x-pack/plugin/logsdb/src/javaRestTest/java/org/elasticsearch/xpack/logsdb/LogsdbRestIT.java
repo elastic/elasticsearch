@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -339,5 +340,116 @@ public class LogsdbRestIT extends ESRestTestCase {
         assertEquals("logsdb", settings.get("index.mode"));
         assertNull(settings.get("index.mapping.source.mode"));
         assertEquals("true", settings.get(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey()));
+    }
+
+    public void testSyntheticSourceRuntimeFieldQueries() throws IOException {
+        String mappings = """
+            {
+                "runtime": {
+                    "message_length": {
+                        "type": "long"
+                    }
+                },
+                "dynamic": false,
+                "properties": {
+                    "@timestamp": {
+                        "type": "date"
+                    },
+                    "log" : {
+                        "properties": {
+                            "level": {
+                                "type": "keyword"
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        String indexName = "test-foo";
+        createIndex(indexName, Settings.builder().put("index.mode", "logsdb").build(), mappings);
+
+        int numDocs = 1000;
+        var sb = new StringBuilder();
+        var now = Instant.now();
+        for (int i = 0; i < numDocs; i++) {
+            String level = randomBoolean() ? "info" : randomBoolean() ? "warning" : randomBoolean() ? "error" : "fatal";
+            String msg = randomAlphaOfLength(20);
+            String messageLength = Integer.toString(msg.length());
+            sb.append("{ \"create\": {} }").append('\n');
+            if (randomBoolean()) {
+                sb.append("""
+                    {"@timestamp":"$now","message":"$msg","message_length":$l,"log":{"level":"$level"}}
+                    """.replace("$now", formatInstant(now)).replace("$level", level).replace("$msg", msg).replace("$l", messageLength));
+            } else {
+                sb.append("""
+                    {"@timestamp": "$now", "message": "$msg", "message_length": $l}
+                    """.replace("$now", formatInstant(now)).replace("$msg", msg).replace("$l", messageLength));
+            }
+            sb.append('\n');
+            if (i != numDocs - 1) {
+                now = now.plusSeconds(1);
+            }
+        }
+
+        var bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
+        bulkRequest.setJsonEntity(sb.toString());
+        bulkRequest.addParameter("refresh", "true");
+        var bulkResponse = client().performRequest(bulkRequest);
+        var bulkResponseBody = responseAsMap(bulkResponse);
+        assertThat(bulkResponseBody, Matchers.hasEntry("errors", false));
+
+        var forceMergeRequest = new Request("POST", "/" + indexName + "/_forcemerge");
+        var forceMergeResponse = client().performRequest(forceMergeRequest);
+        assertOK(forceMergeResponse);
+
+        var searchRequest = new Request("POST", "/" + indexName + "/_search");
+
+        searchRequest.setJsonEntity("""
+            {
+                "size": 1,
+                "query": {
+                    "bool": {
+                        "should": [
+                            {
+                                "range": {
+                                    "message_length": {
+                                        "gte": 1,
+                                        "lt": 900000
+                                    }
+                                }
+                            },
+                            {
+                                "range": {
+                                    "message_length": {
+                                        "gte": 900000,
+                                        "lt": 1000000
+                                    }
+                                }
+                            }
+                        ],
+                        "minimum_should_match": "1",
+                        "must_not": [
+                            {
+                                "range": {
+                                    "message_length": {
+                                        "lt": 0
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+            """);
+        var searchResponse = client().performRequest(searchRequest);
+        assertOK(searchResponse);
+        var searchResponseBody = responseAsMap(searchResponse);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total.value", searchResponseBody);
+        assertThat(totalHits, equalTo(numDocs));
+
+        var shardsHeader = (Map<?, ?>) searchResponseBody.get("_shards");
+        assertThat(shardsHeader.get("failed"), equalTo(0));
+        assertThat(shardsHeader.get("successful"), equalTo(1));
+        assertThat(shardsHeader.get("skipped"), equalTo(0));
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.INNER_RETRIEVERS_FILTER_SUPPORT;
+import static org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer.LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX;
 
 public class RankRRFFeatures implements FeatureSpecification {
 
@@ -25,6 +26,6 @@ public class RankRRFFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(INNER_RETRIEVERS_FILTER_SUPPORT);
+        return Set.of(INNER_RETRIEVERS_FILTER_SUPPORT, LINEAR_RETRIEVER_MINMAX_SINGLE_DOC_FIX);
     }
 }

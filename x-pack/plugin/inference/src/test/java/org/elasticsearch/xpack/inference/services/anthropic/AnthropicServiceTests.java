@@ -628,6 +628,15 @@ public class AnthropicServiceTests extends ESTestCase {
                               "updatable": false,
                               "type": "str",
                               "supported_task_types": ["completion"]
+                          },
+                        "max_tokens": {
+                              "description": "The maximum number of tokens to generate before stopping.",
+                              "label": "Max Tokens",
+                              "required": true,
+                              "sensitive": false,
+                              "updatable": false,
+                              "type": "int",
+                              "supported_task_types": ["completion"]
                           }
                       }
                   }

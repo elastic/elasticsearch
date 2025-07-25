@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -114,24 +115,63 @@ public class Replace extends EsqlScalarFunction {
         return str.foldable() && regex.foldable() && newStr.foldable();
     }
 
-    @Evaluator(extraName = "Constant", warnExceptions = PatternSyntaxException.class)
+    @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
     static BytesRef process(BytesRef str, @Fixed Pattern regex, BytesRef newStr) {
         if (str == null || regex == null || newStr == null) {
             return null;
         }
-        return new BytesRef(regex.matcher(str.utf8ToString()).replaceAll(newStr.utf8ToString()));
+        return safeReplace(str, regex, newStr);
     }
 
-    @Evaluator(warnExceptions = PatternSyntaxException.class)
+    @Evaluator(warnExceptions = IllegalArgumentException.class)
     static BytesRef process(BytesRef str, BytesRef regex, BytesRef newStr) {
         if (str == null) {
             return null;
         }
-
         if (regex == null || newStr == null) {
             return str;
         }
-        return new BytesRef(str.utf8ToString().replaceAll(regex.utf8ToString(), newStr.utf8ToString()));
+        return safeReplace(str, Pattern.compile(regex.utf8ToString()), newStr);
+    }
+
+    /**
+     * Executes a Replace without surpassing the memory limit.
+     */
+    private static BytesRef safeReplace(BytesRef strBytesRef, Pattern regex, BytesRef newStrBytesRef) {
+        String str = strBytesRef.utf8ToString();
+        Matcher m = regex.matcher(str);
+        if (false == m.find()) {
+            return strBytesRef;
+        }
+        String newStr = newStrBytesRef.utf8ToString();
+
+        // Count potential groups (E.g. "$1") used in the replacement
+        int constantReplacementLength = newStr.length();
+        int groupsInReplacement = 0;
+        for (int i = 0; i < newStr.length(); i++) {
+            if (newStr.charAt(i) == '$') {
+                groupsInReplacement++;
+                constantReplacementLength -= 2;
+                i++;
+            }
+        }
+
+        // Initialize the buffer with an approximate size for the first replacement
+        StringBuilder result = new StringBuilder(str.length() + newStr.length() + 8);
+        do {
+            int matchSize = m.end() - m.start();
+            int potentialReplacementSize = constantReplacementLength + groupsInReplacement * matchSize;
+            int remainingStr = str.length() - m.end();
+            if (result.length() + potentialReplacementSize + remainingStr > MAX_BYTES_REF_RESULT_SIZE) {
+                throw new IllegalArgumentException(
+                    "Creating strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
+                );
+            }
+
+            m.appendReplacement(result, newStr);
+        } while (m.find());
+        m.appendTail(result);
+        return new BytesRef(result.toString());
     }
 
     @Override

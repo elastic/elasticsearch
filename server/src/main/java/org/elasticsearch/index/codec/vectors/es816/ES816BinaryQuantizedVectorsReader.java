@@ -155,7 +155,7 @@ class ES816BinaryQuantizedVectorsReader extends FlatVectorsReader {
     @Override
     public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
         FieldEntry fi = fields.get(field);
-        if (fi == null) {
+        if (fi == null || fi.size() == 0) {
             return null;
         }
         return vectorScorer.getRandomVectorScorer(

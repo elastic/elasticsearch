@@ -43,14 +43,14 @@ public class EntitlementBootstrap {
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         PathLookup pathLookup,
         Map<String, Path> sourcePaths,
-        Set<Class<?>> suppressFailureLogClasses
+        Set<Package> suppressFailureLogPackages
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
             requireNonNull(scopeResolver);
             requireNonNull(pathLookup);
             requireNonNull(sourcePaths);
-            requireNonNull(suppressFailureLogClasses);
+            requireNonNull(suppressFailureLogPackages);
         }
     }
 
@@ -69,6 +69,7 @@ public class EntitlementBootstrap {
      * @param scopeResolver a functor to map a Java Class to the component and module it belongs to.
      * @param settingResolver a functor to resolve a setting name pattern for one or more Elasticsearch settings.
      * @param dataDirs       data directories for Elasticsearch
+     * @param sharedDataDir  shared data directory for Elasticsearch (deprecated)
      * @param sharedRepoDirs shared repository directories for Elasticsearch
      * @param configDir      the config directory for Elasticsearch
      * @param libDir         the lib directory for Elasticsearch
@@ -78,7 +79,7 @@ public class EntitlementBootstrap {
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
-     * @param suppressFailureLogClasses   classes for which we do not need or want to log Entitlements failures
+     * @param suppressFailureLogPackages   packages for which we do not need or want to log Entitlements failures
      */
     public static void bootstrap(
         Policy serverPolicyPatch,
@@ -86,6 +87,7 @@ public class EntitlementBootstrap {
         Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
         Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
+        Path sharedDataDir,
         Path[] sharedRepoDirs,
         Path configDir,
         Path libDir,
@@ -95,7 +97,7 @@ public class EntitlementBootstrap {
         Path logsDir,
         Path tempDir,
         Path pidFile,
-        Set<Class<?>> suppressFailureLogClasses
+        Set<Package> suppressFailureLogPackages
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
@@ -109,6 +111,7 @@ public class EntitlementBootstrap {
                 getUserHome(),
                 configDir,
                 dataDirs,
+                sharedDataDir,
                 sharedRepoDirs,
                 libDir,
                 modulesDir,
@@ -119,7 +122,7 @@ public class EntitlementBootstrap {
                 settingResolver
             ),
             sourcePaths,
-            suppressFailureLogClasses
+            suppressFailureLogPackages
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar());
@@ -138,12 +141,12 @@ public class EntitlementBootstrap {
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
-                vm.loadAgent(agentPath);
+                vm.loadAgent(agentPath, EntitlementInitialization.class.getName());
             } finally {
                 vm.detach();
             }
         } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            throw new IllegalStateException("Unable to attach entitlement agent", e);
+            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "]", e);
         }
     }
 
@@ -154,7 +157,7 @@ public class EntitlementBootstrap {
         EntitlementInitialization.class.getModule().addExports(initPkg, unnamedModule);
     }
 
-    private static String findAgentJar() {
+    public static String findAgentJar() {
         String propertyName = "es.entitlement.agentJar";
         String propertyValue = System.getProperty(propertyName);
         if (propertyValue != null) {

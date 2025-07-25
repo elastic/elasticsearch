@@ -1,4 +1,4 @@
-project: 'Search connectors reference'
+project: 'Content connectors reference'
 toc:
 - file: index.md
 - file: connector-reference.md
@@ -64,3 +64,4 @@ toc:
   children:
   - file: es-connectors-overview-architecture.md
 - file: es-connectors-known-issues.md
+- file: release-notes.md

@@ -273,6 +273,7 @@ class Elasticsearch {
                 scopeResolver::resolveClassToScope,
                 nodeEnv.settings()::getValues,
                 nodeEnv.dataDirs(),
+                nodeEnv.sharedDataDir(),
                 nodeEnv.repoDirs(),
                 nodeEnv.configDir(),
                 nodeEnv.libDir(),
@@ -282,7 +283,7 @@ class Elasticsearch {
                 nodeEnv.logsDir(),
                 nodeEnv.tmpDir(),
                 args.pidFile(),
-                Set.of(EntitlementSelfTester.class)
+                Set.of(EntitlementSelfTester.class.getPackage())
             );
             EntitlementSelfTester.entitlementSelfTest();
         } else {

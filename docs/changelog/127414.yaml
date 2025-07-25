@@ -1,5 +1,0 @@
-pr: 127414
-summary: Fix npe when using source confirmed text query against missing field
-area: Search
-type: bug
-issues: []

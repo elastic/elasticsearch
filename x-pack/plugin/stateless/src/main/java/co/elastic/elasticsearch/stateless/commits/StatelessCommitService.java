@@ -3014,6 +3014,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      * New commit notification is sent for each commit creation when {@code STATELESS_UPLOAD_DELAYED} is enabled.
      * In this case, the commit is not uploaded yet. Hence when the listener is called, the commit is _not_ guaranteed
      * to be persisted.
+     *
+     * Note that a transport worker may execute the listener, so it should not block (e.g., try to get the engine which may be reset).
      */
     public void registerCommitNotificationSuccessListener(ShardId shardId, Consumer<Long> listener) {
         var previous = commitNotificationSuccessListeners.put(shardId, listener);

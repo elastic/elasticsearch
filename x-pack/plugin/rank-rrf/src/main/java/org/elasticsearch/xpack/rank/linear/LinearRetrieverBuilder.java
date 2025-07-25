@@ -126,15 +126,18 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     private void normalizeNormalizerArray(ScoreNormalizer topLevelNormalizer, ScoreNormalizer[] normalizers) {
         for (int i = 0; i < normalizers.length; i++) {
             ScoreNormalizer current = normalizers[i];
-            
+
             if (topLevelNormalizer != null) {
                 // Validate explicit per-retriever normalizers match top-level
                 if (current != null && !current.equals(DEFAULT_NORMALIZER) && !current.equals(topLevelNormalizer)) {
                     throw new IllegalArgumentException(
                         String.format(
                             "[%s] All per-retriever normalizers must match the top-level normalizer: "
-                            + "expected [%s], found [%s] in retriever [%d]",
-                            NAME, topLevelNormalizer.getName(), current.getName(), i
+                                + "expected [%s], found [%s] in retriever [%d]",
+                            NAME,
+                            topLevelNormalizer.getName(),
+                            current.getName(),
+                            i
                         )
                     );
                 }

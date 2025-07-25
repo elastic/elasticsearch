@@ -1,6 +1,7 @@
 // TBUCKET-specific tests
 
 tbucketByTenSecondsDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 seconds)
@@ -19,6 +20,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 tbucketByTenSecondsDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 seconds")
@@ -36,6 +38,7 @@ min:datetime             | max:datetime             | bucket:datetime
 ;
 
 tbucketByTenMinutesDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 minutes)
@@ -51,6 +54,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 tbucketByTenMinutesDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 minutes")
@@ -65,6 +69,7 @@ min:datetime             | max:datetime             | bucket:datetime
 ;
 
 docsTBucketByOneHourDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
+required_capability: tbucket
 
 // tag::docsTBucketByOneHourDuration[]
 FROM sample_data
@@ -82,6 +87,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 docsTBucketByOneHourDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
 
 // tag::docsTBucketByOneHourDurationAsString[]
 FROM sample_data
@@ -98,6 +104,7 @@ min:datetime             | max:datetime             | bucket:datetime
 ;
 
 tbucketByOneDayDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 day)
@@ -110,6 +117,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 tbucketByOneDayDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 day")
@@ -121,6 +129,7 @@ min:datetime             | max:datetime             | bucket:datetime
 ;
 
 tbucketByOneWeekDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 week)
@@ -133,6 +142,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 tbucketByOneWeekDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 week")
@@ -144,6 +154,7 @@ min:datetime             | max:datetime             | bucket:datetime
 ;
 
 tbucketByOneMonthDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 month)
@@ -156,6 +167,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 tbucketByOneMonthDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 month")
@@ -167,6 +179,7 @@ min:datetime             | max:datetime             | bucket:datetime
 ;
 
 tbucketByOneYearDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 year)
@@ -179,6 +192,7 @@ min:datetime             | max:datetime             | bucket:datetime
 
 tbucketByOneYearDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: implicit_casting_string_literal_to_temporal_amount
+required_capability: tbucket
 
 FROM sample_data
 | STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 year")

@@ -15,6 +15,7 @@ import fixture.gcs.GoogleCloudStorageHttpHandler;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
@@ -105,7 +106,8 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        googleCloudStorageService = new GoogleCloudStorageService(ClusterServiceUtils.createClusterService(threadPool));
+        googleCloudStorageService = new GoogleCloudStorageService(ClusterServiceUtils.createClusterService(threadPool),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         googleCloudStorageHttpHandler = new GoogleCloudStorageHttpHandler(BUCKET);
         httpServer.createContext("/", googleCloudStorageHttpHandler);
         httpServer.createContext("/token", new FakeOAuth2HttpHandler());

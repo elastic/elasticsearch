@@ -26,6 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
@@ -54,13 +55,18 @@ import static org.elasticsearch.core.Strings.format;
 public class GoogleCloudStorageService {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
+    private final GoogleCloudStorageClientsManager googleCloudStorageClientsManager;
 
     private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
 
     private final boolean isServerless;
 
-    public GoogleCloudStorageService(ClusterService clusterService) {
+    public GoogleCloudStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
         this.isServerless = DiscoveryNode.isStateless(clusterService.getSettings());
+        this.googleCloudStorageClientsManager = new GoogleCloudStorageClientsManager();
+        if (projectResolver.supportsMultipleProjects()) {
+            clusterService.addHighPriorityApplier(this.googleCloudStorageClientsManager);
+        }
     }
 
     public boolean isServerless() {

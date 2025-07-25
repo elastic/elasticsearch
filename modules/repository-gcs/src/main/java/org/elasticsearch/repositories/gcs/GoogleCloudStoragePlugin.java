@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -31,14 +32,17 @@ import java.util.Map;
 
 public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
+    private final Settings settings;
     // package-private for tests
     final SetOnce<GoogleCloudStorageService> storageService = new SetOnce<>();
 
-    public GoogleCloudStoragePlugin(final Settings settings) {}
+    public GoogleCloudStoragePlugin(final Settings settings) {
+        this.settings = settings;
+    }
 
     // overridable for tests
-    protected GoogleCloudStorageService createStorageService(ClusterService clusterService) {
-        return new GoogleCloudStorageService(clusterService);
+    protected GoogleCloudStorageService createStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
+        return new GoogleCloudStorageService(clusterService, projectResolver);
     }
 
     @Override
@@ -68,9 +72,9 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         final ClusterService clusterService = services.clusterService();
-        storageService.set(createStorageService(clusterService));
+        storageService.set(createStorageService(clusterService, services.projectResolver()));
         // eagerly load client settings so that secure settings are readable (not closed)
-        reload(clusterService.getSettings());
+        reload(settings);
         return List.of(storageService.get());
     }
 

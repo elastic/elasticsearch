@@ -17,6 +17,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.protocol.HttpContext;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -77,7 +78,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             .build();
         SetOnce<Proxy> proxy = new SetOnce<>();
         final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
-        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService) {
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService, TestProjectResolvers.DEFAULT_PROJECT_ONLY) {
             @Override
             void notifyProxyIsSet(Proxy p) {
                 proxy.set(p);
@@ -122,6 +123,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         when(pluginServices.clusterService()).thenReturn(
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())
         );
+        when(pluginServices.projectResolver()).thenReturn(TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             plugin.createComponents(pluginServices);
             final GoogleCloudStorageService storageService = plugin.storageService.get();
@@ -165,6 +167,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         when(pluginServices.clusterService()).thenReturn(
             ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())
         );
+        when(pluginServices.projectResolver()).thenReturn(TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
             plugin.createComponents(pluginServices);
             final GoogleCloudStorageService storageService = plugin.storageService.get();

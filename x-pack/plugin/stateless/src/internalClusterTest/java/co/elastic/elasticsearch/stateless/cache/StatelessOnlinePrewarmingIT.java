@@ -88,6 +88,8 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         logger.info("-> upload max size: [{}]", uploadMaxSize);
         return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
             .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), true)
+            // prefetching new commits will warm up new data so we want it disabled to avoid racing with prewarming
+            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), true)
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), uploadMaxSize);
     }
@@ -133,6 +135,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         // let's get the number of completed tasks before we start indexing so when we wait for the downloads to finish
         // we can assert that the number of completed tasks is higher, to make sure downloads actually occurred
         long preRefreshCompletedDownloadTasks = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
+        long preRefreshCompletedRefreshTasks = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
         for (int i = 0; i < 20; i++) {
             indexDocs(indexName, 1000);
             if (i % 2 == 0) {
@@ -143,6 +146,7 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
             }
         }
         flush(indexName);
+        assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preRefreshCompletedRefreshTasks);
         assertNoRunningAndQueueTasks(threadPool, shardReadThreadPool, preRefreshCompletedDownloadTasks);
 
         IndexShard indexShard = findSearchShard(indexName);
@@ -200,14 +204,16 @@ public class StatelessOnlinePrewarmingIT extends AbstractStatelessIntegTestCase 
         // no more bytes warmed as the shard was already prewarmed and no more writes have been executed
         assertThat(bytesWarmedAfterSecondPrewarming, is(bytesWarmedAfterFirstPrewarming));
 
-        long numberOfCompletedTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
+        long downloadTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, shardReadThreadPool);
+        long refreshTasksAfterPrewarming = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
         // let's create some more segments and trigger prewarming via a search operation
         for (int i = 0; i < 5; i++) {
             indexDocs(indexName, 10_000);
             refresh(indexName);
         }
         flush(indexName);
-        assertNoRunningAndQueueTasks(threadPool, shardReadThreadPool, numberOfCompletedTasksAfterPrewarming);
+        assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, refreshTasksAfterPrewarming);
+        assertNoRunningAndQueueTasks(threadPool, shardReadThreadPool, downloadTasksAfterPrewarming);
 
         logger.info("-> searching index after additional indexing");
         // clear the cache to make sure prewarming doesn't race with readers opening

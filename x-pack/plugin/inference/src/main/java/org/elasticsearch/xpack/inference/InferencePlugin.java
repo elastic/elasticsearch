@@ -499,7 +499,7 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.copyOf(new ArrayList<>(getInferenceSettings()));
+        return List.copyOf(getInferenceSettings());
     }
 
     public static Set<Setting<?>> getInferenceSettings() {

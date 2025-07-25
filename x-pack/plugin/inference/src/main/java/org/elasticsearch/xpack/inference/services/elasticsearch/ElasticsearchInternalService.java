@@ -31,6 +31,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
@@ -84,7 +85,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels.ELSER_V2_MODEL_LINUX_X86;
 
-public class ElasticsearchInternalService extends BaseElasticsearchInternalService {
+public class ElasticsearchInternalService extends BaseElasticsearchInternalService implements RerankingInferenceService {
 
     public static final String NAME = "elasticsearch";
     public static final String OLD_ELSER_SERVICE_NAME = "elser";
@@ -1058,6 +1059,12 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         } else {
             return null;
         }
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        // TODO rerank chunking should use the same value
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 
     /**

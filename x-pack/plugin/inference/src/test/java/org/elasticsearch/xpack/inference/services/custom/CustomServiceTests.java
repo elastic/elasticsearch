@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -804,5 +805,10 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             assertThat(requestMap.size(), is(1));
             assertThat(requestMap.get("input"), is(List.of("a")));
         }
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService(threadPool, clientManager);
     }
 }

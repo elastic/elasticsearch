@@ -25,6 +25,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -61,7 +62,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 
-public class VoyageAIService extends SenderService {
+public class VoyageAIService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "voyageai";
 
     private static final String SERVICE_NAME = "Voyage AI";
@@ -367,6 +368,12 @@ public class VoyageAIService extends SenderService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        https://docs.voyageai.com/reference/reranker-api
+        return RerankingInferenceService.LARGE_WINDOW_SIZE;
     }
 
     public static class Configuration {

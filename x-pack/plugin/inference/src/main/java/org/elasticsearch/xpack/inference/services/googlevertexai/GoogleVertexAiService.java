@@ -25,6 +25,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
@@ -69,7 +70,7 @@ import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVe
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.PROJECT_ID;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionCreator.COMPLETION_ERROR_PREFIX;
 
-public class GoogleVertexAiService extends SenderService {
+public class GoogleVertexAiService extends SenderService implements RerankingInferenceService {
 
     public static final String NAME = "googlevertexai";
 
@@ -381,6 +382,11 @@ public class GoogleVertexAiService extends SenderService {
 
             default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         };
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        return 0; // TODO
     }
 
     public static class Configuration {

@@ -1628,10 +1628,13 @@ public final class RestoreService implements ClusterStateApplier {
         private void applyGlobalStateRestore(ClusterState currentState, Metadata.Builder mdBuilder, ProjectId projectId) {
             final var projectBuilder = mdBuilder.getProject(projectId);
             if (metadata.persistentSettings() != null) {
-                assert deserializeProjectMetadata == false || metadata.persistentSettings().isEmpty()
+                assert (deserializeProjectMetadata == false && ProjectId.DEFAULT.equals(projectId))
+                    || metadata.persistentSettings().isEmpty()
                     : "Inconsistent deserializeProjectMetadata ["
                         + deserializeProjectMetadata
-                        + "] and cluster level persistent settings "
+                        + "], project ["
+                        + projectId
+                        + "], and cluster level persistent settings "
                         + metadata.persistentSettings();
                 Settings settings = metadata.persistentSettings();
                 if (request.skipOperatorOnlyState()) {

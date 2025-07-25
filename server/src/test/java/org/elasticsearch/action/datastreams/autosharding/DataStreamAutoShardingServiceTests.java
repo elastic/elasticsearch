@@ -1347,15 +1347,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     public void testCalculateReturnsNotApplicableForLookupIndexMode() {
         var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
-        DataStream dataStream = DataStream.builder(dataStreamName, List.of(new Index("test-index", randomUUID())))
-            .setGeneration(1)
-            .setIndexMode(IndexMode.LOOKUP)
-            .build();
-        builder.put(dataStream);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")))
-            .putProjectMetadata(builder.build())
-            .build();
+        DataStream dataStream = createLookupModeDataStream(builder);
+        ClusterState state = createClusterStateWithDataStream(builder);
 
         AutoShardingResult autoShardingResult = service.calculate(
             state.projectState(projectId),
@@ -1369,18 +1362,27 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     public void testCalculateReturnsNotApplicableForLookupIndexModeWithNullStats() {
         var projectId = randomProjectIdOrDefault();
         ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
+        DataStream dataStream = createLookupModeDataStream(builder);
+        ClusterState state = createClusterStateWithDataStream(builder);
+
+        AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, null);
+        assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
+        assertThat(decisionsLogged, hasSize(0));
+    }
+
+    private DataStream createLookupModeDataStream(ProjectMetadata.Builder builder) {
         DataStream dataStream = DataStream.builder(dataStreamName, List.of(new Index("test-index", randomUUID())))
             .setGeneration(1)
             .setIndexMode(IndexMode.LOOKUP)
             .build();
         builder.put(dataStream);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+        return dataStream;
+    }
+
+    private ClusterState createClusterStateWithDataStream(ProjectMetadata.Builder builder) {
+        return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")))
             .putProjectMetadata(builder.build())
             .build();
-
-        AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, null);
-        assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
-        assertThat(decisionsLogged, hasSize(0));
     }
 }

@@ -9,7 +9,8 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.xcontent.*;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayDeque;

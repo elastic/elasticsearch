@@ -868,8 +868,27 @@ public class ESONSource {
                 Type type = entry.getValue();
 
                 if (type instanceof Mutation mutation) {
-                    // This is a mutated field - create new FieldEntry with mutation
-                    flatKeyArray.add(new FieldEntry(key, mutation));
+                    if (mutation.object() instanceof Map<?, ?> map) {
+                        ObjectEntry objectEntry = new ObjectEntry(key);
+                        flatKeyArray.add(objectEntry);
+                        objectEntry.fieldCount = map.size();
+                        for (Map.Entry<?, ?> entry1 : map.entrySet()) {
+                            Object value = entry1.getValue();
+                            final Mutation valueMutation = ensureOneLevelMutation(value);
+                            flatKeyArray.add(new FieldEntry(entry1.getKey().toString(), valueMutation));
+                        }
+                    } else if (mutation.object() instanceof List<?> list) {
+                        ArrayEntry arrayEntry = new ArrayEntry(key);
+                        flatKeyArray.add(arrayEntry);
+                        arrayEntry.elementCount = list.size();
+                        for (Object value : list) {
+                            final Mutation valueMutation = ensureOneLevelMutation(value);
+                            flatKeyArray.add(new FieldEntry(null, valueMutation));
+                        }
+                    } else {
+                        // This is a mutated field - create new FieldEntry with mutation
+                        flatKeyArray.add(new FieldEntry(key, mutation));
+                    }
                     fieldCount++;
                 } else if (type instanceof ESONObject nestedObj) {
                     // Nested object - flatten recursively
@@ -888,6 +907,16 @@ public class ESONSource {
 
             newObjEntry.fieldCount = fieldCount;
         }
+    }
+
+    private static Mutation ensureOneLevelMutation(Object value) {
+        final Mutation valueMutation;
+        if (value instanceof Mutation m) {
+            valueMutation = m;
+        } else {
+            valueMutation = new Mutation(value);
+        }
+        return valueMutation;
     }
 
     /**

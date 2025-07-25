@@ -237,9 +237,10 @@ public class ESONXContentParser extends AbstractXContentParser {
             return Token.VALUE_BOOLEAN;
         } else if (obj instanceof byte[]) {
             return Token.VALUE_EMBEDDED_OBJECT;
+        } else {
+            // TODO: Fix. This is because we have a variety of custom writers. We would need to expose those.
+            return Token.VALUE_STRING;
         }
-
-        throw new IllegalStateException("Unknown object type for token: " + obj.getClass());
     }
 
     // Helper method to materialize the current value on demand

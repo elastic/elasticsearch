@@ -338,27 +338,15 @@ public class EsqlSession {
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
+        } else if (request.approximate()) {
+            new Approximate(optimizedPlan).approximate(
+                (p, l) -> runner.run(logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer), request, physicalPlanOptimizer), configuration, foldContext, l),
+                listener
+            );
         } else {
-            if (request.approximate()) {
-                Approximate approximate = new Approximate(optimizedPlan);
-                runner.run(
-                    logicalPlanToPhysicalPlan(optimizedPlan(approximate.countPlan(), logicalPlanOptimizer), request, physicalPlanOptimizer),
-                    configuration,
-                    foldContext,
-                    listener.delegateFailureAndWrap(
-                        (countListener, countResult) -> runner.run(
-                            logicalPlanToPhysicalPlan(optimizedPlan(approximate.approximatePlan(countResult), logicalPlanOptimizer), request, physicalPlanOptimizer),
-                            configuration,
-                            foldContext,
-                            listener
-                        )
-                    )
-                );
-            } else {
-                PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer);
-                // execute main plan
-                runner.run(physicalPlan, configuration, foldContext, listener);
-            }
+            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer);
+            // execute main plan
+            runner.run(physicalPlan, configuration, foldContext, listener);
         }
     }
 

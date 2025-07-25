@@ -241,7 +241,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
-
         if (nProbe == DYNAMIC_NPROBE) {
             // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
             // scaling by the number of centroids vs. the nearest neighbors requested
@@ -268,7 +267,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // Note, numCollected is doing the bare minimum here.
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
-
         while (centroidIterator.hasNext() && (centroidsVisited < nProbe || knnCollectorImpl.numCollected() < knnCollector.k())) {
             ++centroidsVisited;
             // todo do we actually need to know the score???

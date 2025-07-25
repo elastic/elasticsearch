@@ -288,15 +288,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         LongValues offsets,
         IndexOutput centroidOutput
     ) throws IOException {
+        // TODO do we want to store these distances as well for future use?
+        // TODO: sort centroids by global centroid (was doing so previously here)
 
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         int[] quantizedScratch = new int[fieldInfo.getVectorDimension()];
         float[] centroidScratch = new float[fieldInfo.getVectorDimension()];
         final byte[] oneBitQuantized = new byte[BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64) / 8];
         final byte[] fourBitquantized = new byte[fieldInfo.getVectorDimension()];
-        // TODO do we want to store these distances as well for future use?
-        // TODO: sort centroids by global centroid (was doing so previously here)
-        // TODO: sorting tanks recall possibly because centroids ordinals no longer are aligned
 
         DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, centroidOutput);
         bulkWriter.writeVectors(new QuantizedVectorValues() {
@@ -321,7 +320,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             @Override
             public OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException {
                 if (currOrd == -1) {
-                    throw new IllegalStateException("No centroid read yet, call readQuantizedVector first");
+                    throw new IllegalStateException("No centroid read yet, call next first");
                 }
                 return corrections;
             }

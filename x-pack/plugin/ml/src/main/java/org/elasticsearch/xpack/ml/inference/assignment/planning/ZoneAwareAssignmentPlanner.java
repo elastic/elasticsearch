@@ -127,6 +127,7 @@ public class ZoneAwareAssignmentPlanner {
                 d -> new AssignmentPlan.Deployment(
                     // replace each deployment with a new deployment
                     d.deploymentId(),
+                    d.modelId(),
                     d.memoryBytes(),
                     deploymentIdToTargetAllocationsPerZone.get(d.deploymentId()),
                     d.threadsPerAllocation(),
@@ -163,6 +164,7 @@ public class ZoneAwareAssignmentPlanner {
             .map(
                 d -> new AssignmentPlan.Deployment(
                     d.deploymentId(),
+                    d.modelId(),
                     d.memoryBytes(),
                     d.allocations(),
                     d.threadsPerAllocation(),

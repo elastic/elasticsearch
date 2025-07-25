@@ -25,7 +25,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocsV3SupportTests extends ESTestCase {
-    private static DocsV3Support docs = DocsV3Support.forFunctions("test", DocsV3SupportTests.class);
+    private static DocsV3Support docs = DocsV3Support.forFunctions("test", DocsV3SupportTests.class, null);
     private static final String ESQL = "/reference/query-languages/esql";
 
     public void testFunctionLink() {
@@ -301,7 +301,7 @@ public class DocsV3SupportTests extends ESTestCase {
             | --- | --- |
             | 1 | 0 |
             """;
-        TestDocsFileWriter tempFileWriter = renderTestClassDocs();
+        TestCallbacks tempFileWriter = renderTestClassDocs();
         String rendered = tempFileWriter.rendered.get("examples/count.md");
         assertThat(rendered.trim(), equalTo(expected.trim()));
     }
@@ -335,35 +335,34 @@ public class DocsV3SupportTests extends ESTestCase {
             :::{include} ../examples/count.md
             :::
             """;
-        TestDocsFileWriter tempFileWriter = renderTestClassDocs();
+        TestCallbacks tempFileWriter = renderTestClassDocs();
         String rendered = tempFileWriter.rendered.get("layout/count.md");
         assertThat(rendered.trim(), equalTo(expected.trim()));
     }
 
-    private TestDocsFileWriter renderTestClassDocs() throws Exception {
+    private TestCallbacks renderTestClassDocs() throws Exception {
         FunctionInfo info = functionInfo(TestClass.class);
         assert info != null;
         FunctionDefinition definition = EsqlFunctionRegistry.def(TestClass.class, TestClass::new, "count");
-        var docs = new DocsV3Support.FunctionDocsSupport("count", TestClass.class, definition, TestClass::signatures);
-        TestDocsFileWriter tempFileWriter = new TestDocsFileWriter("count");
-        docs.setTempFileWriter(tempFileWriter);
+        TestCallbacks callbacks = new TestCallbacks();
+        var docs = new DocsV3Support.FunctionDocsSupport("count", TestClass.class, definition, TestClass::signatures, callbacks);
         docs.renderDocs();
-        return tempFileWriter;
+        return callbacks;
     }
 
-    private class TestDocsFileWriter implements DocsV3Support.TempFileWriter {
-        private final String name;
+    private class TestCallbacks implements DocsV3Support.Callbacks {
         private final Map<String, String> rendered = new HashMap<>();
 
-        TestDocsFileWriter(String name) {
-            this.name = name;
-        }
-
         @Override
-        public void writeToTempDir(Path dir, String extension, String str) throws IOException {
+        public void write(Path dir, String name, String extension, String str, boolean kibana) {
             String file = dir.getFileName() + "/" + name + "." + extension;
             rendered.put(file, str);
             logger.info("Wrote to file: {}", file);
+        }
+
+        @Override
+        public boolean supportsRendering() {
+            return true;
         }
     }
 

@@ -1,0 +1,5 @@
+pr: 130279
+summary: Fix missing removal of query cancellation callback in QueryPhase
+area: Search
+type: bug
+issues: [130071]

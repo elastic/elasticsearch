@@ -484,13 +484,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
 
             // If this is a remote-only ENRICH, any upstream LOOKUP JOINs need to be treated as remote-only, too.
-            LogicalPlan updatedChild = (mode == Mode.REMOTE)
-                ? child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true))
-                : child;
+            if (mode == Mode.REMOTE) {
+                child = child.transformDown(LookupJoin.class, lj -> new LookupJoin(lj.source(), lj.left(), lj.right(), lj.config(), true));
+            }
 
             return new Enrich(
                 source,
-                updatedChild,
+                child,
                 mode,
                 Literal.keyword(source(ctx.policyName), policyNameString),
                 matchField,

@@ -48,8 +48,12 @@ public class ESONXContentParser extends AbstractXContentParser {
     private final ESONSource.ESONObject root;
     private final ESONSource.Values values;
     private final XContentType xContentType;
+    private final List<ESONSource.KeyEntry> keyArray;
+
 
     // Parsing state
+    private int pointer = 0;
+    private ESONSource.KeyEntry currentEntry;
     private Token currentToken;
     private String currentFieldName;
     private Object currentValue; // Lazily computed value
@@ -110,6 +114,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     ) {
         super(registry, deprecationHandler);
         this.root = root;
+        this.keyArray = root.getKeyArray();
         this.values = root.objectValues();
         // Start with the root object context
         this.currentContext = new ParseContext(root);
@@ -134,11 +139,20 @@ public class ESONXContentParser extends AbstractXContentParser {
             return null;
         }
 
-        if (currentToken == null) {
-            // First call - return START_OBJECT for root
-            currentToken = Token.START_OBJECT;
-            return currentToken;
+        boolean expectValue = false;
+        if (currentEntry == null) {
+            currentEntry = keyArray.get(pointer++);
+            expectValue = true;
+            return switch (currentEntry) {
+                case ESONSource.ObjectEntry o -> Token.START_OBJECT;
+                case ESONSource.ArrayEntry a -> Token.START_ARRAY;
+                case ESONSource.FieldEntry e -> e.key()
+            }
+        } else {
+
         }
+
+
 
         return advanceToken();
     }

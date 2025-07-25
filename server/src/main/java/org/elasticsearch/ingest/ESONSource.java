@@ -30,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 public class ESONSource {
 
@@ -53,14 +52,9 @@ public class ESONSource {
                 throw new IllegalArgumentException("Expected START_OBJECT but got " + token);
             }
 
-            DeferredValuesSupplier deferredSupplier = new DeferredValuesSupplier();
             parseObject(parser, bytes, keyArray, null);
 
-            BytesReference finalBytes = bytes.bytes();
-            Values values = new Values(finalBytes);
-            deferredSupplier.setValues(values);
-
-            return new ESONObject(0, keyArray, deferredSupplier);
+            return new ESONObject(0, keyArray, new Values(bytes.bytes()));
         }
 
         private static void parseObject(XContentParser parser, BytesStreamOutput bytes, List<KeyEntry> keyArray, String objectFieldName)
@@ -159,22 +153,6 @@ public class ESONSource {
                 }
                 default -> throw new IllegalArgumentException("Unexpected token: " + token);
             };
-        }
-    }
-
-    private static class DeferredValuesSupplier implements Supplier<Values> {
-        private Values values;
-
-        void setValues(Values values) {
-            this.values = values;
-        }
-
-        @Override
-        public Values get() {
-            if (values == null) {
-                throw new IllegalStateException("Values not yet available - parsing not complete");
-            }
-            return values;
         }
     }
 
@@ -341,18 +319,27 @@ public class ESONSource {
         private final int keyArrayIndex;
         private final ObjectEntry objEntry;
         private final List<KeyEntry> keyArray;
-        private final Supplier<Values> objectValues;
+        private final Values values;
         private Map<String, Type> materializedMap;
 
-        public ESONObject(int keyArrayIndex, List<KeyEntry> keyArray, Supplier<Values> objectValues) {
+        public ESONObject(int keyArrayIndex, List<KeyEntry> keyArray, Values values) {
             this.keyArrayIndex = keyArrayIndex;
             this.objEntry = (ObjectEntry) keyArray.get(keyArrayIndex);
             this.keyArray = keyArray;
-            this.objectValues = objectValues;
+            this.values = values;
+        }
+
+        public List<KeyEntry> getKeyArray() {
+            return keyArray;
         }
 
         public Values objectValues() {
-            return objectValues.get();
+            return values;
+        }
+
+        public boolean hasMutations() {
+            // TODO: Additionally checks
+            return materializedMap != null;
         }
 
         private void ensureMaterializedMap() {
@@ -367,9 +354,9 @@ public class ESONSource {
                         currentIndex++;
                     } else {
                         if (entry instanceof ObjectEntry) {
-                            materializedMap.put(entry.key(), new ESONObject(currentIndex, keyArray, objectValues));
+                            materializedMap.put(entry.key(), new ESONObject(currentIndex, keyArray, values));
                         } else {
-                            materializedMap.put(entry.key(), new ESONArray(currentIndex, keyArray, objectValues));
+                            materializedMap.put(entry.key(), new ESONArray(currentIndex, keyArray, values));
                         }
                         currentIndex = skipContainer(keyArray, entry, currentIndex);
                     }
@@ -411,7 +398,7 @@ public class ESONSource {
             } else if (type instanceof Mutation mutation) {
                 return mutation.object();
             }
-            return convertTypeToValue(type, objectValues.get());
+            return convertTypeToValue(type, values);
         }
 
         @Override
@@ -431,7 +418,7 @@ public class ESONSource {
             } else if (type instanceof Mutation mutation) {
                 return mutation.object();
             }
-            return convertTypeToValue(type, objectValues.get());
+            return convertTypeToValue(type, values);
         }
 
         @Override
@@ -602,7 +589,7 @@ public class ESONSource {
                         if (nullForRawValues && isRawValue()) {
                             cachedValue = null;
                         } else {
-                            cachedValue = convertTypeToValue(type, objectValues.get());
+                            cachedValue = convertTypeToValue(type, values);
                         }
                     }
                     valueComputed = true;
@@ -655,14 +642,14 @@ public class ESONSource {
         private final int keyArrayIndex;
         private final ArrayEntry arrEntry;
         private final List<KeyEntry> keyArray;
-        private final Supplier<Values> arrayValues;
+        private final Values values;
         private List<Type> materializedList;
 
-        public ESONArray(int keyArrayIndex, List<KeyEntry> keyArray, Supplier<Values> arrayValues) {
+        public ESONArray(int keyArrayIndex, List<KeyEntry> keyArray, Values values) {
             this.keyArrayIndex = keyArrayIndex;
             this.arrEntry = (ArrayEntry) keyArray.get(keyArrayIndex);
             this.keyArray = keyArray;
-            this.arrayValues = arrayValues;
+            this.values = values;
         }
 
         private void ensureMaterializedList() {
@@ -677,9 +664,9 @@ public class ESONSource {
                         currentIndex++;
                     } else {
                         if (entry instanceof ObjectEntry) {
-                            materializedList.add(new ESONObject(currentIndex, keyArray, arrayValues));
+                            materializedList.add(new ESONObject(currentIndex, keyArray, values));
                         } else {
-                            materializedList.add(new ESONArray(currentIndex, keyArray, arrayValues));
+                            materializedList.add(new ESONArray(currentIndex, keyArray, values));
                         }
                         currentIndex = skipContainer(keyArray, entry, currentIndex);
                     }
@@ -698,7 +685,7 @@ public class ESONSource {
                 return mutation.object();
             }
 
-            return convertTypeToValue(type, arrayValues.get());
+            return convertTypeToValue(type, values);
         }
 
         @Override

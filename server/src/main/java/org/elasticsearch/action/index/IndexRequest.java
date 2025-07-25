@@ -39,6 +39,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.ESONSource;
+import org.elasticsearch.ingest.ESONXContentSerializer;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -426,7 +427,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.structuredSource = esonSource;
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            structuredSource.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            ESONXContentSerializer.flattedToXContent(esonSource, builder, ToXContent.EMPTY_PARAMS);
             source = BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

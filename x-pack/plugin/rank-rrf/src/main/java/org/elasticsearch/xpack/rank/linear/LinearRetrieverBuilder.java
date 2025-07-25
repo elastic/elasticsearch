@@ -271,6 +271,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 ),
                 validationException
             );
+        } else if (innerRetrievers.isEmpty() == false && normalizer != null) {
+            validationException = addValidationError(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] [%s] cannot be provided when [%s] is specified",
+                    getName(),
+                    NORMALIZER_FIELD.getPreferredName(),
+                    RETRIEVERS_FIELD.getPreferredName()
+                ),
+                validationException
+            );
         }
 
         return validationException;

@@ -74,7 +74,7 @@ public class RemoteSearchForceConnectTimeoutIT extends AbstractMultiClustersTest
             MockTransportService mts = (MockTransportService) cluster(LOCAL_CLUSTER).getInstance(TransportService.class, nodeName);
 
             mts.addConnectBehavior(
-                cluster(REMOTE_CLUSTER_1).getInstance(TransportService.class, randomFrom(cluster(REMOTE_CLUSTER_1).getNodeNames())),
+                cluster(REMOTE_CLUSTER_1).getInstance(TransportService.class, (String) null),
                 ((transport, discoveryNode, profile, listener) -> {
                     try {
                         latch.await();

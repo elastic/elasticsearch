@@ -742,47 +742,47 @@ public class ESONSourceMutationTests extends ESTestCase {
         }
     }
 
-//    public void testNestedArrayMutations() throws Exception {
-//        String jsonString = """
-//            {
-//                "matrix": [
-//                    [1, 2, 3],
-//                    [4, 5, 6],
-//                    [7, 8, 9]
-//                ]
-//            }
-//            """;
-//
-//        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-//            ESONSource.Builder builder = new ESONSource.Builder();
-//            ESONSource.ESONObject root = builder.parse(parser);
-//
-//            ESONSource.ESONArray matrix = (ESONSource.ESONArray) root.get("matrix");
-//            ESONSource.ESONArray row1 = (ESONSource.ESONArray) matrix.get(0);
-//            ESONSource.ESONArray row2 = (ESONSource.ESONArray) matrix.get(1);
-//
-//            // Test nested array mutations
-//            row1.set(1, 99);
-//            assertThat(row1.get(1), equalTo(99));
-//
-//            row2.add(100);
-//            assertThat(row2.size(), equalTo(4));
-//            assertThat(row2.get(3), equalTo(100));
-//
-//            // Test adding new row
-//            ESONSource.ESONArray newRow = new ESONSource.ESONArray(
-//                List.of(new ESONSource.Mutation(10), new ESONSource.Mutation(11), new ESONSource.Mutation(12)),
-//                root.objectValues()
-//            );
-//            matrix.add(newRow);
-//            assertThat(matrix.size(), equalTo(4));
-//
-//            ESONSource.ESONArray addedRow = (ESONSource.ESONArray) matrix.get(3);
-//            assertThat(addedRow.get(0), equalTo(10));
-//            assertThat(addedRow.get(1), equalTo(11));
-//            assertThat(addedRow.get(2), equalTo(12));
-//        }
-//    }
+    // public void testNestedArrayMutations() throws Exception {
+    // String jsonString = """
+    // {
+    // "matrix": [
+    // [1, 2, 3],
+    // [4, 5, 6],
+    // [7, 8, 9]
+    // ]
+    // }
+    // """;
+    //
+    // try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
+    // ESONSource.Builder builder = new ESONSource.Builder();
+    // ESONSource.ESONObject root = builder.parse(parser);
+    //
+    // ESONSource.ESONArray matrix = (ESONSource.ESONArray) root.get("matrix");
+    // ESONSource.ESONArray row1 = (ESONSource.ESONArray) matrix.get(0);
+    // ESONSource.ESONArray row2 = (ESONSource.ESONArray) matrix.get(1);
+    //
+    // // Test nested array mutations
+    // row1.set(1, 99);
+    // assertThat(row1.get(1), equalTo(99));
+    //
+    // row2.add(100);
+    // assertThat(row2.size(), equalTo(4));
+    // assertThat(row2.get(3), equalTo(100));
+    //
+    // // Test adding new row
+    // ESONSource.ESONArray newRow = new ESONSource.ESONArray(
+    // List.of(new ESONSource.Mutation(10), new ESONSource.Mutation(11), new ESONSource.Mutation(12)),
+    // root.objectValues()
+    // );
+    // matrix.add(newRow);
+    // assertThat(matrix.size(), equalTo(4));
+    //
+    // ESONSource.ESONArray addedRow = (ESONSource.ESONArray) matrix.get(3);
+    // assertThat(addedRow.get(0), equalTo(10));
+    // assertThat(addedRow.get(1), equalTo(11));
+    // assertThat(addedRow.get(2), equalTo(12));
+    // }
+    // }
 
     public void testMutationEqualsAndHashCode() throws Exception {
         String jsonString = """

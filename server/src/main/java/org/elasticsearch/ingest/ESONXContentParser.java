@@ -21,90 +21,42 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.CharBuffer;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 
 /**
- * XContentParser implementation for ESON (Elastic SON) data structures.
+ * Simplified XContentParser for flattened ESON structures.
  *
- * This parser converts a pre-parsed ESON tree structure back into a streaming
- * parser interface, enabling seamless integration with existing XContent APIs.
+ * This parser assumes the ESON has been flattened using ESONSource.flatten(),
+ * which means all nested structures are expanded into a single linear key array.
  *
- * Key optimizations:
- * 1. Lazy value materialization - Values are only computed when accessed
- * 2. Direct UTF-8 byte access - Strings can be accessed as raw bytes without conversion
- * 3. Type-aware token emission - Token types determined from ESON metadata
- * 4. Zero-copy string operations when possible
- *
- * Uses the enhanced ESON API methods:
- * - entrySet(false) - iterate over raw types without materializing values
- * - iterator(false) - iterate over raw array elements without materialization
+ * The parser performs a single iteration through the key array, maintaining state
+ * about the current position and context.
  */
 public class ESONXContentParser extends AbstractXContentParser {
 
     private final ESONSource.ESONObject root;
     private final ESONSource.Values values;
     private final XContentType xContentType;
-    private final List<ESONSource.KeyEntry> keyArray;
 
+    // Key array iteration state
+    private final ESONSource.KeyEntry[] keyArray;
+    private int currentIndex = -1;
 
-    // Parsing state
-    private int pointer = 0;
-    private ESONSource.KeyEntry currentEntry;
-    private Token currentToken;
-    private String currentFieldName;
-    private Object currentValue; // Lazily computed value
-    private ESONSource.Type currentEsonType; // Raw ESON type
-    private boolean valueComputed = false; // Track if currentValue has been materialized
+    // Current token state
+    private Token currentToken = null;
+    private String currentFieldName = null;
+    private ESONSource.Type currentType = null;
+    private Object currentValue = null;
+    private boolean valueComputed = false;
 
-    // Stack to handle nested objects/arrays
-    private final Deque<ParseContext> contextStack = new ArrayDeque<>();
+    // Track container depths for proper END_OBJECT/END_ARRAY emission
+    private int objectDepth = 0;
+    private int arrayDepth = 0;
 
-    // Current parse context
-    private ParseContext currentContext;
+    // State machine flags
+    private boolean expectingFieldName = false;
+    private boolean expectingValue = false;
 
     private boolean closed = false;
-
-    private static class ParseContext {
-        private final Type type;
-        private final Iterator<?> iterator;
-        private final boolean isMutation;
-        boolean expectingValue = false;
-
-        // For objects - use non-materializing iterator
-        ParseContext(ESONSource.ESONObject obj) {
-            this.type = Type.OBJECT;
-            this.iterator = obj.entrySet(false).iterator();
-            this.isMutation = false;
-        }
-
-        // For arrays - use non-materializing iterator
-        ParseContext(ESONSource.ESONArray arr) {
-            this.type = Type.ARRAY;
-            this.iterator = arr.iterator(false);
-            this.isMutation = false;
-        }
-
-        ParseContext(Map<String, Object> map) {
-            this.type = Type.OBJECT;
-            this.iterator = map.entrySet().iterator();
-            this.isMutation = true;
-        }
-
-        ParseContext(List<Object> list) {
-            this.type = Type.ARRAY;
-            this.iterator = list.iterator();
-            this.isMutation = true;
-        }
-
-        enum Type {
-            OBJECT,
-            ARRAY
-        }
-    }
 
     public ESONXContentParser(
         ESONSource.ESONObject root,
@@ -114,13 +66,11 @@ public class ESONXContentParser extends AbstractXContentParser {
     ) {
         super(registry, deprecationHandler);
         this.root = root;
-        this.keyArray = root.getKeyArray();
         this.values = root.objectValues();
-        // Start with the root object context
-        this.currentContext = new ParseContext(root);
-        contextStack.addFirst(currentContext);
         this.xContentType = xContentType;
-        this.currentToken = null; // Will be set to START_OBJECT on first nextToken()
+
+        // Convert to array for efficient indexed access
+        this.keyArray = root.getKeyArray().toArray(new ESONSource.KeyEntry[0]);
     }
 
     @Override
@@ -130,7 +80,7 @@ public class ESONXContentParser extends AbstractXContentParser {
 
     @Override
     public void allowDuplicateKeys(boolean allowDuplicateKeys) {
-        // ESON already handles this during parsing, so this is a no-op
+        // ESON already handles this during parsing
     }
 
     @Override
@@ -139,151 +89,205 @@ public class ESONXContentParser extends AbstractXContentParser {
             return null;
         }
 
-        boolean expectValue = false;
-        if (currentEntry == null) {
-            currentEntry = keyArray.get(pointer++);
-            expectValue = true;
-            return switch (currentEntry) {
-                case ESONSource.ObjectEntry o -> Token.START_OBJECT;
-                case ESONSource.ArrayEntry a -> Token.START_ARRAY;
-                case ESONSource.FieldEntry e -> e.key()
-            }
-        } else {
-
+        // First token is always START_OBJECT for root
+        if (currentToken == null) {
+            currentIndex = 0;
+            objectDepth = 1;
+            currentToken = Token.START_OBJECT;
+            expectingFieldName = true;
+            return currentToken;
         }
-
-
 
         return advanceToken();
     }
 
-    private Token advanceToken() {
-        if (currentContext == null) {
-            return null; // End of document
+    private Token advanceToken() throws IOException {
+        // Check if we need to emit END tokens
+        if (currentIndex >= keyArray.length) {
+            return emitEndTokens();
         }
 
-        if (currentContext.type == ParseContext.Type.OBJECT) {
-            return advanceObjectToken();
-        } else {
-            return advanceArrayToken();
+        ESONSource.KeyEntry entry = keyArray[currentIndex];
+
+        // Handle based on entry type
+        if (entry instanceof ESONSource.ObjectEntry objEntry) {
+            return handleObjectEntry(objEntry);
+        } else if (entry instanceof ESONSource.ArrayEntry arrEntry) {
+            return handleArrayEntry(arrEntry);
+        } else if (entry instanceof ESONSource.FieldEntry fieldEntry) {
+            return handleFieldEntry(fieldEntry);
         }
+
+        throw new IllegalStateException("Unknown entry type: " + entry.getClass());
     }
 
-    private Token advanceObjectToken() {
-        if (currentContext.expectingValue) {
-            // We just emitted a field name, now emit the value
-            currentContext.expectingValue = false;
-            return emitValue(currentEsonType);
+    private Token handleObjectEntry(ESONSource.ObjectEntry objEntry) throws IOException {
+        if (expectingValue) {
+            // We're entering a nested object as a value
+            expectingValue = false;
+            objectDepth++;
+            currentIndex++;
+            expectingFieldName = true;
+            currentToken = Token.START_OBJECT;
+        } else if (expectingFieldName && objEntry.fieldCount == 0) {
+            // Empty object - immediately emit END_OBJECT
+            currentIndex++;
+            objectDepth--;
+            currentToken = Token.END_OBJECT;
+
+            // Determine what we're expecting next
+            if (objectDepth > 0) {
+                expectingFieldName = true;
+            } else if (arrayDepth > 0) {
+                expectingValue = false; // Arrays don't have field names
+            }
+        } else if (expectingFieldName) {
+            // Move to first field of object
+            currentIndex++;
+            return advanceToken();
         } else {
-            // Try to get next field - now working with raw types
-            @SuppressWarnings("unchecked")
-            Iterator<Map.Entry<String, Object>> objIter = (Iterator<Map.Entry<String, Object>>) currentContext.iterator;
+            // We've finished processing fields, emit END_OBJECT
+            objectDepth--;
+            currentToken = Token.END_OBJECT;
 
-            if (objIter.hasNext()) {
-                // Reset value computation state
-                currentValue = null;
-                valueComputed = false;
-
-                Map.Entry<String, Object> entry = objIter.next();
-                currentFieldName = entry.getKey();
-                if (currentContext.isMutation) {
-                    currentEsonType = new ESONSource.Mutation(entry.getValue());
-                } else {
-                    currentEsonType = (ESONSource.Type) entry.getValue();
-                }
-
-                currentContext.expectingValue = true;
-                currentToken = Token.FIELD_NAME;
-                return currentToken;
-            } else {
-                // End of object
-                return endCurrentContext(Token.END_OBJECT);
+            if (objectDepth > 0) {
+                expectingFieldName = true;
+            } else if (arrayDepth > 0) {
+                expectingValue = false;
             }
         }
-    }
 
-    private Token advanceArrayToken() {
-        @SuppressWarnings("unchecked")
-        Iterator<Object> arrIter = (Iterator<Object>) currentContext.iterator;
-
-        if (arrIter.hasNext()) {
-            // Reset value computation state
-            currentValue = null;
-            valueComputed = false;
-
-            Object next = arrIter.next();
-            if (currentContext.isMutation) {
-                currentEsonType = new ESONSource.Mutation(next);
-            } else {
-                currentEsonType = (ESONSource.Type) next;
-            }
-
-            return emitValue(currentEsonType);
-        } else {
-            // End of array
-            return endCurrentContext(Token.END_ARRAY);
-        }
-    }
-
-    private Token endCurrentContext(Token endToken) {
-        contextStack.removeFirst(); // Pop current context
-        currentContext = contextStack.peekFirst();
-        currentToken = endToken;
         return currentToken;
     }
 
-    @SuppressWarnings("unchecked")
-    private Token emitValue(ESONSource.Type esonType) {
-        if (esonType == null) {
-            currentToken = Token.VALUE_NULL;
-        } else if (esonType instanceof ESONSource.ESONObject obj) {
-            // Push new object context
-            currentContext = new ParseContext(obj);
-            contextStack.addFirst(currentContext);
-            currentToken = Token.START_OBJECT;
-        } else if (esonType instanceof ESONSource.ESONArray arr) {
-            // Push new array context
-            currentContext = new ParseContext(arr);
-            contextStack.addFirst(currentContext);
+    private Token handleArrayEntry(ESONSource.ArrayEntry arrEntry) throws IOException {
+        if (expectingValue) {
+            // We're entering a nested array as a value
+            expectingValue = false;
+            arrayDepth++;
+            currentIndex++;
             currentToken = Token.START_ARRAY;
-        } else if (esonType instanceof ESONSource.FixedValue fixedVal) {
-            currentToken = Token.VALUE_NUMBER;
-            if (fixedVal.valueType() == ESONSource.ValueType.BOOLEAN) {
-                currentToken = Token.VALUE_BOOLEAN;
+        } else if (expectingFieldName == false && expectingValue == false && arrEntry.elementCount == 0) {
+            // Empty array - immediately emit END_ARRAY
+            currentIndex++;
+            arrayDepth--;
+            currentToken = Token.END_ARRAY;
+
+            if (objectDepth > 0) {
+                expectingFieldName = true;
             }
-        } else if (esonType instanceof ESONSource.VariableValue varVal) {
-            if (varVal.valueType() == ESONSource.ValueType.STRING) {
-                currentToken = Token.VALUE_STRING;
-            } else if (varVal.valueType() == ESONSource.ValueType.BINARY) {
-                currentToken = Token.VALUE_EMBEDDED_OBJECT;
-            }
-        } else if (esonType instanceof ESONSource.Mutation mutation) {
-            // Handle mutations by checking the contained object type
-            Object mutatedValue = mutation.object();
-            if (mutatedValue == null) {
-                currentToken = Token.VALUE_NULL;
-            } else if (mutatedValue instanceof String) {
-                currentToken = Token.VALUE_STRING;
-            } else if (mutatedValue instanceof Number) {
-                currentToken = Token.VALUE_NUMBER;
-            } else if (mutatedValue instanceof Boolean) {
-                currentToken = Token.VALUE_BOOLEAN;
-            } else if (mutatedValue instanceof byte[]) {
-                currentToken = Token.VALUE_EMBEDDED_OBJECT;
-            } else if (mutatedValue instanceof Map) {
-                currentContext = new ParseContext((Map<String, Object>) mutatedValue);
-                contextStack.addFirst(currentContext);
-                currentToken = Token.START_OBJECT;
-            } else if (mutatedValue instanceof List) {
-                currentContext = new ParseContext((List<Object>) mutatedValue);
-                contextStack.addFirst(currentContext);
-                currentToken = Token.START_ARRAY;
-            } else {
-                // TODO: Fix. This is because we have a variety of custom writers. We would need to expose those.
-                currentToken = Token.VALUE_STRING;
-            }
+        } else if (expectingFieldName == false && expectingValue == false) {
+            // Move to first element of array
+            currentIndex++;
+            return advanceToken();
         } else {
-            throw new IllegalStateException("Unknown ESON type: " + esonType.getClass());
+            // We've finished processing elements, emit END_ARRAY
+            arrayDepth--;
+            currentToken = Token.END_ARRAY;
+
+            if (objectDepth > 0) {
+                expectingFieldName = true;
+            } else if (arrayDepth > 0) {
+                expectingValue = false;
+            }
+        }
+
+        return currentToken;
+    }
+
+    private Token handleFieldEntry(ESONSource.FieldEntry fieldEntry) throws IOException {
+        if (expectingFieldName || (arrayDepth > 0 && expectingValue == false)) {
+            // This is either a field in an object or we need to process the value
+            if (fieldEntry.key != null) {
+                // Object field - emit field name
+                currentFieldName = fieldEntry.key;
+                currentType = fieldEntry.type;
+                expectingFieldName = false;
+                expectingValue = true;
+                currentIndex++;
+                currentToken = Token.FIELD_NAME;
+            } else {
+                // Array element - directly emit value
+                currentType = fieldEntry.type;
+                currentValue = null;
+                valueComputed = false;
+                currentIndex++;
+                currentToken = determineValueToken(currentType);
+                expectingValue = false;
+            }
+        } else if (expectingValue) {
+            // Emit the value
+            currentValue = null;
+            valueComputed = false;
+            expectingValue = false;
+            currentToken = determineValueToken(currentType);
+
+            // Check if we need to move to next field/element
+            if (objectDepth > 0) {
+                expectingFieldName = true;
+            }
+
+            // For arrays, we stay in value mode
+        }
+
+        return currentToken;
+    }
+
+    private Token determineValueToken(ESONSource.Type type) {
+        if (type == null || type == ESONSource.NullValue.INSTANCE) {
+            return Token.VALUE_NULL;
+        } else if (type instanceof ESONSource.Mutation mutation) {
+            return determineTokenFromObject(mutation.object());
+        } else if (type instanceof ESONSource.FixedValue fixed) {
+            return switch (fixed.valueType()) {
+                case INT, LONG -> Token.VALUE_NUMBER;
+                case FLOAT, DOUBLE -> Token.VALUE_NUMBER;
+                case BOOLEAN -> Token.VALUE_BOOLEAN;
+                default -> throw new IllegalStateException("Unknown fixed value type: " + fixed.valueType());
+            };
+        } else if (type instanceof ESONSource.VariableValue var) {
+            return switch (var.valueType()) {
+                case STRING -> Token.VALUE_STRING;
+                case BINARY -> Token.VALUE_EMBEDDED_OBJECT;
+                default -> throw new IllegalStateException("Unknown variable value type: " + var.valueType());
+            };
+        } else if (type instanceof ESONSource.ESONObject) {
+            expectingValue = true;
+            return Token.START_OBJECT;
+        } else if (type instanceof ESONSource.ESONArray) {
+            expectingValue = true;
+            return Token.START_ARRAY;
+        }
+
+        throw new IllegalStateException("Unknown type: " + type.getClass());
+    }
+
+    private Token determineTokenFromObject(Object obj) {
+        if (obj == null) {
+            return Token.VALUE_NULL;
+        } else if (obj instanceof String) {
+            return Token.VALUE_STRING;
+        } else if (obj instanceof Number) {
+            return Token.VALUE_NUMBER;
+        } else if (obj instanceof Boolean) {
+            return Token.VALUE_BOOLEAN;
+        } else if (obj instanceof byte[]) {
+            return Token.VALUE_EMBEDDED_OBJECT;
+        }
+
+        throw new IllegalStateException("Unknown object type for token: " + obj.getClass());
+    }
+
+    private Token emitEndTokens() {
+        // Emit remaining END tokens
+        if (arrayDepth > 0) {
+            arrayDepth--;
+            currentToken = Token.END_ARRAY;
+        } else if (objectDepth > 0) {
+            objectDepth--;
+            currentToken = Token.END_OBJECT;
+        } else {
+            currentToken = null; // End of document
         }
 
         return currentToken;
@@ -299,10 +303,9 @@ public class ESONXContentParser extends AbstractXContentParser {
         return currentValue;
     }
 
-    // Helper method to materialize a value from an ESON type
     private Object materializeValue() {
-        ESONSource.Type esonType = currentEsonType;
-        if (esonType == null) {
+        ESONSource.Type esonType = currentType;
+        if (esonType == null || esonType == ESONSource.NullValue.INSTANCE) {
             return null;
         } else if (esonType instanceof ESONSource.ESONObject obj) {
             return obj;
@@ -356,7 +359,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public XContentString optimizedText() throws IOException {
         // For strings, try to access raw bytes directly without materializing the string
-        if (currentEsonType instanceof ESONSource.VariableValue varValue && varValue.valueType() == ESONSource.ValueType.STRING) {
+        if (currentType instanceof ESONSource.VariableValue varValue && varValue.valueType() == ESONSource.ValueType.STRING) {
             // Return XContentString with direct byte access (lazy string conversion)
             byte[] rawBytes;
             int offset;
@@ -384,7 +387,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     @Override
     public boolean optimizedTextToStream(OutputStream out) throws IOException {
         // For strings, try to write raw bytes directly without materializing the string
-        if (currentEsonType instanceof ESONSource.VariableValue varValue && varValue.valueType() == ESONSource.ValueType.STRING) {
+        if (currentType instanceof ESONSource.VariableValue varValue && varValue.valueType() == ESONSource.ValueType.STRING) {
             try {
                 // TODO: Can optimize more. Just not sure if this method needs to stay.
                 if (values.data().hasArray()) {

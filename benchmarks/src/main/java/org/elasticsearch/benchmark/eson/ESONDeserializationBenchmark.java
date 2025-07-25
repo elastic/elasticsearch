@@ -103,28 +103,28 @@ public class ESONDeserializationBenchmark {
         }
     }
 
-//    @Benchmark
-//    public void readCborMap(Blackhole bh) throws IOException {
-//        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(cborSource, false, XContentType.CBOR);
-//        Map<String, Object> obj = tuple.v2();
-//        bh.consume(obj);
-//    }
+    @Benchmark
+    public void readCborMap(Blackhole bh) throws IOException {
+        Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(cborSource, false, XContentType.CBOR);
+        Map<String, Object> obj = tuple.v2();
+        bh.consume(obj);
+    }
 
-//    @Benchmark
-//    public void writeJSONFromMap(Blackhole bh) throws IOException {
-//        XContentBuilder builder = XContentFactory.contentBuilder(JsonXContent.jsonXContent.type());
-//        builder.map(map, true);
-//        BytesReference bytes = BytesReference.bytes(builder);
-//        bh.consume(bytes);
-//    }
-//
-//    @Benchmark
-//    public void writeJSONFromESON(Blackhole bh) throws IOException {
-//        XContentBuilder builder = XContentFactory.contentBuilder(JsonXContent.jsonXContent.type());
-//        esonObject.toXContent(builder, ToXContent.EMPTY_PARAMS);
-//        BytesReference bytes = BytesReference.bytes(builder);
-//        bh.consume(bytes);
-//    }
+    @Benchmark
+    public void writeJSONFromMap(Blackhole bh) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(JsonXContent.jsonXContent.type());
+        builder.map(map, true);
+        BytesReference bytes = BytesReference.bytes(builder);
+        bh.consume(bytes);
+    }
+
+    @Benchmark
+    public void writeJSONFromESON(Blackhole bh) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(JsonXContent.jsonXContent.type());
+        esonObject.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        BytesReference bytes = BytesReference.bytes(builder);
+        bh.consume(bytes);
+    }
 
     @Benchmark
     public void readMap(Blackhole bh) throws IOException {

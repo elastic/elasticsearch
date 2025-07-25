@@ -176,7 +176,7 @@ public class ESONSource {
 
         private final String key;
         public int fieldCount = 0;
-        private boolean hasMutations= false;
+        private boolean hasMutations = false;
 
         public ObjectEntry(String key) {
             this.key = key;
@@ -196,7 +196,7 @@ public class ESONSource {
 
         private final String key;
         public int elementCount = 0;
-        private boolean hasMutations= false;
+        private boolean hasMutations = false;
 
         public ArrayEntry(String key) {
             this.key = key;
@@ -806,8 +806,8 @@ public class ESONSource {
         return index;
     }
 
-    public ESONObject flatten(ESONObject original) {
-        List<KeyEntry> flatKeyArray = new ArrayList<>(original.keyArray.size());
+    public static ESONObject flatten(ESONObject original) {
+        List<KeyEntry> flatKeyArray = new ArrayList<>(original.getKeyArray().size());
 
         // Start flattening from the root object
         flattenObject(original, null, flatKeyArray);

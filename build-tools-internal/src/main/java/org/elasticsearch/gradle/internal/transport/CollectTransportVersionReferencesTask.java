@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal.transport;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
@@ -41,6 +42,7 @@ import java.util.zip.ZipEntry;
  * provided directory, and then records the value of string literals passed as arguments. It then records each
  * string on a newline along with path and line number in the provided output file.
  */
+@CacheableTask
 public abstract class CollectTransportVersionReferencesTask extends DefaultTask {
     public static final String TRANSPORT_VERSION_SET_CLASS = "org/elasticsearch/TransportVersion";
     public static final String TRANSPORT_VERSION_SET_METHOD_NAME = "fromName";
@@ -50,7 +52,6 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
     /**
      * The directory to scan for method invocations.
      */
-    @InputFiles
     @Classpath
     public abstract ConfigurableFileCollection getClassPath();
 
@@ -145,6 +146,6 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
     }
 
     private static String classname(String filename) {
-        return filename.substring(0, filename.length() - CLASS_EXTENSION.length()).replace('/', '.');
+        return filename.substring(0, filename.length() - CLASS_EXTENSION.length()).replaceAll("[/\\\\]", ".");
     }
 }

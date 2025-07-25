@@ -73,7 +73,7 @@ class TransportVersionUtils {
     }
 
     static Directory getDefinitionsDirectory(Project project) {
-        Directory serverDir = project.getRootProject().project(":server").getLayout().getProjectDirectory();
+        Directory serverDir = project.project(":server").getLayout().getProjectDirectory();
         return serverDir.dir("src/main/resources/transport/defined");
     }
 

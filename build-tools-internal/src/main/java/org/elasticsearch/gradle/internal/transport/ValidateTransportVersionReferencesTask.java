@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal.transport;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.TaskAction;
@@ -23,6 +24,7 @@ import java.nio.file.Path;
 /**
  * Validates that each transport version named reference has a constant definition.
  */
+@CacheableTask
 public abstract class ValidateTransportVersionReferencesTask extends DefaultTask {
 
     @InputDirectory

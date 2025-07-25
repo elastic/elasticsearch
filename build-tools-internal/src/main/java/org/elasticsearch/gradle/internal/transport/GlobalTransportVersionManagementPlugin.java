@@ -16,6 +16,7 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.Copy;
+import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +26,7 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getPluginManager().apply(LifecycleBasePlugin.class);
 
         DependencyHandler depsHandler = project.getDependencies();
         List<Dependency> tvDependencies = new ArrayList<>();
@@ -51,7 +53,7 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
 
-        project.getTasks().named("check").configure(t -> t.dependsOn(validateTask));
+        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {

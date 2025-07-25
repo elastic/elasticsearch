@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.Transpo
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.TaskAction;
@@ -29,6 +30,7 @@ import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.
 /**
  * Validates that each defined transport version constant is referenced by at least one project.
  */
+@CacheableTask
 public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTask {
 
     @InputDirectory

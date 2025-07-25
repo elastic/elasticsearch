@@ -256,8 +256,8 @@ $$$index-final-pipeline$$$
 $$$index-hidden$$$ `index.hidden` {applies_to}`serverless: all`
 :   Indicates whether the index should be hidden by default. Hidden indices are not returned by default when using a wildcard expression. This behavior is controlled per request through the use of the `expand_wildcards` parameter. Possible values are `true` and `false` (default).
 
-$$$index-dense-vector-hnsw-filter-heuristic$$$ `index.dense_vector.hnsw_filter_heuristic` {applies_to}`serverless: all`
-:   The heuristic to utilize when executing a filtered search against vectors in an HNSW graph. This setting is in technical preview may be changed or removed in a future release. It can be set to:
+$$$index-dense-vector-hnsw-filter-heuristic$$$ `index.dense_vector.hnsw_filter_heuristic` {applies_to}`serverless: preview` {applies_to}`stack: preview 9.1`
+:   The heuristic to utilize when executing a filtered search against vectors in an HNSW graph. It can be set to:
 
 * `acorn` (default) - Only vectors that match the filter criteria are searched. This is the fastest option, and generally provides faster searches at similar recall to `fanout`, but `num_candidates` might need to be increased for exceptionally high recall requirements.
 * `fanout` - All vectors are compared with the query vector, but only those passing the criteria are added to the search results. Can be slower than `acorn`, but may yield higher recall.

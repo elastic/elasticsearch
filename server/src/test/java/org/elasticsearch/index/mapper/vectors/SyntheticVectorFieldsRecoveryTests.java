@@ -68,7 +68,7 @@ public class SyntheticVectorFieldsRecoveryTests extends EngineTestCase {
             builder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
             builder.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), useSyntheticRecovery);
         }
-        builder.put(IndexSettings.INDEX_MAPPING_SOURCE_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true);
+        builder.put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true);
         return builder.build();
     }
 

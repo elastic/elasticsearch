@@ -58,7 +58,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_SOURCE_EXCLUDE_SOURCE_VECTORS_SETTING;
+import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -200,7 +200,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         return new Builder(
             n,
             c.indexVersionCreated(),
-            INDEX_MAPPING_SOURCE_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
+            INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(c.getIndexSettings().getSettings())
         );
     }, notInMultiFields(CONTENT_TYPE));
 

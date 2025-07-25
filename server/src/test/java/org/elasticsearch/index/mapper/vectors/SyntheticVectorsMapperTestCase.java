@@ -241,7 +241,7 @@ public abstract class SyntheticVectorsMapperTestCase extends MapperTestCase {
     }
 
     private void assertSyntheticVectors(String mapping, BytesReference source, XContentType xContentType) throws IOException {
-        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build();
+        var settings = Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build();
         MapperService mapperService = createMapperService(settings, mapping);
         var parsedDoc = mapperService.documentMapper().parse(new SourceToParse("0", source, xContentType));
         try (var directory = newDirectory()) {

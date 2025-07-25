@@ -848,7 +848,7 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> INDEX_MAPPING_SOURCE_EXCLUDE_SOURCE_VECTORS_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING = Setting.boolSetting(
         "index.mapping.exclude_source_vectors",
         settings -> String.valueOf(SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.EXCLUDE_SOURCE_VECTORS_DEFAULT)),
         Property.IndexScope,

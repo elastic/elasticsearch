@@ -140,7 +140,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         runGetFromTranslogWithOptions(
             docToIndex,
             "\"enabled\": true",
-            Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build(),
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), false).build(),
             docToIndex,
             "\"text\"",
             "foo",
@@ -163,7 +163,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         runGetFromTranslogWithOptions(
             docToIndex,
             "\"enabled\": true",
-            Settings.builder().put(IndexSettings.INDEX_MAPPING_SOURCE_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build(),
+            Settings.builder().put(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.getKey(), true).build(),
             docToIndex,
             "\"text\"",
             "foo",

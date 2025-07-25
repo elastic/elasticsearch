@@ -12,9 +12,6 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-```{applies_to}
-stack: coming 9.0.4
-```
 ## 9.0.4 [elasticsearch-9.0.4-breaking-changes]
 
 No breaking changes in this version.

@@ -922,6 +922,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
+                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
                 decRef();
                 return true;
             }
@@ -933,6 +934,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             if (refCount() <= 1 && evict()) {
                 logger.trace("evicted and take {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
+                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
                 return true;
             }
 
@@ -944,6 +946,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             if (evict()) {
                 logger.trace("force evicted {} with channel offset {}", regionKey, physicalStartOffset());
                 blobCacheService.evictCount.increment();
+                blobCacheService.blobCacheMetrics.getTotalEvictedCount().increment();
                 decRef();
                 return true;
             }

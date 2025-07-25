@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
 
@@ -113,7 +115,8 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         secureSettings2.setFile("gcs.client.gcs3.credentials_file", serviceAccountFileContent("project_gcs23"));
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
-            final GoogleCloudStorageService storageService = plugin.storageService;
+            plugin.createComponents(mock(Plugin.PluginServices.class));
+            final GoogleCloudStorageService storageService = plugin.storageService.get();
             var statsCollector = new GcsRepositoryStatsCollector();
             final var client11 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
@@ -151,7 +154,8 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         secureSettings1.setFile("gcs.client.gcs1.credentials_file", serviceAccountFileContent("test_project"));
         final Settings settings = Settings.builder().setSecureSettings(secureSettings1).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
-            final GoogleCloudStorageService storageService = plugin.storageService;
+            plugin.createComponents(mock(Plugin.PluginServices.class));
+            final GoogleCloudStorageService storageService = plugin.storageService.get();
 
             final MeteredStorage repo1Client = storageService.client("gcs1", "repo1", new GcsRepositoryStatsCollector());
             final MeteredStorage repo2Client = storageService.client("gcs1", "repo2", new GcsRepositoryStatsCollector());

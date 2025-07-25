@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -24,21 +25,20 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
+    private final Settings settings;
     // package-private for tests
-    final GoogleCloudStorageService storageService;
+    final SetOnce<GoogleCloudStorageService> storageService = new SetOnce<>();
 
     @SuppressWarnings("this-escape")
     public GoogleCloudStoragePlugin(final Settings settings) {
-        var isServerless = DiscoveryNode.isStateless(settings);
-        this.storageService = createStorageService(isServerless);
-        // eagerly load client settings so that secure settings are readable (not closed)
-        reload(settings);
+        this.settings = settings;
     }
 
     // overridable for tests
@@ -61,13 +61,22 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
                 projectId,
                 metadata,
                 namedXContentRegistry,
-                this.storageService,
+                this.storageService.get(),
                 clusterService,
                 bigArrays,
                 recoverySettings,
                 new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics)
             )
         );
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        var isServerless = DiscoveryNode.isStateless(settings);
+        storageService.set(createStorageService(isServerless));
+        // eagerly load client settings so that secure settings are readable (not closed)
+        reload(settings);
+        return List.of(storageService.get());
     }
 
     @Override
@@ -94,6 +103,6 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         // `GoogleCloudStorageClientSettings` instance) instead of the `Settings`
         // instance.
         final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
-        this.storageService.refreshAndClearCache(clientsSettings);
+        this.storageService.get().refreshAndClearCache(clientsSettings);
     }
 }

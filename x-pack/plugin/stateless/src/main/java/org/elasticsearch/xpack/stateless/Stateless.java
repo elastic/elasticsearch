@@ -182,6 +182,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -251,6 +252,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -327,6 +329,7 @@ public class Stateless extends Plugin
     private final SetOnce<SplitTargetService> splitTargetService = new SetOnce<>();
     private final SetOnce<SplitSourceService> splitSourceService = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+    private final SetOnce<Executor> commitSuccessExecutor = new SetOnce<>();
     private final SetOnce<StatelessCommitService> commitService = new SetOnce<>();
     private final SetOnce<ClosedShardService> closedShardService = new SetOnce<>();
     private final SetOnce<ObjectStoreService> objectStoreService = new SetOnce<>();
@@ -514,6 +517,7 @@ public class Stateless extends Plugin
         ShardRoutingRoleStrategy shardRoutingRoleStrategy = services.allocationService().getShardRoutingRoleStrategy();
         RerouteService rerouteService = services.rerouteService();
         ThreadPool threadPool = setAndGet(this.threadPool, services.threadPool());
+        setAndGet(this.commitSuccessExecutor, threadPool.generic());
         Environment environment = services.environment();
         // use the settings that include additional settings.
         Settings settings = environment.settings();
@@ -1238,10 +1242,34 @@ public class Stateless extends Plugin
                     // for the search shard to wait for), it could be safe to trigger the pruning earlier, e.g., once the
                     // commit upload is successful.
                     statelessCommitService.registerCommitNotificationSuccessListener(indexShard.shardId(), (gen) -> {
-                        var engine = indexShard.getEngineOrNull();
-                        if (engine != null && engine instanceof IndexEngine e) {
-                            e.commitSuccess(gen);
-                        }
+                        // We dispatch to a generic thread to avoid a transport worker being blocked to get the engine while it's reset
+                        commitSuccessExecutor.get().execute(new AbstractRunnable() {
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn(
+                                    () -> "["
+                                        + indexShard.shardId()
+                                        + "] failed to notify success of commit notification with generation"
+                                        + gen,
+                                    e
+                                );
+                            }
+
+                            @Override
+                            protected void doRun() throws Exception {
+                                indexShard.withEngineOrNull(engine -> {
+                                    if (engine != null && engine instanceof IndexEngine e) {
+                                        e.commitSuccess(gen);
+                                    }
+                                    return null;
+                                });
+                            }
+
+                            @Override
+                            public String toString() {
+                                return "commitSuccess[" + indexShard.shardId() + "]";
+                            }
+                        });
                     });
                 }
 

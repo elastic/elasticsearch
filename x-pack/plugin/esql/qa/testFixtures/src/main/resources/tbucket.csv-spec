@@ -4,7 +4,7 @@ tbucketByTenSecondsDuration#[skip:-9.1.99,reason:new grouping function added in 
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 seconds)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 seconds)
 | SORT min
 ;
 
@@ -23,7 +23,7 @@ required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 seconds")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 seconds")
 | SORT min
 ;
 
@@ -41,7 +41,7 @@ tbucketByTenMinutesDuration#[skip:-9.1.99,reason:new grouping function added in 
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 minutes)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(10 minutes)
 | SORT min
 ;
 
@@ -49,7 +49,7 @@ min:datetime             | max:datetime             | bucket:datetime
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:10:00.000Z
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:20:00.000Z
 2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:30:00.000Z
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:50:00.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:50:00.000Z
 ;
 
 tbucketByTenMinutesDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
@@ -57,7 +57,7 @@ required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 minutes")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("10 minutes")
 | SORT min
 ;
 
@@ -65,7 +65,7 @@ min:datetime             | max:datetime             | bucket:datetime
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360Z | 2023-10-23T12:10:00.000Z
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:20:00.000Z
 2023-10-23T13:33:34.937Z | 2023-10-23T13:33:34.937Z | 2023-10-23T13:30:00.000Z
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:50:00.000Z
+2023-10-23T13:51:54.732Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:50:00.000Z
 ;
 
 docsTBucketByOneHourDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
@@ -73,15 +73,15 @@ required_capability: tbucket
 
 // tag::docsTBucketByOneHourDuration[]
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
 | SORT min
 // end::docsTBucketByOneHourDuration[]
 ;
 
 // tag::docsTBucketByOneHourDuration-result[]
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z
 // end::docsTBucketByOneHourDuration-result[]
 ;
 
@@ -91,15 +91,15 @@ required_capability: tbucket
 
 // tag::docsTBucketByOneHourDurationAsString[]
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 hour")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 hour")
 | SORT min
 // end::docsTBucketByOneHourDurationAsString[]
 ;
 
 // tag::docsTBucketByOneHourDurationAsString-result[]
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z
+2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z
 // end::docsTBucketByOneHourDurationAsString-result[]
 ;
 
@@ -107,12 +107,12 @@ tbucketByOneDayDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 day)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 day)
 | SORT min
 ;
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
 ;
 
 tbucketByOneDayDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
@@ -120,24 +120,24 @@ required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 day")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 day")
 | SORT min
 ;
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
 ;
 
 tbucketByOneWeekDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 week)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 week)
 | SORT min
 ;
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
 ;
 
 tbucketByOneWeekDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
@@ -145,24 +145,24 @@ required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 week")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 week")
 | SORT min
 ;
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-23T00:00:00.000Z
 ;
 
 tbucketByOneMonthDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 month)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 month)
 | SORT min
 ;
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-01T00:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-01T00:00:00.000Z
 ;
 
 tbucketByOneMonthDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
@@ -170,24 +170,24 @@ required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 month")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 month")
 | SORT min
 ;
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-01T00:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-10-01T00:00:00.000Z
 ;
 
 tbucketByOneYearDuration#[skip:-9.1.99,reason:new grouping function added in 9.2]
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 year)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 year)
 | SORT min
 ;
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-01-01T00:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-01-01T00:00:00.000Z
 ;
 
 tbucketByOneYearDurationAsString#[skip:-9.1.99,reason:new grouping function added in 9.2]
@@ -195,10 +195,10 @@ required_capability: implicit_casting_string_literal_to_temporal_amount
 required_capability: tbucket
 
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 year")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 year")
 | SORT min
 ;
 
 min:datetime             | max:datetime             | bucket:datetime
-2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-01-01T00:00:00.000Z
+2023-10-23T12:15:03.360Z | 2023-10-23T13:55:01.543Z | 2023-01-01T00:00:00.000Z
 ;

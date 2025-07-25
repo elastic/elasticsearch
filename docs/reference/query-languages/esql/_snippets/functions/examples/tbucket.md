@@ -6,14 +6,14 @@ Provide a bucket size as an argument.
 
 ```esql
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
 | SORT min
 ```
 
 | min:datetime | max:datetime | bucket:datetime |
 | --- | --- | --- |
-| 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z |
-| 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z |
+| 2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z |
+| 2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z |
 
 
 ::::{note}
@@ -25,14 +25,14 @@ Provide a string representation of bucket size as an argument.
 
 ```esql
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 hour")
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 hour")
 | SORT min
 ```
 
 | min:datetime | max:datetime | bucket:datetime |
 | --- | --- | --- |
-| 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z |
-| 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z |
+| 2023-10-23T12:15:03.360Z | 2023-10-23T12:27:28.948Z | 2023-10-23T12:00:00.000Z |
+| 2023-10-23T13:33:34.937Z | 2023-10-23T13:55:01.543Z | 2023-10-23T13:00:00.000Z |
 
 
 ::::{note}

@@ -5,6 +5,6 @@ Creates groups of values - buckets - out of a @timestamp attribute. The size of 
 
 ```esql
 FROM sample_data
-| STATS min = MAX(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
+| STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
 | SORT min
 ```

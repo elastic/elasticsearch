@@ -11,6 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -24,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
+import java.util.stream.Collectors;
 
 /**
  * Block loader for fields that use fallback synthetic source implementation.
@@ -39,10 +42,14 @@ import java.util.Stack;
 public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader {
     private final Reader<?> reader;
     private final String fieldName;
+    private final Set<String> fieldPaths;
+    private final IndexVersion indexCreatedVersion;
 
-    protected FallbackSyntheticSourceBlockLoader(Reader<?> reader, String fieldName) {
+    protected FallbackSyntheticSourceBlockLoader(Reader<?> reader, String fieldName, IndexVersion indexCreatedVersion) {
         this.reader = reader;
         this.fieldName = fieldName;
+        this.indexCreatedVersion = indexCreatedVersion;
+        this.fieldPaths = splitIntoFieldPaths(fieldName);
     }
 
     @Override
@@ -52,12 +59,19 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new IgnoredSourceRowStrideReader<>(fieldName, reader);
+        return new IgnoredSourceRowStrideReader<>(fieldName, fieldPaths, reader, indexCreatedVersion);
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(false, false, Set.of(IgnoredSourceFieldMapper.NAME));
+        Set<String> ignoredFieldNames;
+        if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY)) {
+            ignoredFieldNames = fieldPaths.stream().map(IgnoredSourceFieldMapper::ignoredFieldName).collect(Collectors.toSet());
+        } else {
+            ignoredFieldNames = Set.of(IgnoredSourceFieldMapper.NAME);
+        }
+
+        return new StoredFieldsSpec(false, false, ignoredFieldNames);
     }
 
     @Override
@@ -70,46 +84,69 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         throw new UnsupportedOperationException();
     }
 
+    public static Set<String> splitIntoFieldPaths(String fieldName) {
+        var paths = new HashSet<String>();
+        paths.add("_doc");
+        var current = new StringBuilder();
+        for (var part : fieldName.split("\\.")) {
+            if (current.isEmpty() == false) {
+                current.append('.');
+            }
+            current.append(part);
+            paths.add(current.toString());
+        }
+        return paths;
+    }
+
     private static class IgnoredSourceRowStrideReader<T> implements RowStrideReader {
         // Contains name of the field and all its parents
-        private final Set<String> fieldNames;
         private final String fieldName;
+        private final Set<String> fieldPaths;
         private final Reader<T> reader;
+        private final IndexVersion indexCreatedVersion;
 
-        IgnoredSourceRowStrideReader(String fieldName, Reader<T> reader) {
+        IgnoredSourceRowStrideReader(String fieldName, Set<String> fieldPaths, Reader<T> reader, IndexVersion indexCreatedVersion) {
             this.fieldName = fieldName;
+            this.fieldPaths = fieldPaths;
             this.reader = reader;
-            this.fieldNames = new HashSet<>() {
-                {
-                    add("_doc");
-                }
-            };
-
-            var current = new StringBuilder();
-            for (String part : fieldName.split("\\.")) {
-                if (current.isEmpty() == false) {
-                    current.append('.');
-                }
-                current.append(part);
-                fieldNames.add(current.toString());
-            }
-
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            var ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
-            if (ignoredSource == null) {
-                builder.appendNull();
-                return;
-            }
-
             Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
 
-            for (Object value : ignoredSource) {
-                IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
-                if (fieldNames.contains(nameValue.name())) {
-                    valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
+            if (indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY)) {
+                List<Object> ignoredSource = null;
+                for (var parentPath : fieldPaths) {
+                    ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.ignoredFieldName(parentPath));
+                    if (ignoredSource == null) {
+                        continue;
+                    }
+
+                    for (Object value : ignoredSource) {
+                        IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                        assert fieldPaths.contains(nameValue.name());
+                        valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
+                    }
+                }
+                if (valuesForFieldAndParents.isEmpty()) {
+                    builder.appendNull();
+                    return;
+                }
+
+            } else {
+                var ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
+                if (ignoredSource == null) {
+                    builder.appendNull();
+                    return;
+                }
+
+                for (Object value : ignoredSource) {
+                    IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                    if (fieldPaths.contains(nameValue.name())) {
+                        valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
+                    }
                 }
             }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -160,8 +161,16 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
 
         for (NameValue nameValue : context.getIgnoredFieldValues()) {
-            nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
+            String fieldName = NAME;
+            if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY)) {
+                fieldName = ignoredFieldName(nameValue.name);
+            }
+            nameValue.doc().add(new StoredField(fieldName, encode(nameValue)));
         }
+    }
+
+    public static String ignoredFieldName(String fieldName) {
+        return NAME + "." + fieldName;
     }
 
     static byte[] encode(NameValue values) {

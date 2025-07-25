@@ -190,6 +190,11 @@ public class ESONSource {
         public boolean hasMutations() {
             return hasMutations;
         }
+
+        @Override
+        public String toString() {
+            return "ObjectEntry{" + "key='" + key + '\'' + ", fieldCount=" + fieldCount + ", hasMutations=" + hasMutations + '}';
+        }
     }
 
     public static class ArrayEntry implements KeyEntry {
@@ -210,6 +215,11 @@ public class ESONSource {
         public boolean hasMutations() {
             return hasMutations;
         }
+
+        @Override
+        public String toString() {
+            return "ArrayEntry{" + "key='" + key + '\'' + ", elementCount=" + elementCount + ", hasMutations=" + hasMutations + '}';
+        }
     }
 
     public static class FieldEntry implements KeyEntry {
@@ -224,6 +234,11 @@ public class ESONSource {
         @Override
         public String key() {
             return key;
+        }
+
+        @Override
+        public String toString() {
+            return "FieldEntry{" + "key='" + key + '\'' + ", type=" + type + '}';
         }
     }
 
@@ -483,11 +498,7 @@ public class ESONSource {
         }
 
         public Iterable<? extends Entry<?, ?>> entrySetNullInsteadOfRawValues() {
-            return null;
-        }
-
-        public Iterable<Object> entrySet(boolean shouldComputeValue) {
-            return null;
+            return this.entrySet(false, true);
         }
 
         private Set<Entry<String, Object>> entrySet(boolean shouldComputeValue, boolean nullForRawValues) {
@@ -761,11 +772,7 @@ public class ESONSource {
         }
 
         public Iterator<Object> iteratorNullInsteadOfRawValues() {
-            return null;
-        }
-
-        public Iterator<?> iterator(boolean b) {
-            return null;
+            return iterator();
         }
 
     }
@@ -868,27 +875,7 @@ public class ESONSource {
                 Type type = entry.getValue();
 
                 if (type instanceof Mutation mutation) {
-                    if (mutation.object() instanceof Map<?, ?> map) {
-                        ObjectEntry objectEntry = new ObjectEntry(key);
-                        flatKeyArray.add(objectEntry);
-                        objectEntry.fieldCount = map.size();
-                        for (Map.Entry<?, ?> entry1 : map.entrySet()) {
-                            Object value = entry1.getValue();
-                            final Mutation valueMutation = ensureOneLevelMutation(value);
-                            flatKeyArray.add(new FieldEntry(entry1.getKey().toString(), valueMutation));
-                        }
-                    } else if (mutation.object() instanceof List<?> list) {
-                        ArrayEntry arrayEntry = new ArrayEntry(key);
-                        flatKeyArray.add(arrayEntry);
-                        arrayEntry.elementCount = list.size();
-                        for (Object value : list) {
-                            final Mutation valueMutation = ensureOneLevelMutation(value);
-                            flatKeyArray.add(new FieldEntry(null, valueMutation));
-                        }
-                    } else {
-                        // This is a mutated field - create new FieldEntry with mutation
-                        flatKeyArray.add(new FieldEntry(key, mutation));
-                    }
+                    handleObject(flatKeyArray, mutation.object(), key);
                     fieldCount++;
                 } else if (type instanceof ESONObject nestedObj) {
                     // Nested object - flatten recursively
@@ -906,6 +893,27 @@ public class ESONSource {
             }
 
             newObjEntry.fieldCount = fieldCount;
+        }
+    }
+
+    private static void handleObject(List<KeyEntry> flatKeyArray, Object object, String key) {
+        if (object instanceof Map<?, ?> map) {
+            ObjectEntry objectEntry = new ObjectEntry(key);
+            flatKeyArray.add(objectEntry);
+            objectEntry.fieldCount = map.size();
+            for (Map.Entry<?, ?> entry1 : map.entrySet()) {
+                Object value = entry1.getValue();
+                handleObject(flatKeyArray, value, entry1.getKey().toString());
+            }
+        } else if (object instanceof List<?> list) {
+            ArrayEntry arrayEntry = new ArrayEntry(key);
+            flatKeyArray.add(arrayEntry);
+            arrayEntry.elementCount = list.size();
+            for (Object value : list) {
+                handleObject(flatKeyArray, value, null);
+            }
+        } else {
+            flatKeyArray.add(new FieldEntry(key, ensureOneLevelMutation(object)));
         }
     }
 

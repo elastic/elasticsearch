@@ -176,7 +176,7 @@ public class ESONSource {
 
         private final String key;
         public int fieldCount = 0;
-        private boolean hasMutations = false;
+        private Map<String, Type> mutationMap = null;
 
         public ObjectEntry(String key) {
             this.key = key;
@@ -188,12 +188,12 @@ public class ESONSource {
         }
 
         public boolean hasMutations() {
-            return hasMutations;
+            return mutationMap != null;
         }
 
         @Override
         public String toString() {
-            return "ObjectEntry{" + "key='" + key + '\'' + ", fieldCount=" + fieldCount + ", hasMutations=" + hasMutations + '}';
+            return "ObjectEntry{" + "key='" + key + '\'' + ", fieldCount=" + fieldCount + ", hasMutations=" + hasMutations() + '}';
         }
     }
 
@@ -201,7 +201,7 @@ public class ESONSource {
 
         private final String key;
         public int elementCount = 0;
-        private boolean hasMutations = false;
+        private List<Type> mutationArray = null;
 
         public ArrayEntry(String key) {
             this.key = key;
@@ -213,12 +213,12 @@ public class ESONSource {
         }
 
         public boolean hasMutations() {
-            return hasMutations;
+            return mutationArray != null;
         }
 
         @Override
         public String toString() {
-            return "ArrayEntry{" + "key='" + key + '\'' + ", elementCount=" + elementCount + ", hasMutations=" + hasMutations + '}';
+            return "ArrayEntry{" + "key='" + key + '\'' + ", elementCount=" + elementCount + ", hasMutations=" + hasMutations() + '}';
         }
     }
 
@@ -426,7 +426,7 @@ public class ESONSource {
             ensureMaterializedMap();
             Object oldValue = get(key);
             materializedMap.put(key, new Mutation(value));
-            objEntry.hasMutations = true;
+            objEntry.mutationMap = materializedMap;
             return oldValue;
         }
 
@@ -434,7 +434,7 @@ public class ESONSource {
         public Object remove(Object key) {
             ensureMaterializedMap();
             Type type = materializedMap.remove(key);
-            objEntry.hasMutations = true;
+            objEntry.mutationMap = materializedMap;
             if (type == null) {
                 return null;
             } else if (type instanceof Mutation mutation) {
@@ -455,7 +455,7 @@ public class ESONSource {
             // TODO: can probably optimize
             ensureMaterializedMap();
             materializedMap.clear();
-            objEntry.hasMutations = true;
+            objEntry.mutationMap = materializedMap;
         }
 
         @Override
@@ -523,7 +523,7 @@ public class ESONSource {
 
                         @Override
                         public void remove() {
-                            objEntry.hasMutations = true;
+                            objEntry.mutationMap = materializedMap;
                             mapIterator.remove();
                         }
                     };
@@ -714,7 +714,7 @@ public class ESONSource {
         public void add(int index, Object element) {
             ensureMaterializedList();
             materializedList.add(index, new Mutation(element));
-            arrEntry.hasMutations = true;
+            arrEntry.mutationArray = materializedList;
         }
 
         @Override
@@ -722,7 +722,7 @@ public class ESONSource {
             ensureMaterializedList();
             Object oldValue = get(index);
             materializedList.set(index, new Mutation(element));
-            arrEntry.hasMutations = true;
+            arrEntry.mutationArray = materializedList;
             return oldValue;
         }
 
@@ -731,7 +731,7 @@ public class ESONSource {
             ensureMaterializedList();
             Object oldValue = get(index);
             materializedList.remove(index);
-            arrEntry.hasMutations = true;
+            arrEntry.mutationArray = materializedList;
             return oldValue;
         }
 
@@ -739,7 +739,7 @@ public class ESONSource {
         public boolean add(Object element) {
             ensureMaterializedList();
             boolean result = materializedList.add(new Mutation(element));
-            arrEntry.hasMutations = true;
+            arrEntry.mutationArray = materializedList;
             return result;
         }
 
@@ -748,7 +748,7 @@ public class ESONSource {
             // TODO: Can optimize
             ensureMaterializedList();
             materializedList.clear();
-            arrEntry.hasMutations = true;
+            arrEntry.mutationArray = materializedList;
         }
 
         @Override
@@ -874,25 +874,30 @@ public class ESONSource {
             obj.ensureMaterializedMap();
 
             int fieldCount = 0;
-            for (Map.Entry<String, Type> entry : obj.materializedMap.entrySet()) {
+            for (Map.Entry<String, Type> entry : obj.objEntry.mutationMap.entrySet()) {
                 String key = entry.getKey();
                 Type type = entry.getValue();
 
-                if (type instanceof Mutation mutation) {
-                    handleObject(flatKeyArray, mutation.object(), key);
-                    fieldCount++;
-                } else if (type instanceof ESONObject nestedObj) {
-                    // Nested object - flatten recursively
-                    flattenObject(nestedObj, key, flatKeyArray);
-                    fieldCount++;
-                } else if (type instanceof ESONArray nestedArr) {
-                    // Nested array - flatten recursively
-                    flattenArray(nestedArr, key, flatKeyArray);
-                    fieldCount++;
-                } else {
-                    // Regular type (FixedValue, VariableValue, NullValue) - create field entry
-                    flatKeyArray.add(new FieldEntry(key, type));
-                    fieldCount++;
+                switch (type) {
+                    case Mutation mutation -> {
+                        handleObject(flatKeyArray, mutation.object(), key);
+                        fieldCount++;
+                    }
+                    case ESONObject nestedObj -> {
+                        // Nested object - flatten recursively
+                        flattenObject(nestedObj, key, flatKeyArray);
+                        fieldCount++;
+                    }
+                    case ESONArray nestedArr -> {
+                        // Nested array - flatten recursively
+                        flattenArray(nestedArr, key, flatKeyArray);
+                        fieldCount++;
+                    }
+                    case null, default -> {
+                        // Regular type (FixedValue, VariableValue, NullValue) - create field entry
+                        flatKeyArray.add(new FieldEntry(key, type));
+                        fieldCount++;
+                    }
                 }
             }
 
@@ -973,7 +978,7 @@ public class ESONSource {
             newArrEntry.elementCount = elementCount;
         } else {
             int elementCount = 0;
-            for (Type type : arr.materializedList) {
+            for (Type type : arr.arrEntry.mutationArray) {
                 if (type instanceof Mutation mutation) {
                     // This is a mutated element - create new FieldEntry with mutation
                     flatKeyArray.add(new FieldEntry(null, mutation));

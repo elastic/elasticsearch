@@ -1,0 +1,5 @@
+pr: 131918
+summary: Fix the bug with double allocation accouting
+area: Machine Learning
+type: bug
+issues: []

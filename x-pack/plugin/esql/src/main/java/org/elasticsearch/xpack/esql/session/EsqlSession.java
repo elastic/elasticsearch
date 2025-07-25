@@ -411,29 +411,15 @@ public class EsqlSession {
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
+        } else if (request.approximate()) {
+            new Approximate(optimizedPlan).approximate(
+                (p, l) -> runner.run(logicalPlanToPhysicalPlan(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), request, physicalPlanOptimizer, planTimeProfile), configuration, foldContext, planTimeProfile, l),
+                listener
+            );
         } else {
-            if (request.approximate()) {
-                Approximate approximate = new Approximate(optimizedPlan);
-                runner.run(
-                    logicalPlanToPhysicalPlan(optimizedPlan(approximate.countPlan(), logicalPlanOptimizer, planTimeProfile), request, physicalPlanOptimizer, planTimeProfile),
-                    configuration,
-                    foldContext,
-                    planTimeProfile,
-                    listener.delegateFailureAndWrap(
-                        (countListener, countResult) -> runner.run(
-                            logicalPlanToPhysicalPlan(optimizedPlan(approximate.approximatePlan(countResult), logicalPlanOptimizer, planTimeProfile), request, physicalPlanOptimizer, planTimeProfile),
-                            configuration,
-                            foldContext,
-                            planTimeProfile,
-                            listener
-                        )
-                    )
-                );
-            } else {
-                PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-                // execute main plan
-                runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
-            }
+            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
+            // execute main plan
+            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
         }
     }
 

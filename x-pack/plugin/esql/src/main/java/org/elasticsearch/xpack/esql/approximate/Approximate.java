@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximate;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -36,6 +37,10 @@ import java.util.Set;
 
 public class Approximate {
 
+    public interface LogicalPlanRunner {
+        void run(LogicalPlan plan, ActionListener<Result> listener);
+    }
+
     private static final Set<Class<? extends LogicalPlan>> SWAPPABLE_WITH_SAMPLE = Set.of(
         Dissect.class,
         Drop.class,
@@ -59,11 +64,28 @@ public class Approximate {
     }
 
     /**
+     * Computes approximate results for the given logical plan.
+     *
+     * This works by first executing a plan that counts the number of rows
+     * getting to the aggregation. That count is used to compute a sample
+     * probability, which is then used to sample approximately 1000 rows
+     * to aggregate over and approximate the aggregation.
+     */
+    public void approximate(LogicalPlanRunner runner, ActionListener<Result> listener) {
+        runner.run(
+            countPlan(),
+            listener.delegateFailureAndWrap(
+                (countListener, countResult) -> runner.run(approximatePlan(sampleProbability(countResult)), listener)
+            )
+        );
+    }
+
+    /**
      * Verifies that a plan is suitable for approximation.
      *
      * To be so, the plan must contain at least one STATS function, and all
      * functions between the source and the leftmost STATS function must be
-     * swappable with STATS.
+     * swappable with SAMPLE.
      *
      * In that case, the STATS can be replaced by SAMPLE, STATS with sample
      * correction terms, and the SAMPLE can be moved to the source and
@@ -101,7 +123,7 @@ public class Approximate {
      * off at the leftmost STATS function, followed by "| STATS COUNT(*)".
      * This value can be used to pick a good sample probability.
      */
-    public LogicalPlan countPlan() {
+    private LogicalPlan countPlan() {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         LogicalPlan countPlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {
@@ -127,20 +149,19 @@ public class Approximate {
     }
 
     /**
+     * Returns a sample probability based on the total number of rows.
+     */
+    private double sampleProbability(Result countResult) {
+        long rowCount = ((LongBlock) (countResult.pages().getFirst().getBlock(0))).getLong(0);
+        return rowCount <= SAMPLE_ROW_COUNT ? 1.0 : (double) SAMPLE_ROW_COUNT / rowCount;
+    }
+
+    /**
      * Returns a plan that approximates the original plan. It consists of the
      * original plan, with the leftmost STATS function replaced by:
      * "SAMPLE probability | STATS sample_corrected_aggs".
-     *
-     * The sample probability is based on the total row count that would reach
-     * the STATS function, which is obtained by executing the countPlan.
      */
-    public LogicalPlan approximatePlan(Result countResult) {
-        long rowCount = ((LongBlock) (countResult.pages().getFirst().getBlock(0))).getLong(0);
-        if (rowCount <= SAMPLE_ROW_COUNT) {
-            return logicalPlan;
-        }
-        double sampleProbability = (double) SAMPLE_ROW_COUNT / rowCount;
-
+    private LogicalPlan approximatePlan(double sampleProbability) {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
             if (plan instanceof LeafPlan) {

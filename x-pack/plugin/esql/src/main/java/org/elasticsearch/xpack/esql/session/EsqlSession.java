@@ -64,7 +64,6 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -388,8 +387,13 @@ public class EsqlSession {
         var listener = SubscribableListener.<EnrichResolution>newForked(
             l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
         )
-            .<PreAnalysisResult>andThen((l, enrichResolution) -> resolveFieldNames(parsed, enrichResolution, l))
-            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferencePlans, preAnalysisResult, l));
+            .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
+            .<PreAnalysisResult>andThen(
+                (l, preAnalysisResult) -> inferenceRunner.resolveInferenceIds(
+                    preAnalysis.inferencePlans,
+                    l.map(preAnalysisResult::withInferenceResolution)
+                )
+            );
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
@@ -740,18 +744,6 @@ public class EsqlSession {
         LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
         // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
         logicalPlanListener.onResponse(plan);
-    }
-
-    private static void resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution, ActionListener<PreAnalysisResult> l) {
-        ActionListener.completeWith(l, () -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution));
-    }
-
-    private void resolveInferences(
-        List<InferencePlan<?>> inferencePlans,
-        PreAnalysisResult preAnalysisResult,
-        ActionListener<PreAnalysisResult> l
-    ) {
-        inferenceRunner.resolveInferenceIds(inferencePlans, l.map(preAnalysisResult::withInferenceResolution));
     }
 
     private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {

@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import java.util.function.ToLongFunction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
@@ -45,6 +46,30 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
      * @param perDeploymentMemoryBytes
      * @param perAllocationMemoryBytes
      */
+    /**
+     * Interface for memory estimation function used by Deployment
+     */
+    @FunctionalInterface
+    public interface MemoryEstimator {
+        /**
+         * Estimates memory usage for a given number of allocations
+         * 
+         * @param modelId the model ID
+         * @param modelBytes the model size in bytes
+         * @param perDeploymentMemoryBytes the fixed per-deployment memory overhead
+         * @param perAllocationMemoryBytes the memory per allocation
+         * @param allocations the number of allocations
+         * @return estimated memory usage in bytes
+         */
+        long estimateMemoryUsageBytes(
+            String modelId,
+            long modelBytes,
+            long perDeploymentMemoryBytes,
+            long perAllocationMemoryBytes,
+            int allocations
+        );
+    }
+    
     public record Deployment(
         String deploymentId,
         String modelId,
@@ -56,8 +81,41 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         AdaptiveAllocationsSettings adaptiveAllocationsSettings,
         Priority priority,
         long perDeploymentMemoryBytes,
-        long perAllocationMemoryBytes
+        long perAllocationMemoryBytes,
+        MemoryEstimator memoryEstimator
     ) {
+        
+        /**
+         * Default constructor that uses the standard memory estimator
+         */
+        public Deployment(
+            String deploymentId,
+            String modelId,
+            long memoryBytes,
+            int allocations,
+            int threadsPerAllocation,
+            Map<String, Integer> currentAllocationsByNodeId,
+            int maxAssignedAllocations,
+            AdaptiveAllocationsSettings adaptiveAllocationsSettings,
+            Priority priority,
+            long perDeploymentMemoryBytes,
+            long perAllocationMemoryBytes
+        ) {
+            this(
+                deploymentId,
+                modelId,
+                memoryBytes,
+                allocations,
+                threadsPerAllocation,
+                currentAllocationsByNodeId,
+                maxAssignedAllocations,
+                adaptiveAllocationsSettings,
+                priority,
+                perDeploymentMemoryBytes,
+                perAllocationMemoryBytes,
+                StartTrainedModelDeploymentAction::estimateMemoryUsageBytes
+            );
+        }
         public Deployment(
             String deploymentId,
             String modelId,
@@ -81,7 +139,8 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 adaptiveAllocationsSettings,
                 Priority.NORMAL,
                 perDeploymentMemoryBytes,
-                perAllocationMemoryBytes
+                perAllocationMemoryBytes,
+                StartTrainedModelDeploymentAction::estimateMemoryUsageBytes
             );
         }
 
@@ -98,7 +157,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         public long estimateMemoryUsageBytes(int allocations) {
-            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+            return memoryEstimator.estimateMemoryUsageBytes(
                 modelId,
                 memoryBytes,
                 perDeploymentMemoryBytes,
@@ -108,29 +167,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         long estimateAdditionalMemoryUsageBytes(int allocationsOld, int allocationsNew) {
-            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                modelId,
-                memoryBytes,
-                perDeploymentMemoryBytes,
-                perAllocationMemoryBytes,
-                allocationsNew
-            ) - StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                modelId,
-                memoryBytes,
-                perDeploymentMemoryBytes,
-                perAllocationMemoryBytes,
-                allocationsOld
-            );
+            return estimateMemoryUsageBytes(allocationsNew) - estimateMemoryUsageBytes(allocationsOld);
         }
 
         long minimumMemoryRequiredBytes() {
-            return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                modelId,
-                memoryBytes,
-                perDeploymentMemoryBytes,
-                perAllocationMemoryBytes,
-                1
-            );
+            return estimateMemoryUsageBytes(1);
         }
 
         int findOptimalAllocations(int maxAllocations, long availableMemoryBytes) {

@@ -25,7 +25,8 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
         Expression buckets = randomChild();
         Expression from = randomChild();
         Expression to = randomChild();
-        return new Bucket(source, field, buckets, from, to);
+        Expression emitEmptyBuckets = randomChild();
+        return new Bucket(source, field, buckets, from, to, emitEmptyBuckets);
     }
 
     @Override
@@ -35,12 +36,14 @@ public class BucketSerializationTests extends AbstractExpressionSerializationTes
         Expression buckets = instance.buckets();
         Expression from = instance.from();
         Expression to = instance.to();
-        switch (between(0, 3)) {
+        Expression emitEmptyBuckets = instance.emitEmptyBuckets();
+        switch (between(0, 4)) {
             case 0 -> field = randomValueOtherThan(field, AbstractExpressionSerializationTests::randomChild);
             case 1 -> buckets = randomValueOtherThan(buckets, AbstractExpressionSerializationTests::randomChild);
             case 2 -> from = randomValueOtherThan(from, AbstractExpressionSerializationTests::randomChild);
             case 3 -> to = randomValueOtherThan(to, AbstractExpressionSerializationTests::randomChild);
+            case 4 -> emitEmptyBuckets = randomValueOtherThan(emitEmptyBuckets, AbstractExpressionSerializationTests::randomChild);
         }
-        return new Bucket(source, field, buckets, from, to);
+        return new Bucket(source, field, buckets, from, to, emitEmptyBuckets);
     }
 }

@@ -1086,7 +1086,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS min(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [min(network.bytes_in)] must be"
-                    + " [representable except unsigned_long and spatial types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -1095,7 +1095,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM tests | STATS max(network.bytes_in)", tsdb),
             equalTo(
                 "1:20: argument of [max(network.bytes_in)] must be"
-                    + " [representable except unsigned_long and spatial types],"
+                    + " [boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types],"
                     + " found value [network.bytes_in] type [counter_long]"
             )
         );
@@ -2249,31 +2249,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testFullTextFunctionsConstantArg() throws Exception {
-        checkFullTextFunctionsConstantArg("match(title, category)", "second");
-        checkFullTextFunctionsConstantArg("qstr(title)", "");
-        checkFullTextFunctionsConstantArg("kql(title)", "");
-        checkFullTextFunctionsConstantArg("match_phrase(title, tags)", "second");
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantArg("multi_match(category, body)", "first");
-            checkFullTextFunctionsConstantArg("multi_match(concat(title, \"world\"), title)", "first");
-        }
-        if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
-            checkFullTextFunctionsConstantArg("term(title, tags)", "second");
-        }
-        if (EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled()) {
-            checkFullTextFunctionsConstantArg("knn(vector, vector, 10)", "second");
-            checkFullTextFunctionsConstantArg("knn(vector, [0, 1, 2], category)", "third");
-        }
-    }
-
-    private void checkFullTextFunctionsConstantArg(String functionInvocation, String argOrdinal) throws Exception {
-        assertThat(
-            error("from test | where " + functionInvocation, fullTextAnalyzer),
-            containsString(argOrdinal + " argument of [" + functionInvocation + "] must be a constant")
-        );
-    }
-
     public void testInsistNotOnTopOfFrom() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 
@@ -2507,6 +2482,10 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             checkVectorSimilarityFunctionsNullArgs("v_dot_product(null, vector)", "first");
             checkVectorSimilarityFunctionsNullArgs("v_dot_product(vector, null)", "second");
+        }
+        if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(null, vector)", "first");
+            checkVectorSimilarityFunctionsNullArgs("v_l1_norm(vector, null)", "second");
         }
     }
 

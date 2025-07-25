@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -48,8 +47,6 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObj
 public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
-
-    public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
     private final Map<String, DiskUsage> mostAvailableSpaceUsage;
@@ -105,9 +102,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.mostAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
         this.shardSizes = in.readImmutableMap(StreamInput::readLong);
         this.shardDataSetSizes = in.readImmutableMap(ShardId::new, StreamInput::readLong);
-        this.dataPath = in.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)
-            ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
-            : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
+        this.dataPath = in.readImmutableMap(NodeAndShard::new, StreamInput::readString);
         this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
             this.estimatedHeapUsages = in.readImmutableMap(EstimatedHeapUsage::new);
@@ -132,11 +127,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeWriteable);
         out.writeMap(this.shardSizes, (o, v) -> o.writeLong(v == null ? -1 : v));
         out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
-        if (out.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
-            out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
-        } else {
-            out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
-        }
+        out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
         out.writeMap(this.reservedSpace);
         if (out.getTransportVersion().onOrAfter(TransportVersions.HEAP_USAGE_IN_CLUSTER_INFO)) {
             out.writeMap(this.estimatedHeapUsages, StreamOutput::writeWriteable);

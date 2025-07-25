@@ -314,6 +314,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         boolean[] aggregate = { false };
         boolean[] coordinatorOnlyEnrich = { false };
         boolean[] lookupJoin = { false };
+        boolean[] fork = { false };
 
         enrich.forEachUp(LogicalPlan.class, u -> {
             if (u instanceof Aggregate) {
@@ -322,6 +323,8 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
                 coordinatorOnlyEnrich[0] = true;
             } else if (u instanceof LookupJoin) {
                 lookupJoin[0] = true;
+            } else if (u instanceof Fork) {
+                fork[0] = true;
             }
         });
 
@@ -333,6 +336,9 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         }
         if (lookupJoin[0]) {
             failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+        }
+        if (fork[0]) {
+            failures.add(fail(enrich, "ENRICH with remote policy can't be executed after FORK"));
         }
     }
 }

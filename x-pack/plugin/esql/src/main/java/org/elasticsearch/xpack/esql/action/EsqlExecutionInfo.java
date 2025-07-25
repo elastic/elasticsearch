@@ -108,9 +108,9 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     public EsqlExecutionInfo(StreamInput in) throws IOException {
         this.overallTook = in.readOptionalTimeValue();
-        this.clusterInfo = new ConcurrentHashMap<>(in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias));
-        this.includeCCSMetadata = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) && in.readBoolean();
-        this.isPartial = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL) && in.readBoolean();
+        this.clusterInfo = in.readMapValues(EsqlExecutionInfo.Cluster::new, Cluster::getClusterAlias, ConcurrentHashMap::new);
+        this.includeCCSMetadata = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readBoolean() : false;
+        this.isPartial = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RESPONSE_PARTIAL) ? in.readBoolean() : false;
         this.skipUnavailablePredicate = Predicates.always();
         this.relativeStart = null;
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_PLANNING_DURATION)

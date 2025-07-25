@@ -59,6 +59,13 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    public void testSimple2() {
+        assertFieldNames("""
+            FROM employees
+            | WHERE emp_no == "2"
+            """, IndexResolver.ALL_FIELDS);
+    }
+
     public void testDirectFilter() {
         assertFieldNames(
             "from employees | sort emp_no | where still_hired | keep emp_no | limit 3",
@@ -2162,7 +2169,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     public void testForkWithStatsAndWhere() {
         assertFieldNames(
             " FROM employees | FORK ( WHERE true | stats min(salary) by gender) ( WHERE true | LIMIT 3 )",
-            Set.of("gender", "salary", "gender.*", "salary.*")
+            IndexResolver.ALL_FIELDS
         );
     }
 
@@ -2180,7 +2187,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | EVAL x = null::string
             | STATS COUNT() BY category=CATEGORIZE(x)
             | SORT category
-            | FORK (WHERE true) (WHERE true) | WHERE _fork == "fork1" | DROP _fork""", Set.of("_index"));
+            | FORK (WHERE true) (WHERE true) | WHERE _fork == "fork1" | DROP _fork""", IndexResolver.ALL_FIELDS);
     }
 
     public void testSingleFork() {
@@ -2189,7 +2196,7 @@ public class FieldNameUtilsTests extends ESTestCase {
             | FORK
                ( STATS x = count(*))
                ( WHERE emp_no == "2" )
-            | SORT _fork""", Set.of("emp_no", "emp_no.*"));
+            | SORT _fork""", IndexResolver.ALL_FIELDS);
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

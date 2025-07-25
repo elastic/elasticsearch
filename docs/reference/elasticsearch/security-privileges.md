@@ -199,7 +199,7 @@ This section lists the privileges that you can assign to a role.
 `monitor_enrich`
 :   All read-only operations related to managing and executing enrich policies.
 
-`monitor_esql`
+`monitor_esql` {applies_to}`stack: ga 9.1`
 :   All read-only operations related to ES|QL queries.
 
 `monitor_inference`

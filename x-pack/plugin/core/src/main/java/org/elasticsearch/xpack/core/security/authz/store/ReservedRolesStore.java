@@ -159,11 +159,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     static RoleDescriptor.RemoteIndicesPrivileges getRemoteIndicesReadPrivileges(String indexPattern) {
         return new RoleDescriptor.RemoteIndicesPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(indexPattern)
-                .privileges("read")
-                .allowRestrictedIndices(false)
-                .build(),
+            RoleDescriptor.IndicesPrivileges.builder().indices(indexPattern).privileges("read").allowRestrictedIndices(false).build(),
             "*"
         );
     }
@@ -202,18 +198,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "monitoring_user",
                     new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", TransportRemoteInfoAction.TYPE.name() },
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".monitoring-*")
-                            .privileges("read")
-                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read").build(),
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
                             .privileges("read")
                             .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("metricbeat-*")
-                            .privileges("read")
-                            .build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices("metricbeat-*").privileges("read").build() },
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")

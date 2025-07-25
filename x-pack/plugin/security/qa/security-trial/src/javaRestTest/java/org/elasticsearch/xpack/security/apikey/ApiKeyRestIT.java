@@ -1537,10 +1537,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             "cross_cluster",
             new String[] { "cross_cluster_search", "monitor_enrich", "cross_cluster_replication" },
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("data")
-                    .privileges("read", "view_index_metadata")
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("data").privileges("read", "view_index_metadata").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
                     .privileges("cross_cluster_replication", "cross_cluster_replication_internal")
@@ -1608,10 +1605,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             "cross_cluster",
             new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("blogs")
-                    .privileges("read", "view_index_metadata")
-                    .build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices("blogs").privileges("read", "view_index_metadata").build() },
             null
         );
         assertThat(

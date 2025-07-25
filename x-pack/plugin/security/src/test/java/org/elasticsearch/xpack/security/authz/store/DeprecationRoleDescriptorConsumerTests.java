@@ -281,8 +281,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
         final RoleDescriptor roleGlobalWildcard2 = new RoleDescriptor(
             "roleGlobalWildcard2",
             new String[] { "manage_index_templates" },
-            new RoleDescriptor.IndicesPrivileges[] {
-                indexPrivileges(randomFrom("write", "delete_index", "read"), "i*", "a*") },
+            new RoleDescriptor.IndicesPrivileges[] { indexPrivileges(randomFrom("write", "delete_index", "read"), "i*", "a*") },
             null
         );
         new DeprecationRoleDescriptorConsumer(clusterService, projectResolver, threadPool, deprecationLogger).accept(

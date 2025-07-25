@@ -372,6 +372,11 @@ teardown:
   - requires:
       cluster_features: [ "gte_v8.16.0" ]
       reason: dots in field names allowed starting in in 8.16.0
+      test_runner_features: [ capabilities, "close_to" ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ exclude_source_vectors_setting ]
 
   - do:
       indices.create:
@@ -409,17 +414,14 @@ teardown:
       get:
         index: index-with-sparse-vector2
         id: "has-dots"
+        _source_exclude_vectors: false
 
-  - match:
-      _source:
-        ml:
-          tokens:
-            running: 2.4097164
-            good: 2.170997
-            run: 2.052153
-            race: 1.4575411
-            for: 1.1908325
-            5.0k: 2.489943
+  - close_to: { _source.ml.tokens.running: { value: 2.4097164, error: 0.01 } }
+  - close_to: { _source.ml.tokens.good: { value: 2.170997, error: 0.01 } }
+  - close_to: { _source.ml.tokens.run: { value: 2.052153, error: 0.01 } }
+  - close_to: { _source.ml.tokens.race: { value: 1.4575411, error: 0.01 } }
+  - close_to: { _source.ml.tokens.for: { value: 1.1908325, error: 0.01 } }
+  - close_to: { _source.ml.tokens.5\\.0k: { value: 2.489943, error: 0.01 } }
 
   - do:
       search:
@@ -439,6 +441,11 @@ teardown:
   - requires:
       cluster_features: [ "gte_v8.16.0" ]
       reason: dots in field names allowed starting in in 8.16.0
+      test_runner_features: [ capabilities, "close_to" ]
+      capabilities:
+        - method: GET
+          path: /_search
+          capabilities: [ exclude_source_vectors_setting ]
 
   - do:
       indices.create:
@@ -479,6 +486,7 @@ teardown:
       get:
         index: index-with-sparse-vector3
         id: "parent-foo"
+        _source_exclude_vectors: false
 
   - match:
       _source:
@@ -491,6 +499,7 @@ teardown:
       get:
         index: index-with-sparse-vector3
         id: "parent-foo-bar"
+        _source_exclude_vectors: false
 
   - match:
       _source:

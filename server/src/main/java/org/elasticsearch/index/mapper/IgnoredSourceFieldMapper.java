@@ -170,7 +170,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
         byte[] nameBytes = values.name.getBytes(StandardCharsets.UTF_8);
         byte[] bytes = new byte[4 + nameBytes.length + values.value.length];
-        ByteUtils.writeIntLE(values.name.length() + PARENT_OFFSET_IN_NAME_OFFSET * values.parentOffset, bytes, 0);
+        ByteUtils.writeIntLE(nameBytes.length + PARENT_OFFSET_IN_NAME_OFFSET * values.parentOffset, bytes, 0);
         System.arraycopy(nameBytes, 0, bytes, 4, nameBytes.length);
         System.arraycopy(values.value.bytes, values.value.offset, bytes, 4 + nameBytes.length, values.value.length);
         return bytes;

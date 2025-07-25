@@ -2844,44 +2844,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             );
             readyDeletions = res.v2();
 
-            ClusterState updatedState = res.v1();
-
-            // Check whether we can start any assigned-queued shard snapshots in other repositories. They may have been
-            // limited because the deleted entry took all node capacity.
-            // TODO: deduplicate the code for starting assigned-queued shards across repos
-            final var snapshotsInProgress = SnapshotsInProgress.get(updatedState);
-            final var perNodeShardSnapshotCounter = new PerNodeShardSnapshotCounter(
-                shardSnapshotPerNodeLimit,
-                snapshotsInProgress,
-                updatedState.nodes(),
-                isStateless
-            );
-            if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
-                final ProjectRepo repoForDeletedEntry = new ProjectRepo(deleteEntry.projectId(), deleteEntry.repository());
-                SnapshotsInProgress updatedSnapshotsInProgress = snapshotsInProgress;
-                for (var repo : snapshotsInProgress.repos()) {
-                    if (repo.equals(repoForDeletedEntry)) {
-                        continue;
-                    }
-                    updatedSnapshotsInProgress = maybeStartAssignedQueuedShardSnapshotsForRepo(
-                        repo,
-                        updatedState,
-                        updatedSnapshotsInProgress,
-                        perNodeShardSnapshotCounter,
-                        SnapshotsService.this::innerUpdateSnapshotState,
-                        ignore -> {},
-                        () -> {},
-                        () -> {}
-                    );
-                }
-                if (updatedSnapshotsInProgress != snapshotsInProgress) {
-                    updatedState = ClusterState.builder(updatedState)
-                        .putCustom(SnapshotsInProgress.TYPE, updatedSnapshotsInProgress)
-                        .build();
-                }
-            }
-
-            return updatedState;
+            return res.v1();
         }
 
         @Override

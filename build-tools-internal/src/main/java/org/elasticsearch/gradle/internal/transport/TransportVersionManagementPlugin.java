@@ -19,10 +19,10 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        String transportVersionReferencesFile = "generated-transport-constants/transport-version-set-names.txt";
-        var collectTask = project.getTasks().register("collectTransportVersionNames", CollectTransportVersionNamesTask.class, t -> {
+        String transportVersionReferencesFile = "transport-version/references.txt";
+        var collectTask = project.getTasks().register("collectTransportVersionReferences", CollectTransportVersionReferencesTask.class, t -> {
             t.setGroup("Transport Versions");
-            t.setDescription("Collects all TransportVersion names used throughout the project");
+            t.setDescription("Collects all TransportVersion references used throughout the project");
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             t.getClassPath().setFrom(mainSourceSet.getRuntimeClasspath());
             t.getOutputFile().set(project.getLayout().getBuildDirectory().file(transportVersionReferencesFile));
@@ -39,8 +39,8 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
         var validateTask = project.getTasks()
             .register("validateTransportVersionReferences", ValidateTransportVersionReferencesTask.class, t -> {
                 t.setGroup("Transport Versions");
-                t.setDescription("Validates that all TransportVersion names used in the project have an associated data file");
-                t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
+                t.setDescription("Validates that all TransportVersion references used in the project have an associated definition file");
+                t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
                 t.getReferencesFile().set(project.getLayout().getBuildDirectory().file(transportVersionReferencesFile));
                 t.dependsOn(collectTask);
 

@@ -26,14 +26,14 @@ import java.nio.file.Path;
 public abstract class ValidateTransportVersionReferencesTask extends DefaultTask {
 
     @InputDirectory
-    public abstract DirectoryProperty getConstantsDirectory();
+    public abstract DirectoryProperty getDefinitionsDirectory();
 
     @InputFile
     public abstract RegularFileProperty getReferencesFile();
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        Path constantsDir = getConstantsDirectory().getAsFile().get().toPath();
+        Path constantsDir = getDefinitionsDirectory().getAsFile().get().toPath();
         Path namesFile = getReferencesFile().get().getAsFile().toPath();
 
         for (var tvReference : TransportVersionUtils.readReferencesFile(namesFile)) {

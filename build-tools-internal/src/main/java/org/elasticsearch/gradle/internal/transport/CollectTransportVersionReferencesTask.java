@@ -41,7 +41,7 @@ import java.util.zip.ZipEntry;
  * provided directory, and then records the value of string literals passed as arguments. It then records each
  * string on a newline along with path and line number in the provided output file.
  */
-public abstract class CollectTransportVersionNamesTask extends DefaultTask {
+public abstract class CollectTransportVersionReferencesTask extends DefaultTask {
     public static final String TRANSPORT_VERSION_SET_CLASS = "org/elasticsearch/TransportVersion";
     public static final String TRANSPORT_VERSION_SET_METHOD_NAME = "fromName";
     public static final String CLASS_EXTENSION = ".class";

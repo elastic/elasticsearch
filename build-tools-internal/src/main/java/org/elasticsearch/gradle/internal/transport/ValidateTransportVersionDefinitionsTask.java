@@ -23,23 +23,23 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readConstantFile;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readDefinitionFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readReferencesFile;
 
 /**
  * Validates that each defined transport version constant is referenced by at least one project.
  */
-public abstract class ValidateTransportVersionConstantsTask extends DefaultTask {
+public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTask {
 
     @InputDirectory
-    public abstract DirectoryProperty getConstantsDirectory();
+    public abstract DirectoryProperty getDefinitionsDirectory();
 
     @InputFiles
     public abstract ConfigurableFileCollection getReferencesFiles();
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        Path constantsDir = getConstantsDirectory().getAsFile().get().toPath();
+        Path constantsDir = getDefinitionsDirectory().getAsFile().get().toPath();
 
         Set<String> allTvNames = new HashSet<>();
         for (var tvReferencesFile : getReferencesFiles()) {
@@ -48,7 +48,7 @@ public abstract class ValidateTransportVersionConstantsTask extends DefaultTask 
 
         try (var constantsStream = Files.list(constantsDir)) {
             for (var constantsFile : constantsStream.toList()) {
-                var tv = readConstantFile(constantsFile);
+                var tv = readDefinitionFile(constantsFile);
                 if (allTvNames.contains(tv.name()) == false) {
                     throw new IllegalStateException("Transport version constant " + tv.name() + " is not referenced");
                 }

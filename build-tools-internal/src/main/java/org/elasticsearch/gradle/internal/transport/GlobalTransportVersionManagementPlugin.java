@@ -43,25 +43,25 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
         tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
 
+        var validateTask = project.getTasks()
+            .register("validateTransportVersionConstants", ValidateTransportVersionDefinitionsTask.class, t -> {
+                t.setGroup("Transport Versions");
+                t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
+                t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
+                t.getReferencesFiles().setFrom(tvReferencesConfig);
+            });
+
+        project.getTasks().named("check").configure(t -> t.dependsOn(validateTask));
+
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Generate a manifest resource for all the known transport version constants");
-                t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
+                t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
             t.into("transport/constants", c -> c.from(generateManifestTask));
         });
-
-        var validateTask = project.getTasks()
-            .register("validateTransportVersionConstants", ValidateTransportVersionConstantsTask.class, t -> {
-                t.setGroup("Transport Versions");
-                t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
-                t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
-                t.getReferencesFiles().setFrom(tvReferencesConfig);
-            });
-
-        project.getTasks().named("check").configure(t -> t.dependsOn(validateTask));
     }
 }

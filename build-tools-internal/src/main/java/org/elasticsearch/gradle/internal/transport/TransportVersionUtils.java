@@ -39,7 +39,7 @@ class TransportVersionUtils {
         }
     }
 
-    static TransportVersionConstant readConstantFile(Path file) throws IOException {
+    static TransportVersionConstant readDefinitionFile(Path file) throws IOException {
         assert file.endsWith(".csv");
         String rawName = file.getFileName().toString();
         String name = rawName.substring(0, rawName.length() - 4);
@@ -72,9 +72,9 @@ class TransportVersionUtils {
         return results;
     }
 
-    static Directory getConstantsDirectory(Project project) {
+    static Directory getDefinitionsDirectory(Project project) {
         Directory serverDir = project.getRootProject().project(":server").getLayout().getProjectDirectory();
-        return serverDir.dir("src/main/resources/transport/constants");
+        return serverDir.dir("src/main/resources/transport/defined");
     }
 
     static void addTransportVersionReferencesAttribute(AttributeContainer attributes) {

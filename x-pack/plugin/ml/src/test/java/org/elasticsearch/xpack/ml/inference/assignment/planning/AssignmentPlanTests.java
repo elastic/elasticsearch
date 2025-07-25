@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class AssignmentPlanTests extends ESTestCase {
 
@@ -746,13 +747,17 @@ public class AssignmentPlanTests extends ESTestCase {
 
     public void testAssignModelToNodeAndAccountForCurrentAllocations_GivenScalingFromThreeToFourAllocations() {
         // Test that we are not double-counting memory when scaling from 3 to 4 allocations
-        
+
+        int targetAllocations = 4;
+        int currentAllocations = 3;
+        int newAllocations = targetAllocations - currentAllocations;
+
         // Create a node with sufficient memory
         long nodeMemoryBytes = ByteSizeValue.ofGb(1).getBytes();
         Node node = new Node("node-1", nodeMemoryBytes, 8);
 
         // Create a deployment with 3 current allocations on node-1, target 4 allocations
-        Map<String, Integer> currentAllocations = Map.of("node-1", 3);
+        Map<String, Integer> currentAllocationsMap = Map.of("node-1", currentAllocations);
 
         // Create a deployment that's being scaled from 3 to 4 allocations
         long modelBytes = ByteSizeValue.ofMb(10).getBytes();
@@ -782,12 +787,12 @@ public class AssignmentPlanTests extends ESTestCase {
             "test-deployment",
             "test-model",
             modelBytes,
-            4,  // target allocation count (was 3, now 4)
-            1,  // threads per allocation
-            currentAllocations,  // current allocations (3)
-            3,  // max previously assigned
-            null,  // adaptive allocation settings
-            null,  // priority (uses default)
+            targetAllocations,
+            1,
+            currentAllocationsMap,
+            currentAllocations,
+            null,
+            null,
             perDeploymentMemoryBytes,
             perAllocationMemoryBytes,
             trackingEstimator  // inject our tracking estimator
@@ -795,15 +800,19 @@ public class AssignmentPlanTests extends ESTestCase {
 
         // Create a builder and use our method to add 1 allocation to the 3 current ones
         AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(node), List.of(deployment));
-        builder.assignModelToNodeAndAccountForCurrentAllocations(deployment, node, 1);
+        builder.assignModelToNodeAndAccountForCurrentAllocations(deployment, node, newAllocations);
 
         // Build the plan and verify assignments
         AssignmentPlan plan = builder.build();
         assertThat(plan.assignments(deployment).isPresent(), is(true));
-        assertThat(plan.assignments(deployment).get().get(node), equalTo(1)); // Verifies 1 new allocation assigned
+        assertThat(plan.assignments(deployment).get().get(node), equalTo(newAllocations)); // Verifies 1 new allocation assigned
 
         // If we don't have double-counting, the memory estimation should be called no more than 4 allocations
         int maxAllocationCount = allocationCounts.stream().max(Integer::compare).orElse(0);
-        assertThat("Should never calculate memory for more than 4 allocations at once", maxAllocationCount, lessThan(5));
+        assertThat(
+            "Should never calculate memory for more than 4 allocations at once",
+            maxAllocationCount,
+            lessThanOrEqualTo(targetAllocations)
+        );
     }
 }

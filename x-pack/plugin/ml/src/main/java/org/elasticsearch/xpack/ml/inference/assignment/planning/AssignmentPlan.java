@@ -11,7 +11,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import java.util.function.ToLongFunction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
@@ -53,7 +52,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
     public interface MemoryEstimator {
         /**
          * Estimates memory usage for a given number of allocations
-         * 
+         *
          * @param modelId the model ID
          * @param modelBytes the model size in bytes
          * @param perDeploymentMemoryBytes the fixed per-deployment memory overhead
@@ -69,7 +68,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             int allocations
         );
     }
-    
+
     public record Deployment(
         String deploymentId,
         String modelId,
@@ -84,7 +83,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         long perAllocationMemoryBytes,
         MemoryEstimator memoryEstimator
     ) {
-        
+
         /**
          * Default constructor that uses the standard memory estimator
          */
@@ -116,6 +115,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 StartTrainedModelDeploymentAction::estimateMemoryUsageBytes
             );
         }
+
         public Deployment(
             String deploymentId,
             String modelId,

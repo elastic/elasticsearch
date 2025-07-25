@@ -1,5 +1,5 @@
 pr: 131918
-summary: Fix the bug with double allocation accouting
+summary: Prevent the trained model deployment memory estimation from double-counting allocations.
 area: Machine Learning
 type: bug
 issues: []

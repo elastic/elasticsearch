@@ -24,11 +24,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.injection.guice.Inject;
@@ -240,8 +242,12 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                 mdBuilder.put(updatedDataStream);
             };
         }
+        @FixForMultiProject(
+            description = "CCR may not be in scope for multi-project though we haven't made the decision explicitly yet. See also ES-12139"
+        )
+        final ProjectId projectId = ProjectId.DEFAULT;
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
-            .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(restoreRequest, l, updater)));
+            .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(projectId, restoreRequest, l, updater)));
     }
 
     private void afterRestoreStarted(

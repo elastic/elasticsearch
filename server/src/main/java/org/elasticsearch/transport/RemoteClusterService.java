@@ -580,6 +580,13 @@ public final class RemoteClusterService extends RemoteClusterAware
         Function<String, DiscoveryNode> nullFunction = s -> null;
         for (final String cluster : clusters) {
             RemoteClusterConnection connection = this.remoteClusters.get(cluster);
+            // Ensure the connection is not null, it could have been removed since the containsKey() call above.
+            if (connection == null) {
+                if (countDown.fastForward()) {
+                    listener.onFailure(new NoSuchRemoteClusterException(cluster));
+                }
+                break;
+            }
             connection.collectNodes(new ActionListener<Function<String, DiscoveryNode>>() {
                 @Override
                 public void onResponse(Function<String, DiscoveryNode> nodeLookup) {

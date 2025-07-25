@@ -335,7 +335,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
         builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
-        if (fields == null && query == null) {
+        if (weights.length > 0) {
             builder.startArray(WEIGHTS_FIELD.getPreferredName());
             for (float weight : weights) {
                 builder.value(weight);

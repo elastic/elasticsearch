@@ -69,7 +69,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             // validate seed address
             parsePort(s);
             return s;
-        }, new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF), Setting.Property.Dynamic, Setting.Property.NodeScope)
+        }, new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF), Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.ProjectScope)
     );
 
     /**
@@ -85,7 +85,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             if (Strings.hasLength(s)) {
                 parsePort(s);
             }
-        }), Setting.Property.Dynamic, Setting.Property.NodeScope),
+        }), Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.ProjectScope),
         () -> REMOTE_CLUSTER_SEEDS
     );
 

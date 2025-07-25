@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
-public class FieldNamesResolver {
+public class FieldNameUtils {
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution) {
 
@@ -168,7 +168,7 @@ public class FieldNamesResolver {
             //
             // and ips_policy enriches the results with the same name ip field),
             // these aliases should be kept in the list of fields.
-            if (canRemoveAliases[0] && p.anyMatch(FieldNamesResolver::couldOverrideAliases)) {
+            if (canRemoveAliases[0] && p.anyMatch(FieldNameUtils::couldOverrideAliases)) {
                 canRemoveAliases[0] = false;
             }
             if (canRemoveAliases[0]) {

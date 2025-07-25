@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FieldNameResolverTests extends ESTestCase {
+public class FieldNameUtilsTests extends ESTestCase {
 
     private static final EsqlParser parser = new EsqlParser();
 
@@ -2150,10 +2150,7 @@ public class FieldNameResolverTests extends ESTestCase {
     }
 
     private void assertFieldNames(String query, EnrichResolution enrichResolution, Set<String> expected, Set<String> wildCardIndices) {
-        var preAnalysisResult = FieldNamesResolver.resolveFieldNames(
-            parser.createStatement(query, EsqlTestUtils.TEST_CFG),
-            enrichResolution
-        );
+        var preAnalysisResult = FieldNameUtils.resolveFieldNames(parser.createStatement(query, EsqlTestUtils.TEST_CFG), enrichResolution);
         assertThat("Query-wide field names", preAnalysisResult.fieldNames(), equalTo(expected));
         assertThat("Lookup Indices that expect wildcard lookups", preAnalysisResult.wildcardJoinIndices(), equalTo(wildCardIndices));
     }

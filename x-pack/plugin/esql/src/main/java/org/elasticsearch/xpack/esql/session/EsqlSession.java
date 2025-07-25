@@ -743,7 +743,7 @@ public class EsqlSession {
     }
 
     private static void resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution, ActionListener<PreAnalysisResult> l) {
-        ActionListener.completeWith(l, () -> FieldNamesResolver.resolveFieldNames(parsed, enrichResolution));
+        ActionListener.completeWith(l, () -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution));
     }
 
     private void resolveInferences(

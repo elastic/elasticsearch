@@ -117,8 +117,8 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         }
         // Removed projects
         for (var projectId : clientHolders.keySet()) {
-            assert ProjectId.DEFAULT.equals(projectId) == false;
             if (currentProjects.containsKey(projectId) == false) {
+                assert ProjectId.DEFAULT.equals(projectId) == false;
                 clientHolders.remove(projectId);
             }
         }

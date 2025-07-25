@@ -21,9 +21,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.0.4 [elasticsearch-9.0.4-release-notes]
-```{applies_to}
-stack: coming 9.0.4
-```
 
 ### Fixes [elasticsearch-9.0.4-fixes]
 
@@ -45,6 +42,7 @@ Infra/Core:
 Machine Learning:
 * Check for model deployment in inference endpoints before stopping [#129325](https://github.com/elastic/elasticsearch/pull/129325) (issue: [#128549](https://github.com/elastic/elasticsearch/issues/128549))
 * Fix timeout bug in DBQ deletion of unused and orphan ML data [#130083](https://github.com/elastic/elasticsearch/pull/130083)
+* Including `max_tokens` through the Service API for Anthropic [#131113](https://github.com/elastic/elasticsearch/pull/131113)
 
 Mapping:
 * Make flattened synthetic source concatenate object keys on scalar/object mismatch [#129600](https://github.com/elastic/elasticsearch/pull/129600) (issue: [#122936](https://github.com/elastic/elasticsearch/issues/122936))

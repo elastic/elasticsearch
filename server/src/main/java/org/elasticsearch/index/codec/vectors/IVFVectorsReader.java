@@ -36,7 +36,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
@@ -264,7 +263,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 nProbe = (int) Math.min(nProbe * 2.0, numCentroids);
             }
         }
-
 
         PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
         int centroidsVisited = 0;

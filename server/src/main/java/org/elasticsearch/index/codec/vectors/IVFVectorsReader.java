@@ -39,7 +39,6 @@ import java.util.function.IntPredicate;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.SIMILARITY_FUNCTIONS;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.DYNAMIC_NPROBE;
-import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.NPROBE_OVERSAMPLE;
 
 /**
  * Reader for IVF vectors. This reader is used to read the IVF vectors from the index.
@@ -251,11 +250,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             nProbe = Math.max(Math.min(nProbe, entry.numCentroids), 1);
         }
 
-        final int numOversampled = Math.min((int) (nProbe * NPROBE_OVERSAMPLE), entry.numCentroids());
         CentroidIterator centroidIterator = getCentroidIterator(
             fieldInfo,
             entry.numCentroids,
-            numOversampled,
+            nProbe,
             entry.centroidSlice(ivfCentroids),
             target
         );

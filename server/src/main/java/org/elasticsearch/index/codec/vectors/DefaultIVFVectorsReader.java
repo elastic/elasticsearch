@@ -32,6 +32,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 import static org.elasticsearch.index.codec.vectors.BQSpaceUtils.transposeHalfByte;
+import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.NPROBE_OVERSAMPLE;
 import static org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer.DEFAULT_LAMBDA;
 import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
 
@@ -47,15 +48,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     }
 
     @Override
-    CentroidIterator getCentroidIterator(
-        FieldInfo fieldInfo,
-        int numCentroids,
-        int numOversampled,
-        IndexInput centroids,
-        float[] targetQuery
-    ) throws IOException {
+    CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, int nProbe, IndexInput centroids, float[] targetQuery)
+        throws IOException {
 
         final float[] centroidCorrectiveValues = new float[3];
+        final int numOversampled = Math.min((int) (nProbe * NPROBE_OVERSAMPLE), numCentroids);
 
         // constants
         final int discretizedDimensions = BQVectorUtils.discretize(fieldInfo.getVectorDimension(), 64);

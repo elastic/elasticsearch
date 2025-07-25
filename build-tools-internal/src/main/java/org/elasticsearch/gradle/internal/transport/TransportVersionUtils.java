@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
-
 import org.gradle.api.Project;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.AttributeContainer;
@@ -27,10 +26,10 @@ import java.util.List;
 import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
 
 class TransportVersionUtils {
-
     static final Attribute<Boolean> TRANSPORT_VERSION_REFERENCES_ATTRIBUTE = Attribute.of("transport-version-references", Boolean.class);
 
-    record TransportVersionConstant(String name, List<Integer> ids) {}
+    record TransportVersionDefinition(String name, List<Integer> ids) {
+    }
 
     record TransportVersionReference(String name, String location) {
         @Override
@@ -39,24 +38,29 @@ class TransportVersionUtils {
         }
     }
 
-    static TransportVersionConstant readDefinitionFile(Path file) throws IOException {
+    static TransportVersionDefinition getLatestFile(Path latestDataDir, String majorMinor) throws IOException {
+        return readDefinitionFile(latestDataDir.resolve(majorMinor + ".csv"), true);
+    }
+
+    static TransportVersionDefinition readDefinitionFile(Path file, boolean nameInFile) throws IOException {
         assert file.endsWith(".csv");
         String rawName = file.getFileName().toString();
-        String name = rawName.substring(0, rawName.length() - 4);
-        List<Integer> ids = new ArrayList<>();
 
-        for (String rawId : Files.readString(file, StandardCharsets.UTF_8).split(",")) {
+        String[] parts = Files.readString(file, StandardCharsets.UTF_8).split(",");
+        String name = nameInFile ? parts[0] : rawName.substring(0, rawName.length() - 4);
+        List<Integer> ids = new ArrayList<>();
+        for (int i = nameInFile ? 1 : 0; i < parts.length; ++i) {
             try {
-                ids.add(Integer.parseInt(rawId.strip()));
-            } catch (NumberFormatException e) {
-                throw new IOException("Failed to parse id " + rawId + " in " + file, e);
+                ids.add(Integer.parseInt(parts[i]));
+            } catch (NumberFormatException nfe) {
+                throw new IllegalStateException("invalid transport version file format [" + file + "]", nfe);
             }
         }
 
         if (Comparators.isInOrder(ids, Comparator.reverseOrder()) == false) {
             throw new IOException("invalid transport version data file [" + file + "], ids are not in sorted");
         }
-        return new TransportVersionConstant(name, ids);
+        return new TransportVersionDefinition(name, ids);
     }
 
     static List<TransportVersionReference> readReferencesFile(Path file) throws IOException {
@@ -81,5 +85,6 @@ class TransportVersionUtils {
         attributes.attribute(ARTIFACT_TYPE_ATTRIBUTE, "txt");
         attributes.attribute(TransportVersionUtils.TRANSPORT_VERSION_REFERENCES_ATTRIBUTE, true);
     }
+
 
 }

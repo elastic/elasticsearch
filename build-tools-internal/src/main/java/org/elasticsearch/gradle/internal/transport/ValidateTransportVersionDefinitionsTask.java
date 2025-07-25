@@ -39,16 +39,16 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        Path constantsDir = getDefinitionsDirectory().getAsFile().get().toPath();
+        Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
 
         Set<String> allTvNames = new HashSet<>();
         for (var tvReferencesFile : getReferencesFiles()) {
             readReferencesFile(tvReferencesFile.toPath()).stream().map(TransportVersionReference::name).forEach(allTvNames::add);
         }
 
-        try (var constantsStream = Files.list(constantsDir)) {
-            for (var constantsFile : constantsStream.toList()) {
-                var tv = readDefinitionFile(constantsFile);
+        try (var definitionsStream = Files.list(definitionsDir)) {
+            for (var constantsFile : definitionsStream.toList()) {
+                var tv = readDefinitionFile(constantsFile, false);
                 if (allTvNames.contains(tv.name()) == false) {
                     throw new IllegalStateException("Transport version constant " + tv.name() + " is not referenced");
                 }

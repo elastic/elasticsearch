@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -50,8 +51,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         return inferenceQuery;
     }
 
-    @Override
-    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    private QueryBuilder buildCombinedInferenceAndNonInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
         assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder originalMultiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
 
@@ -78,6 +78,42 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         );
 
         // TODO:: add boost
+        boolQueryBuilder.queryName(queryBuilder.queryName());
+        return boolQueryBuilder;
+    }
+
+    @Override
+    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float fieldWeight) {
+        assert (queryBuilder instanceof MultiMatchQueryBuilder);
+        MultiMatchQueryBuilder originalMultiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
+
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder));
+
+        // Create a copy for non-inference fields with only this specific field
+//        MultiMatchQueryBuilder multiMatchQueryBuilder = createSingleFieldMultiMatch(
+//            originalMultiMatchQueryBuilder,
+//            indexInformation.fieldName()
+//        );
+
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+
+        // Add semantic query for inference indices
+        boolQueryBuilder.should(
+            createSemanticSubQuery(
+                indexInformation.getInferenceIndices(),
+                indexInformation.fieldName(),
+                getQuery(matchQueryBuilder)
+            )
+        );
+
+        // Add regular query for non-inference indices
+        boolQueryBuilder.should(
+            createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder)
+        );
+
+        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
+            boolQueryBuilder.boost(fieldWeight);
+        }
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }

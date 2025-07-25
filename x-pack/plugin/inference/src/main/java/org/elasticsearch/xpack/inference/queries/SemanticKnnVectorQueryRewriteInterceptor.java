@@ -94,8 +94,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         return boolQueryBuilder;
     }
 
-    @Override
-    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
+    private QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
         InferenceIndexInformationForField indexInformation
     ) {
@@ -119,6 +118,21 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         boolQueryBuilder.boost(queryBuilder.boost());
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
+    }
+
+    @Override
+    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldWeight
+    ) {
+        QueryBuilder inferenceQuery = buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
+
+        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
+            inferenceQuery.boost(fieldWeight);
+        }
+
+        return inferenceQuery;
     }
 
     private QueryBuilder buildNestedQueryFromKnnVectorQuery(

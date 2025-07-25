@@ -53,7 +53,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
                 // Combined case where the field name requested by this query contains both
                 // semantic_text and non-inference fields, so we have to combine queries per index
                 // containing each field type.
-                finalQueryBuilder.should(buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation));
+                finalQueryBuilder.should(buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation, fieldWeight));
             } else {
                 // The only fields we've identified are inference fields (e.g. semantic_text),
                 // so rewrite the entire query to work on a semantic_text field.
@@ -93,9 +93,15 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      * @param indexInformation {@link InferenceIndexInformationForField}
      * @return {@link QueryBuilder}
      */
+//    protected abstract QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
+//        QueryBuilder queryBuilder,
+//        InferenceIndexInformationForField indexInformation
+//    );
+
     protected abstract QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
+        InferenceIndexInformationForField indexInformation,
+        Float fieldWeight
     );
 
     private InferenceIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {

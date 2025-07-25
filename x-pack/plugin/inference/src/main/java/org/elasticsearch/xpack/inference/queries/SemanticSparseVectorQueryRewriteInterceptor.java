@@ -83,7 +83,6 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         return boolQueryBuilder;
     }
 
-    @Override
     protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
         InferenceIndexInformationForField indexInformation
@@ -119,6 +118,20 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         boolQueryBuilder.boost(queryBuilder.boost());
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
+    }
+
+    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldWeight
+    ) {
+        QueryBuilder inferenceQuery = buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
+
+        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
+            inferenceQuery.boost(fieldWeight);
+        }
+
+        return inferenceQuery;
     }
 
     private QueryBuilder buildNestedQueryFromSparseVectorQuery(QueryBuilder queryBuilder, String searchInferenceId) {

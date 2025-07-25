@@ -459,6 +459,35 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             remainingModelAllocations.compute(deployment, (m, remModelThreads) -> remModelThreads - allocations);
             return this;
         }
+        
+        /**
+         * Assigns a model to a node, and if the node has existing allocations, 
+         * also accounts for memory usage of those existing allocations.
+         * This handles the common case of transferring assignments between plans.
+         *
+         * @param deployment The deployment to assign
+         * @param node The target node
+         * @param newAllocations The number of new allocations to assign
+         * @return this builder for method chaining
+         */
+        public Builder assignModelToNodeAndAccountForCurrentAllocations(Deployment deployment, Node node, int newAllocations) {
+            // First, handle the assignment of new allocations exactly as in the original code
+            assignModelToNode(deployment, node, newAllocations);
+            
+            // Then, check if there are current allocations that need memory accounting
+            // This is directly mirroring the original approach in both refactored methods
+            if (deployment.currentAllocationsByNodeId().containsKey(node.id())) {
+                // Get the current allocations count
+                int currentAllocations = deployment.currentAllocationsByNodeId().get(node.id());
+                
+                // Calculate memory for the current allocations
+                // This exactly mirrors what the original code was doing
+                long memoryForCurrentAllocations = deployment.estimateMemoryUsageBytes(currentAllocations);
+                accountMemory(deployment, node, memoryForCurrentAllocations);
+            }
+            
+            return this;
+        }
 
         private int getAssignedAllocations(Deployment deployment, Node node) {
             int currentAllocations = getCurrentAllocations(deployment, node);

@@ -23,24 +23,33 @@ import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodeR
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesRequest;
 import co.elastic.elasticsearch.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest;
@@ -51,8 +60,10 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -60,6 +71,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -320,6 +333,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         final var repoName = "backup";
         final CountDownLatch latch = new CountDownLatch(allProjects.size());
 
+        final Map<ProjectId, Integer> projectNumDocs = new HashMap<>();
         for (ProjectId projectId : allProjects) {
             // Create the project with reserved repository
             putProject(
@@ -338,7 +352,9 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
                     .setSettings(indexSettings(2, 0).put("index.routing.allocation.total_shards_per_node", 1))
                     .execute()
             );
-            indexDocsAndRefresh(projectClient, indexName, between(10, 50));
+            final int numDocs = between(10, 50);
+            indexDocsAndRefresh(projectClient, indexName, numDocs);
+            projectNumDocs.put(projectId, numDocs);
         }
 
         final var projectToDelaySnapshot = randomFrom(allProjects);
@@ -478,6 +494,36 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
 
                     // Delete snapshot
                     safeGet(projectClient.admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName).execute());
+
+                    final var restoreClonedSnapshot = randomBoolean();
+                    safeGet(projectClient.admin().indices().prepareDelete(indexName).execute());
+
+                    if (restoreClonedSnapshot) {
+                        safeGet(
+                            projectClient.admin()
+                                .cluster()
+                                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "clone-" + snapshotName)
+                                .setIndices(randomFrom("*", "index*", indexName))
+                                .setWaitForCompletion(true)
+                                .execute()
+                        );
+                    } else {
+                        // Restore snapshot
+                        safeGet(
+                            projectClient.admin()
+                                .cluster()
+                                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "another-" + snapshotName)
+                                .setIndices(randomFrom("*", "index*", indexName))
+                                .setWaitForCompletion(true)
+                                .execute()
+                        );
+                    }
+
+                    final var indicesStatsResponse = safeGet(
+                        projectClient.admin().indices().prepareStats(indexName).setDocs(true).execute()
+                    );
+                    assertThat(indicesStatsResponse.getTotal().getDocs().getCount(), equalTo(projectNumDocs.get(projectId).longValue()));
+
                 } catch (Exception e) {
                     fail(e);
                 } finally {
@@ -489,6 +535,132 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
         } finally {
             removeProjects(allProjects);
         }
+    }
+
+    public void testCannotRestoreForNonExistingProject() {
+        assumeTrue("multi-project not enabled", multiProjectIntegrationTest());
+        startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+
+        final ProjectId projectId = randomUniqueProjectId();
+        final var projectClient = client().projectClient(projectId);
+        final var e = expectThrows(
+            SnapshotRestoreException.class,
+            () -> projectClient.admin()
+                .cluster()
+                .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, randomIdentifier(), randomIdentifier())
+                .setWaitForCompletion(true)
+                .execute()
+                .actionGet()
+        );
+        assertThat(e.getMessage(), containsString("project [" + projectId + "] does not exist"));
+    }
+
+    public void testRestoreProjectMetadata() throws Exception {
+        assumeTrue("multi-project not enabled", multiProjectIntegrationTest());
+        startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+
+        final var repoName = "backup";
+        final var projectId = randomFrom(allProjects);
+        putProject(
+            projectId,
+            projectSettings(projectId),
+            projectSecrets(projectId),
+            new RepositoryMetadata(repoName, repositoryType(), repositorySettings(projectId))
+        );
+        final var projectClient = client().projectClient(projectId);
+        final var indexName = "index";
+        final String snapshotName = "snapshot";
+        final String componentTemplateName = "test_component_template";
+
+        try {
+            logger.info("--> create index and index some docs");
+            safeGet(projectClient.admin().indices().prepareCreate(indexName).setSettings(indexSettings(1, 1)).execute());
+            final int numDocs = between(10, 50);
+            indexDocsAndRefresh(projectClient, indexName, numDocs);
+
+            logger.info("--> creating component template");
+            final var componentTemplate = new ComponentTemplate(new Template(null, new CompressedXContent("""
+                    {
+                      "_doc":{
+                        "dynamic":"strict",
+                        "properties":{
+                          "field1":{
+                            "type":"text"
+                          }
+                        }
+                      }
+                    }
+                """), null), 3L, null);
+            safeGet(
+                projectClient.execute(
+                    PutComponentTemplateAction.INSTANCE,
+                    new PutComponentTemplateAction.Request(componentTemplateName).componentTemplate(componentTemplate)
+                )
+            );
+
+            // Snapshot the index and project level state
+            safeGet(
+                projectClient.admin()
+                    .cluster()
+                    .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                    .setIncludeGlobalState(true)
+                    .setWaitForCompletion(true)
+                    .execute()
+            );
+
+            // Delete the index and component template
+            safeGet(projectClient.admin().indices().prepareDelete(indexName).execute());
+            safeGet(
+                projectClient.execute(
+                    TransportDeleteComponentTemplateAction.TYPE,
+                    new TransportDeleteComponentTemplateAction.Request(componentTemplateName)
+                )
+            );
+
+            final boolean restoreProjectState = randomBoolean();
+            logger.info("--> restore snapshot {} project level state", restoreProjectState ? "with" : "without");
+            safeGet(
+                projectClient.admin()
+                    .cluster()
+                    .prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
+                    .setRestoreGlobalState(restoreProjectState)
+                    .setWaitForCompletion(true)
+                    .execute()
+            );
+            safeGet(projectClient.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).setWaitForGreenStatus().execute());
+
+            // Index is restored
+            assertResponse(
+                projectClient.prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setSize(0),
+                response -> assertHitCount(response, numDocs)
+            );
+
+            // Component template is restored if requested or it should not exist
+            if (restoreProjectState) {
+                final GetComponentTemplateAction.Response response = safeGet(
+                    projectClient.execute(
+                        GetComponentTemplateAction.INSTANCE,
+                        new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, componentTemplateName)
+                    )
+                );
+                assertThat(response.getComponentTemplates().get(componentTemplateName), equalTo(componentTemplate));
+            } else {
+                expectThrows(
+                    ResourceNotFoundException.class,
+                    () -> projectClient.execute(
+                        GetComponentTemplateAction.INSTANCE,
+                        new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, componentTemplateName)
+                    ).actionGet()
+                );
+            }
+        } finally {
+            removeProject(projectId);
+        }
+
     }
 
     private void assertSnapshotInfo(SnapshotInfo snapshotInfo, ProjectId projectId, String repoName, SnapshotState state) {

@@ -176,6 +176,7 @@ public class ESONSource {
 
         private final String key;
         public int fieldCount = 0;
+        private boolean hasMutations= false;
 
         public ObjectEntry(String key) {
             this.key = key;
@@ -185,12 +186,17 @@ public class ESONSource {
         public String key() {
             return key;
         }
+
+        public boolean hasMutations() {
+            return hasMutations;
+        }
     }
 
     public static class ArrayEntry implements KeyEntry {
 
         private final String key;
         public int elementCount = 0;
+        private boolean hasMutations= false;
 
         public ArrayEntry(String key) {
             this.key = key;
@@ -199,6 +205,10 @@ public class ESONSource {
         @Override
         public String key() {
             return key;
+        }
+
+        public boolean hasMutations() {
+            return hasMutations;
         }
     }
 
@@ -337,11 +347,6 @@ public class ESONSource {
             return values;
         }
 
-        public boolean hasMutations() {
-            // TODO: Additionally checks
-            return materializedMap != null;
-        }
-
         private void ensureMaterializedMap() {
             if (materializedMap == null) {
                 materializedMap = new HashMap<>(objEntry.fieldCount);
@@ -406,6 +411,7 @@ public class ESONSource {
             ensureMaterializedMap();
             Object oldValue = get(key);
             materializedMap.put(key, new Mutation(value));
+            objEntry.hasMutations = true;
             return oldValue;
         }
 
@@ -413,6 +419,7 @@ public class ESONSource {
         public Object remove(Object key) {
             ensureMaterializedMap();
             Type type = materializedMap.remove(key);
+            objEntry.hasMutations = true;
             if (type == null) {
                 return null;
             } else if (type instanceof Mutation mutation) {
@@ -433,6 +440,7 @@ public class ESONSource {
             // TODO: can probably optimize
             ensureMaterializedMap();
             materializedMap.clear();
+            objEntry.hasMutations = true;
         }
 
         @Override
@@ -502,6 +510,7 @@ public class ESONSource {
 
                         @Override
                         public void remove() {
+                            objEntry.hasMutations = true;
                             mapIterator.remove();
                         }
                     };
@@ -692,6 +701,7 @@ public class ESONSource {
         public void add(int index, Object element) {
             ensureMaterializedList();
             materializedList.add(index, new Mutation(element));
+            arrEntry.hasMutations = true;
         }
 
         @Override
@@ -699,6 +709,7 @@ public class ESONSource {
             ensureMaterializedList();
             Object oldValue = get(index);
             materializedList.set(index, new Mutation(element));
+            arrEntry.hasMutations = true;
             return oldValue;
         }
 
@@ -707,7 +718,24 @@ public class ESONSource {
             ensureMaterializedList();
             Object oldValue = get(index);
             materializedList.remove(index);
+            arrEntry.hasMutations = true;
             return oldValue;
+        }
+
+        @Override
+        public boolean add(Object element) {
+            ensureMaterializedList();
+            boolean result = materializedList.add(new Mutation(element));
+            arrEntry.hasMutations = true;
+            return result;
+        }
+
+        @Override
+        public void clear() {
+            // TODO: Can optimize
+            ensureMaterializedList();
+            materializedList.clear();
+            arrEntry.hasMutations = true;
         }
 
         @Override
@@ -776,5 +804,155 @@ public class ESONSource {
         }
 
         return index;
+    }
+
+    public ESONObject flatten(ESONObject original) {
+        List<KeyEntry> flatKeyArray = new ArrayList<>(original.keyArray.size());
+
+        // Start flattening from the root object
+        flattenObject(original, null, flatKeyArray);
+
+        // Return new ESONObject with flattened structure
+        return new ESONObject(0, flatKeyArray, original.objectValues());
+    }
+
+    /**
+     * Recursively flattens an ESONObject into the flat key array
+     */
+    private static void flattenObject(ESONObject obj, String objectFieldName, List<KeyEntry> flatKeyArray) {
+        // Create new ObjectEntry for this object
+        ObjectEntry newObjEntry = new ObjectEntry(objectFieldName);
+        flatKeyArray.add(newObjEntry);
+
+        // Check if object has mutations
+        boolean hasMutations = obj.objEntry.hasMutations();
+
+        if (hasMutations == false) {
+            // No mutations - just copy the entries directly from original key array
+            int currentIndex = obj.keyArrayIndex + 1;
+            int fieldCount = 0;
+
+            for (int i = 0; i < obj.objEntry.fieldCount; i++) {
+                KeyEntry entry = obj.keyArray.get(currentIndex);
+
+                if (entry instanceof FieldEntry fieldEntry) {
+                    // Copy field entry as-is
+                    flatKeyArray.add(fieldEntry);
+                    currentIndex++;
+                    fieldCount++;
+                } else if (entry instanceof ObjectEntry) {
+                    // Nested object - create new ESONObject and flatten recursively
+                    ESONObject nestedObj = new ESONObject(currentIndex, obj.keyArray, obj.values);
+                    flattenObject(nestedObj, entry.key(), flatKeyArray);
+                    // TODO: Remove Need to skip container
+                    currentIndex = skipContainer(obj.keyArray, entry, currentIndex);
+                    fieldCount++;
+                } else if (entry instanceof ArrayEntry) {
+                    // Nested array - create new ESONArray and flatten recursively
+                    ESONArray nestedArr = new ESONArray(currentIndex, obj.keyArray, obj.values);
+                    flattenArray(nestedArr, entry.key(), flatKeyArray);
+                    // TODO: Remove Need to skip container
+                    currentIndex = skipContainer(obj.keyArray, entry, currentIndex);
+                    fieldCount++;
+                }
+            }
+
+            newObjEntry.fieldCount = fieldCount;
+        } else {
+            // Has mutations - need to iterate through materialized map
+            obj.ensureMaterializedMap();
+
+            int fieldCount = 0;
+            for (Map.Entry<String, Type> entry : obj.materializedMap.entrySet()) {
+                String key = entry.getKey();
+                Type type = entry.getValue();
+
+                if (type instanceof Mutation mutation) {
+                    // This is a mutated field - create new FieldEntry with mutation
+                    flatKeyArray.add(new FieldEntry(key, mutation));
+                    fieldCount++;
+                } else if (type instanceof ESONObject nestedObj) {
+                    // Nested object - flatten recursively
+                    flattenObject(nestedObj, key, flatKeyArray);
+                    fieldCount++;
+                } else if (type instanceof ESONArray nestedArr) {
+                    // Nested array - flatten recursively
+                    flattenArray(nestedArr, key, flatKeyArray);
+                    fieldCount++;
+                } else {
+                    // Regular type (FixedValue, VariableValue, NullValue) - create field entry
+                    flatKeyArray.add(new FieldEntry(key, type));
+                    fieldCount++;
+                }
+            }
+
+            newObjEntry.fieldCount = fieldCount;
+        }
+    }
+
+    /**
+     * Recursively flattens an ESONArray into the flat key array
+     */
+    private static void flattenArray(ESONArray arr, String arrayFieldName, List<KeyEntry> flatKeyArray) {
+        // Create new ArrayEntry for this array
+        ArrayEntry newArrEntry = new ArrayEntry(arrayFieldName);
+        flatKeyArray.add(newArrEntry);
+
+        // Check if array has mutations
+        boolean hasMutations = arr.arrEntry.hasMutations();
+
+        if (hasMutations == false) {
+            // No mutations - just copy the entries directly from original key array
+            int currentIndex = arr.keyArrayIndex + 1;
+            int elementCount = 0;
+
+            for (int i = 0; i < arr.arrEntry.elementCount; i++) {
+                KeyEntry entry = arr.keyArray.get(currentIndex);
+
+                if (entry instanceof FieldEntry fieldEntry) {
+                    // Copy field entry as-is (array element)
+                    flatKeyArray.add(fieldEntry);
+                    currentIndex++;
+                    elementCount++;
+                } else if (entry instanceof ObjectEntry) {
+                    // Nested object - create new ESONObject and flatten recursively
+                    ESONObject nestedObj = new ESONObject(currentIndex, arr.keyArray, arr.values);
+                    flattenObject(nestedObj, null, flatKeyArray);
+                    currentIndex = skipContainer(arr.keyArray, entry, currentIndex);
+                    elementCount++;
+                } else if (entry instanceof ArrayEntry) {
+                    // Nested array - create new ESONArray and flatten recursively
+                    ESONArray nestedArr = new ESONArray(currentIndex, arr.keyArray, arr.values);
+                    flattenArray(nestedArr, null, flatKeyArray);
+                    currentIndex = skipContainer(arr.keyArray, entry, currentIndex);
+                    elementCount++;
+                }
+            }
+
+            newArrEntry.elementCount = elementCount;
+        } else {
+            int elementCount = 0;
+            for (Type type : arr.materializedList) {
+                if (type instanceof Mutation mutation) {
+                    // This is a mutated element - create new FieldEntry with mutation
+                    flatKeyArray.add(new FieldEntry(null, mutation));
+                    elementCount++;
+                } else if (type instanceof ESONObject nestedObj) {
+                    // Nested object - flatten recursively
+                    flattenObject(nestedObj, null, flatKeyArray);
+                    elementCount++;
+                } else if (type instanceof ESONArray nestedArr) {
+                    // Nested array - flatten recursively
+                    flattenArray(nestedArr, null, flatKeyArray);
+                    elementCount++;
+                } else {
+                    // Regular type (FixedValue, VariableValue, NullValue) - create field entry
+                    flatKeyArray.add(new FieldEntry(null, type));
+                    elementCount++;
+                }
+            }
+
+            newArrEntry.elementCount = elementCount;
+        }
     }
 }

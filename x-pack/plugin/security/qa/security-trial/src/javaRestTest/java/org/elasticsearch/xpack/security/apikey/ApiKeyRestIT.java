@@ -1129,7 +1129,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                             new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("metrics")
-                                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                                    .privileges("read", "view_index_metadata")
                                     .build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("logs")
@@ -1539,7 +1539,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("data")
-                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
@@ -1610,7 +1610,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("blogs")
-                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .privileges("read", "view_index_metadata")
                     .build() },
             null
         );

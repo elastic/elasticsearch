@@ -599,7 +599,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
-                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .privileges("read", "view_index_metadata")
                     .build() },
             null
         );
@@ -651,7 +651,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
-                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .privileges("read", "view_index_metadata")
                     .build() },
             null
         );

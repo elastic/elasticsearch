@@ -140,7 +140,7 @@ public class RemoteClusterSecurityLicensingAndFeatureUsageRestIT extends Abstrac
                   "remote_indices": [
                     {
                       "names": ["%s"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]

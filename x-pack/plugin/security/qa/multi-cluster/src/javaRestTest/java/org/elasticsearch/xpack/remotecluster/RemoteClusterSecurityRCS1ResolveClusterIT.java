@@ -115,7 +115,7 @@ public class RemoteClusterSecurityRCS1ResolveClusterIT extends AbstractRemoteClu
                   "indices": [
                     {
                       "names": ["index*"],
-                      "privileges": ["read", "read_cross_cluster"]
+                      "privileges": ["read"]
                     }
                   ]
                 }""");

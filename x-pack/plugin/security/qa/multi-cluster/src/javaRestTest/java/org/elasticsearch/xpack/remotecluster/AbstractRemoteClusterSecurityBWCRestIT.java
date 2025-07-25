@@ -73,13 +73,13 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
                   "indices": [
                     {
                       "names": ["local_index", "remote_index1"],
-                      "privileges": ["read", "read_cross_cluster"]
+                      "privileges": ["read"]
                     }
                   ],
                   "remote_indices": [
                     {
                       "names": ["remote_index1"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ],
@@ -100,7 +100,7 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
                       "indices": [
                         {
                           "names": ["remote_index1"],
-                          "privileges": ["read", "read_cross_cluster"]
+                          "privileges": ["read"]
                         }
                       ]
                     }""");
@@ -126,13 +126,13 @@ public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRem
                       "indices": [
                         {
                           "names": ["local_index", "remote_index1", "remote_index2"],
-                          "privileges": ["read", "read_cross_cluster"]
+                          "privileges": ["read"]
                         }
                       ],
                       "remote_indices": [
                         {
                           "names": ["remote_index1", "remote_index2"],
-                          "privileges": ["read", "read_cross_cluster"],
+                          "privileges": ["read"],
                           "clusters": ["my_remote_*", "non_existing_remote_cluster"]
                         }
                       ],

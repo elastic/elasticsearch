@@ -87,7 +87,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices("*")
                 // TODO add read_failure_store when failures authorization is implemented
-                .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
+                .privileges("monitor", "read", "view_index_metadata")
                 .allowRestrictedIndices(true)
                 .build() },
         new RoleDescriptor.ApplicationResourcePrivileges[] {
@@ -105,7 +105,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     // TODO add read_failure_store when failures authorization is implemented
-                    .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
+                    .privileges("monitor", "read", "view_index_metadata")
                     .allowRestrictedIndices(true)
                     .build(),
                 "*"
@@ -161,7 +161,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
         return new RoleDescriptor.RemoteIndicesPrivileges(
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices(indexPattern)
-                .privileges("read", "read_cross_cluster")
+                .privileges("read")
                 .allowRestrictedIndices(false)
                 .build(),
             "*"
@@ -204,15 +204,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices(".monitoring-*")
-                            .privileges("read", "read_cross_cluster")
+                            .privileges("read")
                             .build(),
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
-                            .privileges("read", "read_cross_cluster")
+                            .privileges("read")
                             .build(),
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("metricbeat-*")
-                            .privileges("read", "read_cross_cluster")
+                            .privileges("read")
                             .build() },
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()

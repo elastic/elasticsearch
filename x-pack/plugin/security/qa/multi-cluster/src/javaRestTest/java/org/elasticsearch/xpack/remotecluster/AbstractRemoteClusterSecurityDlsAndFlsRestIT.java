@@ -49,7 +49,7 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
               "remote_indices": [
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"]
                 }
               ]
@@ -61,7 +61,7 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
               "remote_indices": [
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "query": {
                      "bool": {
@@ -76,7 +76,7 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
                 },
                 {
                   "names": ["remote_index1", "remote_index2", "remote_index3"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote_cluster*"],
                   "query": {
                      "bool": {
@@ -98,13 +98,13 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
               "remote_indices": [
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "query": {"bool": { "must_not": { "term" : {"field1" : "value1"}}}}
                 },
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "query": {"bool": { "must_not": { "term" : {"field2" : "value1"}}}}
                 }
@@ -117,13 +117,13 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
               "remote_indices": [
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "field_security": {"grant": [ "field1", "field2" ], "except": ["field2"]}
                 },
                 {
                   "names": ["remote_index*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_*_cluster*"],
                   "field_security": {"grant": [ "field3" ]}
                 }

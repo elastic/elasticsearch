@@ -297,7 +297,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     void checkDatabases(ProjectState projectState) {
         ProjectId projectId = projectState.projectId();
         ProjectMetadata projectMetadata = projectState.metadata();
-        ClusterState clusterState = clusterService.state();
+        ClusterState clusterState = projectState.cluster();
         PersistentTasksCustomMetadata persistentTasks = projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks == null) {
             logger.trace("Not checking databases for project [{}] because persistent tasks are null", projectId);

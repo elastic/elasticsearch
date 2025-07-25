@@ -44,7 +44,7 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
 
         var validateTask = project.getTasks()
-            .register("validateTransportVersionConstants", ValidateTransportVersionDefinitionsTask.class, t -> {
+            .register("validateTransportVersionDefinitions", ValidateTransportVersionDefinitionsTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
                 t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));

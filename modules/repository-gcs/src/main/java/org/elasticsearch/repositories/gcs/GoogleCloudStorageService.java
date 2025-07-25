@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -57,8 +58,13 @@ public class GoogleCloudStorageService {
 
     @SuppressWarnings("this-escape")
     public GoogleCloudStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
-        this.isServerless = DiscoveryNode.isStateless(clusterService.getSettings());
-        this.clientsManager = new GoogleCloudStorageClientsManager(this::createClient);
+        final Settings nodeSettings = clusterService.getSettings();
+        this.isServerless = DiscoveryNode.isStateless(nodeSettings);
+        this.clientsManager = new GoogleCloudStorageClientsManager(
+            nodeSettings,
+            this::createClient,
+            projectResolver.supportsMultipleProjects()
+        );
         if (projectResolver.supportsMultipleProjects()) {
             clusterService.addHighPriorityApplier(this.clientsManager);
         }

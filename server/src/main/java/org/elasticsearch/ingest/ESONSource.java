@@ -25,6 +25,7 @@ import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -494,16 +495,19 @@ public class ESONSource {
         @Override
         public Set<Entry<String, Object>> entrySet() {
             ensureMaterializedMap();
-            return entrySet(true, false);
+            return entrySet(false);
         }
 
-        public Iterable<? extends Entry<?, ?>> entrySetNullInsteadOfRawValues() {
-            // TODO: Fix
-            ensureMaterializedMap();
-            return this.entrySet(false, true);
+        public Set<Entry<String, Object>> entrySetNullInsteadOfRawValues() {
+            if (materializedMap == null) {
+                Map<String, Object> emptyMap = Collections.emptyMap();
+                return emptyMap.entrySet();
+            } else {
+                return entrySet(true);
+            }
         }
 
-        private Set<Entry<String, Object>> entrySet(boolean shouldComputeValue, boolean nullForRawValues) {
+        private Set<Entry<String, Object>> entrySet(boolean nullForRawValues) {
             return new AbstractSet<>() {
                 @Override
                 public Iterator<Entry<String, Object>> iterator() {
@@ -518,7 +522,7 @@ public class ESONSource {
                         @Override
                         public Entry<String, Object> next() {
                             Map.Entry<String, Type> mapEntry = mapIterator.next();
-                            return new LazyEntry(mapEntry.getKey(), mapEntry.getValue(), shouldComputeValue, nullForRawValues);
+                            return new LazyEntry(mapEntry.getKey(), mapEntry.getValue(), nullForRawValues);
                         }
 
                         @Override
@@ -576,15 +580,13 @@ public class ESONSource {
         private class LazyEntry implements Entry<String, Object> {
             private final String key;
             private final Type type;
-            private final boolean shouldComputeValue;
             private final boolean nullForRawValues;
             private Object cachedValue;
             private boolean valueComputed = false;
 
-            LazyEntry(String key, Type type, boolean shouldComputeValue, boolean nullForRawValues) {
+            LazyEntry(String key, Type type, boolean nullForRawValues) {
                 this.key = key;
                 this.type = type;
-                this.shouldComputeValue = shouldComputeValue;
                 this.nullForRawValues = nullForRawValues;
             }
 
@@ -599,10 +601,7 @@ public class ESONSource {
 
             @Override
             public Object getValue() {
-                if (shouldComputeValue == false) {
-                    // assert valueComputed == false;
-                    return type;
-                } else if (valueComputed == false) {
+                if (valueComputed == false) {
                     if (type == null) {
                         cachedValue = null;
                     } else if (type instanceof Mutation mutation) {
@@ -622,9 +621,7 @@ public class ESONSource {
             @Override
             public Object setValue(Object value) {
                 Object oldValue = ESONObject.this.put(key, value);
-                if (shouldComputeValue) {
-                    cachedValue = value;
-                }
+                cachedValue = value;
                 return oldValue;
             }
 
@@ -774,11 +771,38 @@ public class ESONSource {
         }
 
         public Iterator<Object> iteratorNullInsteadOfRawValues() {
-            // TODO: Fix
-            ensureMaterializedList();
-            return iterator();
-        }
+            if (materializedList == null) {
+                return new Iterator<Object>() {
+                    @Override
+                    public boolean hasNext() {
+                        return false;
+                    }
 
+                    @Override
+                    public Object next() {
+                        return null;
+                    }
+                };
+            } else {
+                Iterator<Type> typeIterator = materializedList.iterator();
+                return new Iterator<>() {
+                    @Override
+                    public boolean hasNext() {
+                        return typeIterator.hasNext();
+                    }
+
+                    @Override
+                    public Object next() {
+                        Type next = typeIterator.next();
+                        if (next instanceof VariableValue || next instanceof FixedValue) {
+                            return null;
+                        } else {
+                            return next;
+                        }
+                    }
+                };
+            }
+        }
     }
 
     private static Object convertTypeToValue(Type type, Values values) {

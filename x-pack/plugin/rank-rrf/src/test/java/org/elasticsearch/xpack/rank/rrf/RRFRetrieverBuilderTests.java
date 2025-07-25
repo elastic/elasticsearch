@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
-import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEIGHT;
 import static org.hamcrest.Matchers.instanceOf;
 
 /** Tests for the rrf retriever. */

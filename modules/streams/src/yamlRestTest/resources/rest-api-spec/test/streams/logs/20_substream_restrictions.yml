@@ -16,7 +16,7 @@
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "Writes to child stream [logs.foo] are not allowed, use the parent stream instead: [logs]" }
+  - match: { items.0.index.error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs] stream instead" }
 
 ---
 "Check User Can't Write To Substream Directly With Single Doc":
@@ -36,7 +36,7 @@
         body:
           foo: bar
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "Writes to child stream [logs.foo] are not allowed, use the parent stream instead: [logs]" }
+  - match: { error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs] stream instead" }
 
 ---
 "Check Bulk Index With Reroute Processor To Substream Is Rejected":
@@ -69,4 +69,4 @@
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "Cannot reroute to substream [logs.foo] as only the stream itself can reroute to substreams. Please reroute to the stream [logs] instead." }
+  - match: { items.0.index.error.reason: "Pipelines can't re-route documents to child streams, but pipeline [reroute-to-logs-foo] tried to reroute this document from index [bad-index] to index [logs.foo]. Reroute history: bad-index" }

@@ -296,7 +296,9 @@ Each entry in the `retrievers` array specifies the following parameters:
 
     * `none`
     * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
-    `score = (score - min) / (max - min)`
+        ```
+        score = (score - min) / (max - min)
+        ```
     * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
 
 `rank_window_size`

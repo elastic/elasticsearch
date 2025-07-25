@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
@@ -67,13 +66,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             if (ne.id().equals(bucketId)) {
                 if (ne.children().size() > 0 && ne.children().get(0) instanceof Bucket bucket) {
                     foundBucket.set(bucket);
-                // TODO: Hack used when BUCKET is wrapped with ROUND. How to generalize it?
+                    // TODO: Hack used when BUCKET is wrapped with ROUND. How to generalize it?
                 } else if (ne.children().size() > 0
                     && ne.children().get(0) instanceof Round round
-                    && round.field() instanceof Bucket bucket
-                ) {
-                    foundBucket.set(bucket);
-                }
+                    && round.field() instanceof Bucket bucket) {
+                        foundBucket.set(bucket);
+                    }
             }
         });
         return foundBucket.get();

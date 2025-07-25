@@ -47,8 +47,7 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         return queryVectorBuilder != null ? queryVectorBuilder.getModelText() : null;
     }
 
-    @Override
-    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    private QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
@@ -66,6 +65,17 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
         finalQueryBuilder.boost(queryBuilder.boost());
         finalQueryBuilder.queryName(queryBuilder.queryName());
         return finalQueryBuilder;
+    }
+
+    @Override
+    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float fieldWeight) {
+        QueryBuilder inferenceQuery = buildInferenceQuery(queryBuilder, indexInformation);
+
+        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
+            inferenceQuery.boost(fieldWeight);
+        }
+
+        return inferenceQuery;
     }
 
     private QueryBuilder buildInferenceQueryWithMultipleInferenceIds(

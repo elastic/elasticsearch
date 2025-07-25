@@ -42,7 +42,9 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         }
 
         BoolQueryBuilder finalQueryBuilder = new BoolQueryBuilder();
-        for (String fieldName : fieldNamesWithWeights.keySet()) {
+        for (Map.Entry<String, Float> fieldSet : fieldNamesWithWeights.entrySet()) {
+            String fieldName = fieldSet.getKey();
+            Float fieldWeight = fieldSet.getValue();
             InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
             if (indexInformation.getInferenceIndices().isEmpty()) {
                 // No inference fields were identified, so return the original query.
@@ -51,11 +53,11 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
                 // Combined case where the field name requested by this query contains both
                 // semantic_text and non-inference fields, so we have to combine queries per index
                 // containing each field type.
-                return finalQueryBuilder.should(buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation));
+                finalQueryBuilder.should(buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation));
             } else {
                 // The only fields we've identified are inference fields (e.g. semantic_text),
                 // so rewrite the entire query to work on a semantic_text field.
-                return finalQueryBuilder.should(buildInferenceQuery(queryBuilder, indexInformation));
+                finalQueryBuilder.should(buildInferenceQuery(queryBuilder, indexInformation, fieldWeight));
             }
         }
         return finalQueryBuilder;
@@ -79,9 +81,10 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      *
      * @param queryBuilder {@link QueryBuilder}
      * @param indexInformation {@link InferenceIndexInformationForField}
+     * @param weight {@link Float}
      * @return {@link QueryBuilder}
      */
-    protected abstract QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation);
+    protected abstract QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float weight);
 
     /**
      * Builds a combined inference and non-inference query,

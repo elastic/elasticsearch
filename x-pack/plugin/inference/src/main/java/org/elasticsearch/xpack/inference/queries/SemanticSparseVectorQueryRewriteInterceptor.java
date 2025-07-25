@@ -40,8 +40,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         return sparseVectorQueryBuilder.getQuery();
     }
 
-    @Override
-    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    private QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
         QueryBuilder finalQueryBuilder;
         if (inferenceIdsIndices.size() == 1) {
@@ -55,6 +54,17 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         finalQueryBuilder.queryName(queryBuilder.queryName());
         finalQueryBuilder.boost(queryBuilder.boost());
         return finalQueryBuilder;
+    }
+
+    @Override
+    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float fieldWeight) {
+        QueryBuilder inferenceQuery = buildInferenceQuery(queryBuilder, indexInformation);
+
+        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
+            inferenceQuery.boost(fieldWeight);
+        }
+
+        return inferenceQuery;
     }
 
     private QueryBuilder buildInferenceQueryWithMultipleInferenceIds(

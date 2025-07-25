@@ -28,16 +28,26 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         return (String) multiMatchQueryBuilder.value();
     }
 
-    @Override
-    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    private QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
         SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(
             indexInformation.fieldName(),
             getQuery(queryBuilder),
             false
         );
-        // TODO:: add boost
+        semanticQueryBuilder.boost(queryBuilder.boost());
         semanticQueryBuilder.queryName(queryBuilder.queryName());
         return semanticQueryBuilder;
+    }
+
+    @Override
+    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float fieldWeight) {
+        QueryBuilder inferenceQuery = buildInferenceQuery(queryBuilder, indexInformation);
+
+        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
+            inferenceQuery.boost(fieldWeight);
+        }
+
+        return inferenceQuery;
     }
 
     @Override

@@ -8,8 +8,8 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -18,32 +18,50 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToInt}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToIntLinearSearchEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToLong7Evaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
 
-  private final int[] points;
+  private final long p0;
+
+  private final long p1;
+
+  private final long p2;
+
+  private final long p3;
+
+  private final long p4;
+
+  private final long p5;
+
+  private final long p6;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToIntLinearSearchEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      int[] points, DriverContext driverContext) {
+  public RoundToLong7Evaluator(Source source, EvalOperator.ExpressionEvaluator field, long p0,
+      long p1, long p2, long p3, long p4, long p5, long p6, DriverContext driverContext) {
     this.source = source;
     this.field = field;
-    this.points = points;
+    this.p0 = p0;
+    this.p1 = p1;
+    this.p2 = p2;
+    this.p3 = p3;
+    this.p4 = p4;
+    this.p5 = p5;
+    this.p6 = p6;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock fieldBlock = (IntBlock) field.eval(page)) {
-      IntVector fieldVector = fieldBlock.asVector();
+    try (LongBlock fieldBlock = (LongBlock) field.eval(page)) {
+      LongVector fieldVector = fieldBlock.asVector();
       if (fieldVector == null) {
         return eval(page.getPositionCount(), fieldBlock);
       }
@@ -51,8 +69,8 @@ public final class RoundToIntLinearSearchEvaluator implements EvalOperator.Expre
     }
   }
 
-  public IntBlock eval(int positionCount, IntBlock fieldBlock) {
-    try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongBlock fieldBlock) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         if (fieldBlock.isNull(p)) {
           result.appendNull();
@@ -65,16 +83,16 @@ public final class RoundToIntLinearSearchEvaluator implements EvalOperator.Expre
           result.appendNull();
           continue position;
         }
-        result.appendInt(RoundToInt.processLinear(fieldBlock.getInt(fieldBlock.getFirstValueIndex(p)), this.points));
+        result.appendLong(RoundToLong.process(fieldBlock.getLong(fieldBlock.getFirstValueIndex(p)), this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6));
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector fieldVector) {
-    try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
+  public LongVector eval(int positionCount, LongVector fieldVector) {
+    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendInt(p, RoundToInt.processLinear(fieldVector.getInt(p), this.points));
+        result.appendLong(p, RoundToLong.process(fieldVector.getLong(p), this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6));
       }
       return result.build();
     }
@@ -82,7 +100,7 @@ public final class RoundToIntLinearSearchEvaluator implements EvalOperator.Expre
 
   @Override
   public String toString() {
-    return "RoundToIntLinearSearchEvaluator[" + "field=" + field + "]";
+    return "RoundToLong7Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + "]";
   }
 
   @Override
@@ -107,22 +125,41 @@ public final class RoundToIntLinearSearchEvaluator implements EvalOperator.Expre
 
     private final EvalOperator.ExpressionEvaluator.Factory field;
 
-    private final int[] points;
+    private final long p0;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, int[] points) {
+    private final long p1;
+
+    private final long p2;
+
+    private final long p3;
+
+    private final long p4;
+
+    private final long p5;
+
+    private final long p6;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, long p0, long p1,
+        long p2, long p3, long p4, long p5, long p6) {
       this.source = source;
       this.field = field;
-      this.points = points;
+      this.p0 = p0;
+      this.p1 = p1;
+      this.p2 = p2;
+      this.p3 = p3;
+      this.p4 = p4;
+      this.p5 = p5;
+      this.p6 = p6;
     }
 
     @Override
-    public RoundToIntLinearSearchEvaluator get(DriverContext context) {
-      return new RoundToIntLinearSearchEvaluator(source, field.get(context), points, context);
+    public RoundToLong7Evaluator get(DriverContext context) {
+      return new RoundToLong7Evaluator(source, field.get(context), p0, p1, p2, p3, p4, p5, p6, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToIntLinearSearchEvaluator[" + "field=" + field + "]";
+      return "RoundToLong7Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + "]";
     }
   }
 }

@@ -12,7 +12,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -43,11 +42,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         }
     }
 
-    protected static boolean oldClusterHasFeature(String featureId) {
-        assert oldClusterTestFeatureService != null;
-        return oldClusterTestFeatureService.clusterHasFeature(featureId);
-    }
-
     @AfterClass
     public static void cleanUp() {
         oldClusterTestFeatureService = null;
@@ -59,10 +53,9 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         String testName,
         Integer lineNumber,
         CsvTestCase testCase,
-        String instructions,
-        Mode mode
+        String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, mode);
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override

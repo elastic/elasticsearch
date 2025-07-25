@@ -16,6 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.IntFunction;
 
 import static java.util.Collections.emptySet;
@@ -1334,8 +1336,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         checkKeepOnCompletion(requestObject, json, keepOnCompletion);
         String id = (String) json.get("id");
 
-        var supportsAsyncHeaders = clusterHasCapability("POST", "/_query", List.of(), List.of("async_query_status_headers")).orElse(false);
-        var supportsSuggestedCast = clusterHasCapability("POST", "/_query", List.of(), List.of("suggested_cast")).orElse(false);
+        var supportsAsyncHeaders = hasCapabilities(client(), List.of("async_query_status_headers"));
+        var supportsSuggestedCast = hasCapabilities(client(), List.of("suggested_cast"));
 
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
@@ -1409,11 +1411,25 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
         if (profileLogger != null) {
             profileLogger.clearProfile();
-            var isProfileSafe = clusterHasCapability("POST", "/_query", List.of(), List.of("fixed_profile_serialization")).orElse(false);
+            var isProfileSafe = hasCapabilities(client(), List.of("fixed_profile_serialization"));
             if (isProfileSafe) {
                 requestObject.profile(true);
             }
         }
+    }
+
+    private static final Map<List<String>, Boolean> capabilities = new ConcurrentHashMap<>();
+
+    public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
+        if (requiredCapabilities.isEmpty()) {
+            return true;
+        }
+        Boolean cap = capabilities.get(requiredCapabilities);
+        if (cap == null) {
+            cap = clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+            capabilities.put(requiredCapabilities, cap);
+        }
+        return cap;
     }
 
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {

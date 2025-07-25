@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -36,7 +35,6 @@ import org.junit.rules.TestRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -59,7 +57,6 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOK
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
-import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -87,19 +84,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);
-        List<Object[]> specs = SpecReader.readScriptSpec(urls, specParser());
-
-        int len = specs.get(0).length;
-        List<Object[]> testcases = new ArrayList<>();
-        for (var spec : specs) {
-            for (Mode mode : List.of(SYNC)) { // No async, for now
-                Object[] obj = new Object[len + 1];
-                System.arraycopy(spec, 0, obj, 0, len);
-                obj[len] = mode;
-                testcases.add(obj);
-            }
-        }
-        return testcases;
+        return SpecReader.readScriptSpec(urls, specParser());
     }
 
     public MultiClusterSpecIT(
@@ -108,10 +93,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String testName,
         Integer lineNumber,
         CsvTestCase testCase,
-        String instructions,
-        Mode mode
+        String instructions
     ) {
-        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), instructions, mode);
+        super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), instructions);
     }
 
     // TODO: think how to handle this better

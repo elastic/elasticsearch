@@ -33,7 +33,7 @@ public class RestRerankTestCase extends ESRestTestCase {
     public void skipWhenRerankDisabled() throws IOException {
         assumeTrue(
             "Requires RERANK capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.RERANK.capabilityName()))
+            RestEsqlTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.RERANK.capabilityName()))
         );
     }
 

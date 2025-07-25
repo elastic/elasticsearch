@@ -17,7 +17,6 @@ import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -30,20 +29,22 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
     public abstract DirectoryProperty getConstantsDirectory();
 
     @InputFile
-    public abstract RegularFileProperty getNamesFile();
+    public abstract RegularFileProperty getReferencesFile();
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
         Path constantsDir = getConstantsDirectory().getAsFile().get().toPath();
-        Path namesFile = getNamesFile().get().getAsFile().toPath();
+        Path namesFile = getReferencesFile().get().getAsFile().toPath();
 
-        for (var tvName : Files.readAllLines(namesFile, StandardCharsets.UTF_8)) {
-            Path constantFile = constantsDir.resolve(tvName + ".csv");
+        for (var tvReference : TransportVersionUtils.readReferencesFile(namesFile)) {
+            Path constantFile = constantsDir.resolve(tvReference.name() + ".csv");
             if (Files.exists(constantFile) == false) {
                 throw new RuntimeException(
                     "TransportVersion.fromName(\""
-                        + tvName
-                        + "\") was used, but lacks a"
+                        + tvReference.name()
+                        + "\") was used at "
+                        + tvReference.location()
+                        + ", but lacks a"
                         + " transport version constant definition. This can be generated with the <TODO> task" // todo
                 );
             }

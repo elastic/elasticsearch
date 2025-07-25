@@ -30,7 +30,7 @@ public class ValuesSourceReaderOperatorStatus extends AbstractPageMappingToItera
         "values_source_reader",
         ValuesSourceReaderOperatorStatus::readFrom
     );
-    static final TransportVersion SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
+    private static final TransportVersion SPLIT_ON_BIG_VALUES = TransportVersion.fromName("esql_split_on_big_values");
 
     private final Map<String, Integer> readersBuilt;
     private final long valuesLoaded;

@@ -39,14 +39,14 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         tvDependencies.add(depsHandler.project(Map.of("path", ":server")));
 
         Configuration tvNamesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
-        tvNamesConfig.attributes(TransportVersionUtils::addTransportVersionNamesAttribute);
+        tvNamesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
 
         var validateTask = project.getTasks()
             .register("validateTransportVersionConstants", ValidateTransportVersionConstantsTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
                 t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
-                t.getNamesFiles().setFrom(tvNamesConfig);
+                t.getReferencesFiles().setFrom(tvNamesConfig);
             });
 
         project.getTasks().named("check").configure(t -> t.dependsOn(validateTask));

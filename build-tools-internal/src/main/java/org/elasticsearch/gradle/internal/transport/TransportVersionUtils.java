@@ -28,11 +28,18 @@ import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE
 
 class TransportVersionUtils {
 
-    static final Attribute<Boolean> TRANSPORT_VERSION_NAMES_ATTRIBUTE = Attribute.of("transport-version-names", Boolean.class);
+    static final Attribute<Boolean> TRANSPORT_VERSION_REFERENCES_ATTRIBUTE = Attribute.of("transport-version-references", Boolean.class);
 
-    record TransportVersionData(String name, List<Integer> ids) {}
+    record TransportVersionConstant(String name, List<Integer> ids) {}
 
-    static TransportVersionData readDataFile(Path file) throws IOException {
+    record TransportVersionReference(String name, String location) {
+        @Override
+        public String toString() {
+            return name + " " + location;
+        }
+    }
+
+    static TransportVersionConstant readConstantFile(Path file) throws IOException {
         assert file.endsWith(".csv");
         String rawName = file.getFileName().toString();
         String name = rawName.substring(0, rawName.length() - 4);
@@ -49,7 +56,20 @@ class TransportVersionUtils {
         if (Comparators.isInOrder(ids, Comparator.reverseOrder()) == false) {
             throw new IOException("invalid transport version data file [" + file + "], ids are not in sorted");
         }
-        return new TransportVersionData(name, ids);
+        return new TransportVersionConstant(name, ids);
+    }
+
+    static List<TransportVersionReference> readReferencesFile(Path file) throws IOException {
+        assert file.endsWith(".txt");
+        List<TransportVersionReference> results = new ArrayList<>();
+        for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+            String[] parts = line.split(" ", 2);
+            if (parts.length != 2) {
+                throw new IOException("Invalid transport version data file [" + file + "]: " + line);
+            }
+            results.add(new TransportVersionReference(parts[0], parts[1]));
+        }
+        return results;
     }
 
     static Directory getConstantsDirectory(Project project) {
@@ -57,8 +77,9 @@ class TransportVersionUtils {
         return serverDir.dir("src/main/resources/transport/constants");
     }
 
-    static void addTransportVersionNamesAttribute(AttributeContainer attributes) {
-        attributes.attribute(ARTIFACT_TYPE_ATTRIBUTE, "csv");
-        attributes.attribute(TransportVersionUtils.TRANSPORT_VERSION_NAMES_ATTRIBUTE, true);
+    static void addTransportVersionReferencesAttribute(AttributeContainer attributes) {
+        attributes.attribute(ARTIFACT_TYPE_ATTRIBUTE, "txt");
+        attributes.attribute(TransportVersionUtils.TRANSPORT_VERSION_REFERENCES_ATTRIBUTE, true);
     }
+
 }

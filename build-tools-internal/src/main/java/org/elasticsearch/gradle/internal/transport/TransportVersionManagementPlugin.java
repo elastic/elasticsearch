@@ -24,14 +24,14 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
             t.setGroup("Transport Versions");
             t.setDescription("Collects all TransportVersion names used throughout the project");
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            t.getClassDirs().set(mainSourceSet.getRuntimeClasspath());
+            t.getClassPath().setFrom(mainSourceSet.getRuntimeClasspath());
             t.getOutputFile().set(project.getLayout().getBuildDirectory().file(transportVersionsNamesFile));
         });
 
         Configuration transportVersionsConfig = project.getConfigurations().create("transportVersionNames", c -> {
             c.setCanBeConsumed(true);
             c.setCanBeResolved(false);
-            c.attributes(TransportVersionUtils::addTransportVersionNamesAttribute);
+            c.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
         });
 
         project.getArtifacts().add(transportVersionsConfig.getName(), collectTask);
@@ -41,7 +41,7 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all TransportVersion names used in the project have an associated data file");
                 t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
-                t.getNamesFile().set(project.getLayout().getBuildDirectory().file(transportVersionsNamesFile));
+                t.getReferencesFile().set(project.getLayout().getBuildDirectory().file(transportVersionsNamesFile));
                 t.dependsOn(collectTask);
 
             });

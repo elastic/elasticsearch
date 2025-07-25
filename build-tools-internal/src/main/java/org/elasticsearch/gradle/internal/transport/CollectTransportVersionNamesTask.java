@@ -10,35 +10,36 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
-import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.LdcInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
+import java.util.jar.JarInputStream;
+import java.util.zip.ZipEntry;
 
 /**
  * This task locates all method invocations of org.elasticsearch.TransportVersion#fromName(java.lang.String) in the
  * provided directory, and then records the value of string literals passed as arguments. It then records each
- * string on a newline in the provided output file.
+ * string on a newline along with path and line number in the provided output file.
  */
 public abstract class CollectTransportVersionNamesTask extends DefaultTask {
     public static final String TRANSPORT_VERSION_SET_CLASS = "org/elasticsearch/TransportVersion";
@@ -50,7 +51,8 @@ public abstract class CollectTransportVersionNamesTask extends DefaultTask {
      * The directory to scan for method invocations.
      */
     @InputFiles
-    public abstract Property<FileCollection> getClassDirs();
+    @Classpath
+    public abstract ConfigurableFileCollection getClassPath();
 
     /**
      * The output file, with each newline containing the string literal argument of each method
@@ -60,72 +62,89 @@ public abstract class CollectTransportVersionNamesTask extends DefaultTask {
     public abstract RegularFileProperty getOutputFile();
 
     @TaskAction
-    public void checkTransportVersion() {
-        var classFiles = findJavaClassFiles(getClassDirs().get().getFiles());
-        var tvNames = getTVDeclarationNames(classFiles);
+    public void checkTransportVersion() throws IOException {
+        var results = new HashSet<TransportVersionUtils.TransportVersionReference>();
 
-        File file = getOutputFile().get().getAsFile();
-        try (FileWriter writer = new FileWriter(file)) {
-            for (String tvName : tvNames) {
-                writer.write(tvName + "\n");
+        for (var cpElement : getClassPath()) {
+            Path file = cpElement.toPath();
+            if (Files.isDirectory(file)) {
+                addNamesFromClassesDirectory(results, file);
+            } else {
+                assert file.getFileName().toString().endsWith(".jar");
+                addNamesFromJar(results, file);
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        }
+
+        Path outputFile = getOutputFile().get().getAsFile().toPath();
+        Files.writeString(outputFile, String.join("\n", results.stream().map(Object::toString).sorted().toList()));
+    }
+
+    private void addNamesFromClassesDirectory(Set<TransportVersionUtils.TransportVersionReference> results, Path file) throws IOException {
+        Files.walkFileTree(file, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                String filename = file.getFileName().toString();
+                if (filename.endsWith(CLASS_EXTENSION) && filename.endsWith(MODULE_INFO) == false) {
+                    try (var inputStream = Files.newInputStream(file)) {
+                        addNamesFromClass(results, inputStream, classname(file.toString()));
+                    }
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+    }
+
+    private void addNamesFromJar(Set<TransportVersionUtils.TransportVersionReference> results, Path file) throws IOException {
+        try (var jar = new JarInputStream(Files.newInputStream(file))) {
+            ZipEntry entry;
+            while ((entry = jar.getNextEntry()) != null) {
+                String filename = entry.getName();
+                if (filename.endsWith(CLASS_EXTENSION) && filename.endsWith(MODULE_INFO) == false) {
+                    addNamesFromClass(results, jar, classname(entry.toString()));
+                }
+            }
         }
     }
 
-    public static Set<String> getTVDeclarationNames(Collection<File> classfiles) {
-        var results = new HashSet<String>();
-        for (File javaFile : classfiles) {
-            try (InputStream inputStream = new FileInputStream(javaFile)) {
-                ClassVisitor classVisitor = new ClassVisitor(Opcodes.ASM9) {
+    private void addNamesFromClass(Set<TransportVersionUtils.TransportVersionReference> results, InputStream classBytes, String classname)
+        throws IOException {
+        ClassVisitor classVisitor = new ClassVisitor(Opcodes.ASM9) {
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
+                return new MethodNode(Opcodes.ASM9, access, name, descriptor, signature, exceptions) {
+                    int lineNumber = -1;
+
                     @Override
-                    public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                        return new MethodNode(Opcodes.ASM9, access, name, descriptor, signature, exceptions) {
-                            @Override
-                            public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
-                                if (owner.equals(TRANSPORT_VERSION_SET_CLASS) && name.equals(TRANSPORT_VERSION_SET_METHOD_NAME)) {
-                                    var abstractInstruction = this.instructions.getLast();
-                                    if (abstractInstruction instanceof LdcInsnNode ldcInsnNode
-                                        && ldcInsnNode.cst instanceof String tvName
-                                        && tvName.isEmpty() == false) {
-                                        results.add(tvName);
-                                    } else {
-                                        // The instruction is not a LDC with a String constant (or an empty String),
-                                        // which is not allowed.
-                                        throw new RuntimeException(
-                                            "Transport Versions must be declared with a constant and non-empty String. "
-                                                + "file: "
-                                                + javaFile.getPath()
-                                        );
-                                    }
-                                }
-                                super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
+                    public void visitLineNumber(int line, Label start) {
+                        lineNumber = line;
+                    }
+
+                    @Override
+                    public void visitMethodInsn(int opcode, String owner, String name, String descriptor, boolean isInterface) {
+                        if (owner.equals(TRANSPORT_VERSION_SET_CLASS) && name.equals(TRANSPORT_VERSION_SET_METHOD_NAME)) {
+                            var abstractInstruction = this.instructions.getLast();
+                            String location = classname + " line " + lineNumber;
+                            if (abstractInstruction instanceof LdcInsnNode ldcInsnNode
+                                && ldcInsnNode.cst instanceof String tvName
+                                && tvName.isEmpty() == false) {
+                                results.add(new TransportVersionUtils.TransportVersionReference(tvName, location));
+                            } else {
+                                // The instruction is not a LDC with a String constant (or an empty String), which is not allowed.
+                                throw new RuntimeException(
+                                    "TransportVersion.fromName must be called with a non-empty String literal. " + "See " + location + "."
+                                );
                             }
-                        };
+                        }
+                        super.visitMethodInsn(opcode, owner, name, descriptor, isInterface);
                     }
                 };
-                ClassReader classReader = new ClassReader(inputStream);
-                classReader.accept(classVisitor, 0);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
             }
-        }
-        return results;
+        };
+        ClassReader classReader = new ClassReader(classBytes);
+        classReader.accept(classVisitor, 0);
     }
 
-    private static List<File> findJavaClassFiles(Collection<File> files) {
-        List<File> classFiles = new ArrayList<>();
-        for (File file : files) {
-            if (file.isDirectory()) {
-                File[] subFiles = file.listFiles();
-                if (subFiles != null) {
-                    classFiles.addAll(findJavaClassFiles(Arrays.asList(subFiles)));
-                }
-            } else if (file.getName().endsWith(CLASS_EXTENSION) && file.getName().endsWith(MODULE_INFO) == false) {
-                classFiles.add(file);
-            }
-        }
-        return classFiles;
+    private static String classname(String filename) {
+        return filename.substring(0, filename.length() - CLASS_EXTENSION.length()).replace('/', '.');
     }
 }

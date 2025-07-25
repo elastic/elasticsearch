@@ -4992,3 +4992,61 @@ null           | null             | fred           | null           | null      
 null           | null             | grault         | null           | null           | false                  | null
 null           | null             | waldo          | null           | null           | false                  | 192.168.1.9
 ;
+
+lookupJoinOnTwoFieldsWithEval
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| eval id_int = id_int + 5
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+;
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+6              | null             | foo            | iota           | 9000
+7              | Grace            | bar            | kappa          | 10000
+8              | Hank             | baz            | lambda         | 11000
+9              | null             | qux            | null           | null
+10             | null             | quux           | null           | null
+11             | null             | corge          | null           | null
+12             | null             | grault         | null           | null
+13             | null             | garply         | null           | null
+14             | null             | waldo          | null           | null
+15             | null             | fred           | null           | null
+17             | null             | xyzzy          | null           | null
+18             | null             | thud           | null           | null
+19             | null             | foo2           | null           | null
+20             | null             | bar2           | null           | null
+null           | null             | plugh          | null           | null
+;
+
+
+
+
+lookupJoinOnTwoFieldsAfterTop
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_multiple_fields
+
+FROM multi_column_joinable
+| SORT extra1
+| LIMIT 10
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, is_active_bool
+| KEEP id_int, name_str, extra1, other1, other2
+| SORT id_int, name_str, extra1, other1, other2
+;
+
+id_int:integer | name_str:keyword | extra1:keyword | other1:keyword | other2:integer
+1              | Alice            | foo            | alpha          | 1000
+1              | Alice            | foo            | beta           | 2000
+2              | Bob              | bar            | gamma          | 3000
+3              | Charlie          | baz            | delta          | 4000
+6              | null             | corge          | iota           | 9000
+7              | Grace            | grault         | kappa          | 10000
+8              | Hank             | garply         | lambda         | 11000
+10             | null             | fred           | null           | null
+14             | Nina             | foo2           | omicron        | 15000
+15             | null             | bar2           | null           | null
+null           | null             | plugh          | null           | null
+;

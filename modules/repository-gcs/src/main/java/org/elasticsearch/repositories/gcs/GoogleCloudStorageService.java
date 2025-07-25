@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -46,26 +45,22 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.security.KeyStore;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.core.Strings.format;
 
 public class GoogleCloudStorageService {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
-    private final GoogleCloudStorageClientsManager googleCloudStorageClientsManager;
-
-    private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
+    private final GoogleCloudStorageClientsManager clientsManager;
 
     private final boolean isServerless;
 
+    @SuppressWarnings("this-escape")
     public GoogleCloudStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
         this.isServerless = DiscoveryNode.isStateless(clusterService.getSettings());
-        this.googleCloudStorageClientsManager = new GoogleCloudStorageClientsManager();
+        this.clientsManager = new GoogleCloudStorageClientsManager(this::createClient);
         if (projectResolver.supportsMultipleProjects()) {
-            clusterService.addHighPriorityApplier(this.googleCloudStorageClientsManager);
+            clusterService.addHighPriorityApplier(this.clientsManager);
         }
     }
 
@@ -74,21 +69,14 @@ public class GoogleCloudStorageService {
     }
 
     /**
-     * Dictionary of client instances. Client instances are built lazily from the
-     * latest settings. Clients are cached by a composite repositoryName key.
-     */
-    private volatile Map<String, MeteredStorage> clientCache = emptyMap();
-
-    /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
      * {@code GoogleCloudStorageService#client} will return new clients constructed
      * using the parameter settings.
      *
      * @param clientsSettings the new settings used for building clients for subsequent requests
      */
-    public synchronized void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-        this.clientCache = emptyMap();
-        this.clientSettings = Maps.ofEntries(clientsSettings.entrySet());
+    public void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
+        clientsManager.refreshAndClearCache(clientsSettings);
     }
 
     /**
@@ -105,42 +93,11 @@ public class GoogleCloudStorageService {
      */
     public MeteredStorage client(final String clientName, final String repositoryName, final GcsRepositoryStatsCollector statsCollector)
         throws IOException {
-        {
-            final MeteredStorage storage = clientCache.get(repositoryName);
-            if (storage != null) {
-                return storage;
-            }
-        }
-        synchronized (this) {
-            final MeteredStorage existing = clientCache.get(repositoryName);
-
-            if (existing != null) {
-                return existing;
-            }
-
-            final GoogleCloudStorageClientSettings settings = clientSettings.get(clientName);
-
-            if (settings == null) {
-                throw new IllegalArgumentException(
-                    "Unknown client name ["
-                        + clientName
-                        + "]. Existing client configs: "
-                        + Strings.collectionToDelimitedString(clientSettings.keySet(), ",")
-                );
-            }
-
-            logger.debug(() -> format("creating GCS client with client_name [%s], endpoint [%s]", clientName, settings.getHost()));
-            final MeteredStorage storage = createClient(settings, statsCollector);
-            clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
-            return storage;
-        }
+        return clientsManager.client(clientName, repositoryName, statsCollector);
     }
 
-    synchronized void closeRepositoryClients(String repositoryName) {
-        clientCache = clientCache.entrySet()
-            .stream()
-            .filter(entry -> entry.getKey().equals(repositoryName) == false)
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    void closeRepositoryClients(String repositoryName) {
+        clientsManager.closeRepositoryClients(repositoryName);
     }
 
     /**

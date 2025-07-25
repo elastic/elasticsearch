@@ -106,8 +106,10 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        googleCloudStorageService = new GoogleCloudStorageService(ClusterServiceUtils.createClusterService(threadPool),
-            TestProjectResolvers.DEFAULT_PROJECT_ONLY);
+        googleCloudStorageService = new GoogleCloudStorageService(
+            ClusterServiceUtils.createClusterService(threadPool),
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         googleCloudStorageHttpHandler = new GoogleCloudStorageHttpHandler(BUCKET);
         httpServer.createContext("/", googleCloudStorageHttpHandler);
         httpServer.createContext("/token", new FakeOAuth2HttpHandler());

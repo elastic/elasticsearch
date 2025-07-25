@@ -48,8 +48,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     }
 
     @Override
-    CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, int numOversampled, IndexInput centroids, float[] targetQuery)
-        throws IOException {
+    CentroidIterator getCentroidIterator(
+        FieldInfo fieldInfo,
+        int numCentroids,
+        int numOversampled,
+        IndexInput centroids,
+        float[] targetQuery
+    ) throws IOException {
 
         final float[] centroidCorrectiveValues = new float[3];
 
@@ -95,7 +100,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final ES91Int4VectorsScorer fourBitScorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
 
         final NeighborQueue oneBitCentroidQueue = new NeighborQueue(fieldEntry.numCentroids(), true);
-        final NeighborQueue fourBitCentroidQueue =  new NeighborQueue(numOversampled, true);
+        final NeighborQueue fourBitCentroidQueue = new NeighborQueue(numOversampled, true);
 
         // FIXME: this adds a lot of complexity to this method consider moving it / discuss
         OneBitCentroidScorer oneBitCentroidScorer = new OneBitCentroidScorer() {
@@ -120,7 +125,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                         scores
                     );
                     for (int j = 0; j < BULK_SIZE; j++) {
-                        queue.add(i+j, scores[j]);
+                        queue.add(i + j, scores[j]);
                     }
                 }
                 // process tail
@@ -177,14 +182,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
             public long nextPostingListOffset() throws IOException {
                 int centroidOrdinal = fourBitCentroidQueue.pop();
-                if(oneBitCentroidQueue.size() > 0) {
+                if (oneBitCentroidQueue.size() > 0) {
                     // TODO: it may be more efficient as far as disk reads to pop a set of ordinals,
-                    //  sort them, and do a batch read of for instance the next max(0.1f * rescoreSize, 1)
+                    // sort them, and do a batch read of for instance the next max(0.1f * rescoreSize, 1)
                     int centroidOrd = oneBitCentroidQueue.pop();
-                    fourBitCentroidQueue.add(
-                        centroidOrd,
-                        fourBitCentroidScorer.score(centroidOrd)
-                    );
+                    fourBitCentroidQueue.add(centroidOrd, fourBitCentroidScorer.score(centroidOrd));
                 }
 
                 centroids.seek(oneBitQuantizeCentroidsLength + quantizeCentroidsLength + (long) Long.BYTES * centroidOrdinal);
@@ -205,9 +207,10 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         int rescoreSize,
         NeighborQueue oneBitCentroidQueue,
         NeighborQueue centroidQueue,
-        FourBitCentroidScorer centroidQueryScorer) throws IOException {
+        FourBitCentroidScorer centroidQueryScorer
+    ) throws IOException {
 
-        if(oneBitCentroidQueue.size() == 0) {
+        if (oneBitCentroidQueue.size() == 0) {
             return;
         }
 
@@ -220,10 +223,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
 
         // TODO: bulk read the in chunks where possible, group up sets of contiguous ordinals
         for (int i = 0; i < centroidOrdinalsToRescore.length; i++) {
-            centroidQueue.add(
-                centroidOrdinalsToRescore[i],
-                centroidQueryScorer.score(centroidOrdinalsToRescore[i])
-            );
+            centroidQueue.add(centroidOrdinalsToRescore[i], centroidQueryScorer.score(centroidOrdinalsToRescore[i]));
         }
     }
 

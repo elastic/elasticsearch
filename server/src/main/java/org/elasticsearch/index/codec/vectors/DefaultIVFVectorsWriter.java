@@ -313,12 +313,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 currOrd++;
                 float[] centroid = centroidSupplier.centroid(currOrd);
                 System.arraycopy(centroid, 0, centroidScratch, 0, centroid.length);
-                this.corrections = osq.scalarQuantize(
-                    centroidScratch,
-                    quantizedScratch,
-                    (byte) 1,
-                    globalCentroid
-                );
+                this.corrections = osq.scalarQuantize(centroidScratch, quantizedScratch, (byte) 1, globalCentroid);
                 BQVectorUtils.packAsBinary(quantizedScratch, oneBitQuantized);
                 return oneBitQuantized;
             }

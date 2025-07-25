@@ -89,12 +89,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
     }
 
-    abstract CentroidIterator getCentroidIterator(FieldInfo fieldInfo,
-                                                  int numCentroids,
-                                                  int numOversampled,
-                                                  IndexInput centroids,
-                                                  float[] target)
-        throws IOException;
+    abstract CentroidIterator getCentroidIterator(
+        FieldInfo fieldInfo,
+        int numCentroids,
+        int numOversampled,
+        IndexInput centroids,
+        float[] target
+    ) throws IOException;
 
     private static IndexInput openDataInput(
         SegmentReadState state,
@@ -252,7 +253,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         }
 
         final int numOversampled = Math.min((int) (nProbe * NPROBE_OVERSAMPLE), entry.numCentroids());
-        CentroidIterator centroidIterator = getCentroidIterator(fieldInfo, entry.numCentroids, numOversampled, entry.centroidSlice(ivfCentroids), target);
+        CentroidIterator centroidIterator = getCentroidIterator(
+            fieldInfo,
+            entry.numCentroids,
+            numOversampled,
+            entry.centroidSlice(ivfCentroids),
+            target
+        );
         PostingVisitor scorer = getPostingVisitor(fieldInfo, ivfClusters, target, needsScoring);
         int centroidsVisited = 0;
         long expectedDocs = 0;
@@ -320,6 +327,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
     interface CentroidIterator {
         boolean hasNext();
+
         long nextPostingListOffset() throws IOException;
     }
 

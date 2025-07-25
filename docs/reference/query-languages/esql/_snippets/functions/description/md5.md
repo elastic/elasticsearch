@@ -2,5 +2,5 @@
 
 **Description**
 
-Computes the MD5 hash of the input.
+Computes the MD5 hash of the input (if the MD5 hash is available on the JVM).
 

@@ -16,6 +16,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -288,13 +289,15 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         }
 
         // Optimization: only load the .geoip_databases for projects that are allocated to this node
-        for (ProjectMetadata projectMetadata : state.metadata().projects().values()) {
-            checkDatabases(state, projectMetadata);
+        for (ProjectId projectId : state.metadata().projects().keySet()) {
+            checkDatabases(state.projectState(projectId));
         }
     }
 
-    void checkDatabases(ClusterState state, ProjectMetadata projectMetadata) {
-        ProjectId projectId = projectMetadata.id();
+    void checkDatabases(ProjectState projectState) {
+        ProjectId projectId = projectState.projectId();
+        ProjectMetadata projectMetadata = projectState.metadata();
+        ClusterState clusterState = clusterService.state();
         PersistentTasksCustomMetadata persistentTasks = projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks == null) {
             logger.trace("Not checking databases for project [{}] because persistent tasks are null", projectId);
@@ -308,7 +311,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         } else {
             // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
             Index databasesIndex = databasesAbstraction.getWriteIndex();
-            IndexRoutingTable databasesIndexRT = state.routingTable(projectId).index(databasesIndex);
+            IndexRoutingTable databasesIndexRT = clusterState.routingTable(projectId).index(databasesIndex);
             if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
                 logger.trace(
                     "Not checking databases because geoip databases index does not have all active primary shards for" + " project [{}]",
@@ -332,7 +335,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 taskState.getDatabases()
                     .entrySet()
                     .stream()
-                    .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
+                    .filter(e -> e.getValue().isNewEnough(clusterState.getMetadata().settings()))
                     .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
                     .toList()
             );
@@ -340,7 +343,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
 
         // process the geoip task state for the enterprise geoip downloader
         {
-            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(state);
+            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(clusterState);
             if (taskState == null) {
                 // Note: an empty state will purge stale entries in databases map
                 taskState = EnterpriseGeoIpTaskState.EMPTY;
@@ -349,7 +352,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 taskState.getDatabases()
                     .entrySet()
                     .stream()
-                    .filter(e -> e.getValue().isNewEnough(state.getMetadata().settings()))
+                    .filter(e -> e.getValue().isNewEnough(clusterState.getMetadata().settings()))
                     .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
                     .toList()
             );

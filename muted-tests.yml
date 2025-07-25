@@ -509,6 +509,21 @@ tests:
 - class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
   method: testRelocationWhileForceMerging
   issue: https://github.com/elastic/elasticsearch/issues/131789
+- class: org.elasticsearch.xpack.stack.StackYamlIT
+  method: test {yaml=stack/10_basic/Test wrong data_stream type - logs from 9.2.0}
+  issue: https://github.com/elastic/elasticsearch/issues/131803
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test151MachineDependentHeapWithSizeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/123437
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
+  method: testUpdates
+  issue: https://github.com/elastic/elasticsearch/issues/131795
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testDifferentDimensions {functionName=v_dot_product similarityFunction=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/131845
+- class: org.elasticsearch.compute.aggregation.ValuesBytesRefGroupingAggregatorFunctionTests
+  method: testSomeFiltered
+  issue: https://github.com/elastic/elasticsearch/issues/131878
 
 # Examples:
 #

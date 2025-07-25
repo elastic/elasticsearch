@@ -980,19 +980,25 @@ setup:
 
 ---
 "rrf retriever with inner_hits for sub-retriever":
+  - skip:
+      features: [ "headers" ]
   - requires:
       capabilities:
         - method: POST
           path: /_search
-          capabilities: [ nested_retriever_inner_hits_support ]
+          capabilities: [ nested_retriever_inner_hits_support, exclude_source_vectors_setting ]
       test_runner_features: capabilities
       reason: "Support for propagating nested retrievers' inner hits to the top-level compound retriever is required"
 
   - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
       search:
-        _source: false
         index: test
         body:
+          _source:
+            exclude_vectors: false
           retriever:
             rrf:
               retrievers: [
@@ -1058,7 +1064,7 @@ setup:
   - match: { hits.hits.0.inner_hits.nested_data_field.hits.total.value: 1 }
   - match: { hits.hits.0.inner_hits.nested_data_field.hits.hits.0.fields.nested_inner_hits.0.data.0: foo }
   - match: { hits.hits.0.inner_hits.nested_vector_field.hits.total.value: 1 }
-  - match: { hits.hits.0.inner_hits.nested_vector_field.hits.hits.0.fields.nested_inner_hits.0.paragraph_id: [ 1 ] }
+  - match: { hits.hits.0.inner_hits.nested_vector_field.hits.hits.0.fields.nested_inner_hits.0.paragraph_id: [ 1.0 ] }
 
   - match: { hits.hits.1.inner_hits.nested_data_field.hits.total.value: 3 }
   - match: { hits.hits.1.inner_hits.nested_data_field.hits.hits.0.fields.nested_inner_hits.0.data.0: bar }

@@ -85,7 +85,16 @@ tasks.named("dependencyLicenses").configure {
   ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
 }
 
+configurations {
+  yamlRestImplementation {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JVM_CLASS_DIRECTORY)
+    }
+  }
+}
+
 artifacts {
+  yamlRestImplementation(new File(projectDir, "src/yamlRestTest/java"))
   restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 

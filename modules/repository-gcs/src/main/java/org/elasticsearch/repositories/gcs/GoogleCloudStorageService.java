@@ -25,6 +25,8 @@ import com.google.cloud.storage.StorageRetryStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -57,12 +59,8 @@ public class GoogleCloudStorageService {
 
     private final boolean isServerless;
 
-    public GoogleCloudStorageService() {
-        this.isServerless = false;
-    }
-
-    public GoogleCloudStorageService(boolean isServerless) {
-        this.isServerless = isServerless;
+    public GoogleCloudStorageService(ClusterService clusterService) {
+        this.isServerless = DiscoveryNode.isStateless(clusterService.getSettings());
     }
 
     public boolean isServerless() {

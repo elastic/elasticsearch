@@ -21,8 +21,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -40,6 +42,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
 
@@ -73,7 +76,8 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             .put(GoogleCloudStorageClientSettings.PROXY_PORT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 8080)
             .build();
         SetOnce<Proxy> proxy = new SetOnce<>();
-        final GoogleCloudStorageService service = new GoogleCloudStorageService() {
+        final var clusterService = ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool());
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(clusterService) {
             @Override
             void notifyProxyIsSet(Proxy p) {
                 proxy.set(p);
@@ -114,8 +118,12 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         secureSettings2.setFile("gcs.client.gcs1.credentials_file", serviceAccountFileContent("project_gcs21"));
         secureSettings2.setFile("gcs.client.gcs3.credentials_file", serviceAccountFileContent("project_gcs23"));
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
+        final var pluginServices = mock(Plugin.PluginServices.class);
+        when(pluginServices.clusterService()).thenReturn(
+            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())
+        );
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
-            plugin.createComponents(mock(Plugin.PluginServices.class));
+            plugin.createComponents(pluginServices);
             final GoogleCloudStorageService storageService = plugin.storageService.get();
             var statsCollector = new GcsRepositoryStatsCollector();
             final var client11 = storageService.client("gcs1", "repo1", statsCollector);
@@ -153,8 +161,12 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final MockSecureSettings secureSettings1 = new MockSecureSettings();
         secureSettings1.setFile("gcs.client.gcs1.credentials_file", serviceAccountFileContent("test_project"));
         final Settings settings = Settings.builder().setSecureSettings(secureSettings1).build();
+        final var pluginServices = mock(Plugin.PluginServices.class);
+        when(pluginServices.clusterService()).thenReturn(
+            ClusterServiceUtils.createClusterService(new DeterministicTaskQueue().getThreadPool())
+        );
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
-            plugin.createComponents(mock(Plugin.PluginServices.class));
+            plugin.createComponents(pluginServices);
             final GoogleCloudStorageService storageService = plugin.storageService.get();
 
             final MeteredStorage repo1Client = storageService.client("gcs1", "repo1", new GcsRepositoryStatsCollector());

@@ -14,6 +14,8 @@ import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.tasks.Copy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,15 +40,26 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         }
         tvDependencies.add(depsHandler.project(Map.of("path", ":server")));
 
-        Configuration tvNamesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
-        tvNamesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+        Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
+        tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+
+        var generateManifestTask = project.getTasks()
+            .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
+                t.setGroup("Transport Versions");
+                t.setDescription("Generate a manifest resource for all the known transport version constants");
+                t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
+                t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
+            });
+        project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
+            t.into("transport/constants", c -> c.from(generateManifestTask));
+        });
 
         var validateTask = project.getTasks()
             .register("validateTransportVersionConstants", ValidateTransportVersionConstantsTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
                 t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
-                t.getReferencesFiles().setFrom(tvNamesConfig);
+                t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
 
         project.getTasks().named("check").configure(t -> t.dependsOn(validateTask));

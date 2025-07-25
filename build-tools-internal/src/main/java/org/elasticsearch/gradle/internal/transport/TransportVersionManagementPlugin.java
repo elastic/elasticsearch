@@ -19,13 +19,13 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        String transportVersionsNamesFile = "generated-transport-constants/transport-version-set-names.txt";
+        String transportVersionReferencesFile = "generated-transport-constants/transport-version-set-names.txt";
         var collectTask = project.getTasks().register("collectTransportVersionNames", CollectTransportVersionNamesTask.class, t -> {
             t.setGroup("Transport Versions");
             t.setDescription("Collects all TransportVersion names used throughout the project");
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             t.getClassPath().setFrom(mainSourceSet.getRuntimeClasspath());
-            t.getOutputFile().set(project.getLayout().getBuildDirectory().file(transportVersionsNamesFile));
+            t.getOutputFile().set(project.getLayout().getBuildDirectory().file(transportVersionReferencesFile));
         });
 
         Configuration transportVersionsConfig = project.getConfigurations().create("transportVersionNames", c -> {
@@ -41,7 +41,7 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all TransportVersion names used in the project have an associated data file");
                 t.getConstantsDirectory().set(TransportVersionUtils.getConstantsDirectory(project));
-                t.getReferencesFile().set(project.getLayout().getBuildDirectory().file(transportVersionsNamesFile));
+                t.getReferencesFile().set(project.getLayout().getBuildDirectory().file(transportVersionReferencesFile));
                 t.dependsOn(collectTask);
 
             });

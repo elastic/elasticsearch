@@ -51,7 +51,6 @@ plugins {
   id 'elasticsearch.repositories'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
-  id 'elasticsearch.global-transport-version-management'
   id 'com.gradleup.nmcp.aggregation'
 }
 

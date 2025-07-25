@@ -469,14 +469,12 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
          * @param newAllocations The number of new allocations to assign
          */
         public void assignModelToNodeAndAccountForCurrentAllocations(Deployment deployment, Node node, int newAllocations) {
-            // First, handle the assignment of new allocations exactly as in the original code
+            // First, handle the assignment of new allocations
             assignModelToNode(deployment, node, newAllocations);
 
-            // Then, check if there are current allocations that need memory accounting
+            // Then, account for memory for current allocations that if needed
             int currentAllocations = getCurrentAllocations(deployment, node);
             if (currentAllocations > 0) {
-                // Calculate memory for the current allocations
-                // This exactly mirrors what the original code was doing
                 long memoryForCurrentAllocations = deployment.estimateMemoryUsageBytes(currentAllocations);
                 accountMemory(deployment, node, memoryForCurrentAllocations);
             }

@@ -59,7 +59,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block.Builder copyFrom(Block b, int beginInclusive, int endExclusive) {
+    public AggregateMetricDoubleBlockBuilder copyFrom(Block b, int beginInclusive, int endExclusive) {
         Block minBlock;
         Block maxBlock;
         Block sumBlock;
@@ -84,7 +84,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public AbstractBlockBuilder appendNull() {
+    public AggregateMetricDoubleBlockBuilder appendNull() {
         minBuilder.appendNull();
         maxBuilder.appendNull();
         sumBuilder.appendNull();
@@ -93,7 +93,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+    public AggregateMetricDoubleBlockBuilder mvOrdering(Block.MvOrdering mvOrdering) {
         minBuilder.mvOrdering(mvOrdering);
         maxBuilder.mvOrdering(mvOrdering);
         sumBuilder.mvOrdering(mvOrdering);
@@ -102,7 +102,7 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     @Override
-    public Block build() {
+    public AggregateMetricDoubleBlock build() {
         DoubleBlock minBlock = null;
         DoubleBlock maxBlock = null;
         DoubleBlock sumBlock = null;

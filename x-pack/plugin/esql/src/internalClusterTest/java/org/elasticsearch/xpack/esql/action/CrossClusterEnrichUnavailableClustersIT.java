@@ -53,7 +53,6 @@ public class CrossClusterEnrichUnavailableClustersIT extends AbstractEnrichBased
         return plugins;
     }
 
-
     public void testEnrichWithHostsPolicyAndDisconnectedRemotesWithSkipUnavailableTrue() throws IOException {
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
         setSkipUnavailable(REMOTE_CLUSTER_2, true);

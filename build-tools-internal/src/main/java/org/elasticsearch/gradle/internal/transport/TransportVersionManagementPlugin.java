@@ -31,13 +31,9 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
                 t.getOutputFile().set(project.getLayout().getBuildDirectory().file("transport-version/references.txt"));
             });
 
-        Configuration transportVersionsConfig = project.getConfigurations().create("transportVersionNames", c -> {
-            c.setCanBeConsumed(true);
-            c.setCanBeResolved(false);
-            c.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
-        });
-
-        project.getArtifacts().add(transportVersionsConfig.getName(), collectTask);
+        Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration();
+        tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+        project.getArtifacts().add(tvReferencesConfig.getName(), collectTask);
 
         var validateTask = project.getTasks()
             .register("validateTransportVersionReferences", ValidateTransportVersionReferencesTask.class, t -> {
@@ -46,7 +42,6 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
                 t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
                 t.getReferencesFile().set(collectTask.get().getOutputFile());
             });
-
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
     }
 }

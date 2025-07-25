@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -29,21 +30,16 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
 
         DependencyHandler depsHandler = project.getDependencies();
-        List<Dependency> tvDependencies = new ArrayList<>();
-        // TODO: created a named configuration so deps can be added dynamically?
-        for (String baseProjectPath : List.of(":modules", ":plugins", ":x-pack:plugin")) {
-            Project baseProject = project.project(baseProjectPath);
-            for (var pluginProject : baseProject.getSubprojects()) {
-                if (pluginProject.getParent() != baseProject) {
-                    continue; // skip nested projects
-                }
-                tvDependencies.add(depsHandler.project(Map.of("path", pluginProject.getPath())));
-            }
-        }
-        tvDependencies.add(depsHandler.project(Map.of("path", ":server")));
-
-        Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
+        Dependency selfDependency = depsHandler.project(Map.of("path", project.getPath()));
+        Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration(selfDependency);
         tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+
+        // iterate through all projects, and if the ES plugin build plugin is applied, add that project back as a dep to check
+        for (Project subProject : project.getRootProject().getSubprojects()) {
+            subProject.getPlugins().withType(BaseInternalPluginBuildPlugin.class).configureEach(plugin -> {
+                tvReferencesConfig.getDependencies().add(depsHandler.project(Map.of("path", subProject.getPath())));
+            });
+        }
 
         var validateTask = project.getTasks()
             .register("validateTransportVersionDefinitions", ValidateTransportVersionDefinitionsTask.class, t -> {
@@ -52,7 +48,6 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
                 t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
-
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
         var generateManifestTask = project.getTasks()

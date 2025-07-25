@@ -73,8 +73,12 @@ class TransportVersionUtils {
     }
 
     static Directory getDefinitionsDirectory(Project project) {
-        Directory serverDir = project.project(":server").getLayout().getProjectDirectory();
-        return serverDir.dir("src/main/resources/transport/defined");
+        var projectName = project.findProperty("org.elasticsearch.transport.definitionsProject");
+        if (projectName == null) {
+            projectName = ":server";
+        }
+        Directory projectDir = project.project(projectName.toString()).getLayout().getProjectDirectory();
+        return projectDir.dir("src/main/resources/transport/defined");
     }
 
     static void addTransportVersionReferencesAttribute(AttributeContainer attributes) {

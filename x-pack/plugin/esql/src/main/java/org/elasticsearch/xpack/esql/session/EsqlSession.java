@@ -242,23 +242,15 @@ public class EsqlSession {
         if (subPlan != null) {
             // code-path to execute subplans
             executeSubPlan(new DriverCompletionInfo.Accumulator(), optimizedPlan, subPlan, executionInfo, runner, request, listener);
+        } else if (request.approximate()) {
+            new Approximate(optimizedPlan).approximate(
+                (p, l) -> runner.run(logicalPlanToPhysicalPlan(optimizedPlan(p), request), l),
+                listener
+            );
         } else {
-            if (request.approximate()) {
-                Approximate approximate = new Approximate(optimizedPlan);
-                runner.run(
-                    logicalPlanToPhysicalPlan(optimizedPlan(approximate.countPlan()), request),
-                    listener.delegateFailureAndWrap(
-                        (countListener, countResult) -> runner.run(
-                            logicalPlanToPhysicalPlan(optimizedPlan(approximate.approximatePlan(countResult)), request),
-                            listener
-                        )
-                    )
-                );
-            } else {
-                PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
-                // execute main plan
-                runner.run(physicalPlan, listener);
-            }
+            PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
+            // execute main plan
+            runner.run(physicalPlan, listener);
         }
     }
 

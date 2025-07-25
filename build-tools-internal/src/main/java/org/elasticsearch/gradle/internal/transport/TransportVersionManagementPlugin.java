@@ -20,13 +20,14 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         String transportVersionReferencesFile = "transport-version/references.txt";
-        var collectTask = project.getTasks().register("collectTransportVersionReferences", CollectTransportVersionReferencesTask.class, t -> {
-            t.setGroup("Transport Versions");
-            t.setDescription("Collects all TransportVersion references used throughout the project");
-            SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            t.getClassPath().setFrom(mainSourceSet.getRuntimeClasspath());
-            t.getOutputFile().set(project.getLayout().getBuildDirectory().file(transportVersionReferencesFile));
-        });
+        var collectTask = project.getTasks()
+            .register("collectTransportVersionReferences", CollectTransportVersionReferencesTask.class, t -> {
+                t.setGroup("Transport Versions");
+                t.setDescription("Collects all TransportVersion references used throughout the project");
+                SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
+                t.getClassPath().setFrom(mainSourceSet.getRuntimeClasspath());
+                t.getOutputFile().set(project.getLayout().getBuildDirectory().file(transportVersionReferencesFile));
+            });
 
         Configuration transportVersionsConfig = project.getConfigurations().create("transportVersionNames", c -> {
             c.setCanBeConsumed(true);

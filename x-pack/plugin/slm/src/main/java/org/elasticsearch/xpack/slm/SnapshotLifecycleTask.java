@@ -78,8 +78,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     @Override
     public void triggered(SchedulerEngine.Event event) {
         logger.debug("snapshot lifecycle policy task triggered from job [{}]", event.jobName());
-
-        final Optional<String> snapshotName = maybeTakeSnapshot(projectId, event.jobName(), client, clusterService, historyStore);
+        ProjectMetadata projectMetadata = clusterService.state().getMetadata().getProject(projectId);
+        final Optional<String> snapshotName = maybeTakeSnapshot(projectMetadata, event.jobName(), client, clusterService, historyStore);
 
         // Would be cleaner if we could use Optional#ifPresentOrElse
         snapshotName.ifPresent(
@@ -102,13 +102,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
      * @return An optional snapshot name if the request was issued successfully
      */
     public static Optional<String> maybeTakeSnapshot(
-        final ProjectId projectId,
+        final ProjectMetadata projectMetadata,
         final String jobId,
         final Client client,
         final ClusterService clusterService,
         final SnapshotHistoryStore historyStore
     ) {
-        Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(projectId, jobId, clusterService.state());
+        ProjectId projectId = projectMetadata.id();
+        Optional<SnapshotLifecyclePolicyMetadata> maybeMetadata = getSnapPolicyMetadata(projectMetadata, jobId);
         String snapshotName = maybeMetadata.map(policyMetadata -> {
             // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             CreateSnapshotRequest request = policyMetadata.getPolicy().toRequest(TimeValue.MAX_VALUE);
@@ -212,14 +213,8 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
     /**
      * For the given job id, return an optional policy metadata object, if one exists
      */
-    static Optional<SnapshotLifecyclePolicyMetadata> getSnapPolicyMetadata(
-        final ProjectId projectId,
-        final String jobId,
-        final ClusterState state
-    ) {
-        return Optional.ofNullable(
-            (SnapshotLifecycleMetadata) state.metadata().getProject(projectId).custom(SnapshotLifecycleMetadata.TYPE)
-        )
+    static Optional<SnapshotLifecyclePolicyMetadata> getSnapPolicyMetadata(final ProjectMetadata projectMetadata, final String jobId) {
+        return Optional.ofNullable((SnapshotLifecycleMetadata) projectMetadata.custom(SnapshotLifecycleMetadata.TYPE))
             .map(SnapshotLifecycleMetadata::getSnapshotConfigurations)
             .flatMap(
                 configMap -> configMap.values()

@@ -86,20 +86,16 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
             new SnapshotLifecycleStats()
         );
 
-        final ClusterState state = ClusterState.builder(new ClusterName("test"))
-            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(SnapshotLifecycleMetadata.TYPE, meta).build())
-            .build();
-
+        final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId).putCustom(SnapshotLifecycleMetadata.TYPE, meta).build();
         final Optional<SnapshotLifecyclePolicyMetadata> o = SnapshotLifecycleTask.getSnapPolicyMetadata(
-            projectId,
-            SnapshotLifecycleService.getJobId(slpm),
-            state
+            projectMetadata,
+            SnapshotLifecycleService.getJobId(slpm)
         );
 
         assertTrue("the policy metadata should be retrieved from the cluster state", o.isPresent());
         assertThat(o.get(), equalTo(slpm));
 
-        assertFalse(SnapshotLifecycleTask.getSnapPolicyMetadata(projectId, "bad-jobid", state).isPresent());
+        assertFalse(SnapshotLifecycleTask.getSnapPolicyMetadata(projectMetadata, "bad-jobid").isPresent());
     }
 
     public void testSkipCreatingSnapshotWhenJobDoesNotMatch() {

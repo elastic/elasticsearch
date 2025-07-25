@@ -15,7 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
@@ -73,10 +73,8 @@ public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNode
     ) {
         try {
             final String policyId = request.getLifecycleId();
-            final ProjectId projectId = projectResolver.getProjectId();
-            SnapshotLifecycleMetadata snapMeta = state.metadata()
-                .getProject(projectId)
-                .custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+            final ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(state);
+            SnapshotLifecycleMetadata snapMeta = projectMetadata.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             SnapshotLifecyclePolicyMetadata policyMetadata = snapMeta.getSnapshotConfigurations().get(policyId);
             if (policyMetadata == null) {
                 listener.onFailure(new IllegalArgumentException("no such snapshot lifecycle policy [" + policyId + "]"));
@@ -84,7 +82,7 @@ public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNode
             }
 
             final Optional<String> snapshotName = SnapshotLifecycleTask.maybeTakeSnapshot(
-                projectId,
+                projectMetadata,
                 SnapshotLifecycleService.getJobId(policyMetadata),
                 client,
                 clusterService,

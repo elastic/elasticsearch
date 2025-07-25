@@ -26,7 +26,7 @@
  * <p>The {@link org.elasticsearch.xpack.slm.SnapshotLifecycleTask} object is what receives an event when a scheduled policy
  * is triggered for execution. It constructs a snapshot request and runs it as the user who originally set up the policy. The bulk of this
  * logic is contained in the
- * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleTask#maybeTakeSnapshot(ProjectId, String, Client, ClusterService,
+ * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleTask#maybeTakeSnapshot(ProjectMetadata, String, Client, ClusterService,
  * SnapshotHistoryStore)} method. After a snapshot request has been submitted, it persists the result (success or failure) in a history
  * store (an index), caching the latest success and failure information in the cluster state. It is important to note that this task
  * fires the snapshot request off and forgets it; It does not wait until the entire snapshot completes. Any success or failure that this
@@ -35,7 +35,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService.SnapshotLifecycleProjectState;

@@ -1227,7 +1227,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
 
         expectError("from a | where foo like 12", "no viable alternative at input 'foo like 12'");
-        expectError("from a | where foo rlike 12", "mismatched input '12'");
+        expectError("from a | where foo rlike 12", "no viable alternative at input 'foo rlike 12'");
 
         expectError(
             "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
@@ -3645,7 +3645,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | FORK (where true) (where true) (where true) (where true)
                    (where true) (where true) (where true) (where true)
                    (where true)
-            """, "Fork requires less than 8 branches");
+            """, "Fork supports up to 8 branches");
 
         expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1'");
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2'");

@@ -199,7 +199,6 @@ public class ZoneAwareAssignmentPlanner {
             Map<Node, Integer> nodeAssignments = plan.assignments(m).orElse(Map.of());
             for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
-                // Use the new method that handles both assigning and accounting for current allocations
                 planBuilder.assignModelToNodeAndAccountForCurrentAllocations(originalDeployment, originalNode, assignment.getValue());
             }
         }

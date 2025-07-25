@@ -139,7 +139,6 @@ class TrainedModelAssignmentRebalancer {
             Map<AssignmentPlan.Node, Integer> nodeAssignments = source.assignments(m).orElse(Map.of());
             for (Map.Entry<AssignmentPlan.Node, Integer> assignment : nodeAssignments.entrySet()) {
                 AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
-                // Use the new method that handles both assigning and accounting for current allocations
                 dest.assignModelToNodeAndAccountForCurrentAllocations(m, originalNode, assignment.getValue());
             }
         }

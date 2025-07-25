@@ -424,8 +424,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             if (allocations <= 0) {
                 return this;
             }
-            if (/*isAlreadyAssigned(deployment, node) == false
-                &&*/ requiredMemory > remainingNodeMemory.get(node)) {
+            if (requiredMemory > remainingNodeMemory.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough memory on node ["
                         + node.id()
@@ -459,9 +458,9 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             remainingModelAllocations.compute(deployment, (m, remModelThreads) -> remModelThreads - allocations);
             return this;
         }
-        
+
         /**
-         * Assigns a model to a node, and if the node has existing allocations, 
+         * Assigns a model to a node, and if the node has existing allocations,
          * also accounts for memory usage of those existing allocations.
          * This handles the common case of transferring assignments between plans.
          *
@@ -473,19 +472,19 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         public Builder assignModelToNodeAndAccountForCurrentAllocations(Deployment deployment, Node node, int newAllocations) {
             // First, handle the assignment of new allocations exactly as in the original code
             assignModelToNode(deployment, node, newAllocations);
-            
+
             // Then, check if there are current allocations that need memory accounting
             // This is directly mirroring the original approach in both refactored methods
             if (deployment.currentAllocationsByNodeId().containsKey(node.id())) {
                 // Get the current allocations count
                 int currentAllocations = deployment.currentAllocationsByNodeId().get(node.id());
-                
+
                 // Calculate memory for the current allocations
                 // This exactly mirrors what the original code was doing
                 long memoryForCurrentAllocations = deployment.estimateMemoryUsageBytes(currentAllocations);
                 accountMemory(deployment, node, memoryForCurrentAllocations);
             }
-            
+
             return this;
         }
 
@@ -500,13 +499,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         public void accountMemory(Deployment m, Node n) {
-            // TODO (#101612) remove or refactor unused method
             long requiredMemory = getDeploymentMemoryRequirement(m, n, getCurrentAllocations(m, n));
             accountMemory(m, n, requiredMemory);
         }
 
         public void accountMemory(Deployment m, Node n, long requiredMemory) {
-            // TODO (#101612) computation of required memory should be done internally
             remainingNodeMemory.computeIfPresent(n, (k, v) -> v - requiredMemory);
             if (remainingNodeMemory.containsKey(n) && remainingNodeMemory.get(n) < 0) {
                 throw new IllegalArgumentException("not enough memory on node [" + n.id() + "] to assign model [" + m.deploymentId() + "]");

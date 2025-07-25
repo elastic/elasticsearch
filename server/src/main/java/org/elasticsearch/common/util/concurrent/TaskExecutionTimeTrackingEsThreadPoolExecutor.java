@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_QUEUE_TIME;
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION;
@@ -277,6 +278,69 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             lastPollTime = currentPollTimeNanos;
 
             return utilizationSinceLastPoll;
+        }
+    }
+
+    static class FramedExecutionTime {
+        private final Supplier<Long> timeNow;
+        long ongoingTasks;
+        long interval;
+        long currentFrame;
+        long previousFrame;
+        long currentTime;
+        long previousTime;
+
+        // for testing
+        FramedExecutionTime(long interval, Supplier<Long> timeNow) {
+            assert interval > 0;
+            this.interval = interval;
+            this.timeNow = timeNow;
+        }
+
+        FramedExecutionTime(long interval) {
+            assert interval > 0;
+            this.interval = interval;
+            this.timeNow = System::nanoTime;
+        }
+
+        /**
+         * update current and previous frames to current time
+         */
+        synchronized void updateFrame() {
+            updateFrame0(timeNow.get());
+        }
+
+        private void updateFrame0(long nowTime) {
+            var now = nowTime / interval;
+            if (currentFrame < now) {
+                if (currentFrame == now - 1) {
+                    previousTime = currentTime;
+                } else {
+                    previousTime = ongoingTasks * interval;
+                }
+                currentTime = ongoingTasks * interval;
+                currentFrame = now;
+                previousFrame = now - 1;
+            }
+        }
+
+        synchronized void startTask(long startTime) {
+            updateFrame0(startTime);
+            // assume task will run indefinitely, in this case at least till end of interval
+            currentTime += (currentFrame + 1) * interval - startTime;
+            ++ongoingTasks;
+        }
+
+        synchronized void endTask(long endTime) {
+            updateFrame0(endTime);
+            // we already assumed that task will run till end of interval, here we subtract whats left
+            currentTime -= (currentFrame + 1) * interval - endTime;
+            --ongoingTasks;
+        }
+
+        synchronized long getPreviousFrameExecutionTime() {
+            updateFrame0(timeNow.get());
+            return previousTime;
         }
     }
 }

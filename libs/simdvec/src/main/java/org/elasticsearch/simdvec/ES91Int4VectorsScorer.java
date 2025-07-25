@@ -162,7 +162,7 @@ public class ES91Int4VectorsScorer {
     ) {
         float ax = lowerInterval;
         // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-        float lx = upperInterval - ax;
+        float lx = (upperInterval - ax) * FOUR_BIT_SCALE;
         float ay = queryLowerInterval;
         float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
         float y1 = queryComponentSum;

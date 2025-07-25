@@ -34,11 +34,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
         Map<String, Float> fieldNamesWithWeights = getFieldNamesWithWeights(queryBuilder);
-        if (fieldNamesWithWeights.size() > 1) {
-            // Multi-field query, so return the original query, and an exception will be thrown eventually
-            return queryBuilder;
-        }
-        String fieldName = fieldNamesWithWeights.keySet().iterator().next();
         ResolvedIndices resolvedIndices = context.getResolvedIndices();
 
         if (resolvedIndices == null) {
@@ -46,20 +41,24 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-        InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
-        if (indexInformation.getInferenceIndices().isEmpty()) {
-            // No inference fields were identified, so return the original query.
-            return queryBuilder;
-        } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
-            // Combined case where the field name requested by this query contains both
-            // semantic_text and non-inference fields, so we have to combine queries per index
-            // containing each field type.
-            return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
-        } else {
-            // The only fields we've identified are inference fields (e.g. semantic_text),
-            // so rewrite the entire query to work on a semantic_text field.
-            return buildInferenceQuery(queryBuilder, indexInformation);
+        BoolQueryBuilder finalQueryBuilder = new BoolQueryBuilder();
+        for (String fieldName : fieldNamesWithWeights.keySet()) {
+            InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
+            if (indexInformation.getInferenceIndices().isEmpty()) {
+                // No inference fields were identified, so return the original query.
+                finalQueryBuilder.should(queryBuilder);
+            } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
+                // Combined case where the field name requested by this query contains both
+                // semantic_text and non-inference fields, so we have to combine queries per index
+                // containing each field type.
+                return finalQueryBuilder.should(buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation));
+            } else {
+                // The only fields we've identified are inference fields (e.g. semantic_text),
+                // so rewrite the entire query to work on a semantic_text field.
+                return finalQueryBuilder.should(buildInferenceQuery(queryBuilder, indexInformation));
+            }
         }
+        return finalQueryBuilder;
     }
 
     /**

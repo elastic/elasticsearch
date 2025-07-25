@@ -415,12 +415,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                 DocWriteRequest<?> req = bulkRequestModifier.bulkRequest.requests.get(i);
                 String prefix = streamType.getStreamName() + ".";
 
-                boolean prePipeline = true;
-                if (req instanceof IndexRequest ir) {
-                    prePipeline = ir.isPipelineResolved() == false;
-                }
-
-                if (req != null && req.index() != null && req.index().startsWith(prefix) && prePipeline) {
+                if (req instanceof IndexRequest ir && ir.index().startsWith(prefix) && ir.isPipelineResolved() == false) {
                     IllegalArgumentException e = new IllegalArgumentException(
                         "Direct writes to child streams are prohibited. Index directly into the ["
                             + streamType.getStreamName()

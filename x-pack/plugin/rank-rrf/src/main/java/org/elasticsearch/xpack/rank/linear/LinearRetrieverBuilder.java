@@ -119,7 +119,8 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     private static ScoreNormalizer[] getDefaultNormalizers(List<RetrieverSource> innerRetrievers) {
         int size = innerRetrievers != null ? innerRetrievers.size() : 0;
         ScoreNormalizer[] normalizers = new ScoreNormalizer[size];
-        return new ScoreNormalizer[size];
+        Arrays.fill(normalizers, DEFAULT_NORMALIZER);
+        return normalizers;
     }
 
     public static LinearRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -185,16 +186,32 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.normalizer = normalizer;
 
         if (normalizer != null) {
-            for (ScoreNormalizer subNormalizer : normalizers) {
-                if (subNormalizer != null && subNormalizer.equals(DEFAULT_NORMALIZER) == false && subNormalizer.equals(normalizer) == false) {
+            // First pass: validate that any specified per-retriever normalizers match the top-level one
+            for (int i = 0; i < normalizers.length; i++) {
+                ScoreNormalizer subNormalizer = normalizers[i];
+                if (subNormalizer != null && !subNormalizer.equals(DEFAULT_NORMALIZER) && !subNormalizer.equals(normalizer)) {
                     throw new IllegalArgumentException(
-                        "top-level normalizer ["
+                        "["
+                            + NAME
+                            + "] All per-retriever normalizers must match the top-level normalizer: "
+                            + "expected ["
                             + normalizer.getName()
-                            + "] is specified and it should be the same as all sub-retriever normalizers"
+                            + "], found ["
+                            + subNormalizer.getName()
+                            + "] in retriever ["
+                            + i
+                            + "]"
                     );
                 }
             }
+            // Second pass: propagate top-level normalizer to any unspecified positions
+            for (int i = 0; i < normalizers.length; i++) {
+                if (normalizers[i] == null || normalizers[i].equals(DEFAULT_NORMALIZER)) {
+                    normalizers[i] = normalizer;
+                }
+            }
         }
+
     }
 
     public LinearRetrieverBuilder(
@@ -248,28 +265,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 ),
                 validationException
             );
-        }
-
-        if (normalizer != null) {
-            for (ScoreNormalizer perRetrieverNormalizer : normalizers) {
-                boolean isExplicitSubNormalizer = perRetrieverNormalizer != null
-                    && perRetrieverNormalizer.equals(DEFAULT_NORMALIZER) == false;
-                boolean isMismatch = isExplicitSubNormalizer && perRetrieverNormalizer.equals(normalizer) == false;
-                if (isMismatch) {
-                    validationException = addValidationError(
-                        String.format(
-                            Locale.ROOT,
-                            "[%s] top-level [%s] is [%s] but a sub-retriever specifies [%s]",
-                            getName(),
-                            NORMALIZER_FIELD.getPreferredName(),
-                            normalizer.getName(),
-                            perRetrieverNormalizer.getName()
-                        ),
-                        validationException
-                    );
-                    break;
-                }
-            }
         }
 
         return validationException;
@@ -418,7 +413,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 linearRewritten.innerRetrievers,
                 linearRewritten.fields,
                 linearRewritten.query,
-                null,
+                normalizer,
                 linearRewritten.rankWindowSize,
                 linearRewritten.weights,
                 newNormalizers

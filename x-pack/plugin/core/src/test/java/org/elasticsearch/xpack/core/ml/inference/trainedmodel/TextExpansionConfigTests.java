@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
@@ -35,11 +36,15 @@ public class TextExpansionConfigTests extends InferenceConfigItemTestCase<TextEx
     }
 
     public static TextExpansionConfig mutateForVersion(TextExpansionConfig instance, TransportVersion version) {
+        String expansionType = instance.getExpansionType();
+        if (version.before(TransportVersions.ML_EXPANSION_TYPE)) {
+            expansionType = null;
+        }
         return new TextExpansionConfig(
             instance.getVocabularyConfig(),
             InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
             instance.getResultsField(),
-            instance.getExpansionType()
+            expansionType
         );
     }
 
@@ -65,6 +70,6 @@ public class TextExpansionConfigTests extends InferenceConfigItemTestCase<TextEx
 
     @Override
     protected TextExpansionConfig mutateInstanceForVersion(TextExpansionConfig instance, TransportVersion version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 }

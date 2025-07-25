@@ -92,7 +92,11 @@ public class TextExpansionConfig implements NlpConfig {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
         resultsField = in.readOptionalString();
-        expansionType = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_EXPANSION_TYPE)) {
+            expansionType = in.readOptionalString();
+        } else {
+            expansionType = EXPANSION_TYPE_ELSER; // Default to ELSER
+        }
     }
 
     @Override
@@ -100,7 +104,9 @@ public class TextExpansionConfig implements NlpConfig {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
         out.writeOptionalString(resultsField);
-        out.writeOptionalString(expansionType);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_EXPANSION_TYPE)) {
+            out.writeOptionalString(expansionType);
+        }
     }
 
     @Override

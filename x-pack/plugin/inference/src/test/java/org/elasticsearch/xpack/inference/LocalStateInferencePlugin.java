@@ -17,6 +17,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.mock.TestRerankingServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 
 import java.nio.file.Path;
@@ -47,7 +48,8 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
             public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
                 return List.of(
                     TestSparseInferenceServiceExtension.TestInferenceService::new,
-                    TestDenseInferenceServiceExtension.TestInferenceService::new
+                    TestDenseInferenceServiceExtension.TestInferenceService::new,
+                    TestRerankingServiceExtension.TestInferenceService::new
                 );
             }
         };

@@ -25,6 +25,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettings;
@@ -62,7 +63,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public static class TestInferenceService extends AbstractTestInferenceService {
+    public static class TestInferenceService extends AbstractTestInferenceService implements RerankingInferenceService {
         public static final String NAME = "test_reranking_service";
 
         private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.RERANK);
@@ -189,6 +190,11 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
+        @Override
+        public int rerankerWindowSize(String modelId) {
+            return 333;
         }
 
         public static class Configuration {

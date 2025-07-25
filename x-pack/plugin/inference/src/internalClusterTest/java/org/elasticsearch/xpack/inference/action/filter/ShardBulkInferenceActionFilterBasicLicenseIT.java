@@ -61,7 +61,7 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
     @Before
     public void setup() throws Exception {
         ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
-        Utils.storeSparseModel(modelRegistry);
+        Utils.storeSparseModel("sparse-endpoint", modelRegistry);
         Utils.storeDenseModel(
             modelRegistry,
             randomIntBetween(1, 100),

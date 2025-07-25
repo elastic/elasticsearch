@@ -80,6 +80,10 @@ public class GetRerankerAction extends ActionType<GetRerankerAction.Response> {
             this.windowSize = in.readVInt();
         }
 
+        public int getWindowSize() {
+            return windowSize;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(windowSize);

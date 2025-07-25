@@ -1690,9 +1690,7 @@ public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
     }
 
     @Override
-    protected void assertRerankerWindowSize(
-        RerankingInferenceService rerankingInferenceService
-    ) {
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
         assertThat(rerankingInferenceService.rerankerWindowSize("Any model"), is(RerankingInferenceService.LARGE_WINDOW_SIZE));
     }
 

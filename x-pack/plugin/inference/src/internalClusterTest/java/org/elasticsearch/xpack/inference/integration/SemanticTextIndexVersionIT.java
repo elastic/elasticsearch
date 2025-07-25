@@ -68,7 +68,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
         );
         int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
-        Utils.storeSparseModel(modelRegistry);
+        Utils.storeSparseModel("sparse-endpoint", modelRegistry);
         Utils.storeDenseModel(modelRegistry, dimensions, similarity, elementType);
 
         Set<IndexVersion> availableVersions = IndexVersionUtils.allReleasedVersions()

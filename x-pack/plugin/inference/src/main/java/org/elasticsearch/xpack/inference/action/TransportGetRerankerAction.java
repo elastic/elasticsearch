@@ -13,8 +13,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
@@ -51,26 +51,46 @@ public class TransportGetRerankerAction extends HandledTransportAction<GetRerank
     @Override
     protected void doExecute(Task task, GetRerankerAction.Request request, ActionListener<GetRerankerAction.Response> listener) {
 
-        SubscribableListener.<UnparsedModel>newForked(l -> modelRegistry.getModel(request.getInferenceEntityId(), l))
-            .andThen((l2, model) -> {
-                if (model.taskType() != TaskType.RERANK) {
-                    l2.onFailure(
-                        new ElasticsearchStatusException(
-                            "Inference endpoint [{}] is not a reranker",
-                            RestStatus.BAD_REQUEST,
-                            request.getInferenceEntityId()
-                        )
+        SubscribableListener.<UnparsedModel>newForked(l -> modelRegistry.getModel(request.getInferenceEntityId(), l)).<
+            GetRerankerAction.Response>andThen((l, unparsedModel) -> {
+                if (unparsedModel.taskType() != TaskType.RERANK) {
+                    throw new ElasticsearchStatusException(
+                        "Inference endpoint [{}] is not a reranker",
+                        RestStatus.BAD_REQUEST,
+                        request.getInferenceEntityId()
                     );
-                    return;
                 }
 
-                var service = serviceRegistry.getService(model.service());
-                l2.onResponse(new GetRerankerAction.Response(rerankWindowSize(service.get())));
-            });
+                var service = serviceRegistry.getService(unparsedModel.service());
+                if (service.isEmpty()) {
+                    throw new ElasticsearchStatusException(
+                        "Unknown service [{}] for inference endpoint [{}]",
+                        RestStatus.BAD_REQUEST,
+                        unparsedModel.service(),
+                        request.getInferenceEntityId()
+                    );
+                }
+
+                var model = service.get()
+                    .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+
+                if (service.get() instanceof RerankingInferenceService rerankingInferenceService) {
+                    l.onResponse(
+                        new GetRerankerAction.Response(rerankWindowSize(rerankingInferenceService, model.getServiceSettings().modelId()))
+                    );
+                } else {
+                    throw new IllegalStateException(
+                        "Inference endpoint ["
+                            + request.getInferenceEntityId()
+                            + "] is a reranker but the service ["
+                            + service.get().name()
+                            + "] does not support reranking"
+                    );
+                }
+            }).addListener(listener);
     }
 
-    public int rerankWindowSize(InferenceService service) {
-        return 0;
+    public int rerankWindowSize(RerankingInferenceService service, String modelId) {
+        return service.rerankerWindowSize(modelId);
     }
-
 }

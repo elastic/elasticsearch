@@ -46,9 +46,7 @@ public abstract class InferenceServiceTestCase extends ESTestCase {
         }
     }
 
-    protected void assertRerankerWindowSize(
-        RerankingInferenceService rerankingInferenceService
-    ) {
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
         fail("Reranking services should override this test method to verify window size");
     }
 }

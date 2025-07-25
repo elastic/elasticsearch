@@ -26,7 +26,7 @@ public class SemanticTextNonDynamicFieldMapperTests extends NonDynamicFieldMappe
     @Before
     public void setup() throws Exception {
         ModelRegistry modelRegistry = node().injector().getInstance(ModelRegistry.class);
-        Utils.storeSparseModel(modelRegistry);
+        Utils.storeSparseModel("sparse-endpoint", modelRegistry);
     }
 
     @Override

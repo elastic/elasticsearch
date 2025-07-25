@@ -173,6 +173,9 @@ Users should migrate to the new `integrations` namespace as soon as possible to 
 [[es-connectors-release-notes-8-16-0-enhancements]]
 ==== Enhancements
 
+* Connectors now support working with index aliases.
+See https://github.com/elastic/connectors/pull/2796[*PR 2796*].
+
 * Docker images now use Chainguard's Wolfi base image (`docker.elastic.co/wolfi/jdk:openjdk-11-dev`), replacing the previous `ubuntu:focal` base.
 
 * The Sharepoint Online connector now works with the `Sites.Selected` permission instead of the broader permission `Sites.Read.All`.

@@ -42,23 +42,21 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public static SparseVectorFieldMapper.SparseVectorIndexOptions randomSparseVectorIndexOptions() {
-        if (randomBoolean() == false) {
-            return new SparseVectorFieldMapper.SparseVectorIndexOptions(false, null);
-        }
-
-        return new SparseVectorFieldMapper.SparseVectorIndexOptions(
-            true,
-            new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
-        );
-    }
-
-    public static SparseVectorFieldMapper.SparseVectorIndexOptions randomSparseVectorIndexOptionsAll() {
         return randomFrom(
             new SparseVectorFieldMapper.SparseVectorIndexOptions(null, null),
             new SparseVectorFieldMapper.SparseVectorIndexOptions(false, null),
+            new SparseVectorFieldMapper.SparseVectorIndexOptions(true, null),
             new SparseVectorFieldMapper.SparseVectorIndexOptions(
                 true,
-                new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), false)
+                new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
+            ),
+            new SparseVectorFieldMapper.SparseVectorIndexOptions(
+                true,
+                new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
+            ),
+            new SparseVectorFieldMapper.SparseVectorIndexOptions(
+                true,
+                new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
             )
         );
     }

@@ -129,7 +129,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             SparseVectorIndexOptions builderIndexOptions = indexOptions.getValue();
             if (builderIndexOptions == null) {
-                builderIndexOptions = getDefaultIndexOptions(indexVersionCreated);
+                builderIndexOptions = SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated);
             }
 
             final boolean syntheticVectorFinal = context.isSourceSynthetic() == false && isSyntheticVector;
@@ -146,13 +146,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
                 builderParams(this, context),
                 syntheticVectorFinal
             );
-        }
-
-        private SparseVectorIndexOptions getDefaultIndexOptions(IndexVersion indexVersion) {
-            return (indexVersion.onOrAfter(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION)
-                || indexVersion.between(SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_VERSION_8_X, IndexVersions.UPGRADE_TO_LUCENE_10_0_0))
-                    ? SparseVectorIndexOptions.DEFAULT_PRUNING_INDEX_OPTIONS
-                    : null;
         }
 
         private boolean indexOptionsSerializerCheck(boolean includeDefaults, boolean isConfigured, SparseVectorIndexOptions value) {
@@ -608,24 +601,18 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         public static SparseVectorIndexOptions parseFromMap(Map<String, Object> map) {
-            Boolean prune = null;
-            TokenPruningConfig pruningConfig = null;
-
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                if (entry.getKey().equals(PRUNE_FIELD_NAME.getPreferredName())) {
-                    prune = XContentMapValues.nodeBooleanValue(entry.getValue());
-                } else if (entry.getKey().equals(PRUNING_CONFIG_FIELD_NAME.getPreferredName())) {
-                    Map<String, Object> pruningConfigMap = XContentMapValues.nodeMapValue(
-                        entry.getValue(),
-                        PRUNING_CONFIG_FIELD_NAME.getPreferredName()
-                    );
-                    pruningConfig = TokenPruningConfig.parseFromMap(pruningConfigMap);
-                } else {
-                    throw new IllegalArgumentException("Unsupported index option field for sparse_vector: " + entry.getKey());
-                }
+            if (map == null) {
+                return null;
             }
 
-            return new SparseVectorIndexOptions(prune, pruningConfig);
+            try {
+                XContentParser parser =
+                    new MapXContentParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, map, XContentType.JSON);
+
+                return INDEX_OPTIONS_PARSER.parse(parser, null);
+            } catch (IOException ioEx) {
+                throw new UncheckedIOException(ioEx);
+            }
         }
 
         public Boolean getPrune() {

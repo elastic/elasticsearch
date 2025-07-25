@@ -452,15 +452,23 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 return;
             }
 
-            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
-                // sparse vector index options are validated in the ctor when created
-                return;
-            }
-
             if (modelSettings == null) {
                 throw new IllegalArgumentException(
                     "Model settings must be set to validate index options for inference ID [" + inferenceId + "]"
                 );
+            }
+
+            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
+                if (modelSettings.taskType() != SPARSE_EMBEDDING) {
+                    throw new IllegalArgumentException(
+                        "Invalid task type for index options, required ["
+                            + SPARSE_EMBEDDING
+                            + "] but was ["
+                            + modelSettings.taskType()
+                            + "]"
+                    );
+                }
+                return;
             }
 
             if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
@@ -1179,18 +1187,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     false
                 ).setStored(useLegacyFormat == false);
 
-                if (indexOptions != null) {
-                    SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions =
-                        (SparseVectorFieldMapper.SparseVectorIndexOptions) indexOptions.indexOptions();
-
-                    sparseVectorMapperBuilder.setIndexOptions(sparseVectorIndexOptions);
-                } else {
-                    SparseVectorFieldMapper.SparseVectorIndexOptions defaultIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions
-                        .getDefaultIndexOptions(indexVersionCreated);
-                    if (defaultIndexOptions != null) {
-                        sparseVectorMapperBuilder.setIndexOptions(defaultIndexOptions);
-                    }
-                }
+                configureSparseVectorMapperBuilder(indexVersionCreated, sparseVectorMapperBuilder, indexOptions);
 
                 yield sparseVectorMapperBuilder;
             }
@@ -1201,7 +1198,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     false
                 );
 
-                setDenseVectorMapperBuilderForEmbeddings(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);
+                configureDenseVectorMapperBuilder(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);
 
                 yield denseVectorMapperBuilder;
             }
@@ -1209,7 +1206,26 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         };
     }
 
-    private static void setDenseVectorMapperBuilderForEmbeddings(
+    private static void configureSparseVectorMapperBuilder(
+        IndexVersion indexVersionCreated,
+        SparseVectorFieldMapper.Builder sparseVectorMapperBuilder,
+        SemanticTextIndexOptions indexOptions
+    ) {
+        if (indexOptions != null) {
+            SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions =
+                (SparseVectorFieldMapper.SparseVectorIndexOptions) indexOptions.indexOptions();
+
+            sparseVectorMapperBuilder.setIndexOptions(sparseVectorIndexOptions);
+        } else {
+            SparseVectorFieldMapper.SparseVectorIndexOptions defaultIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions
+                .getDefaultIndexOptions(indexVersionCreated);
+            if (defaultIndexOptions != null) {
+                sparseVectorMapperBuilder.setIndexOptions(defaultIndexOptions);
+            }
+        }
+    }
+
+    private static void configureDenseVectorMapperBuilder(
         IndexVersion indexVersionCreated,
         DenseVectorFieldMapper.Builder denseVectorMapperBuilder,
         MinimalServiceSettings modelSettings,
@@ -1295,10 +1311,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         if (modelSettings.taskType() == SPARSE_EMBEDDING) {
-            return new SemanticTextIndexOptions(
-                SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
-                SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersionCreated)
-            );
+            SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions
+                .getDefaultIndexOptions(indexVersionCreated);
+
+            return sparseVectorIndexOptions == null
+                ? null
+                : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, sparseVectorIndexOptions);
         }
 
         return null;

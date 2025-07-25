@@ -53,7 +53,7 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
             TextExpansionConfigUpdate.Builder::new
         );
         parser.declareString(TextExpansionConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
-        parser.declareString(TextExpansionConfigUpdate.Builder::setResultsField, EXPANSION_TYPE);
+        parser.declareString(TextExpansionConfigUpdate.Builder::setExpansionType, EXPANSION_TYPE);
         parser.declareNamedObject(
             TextExpansionConfigUpdate.Builder::setTokenizationUpdate,
             (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, lenient),
@@ -125,7 +125,9 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new TextExpansionConfigUpdate.Builder().setResultsField(resultsField).setTokenizationUpdate(tokenizationUpdate);
+        return new TextExpansionConfigUpdate.Builder().setResultsField(resultsField)
+            .setExpansionType(expansionType)
+            .setTokenizationUpdate(tokenizationUpdate);
     }
 
     @Override

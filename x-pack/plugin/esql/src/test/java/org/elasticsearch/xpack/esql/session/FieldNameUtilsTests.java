@@ -2124,26 +2124,8 @@ public class FieldNameUtilsTests extends ESTestCase {
                 | LOOKUP JOIN my_lookup_index ON xyz
                 | WHERE x > y OR _fork == "fork1"
                 """,
-            Set.of(
-                "x",
-                "y",
-                "a",
-                "c",
-                "abc",
-                "b",
-                "def",
-                "z",
-                "xyz",
-                "def.*",
-                "y.*",
-                "x.*",
-                "xyz.*",
-                "z.*",
-                "abc.*",
-                "a.*",
-                "c.*",
-                "b.*"
-            )
+            Set.of("x", "y", "a", "c", "abc", "b", "def", "z", "xyz", "def.*", "y.*", "x.*", "xyz.*", "z.*", "abc.*", "a.*", "c.*", "b.*"),
+            Set.of("my_lookup_index")
         );
     }
 
@@ -2199,6 +2181,15 @@ public class FieldNameUtilsTests extends ESTestCase {
             | STATS COUNT() BY category=CATEGORIZE(x)
             | SORT category
             | FORK (WHERE true) (WHERE true) | WHERE _fork == "fork1" | DROP _fork""", Set.of("_index"));
+    }
+
+    public void testSingleFork() {
+        assertFieldNames("""
+             FROM employees
+            | FORK
+               ( STATS x = count(*))
+               ( WHERE emp_no == "2" )
+            | SORT _fork""", Set.of("emp_no", "emp_no.*"));
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

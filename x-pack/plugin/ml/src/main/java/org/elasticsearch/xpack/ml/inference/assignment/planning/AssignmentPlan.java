@@ -467,25 +467,19 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
          * @param deployment The deployment to assign
          * @param node The target node
          * @param newAllocations The number of new allocations to assign
-         * @return this builder for method chaining
          */
-        public Builder assignModelToNodeAndAccountForCurrentAllocations(Deployment deployment, Node node, int newAllocations) {
+        public void assignModelToNodeAndAccountForCurrentAllocations(Deployment deployment, Node node, int newAllocations) {
             // First, handle the assignment of new allocations exactly as in the original code
             assignModelToNode(deployment, node, newAllocations);
 
             // Then, check if there are current allocations that need memory accounting
-            // This is directly mirroring the original approach in both refactored methods
-            if (deployment.currentAllocationsByNodeId().containsKey(node.id())) {
-                // Get the current allocations count
-                int currentAllocations = deployment.currentAllocationsByNodeId().get(node.id());
-
+            int currentAllocations = getCurrentAllocations(deployment, node);
+            if (currentAllocations > 0) {
                 // Calculate memory for the current allocations
                 // This exactly mirrors what the original code was doing
                 long memoryForCurrentAllocations = deployment.estimateMemoryUsageBytes(currentAllocations);
                 accountMemory(deployment, node, memoryForCurrentAllocations);
             }
-
-            return this;
         }
 
         private int getAssignedAllocations(Deployment deployment, Node node) {
@@ -494,8 +488,8 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             return currentAllocations + assignmentAllocations;
         }
 
-        private static int getCurrentAllocations(Deployment m, Node n) {
-            return m.currentAllocationsByNodeId.containsKey(n.id()) ? m.currentAllocationsByNodeId.get(n.id()) : 0;
+        private static int getCurrentAllocations(Deployment deployment, Node node) {
+            return deployment.currentAllocationsByNodeId.getOrDefault(node.id(), 0);
         }
 
         public void accountMemory(Deployment m, Node n) {

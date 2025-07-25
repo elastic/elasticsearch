@@ -50,6 +50,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
     private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
     private final boolean trackMaxQueueLatency;
+    private final boolean trackUtilization;
     private LongAccumulator maxQueueLatencyMillisSinceLastPoll = new LongAccumulator(Long::max, 0);
 
     public enum UtilizationTrackingPurpose {
@@ -59,8 +60,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     private volatile UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
     private volatile UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
+    private final FramedTimeTracker framedTimeTracker= new FramedTimeTracker(1_000);
 
-    TaskExecutionTimeTrackingEsThreadPoolExecutor(
+    public TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
         int corePoolSize,
         int maximumPoolSize,
@@ -79,6 +81,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
+        this.trackUtilization = trackingConfig.TrackUtilization();
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -190,6 +193,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         if (trackMaxQueueLatency) {
             maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);
         }
+        if (trackUtilization) {
+            framedTimeTracker.startTask(System.nanoTime());
+        }
     }
 
     @Override
@@ -213,6 +219,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 // taskExecutionNanos may be -1 if the task threw an exception
                 executionEWMA.addValue(taskExecutionNanos);
                 totalExecutionTime.add(taskExecutionNanos);
+            }
+            if (trackUtilization) {
+                framedTimeTracker.endTask(System.nanoTime());
             }
         } finally {
             // if trackOngoingTasks is false -> ongoingTasks must be empty
@@ -281,23 +290,22 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         }
     }
 
-    static class FramedExecutionTime {
+    static class FramedTimeTracker {
         private final Supplier<Long> timeNow;
         long ongoingTasks;
         long interval;
         long currentFrame;
-        long previousFrame;
         long currentTime;
         long previousTime;
 
         // for testing
-        FramedExecutionTime(long interval, Supplier<Long> timeNow) {
+        FramedTimeTracker(long interval, Supplier<Long> timeNow) {
             assert interval > 0;
             this.interval = interval;
             this.timeNow = timeNow;
         }
 
-        FramedExecutionTime(long interval) {
+        FramedTimeTracker(long interval) {
             assert interval > 0;
             this.interval = interval;
             this.timeNow = System::nanoTime;
@@ -314,13 +322,12 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             var now = nowTime / interval;
             if (currentFrame < now) {
                 if (currentFrame == now - 1) {
-                    previousTime = currentTime;
+                    previousTime = currentTime; //
                 } else {
                     previousTime = ongoingTasks * interval;
                 }
                 currentTime = ongoingTasks * interval;
                 currentFrame = now;
-                previousFrame = now - 1;
             }
         }
 
@@ -338,7 +345,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             --ongoingTasks;
         }
 
-        synchronized long getPreviousFrameExecutionTime() {
+        synchronized long previousFrameTime() {
             updateFrame0(timeNow.get());
             return previousTime;
         }

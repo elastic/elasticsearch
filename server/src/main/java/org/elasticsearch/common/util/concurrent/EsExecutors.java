@@ -581,6 +581,7 @@ public class EsExecutors {
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
 
         private final boolean trackExecutionTime;
+        private final boolean trackUtilization;
         private final boolean trackOngoingTasks;
         private final boolean trackMaxQueueLatency;
         private final double executionTimeEwmaAlpha;
@@ -589,9 +590,11 @@ public class EsExecutors {
             false,
             false,
             false,
+            false,
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
         );
         public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
+            true,
             true,
             false,
             false,
@@ -606,11 +609,13 @@ public class EsExecutors {
          */
         private TaskTrackingConfig(
             boolean trackExecutionTime,
+            boolean trackUtilization,
             boolean trackOngoingTasks,
             boolean trackMaxQueueLatency,
             double executionTimeEWMAAlpha
         ) {
             this.trackExecutionTime = trackExecutionTime;
+            this.trackUtilization = trackUtilization;
             this.trackOngoingTasks = trackOngoingTasks;
             this.trackMaxQueueLatency = trackMaxQueueLatency;
             this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
@@ -628,6 +633,10 @@ public class EsExecutors {
             return trackMaxQueueLatency;
         }
 
+        public boolean TrackUtilization() {
+            return trackUtilization;
+        }
+
         public double getExecutionTimeEwmaAlpha() {
             return executionTimeEwmaAlpha;
         }
@@ -638,6 +647,7 @@ public class EsExecutors {
 
         public static class Builder {
             private boolean trackExecutionTime = false;
+            private boolean trackUtilization = false;
             private boolean trackOngoingTasks = false;
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
@@ -647,6 +657,11 @@ public class EsExecutors {
             public Builder trackExecutionTime(double alpha) {
                 trackExecutionTime = true;
                 ewmaAlpha = alpha;
+                return this;
+            }
+
+            public Builder trackUtilization() {
+                trackUtilization = true;
                 return this;
             }
 
@@ -661,7 +676,7 @@ public class EsExecutors {
             }
 
             public TaskTrackingConfig build() {
-                return new TaskTrackingConfig(trackExecutionTime, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
+                return new TaskTrackingConfig(trackExecutionTime, trackUtilization, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
             }
         }
     }

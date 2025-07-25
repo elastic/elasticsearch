@@ -20,7 +20,7 @@ public class AggregateMetricDoubleBlockEqualityTests extends ComputeTestCase {
     // TODO: Add additional tests
 
     public void testEmptyBlock() {
-        // all these "empty" vectors should be equivalent
+        // all these "empty" blocks should be equivalent
         var partialMetricBuilder = blockFactory.newAggregateMetricDoubleBlockBuilder(0);
         for (var subBuilder : List.of(
             partialMetricBuilder.min(),

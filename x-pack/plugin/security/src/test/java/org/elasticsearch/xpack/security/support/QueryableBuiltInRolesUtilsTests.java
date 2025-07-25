@@ -40,7 +40,7 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
     public void testCalculateHash() {
         assertThat(
             QueryableBuiltInRolesUtils.calculateHash(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR),
-            equalTo("bWEFdFo4WX229wdhdecfiz5QHMYEssh3ex8hizRgg+Q=")
+            equalTo("V7vziMakrcivZmJSNTZimfCKWFq3H+Pqp9uMRXoU+ZQ=")
         );
     }
 

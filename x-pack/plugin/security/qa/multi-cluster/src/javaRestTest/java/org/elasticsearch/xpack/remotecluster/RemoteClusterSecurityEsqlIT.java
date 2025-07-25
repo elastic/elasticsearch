@@ -956,7 +956,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 },
                 {
                   "names": ["employees3"],
-                  "privileges": ["view_index_metadata", "read"],
+                  "privileges": ["view_index_metadata"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]

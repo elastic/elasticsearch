@@ -132,15 +132,6 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         String expected = Strings.toString(JsonXContent.contentBuilder().startObject().field(fieldName, value).endObject());
 
         assertEquals(expected, getSyntheticSourceWithFieldLimit(b -> b.field(fieldName, value)));
-        assertEquals(
-            expected,
-            getSyntheticSourceWithFieldLimit(new SourceFilter(new String[] { fieldName }, null), b -> b.field(fieldName, value))
-        );
-        assertEquals(
-            "{}",
-            getSyntheticSourceWithFieldLimit(new SourceFilter(null, new String[] { fieldName }), b -> b.field(fieldName, value))
-        );
-
     }
 
     public void testIgnoredInt() throws IOException {

@@ -102,7 +102,7 @@ This helps reduce response size and improve performance, especially in scenarios
 
 To retrieve vector values explicitly, you can use:
 
-* **The `fields` option** to request specific vector fields directly:
+* The `fields` option to request specific vector fields directly:
 
 ```console
 POST my-index-2/_search
@@ -111,7 +111,7 @@ POST my-index-2/_search
 }
 ```
 
-- **The `_source.exclude_vectors` flag** to re-enable vector inclusion in `_source` responses:
+- The `_source.exclude_vectors` flag to re-enable vector inclusion in `_source` responses:
 
 ```console
 POST my-index-2/_search
@@ -130,17 +130,17 @@ This setting is enabled by default for newly created indices and can only be set
 When enabled:
 
 * `dense_vector` fields are removed from `_source` and the rest of the `_source` is stored as usual.
-* If a request includes `_source` and vector values are needed (e.g., during recovery or reindex), the vectors are **rehydrated** from their internal format.
+* If a request includes `_source` and vector values are needed (e.g., during recovery or reindex), the vectors are rehydrated from their internal format.
 
-This setting is **compatible with synthetic `_source`**, where the entire `_source` document is reconstructed from columnar storage. In full synthetic mode, no `_source` is stored on disk, and all fields — including vectors — are rebuilt when needed.
+This setting is compatible with synthetic `_source`, where the entire `_source` document is reconstructed from columnar storage. In full synthetic mode, no `_source` is stored on disk, and all fields — including vectors — are rebuilt when needed.
 
 ### Rehydration and precision
 
-When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format. Internally, vectors are stored at **float precision**, so if they were originally indexed as higher-precision types (e.g., `double` or `long`), the rehydrated values will have **reduced precision**. This lossy representation is intended to save space while preserving search quality.
+When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format. Internally, vectors are stored at float precision, so if they were originally indexed as higher-precision types (e.g., `double` or `long`), the rehydrated values will have reduced precision. This lossy representation is intended to save space while preserving search quality.
 
 ### Storing original vectors in `_source`
 
-If you want to preserve the **original vector values exactly as they were provided**, you can re-enable vector storage in `_source`:
+If you want to preserve the original vector values exactly as they were provided, you can re-enable vector storage in `_source`:
 
 ```console
 PUT my-index-include-vectors
@@ -161,8 +161,8 @@ PUT my-index-include-vectors
 When this setting is disabled:
 
 * `dense_vector` fields are stored as part of the `_source`, exactly as indexed.
-* The index will store both the original `_source` value and the internal representation used for vector search, resulting in **increased storage usage**.
-* **Vectors are once again returned in `_source` by default** in all relevant APIs, with no need to use `exclude_vectors` or `fields`.
+* The index will store both the original `_source` value and the internal representation used for vector search, resulting in increased storage usage.
+* Vectors are once again returned in `_source` by default in all relevant APIs, with no need to use `exclude_vectors` or `fields`.
 
 This configuration is appropriate when full source fidelity is required, such as for auditing or round-tripping exact input values.
 

@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverComponent.DEFAULT_WEIGHT;
 import static org.hamcrest.Matchers.instanceOf;
 
 /** Tests for the rrf retriever. */
@@ -164,7 +165,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             "foo",
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            null
+            new float[0]
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -181,7 +182,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             "foo2",
             DEFAULT_RANK_WINDOW_SIZE * 2,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT / 2,
-            null
+            new float[0]
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -198,7 +199,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             "bar",
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            null
+            new float[0]
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -215,7 +216,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             "baz",
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            null
+            new float[0]
         );
         assertMultiFieldsParamsRewrite(
             rrfRetrieverBuilder,
@@ -247,7 +248,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
             "foo",
             DEFAULT_RANK_WINDOW_SIZE,
             RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT,
-            null
+            new float[0]
         );
 
         IllegalArgumentException iae = expectThrows(

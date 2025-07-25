@@ -164,13 +164,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     ) {
         validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
 
-        if (this.weights != null) {
-            for (float weight : this.weights) {
-                if (weight < 0) {
-                    validationException = addValidationError("[weight] must be non-negative, found [" + weight + "]", validationException);
-                }
-            }
-        }
         return MultiFieldsInnerRetrieverUtils.validateParams(
             innerRetrievers,
             fields,
@@ -283,11 +276,15 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                     for (var retriever : r) {
                         retrievers.add(retriever.retrieverSource());
                     }
-                    return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, null);
+                    float[] weights = new float[retrievers.size()];
+                    Arrays.fill(weights, 1.0f);
+                    return new RRFRetrieverBuilder(retrievers, null, null, rankWindowSize, rankConstant, weights);
                 },
                 w -> {
-                    if (w < 0) {
-                        throw new IllegalArgumentException("[" + NAME + "] per-field weights must be non-negative");
+                    if (w != 1.0f) {
+                        throw new IllegalArgumentException(
+                            "[" + NAME + "] does not support per-field weights in [" + FIELDS_FIELD.getPreferredName() + "]"
+                        );
                     }
                 }
             );

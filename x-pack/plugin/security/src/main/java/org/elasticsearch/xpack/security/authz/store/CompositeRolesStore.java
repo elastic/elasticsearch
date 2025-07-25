@@ -12,7 +12,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectDeletedListener;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -124,6 +126,7 @@ public class CompositeRolesStore {
 
     public CompositeRolesStore(
         Settings settings,
+        ClusterService clusterService,
         RoleProviders roleProviders,
         NativePrivilegeStore privilegeStore,
         ThreadContext threadContext,
@@ -137,6 +140,8 @@ public class CompositeRolesStore {
         Executor roleBuildingExecutor,
         Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
     ) {
+        new ProjectDeletedListener(this::removeProject).attach(clusterService);
+
         this.roleProviders = roleProviders;
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
             @Override
@@ -633,6 +638,12 @@ public class CompositeRolesStore {
         }
     }
 
+    final void removeProject(ProjectId projectId) {
+        numInvalidation.remove(projectId);
+        negativeLookupCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+        roleCacheHelper.removeKeysIf(key -> key.projectId().equals(projectId));
+    }
+
     public void invalidateAll() {
         numInvalidation.replaceAll((p, num) -> num + 1);
         negativeLookupCache.invalidateAll();
@@ -653,6 +664,11 @@ public class CompositeRolesStore {
         numInvalidation.replaceAll((p, num) -> num + 1);
         roleCacheHelper.removeKeysIf(key -> Sets.haveEmptyIntersection(key.value().getNames(), roles) == false);
         negativeLookupCacheHelper.removeKeysIf(key -> roles.contains(key.value()));
+    }
+
+    // for testing
+    Iterable<ProjectScoped<RoleKey>> cachedRoles() {
+        return this.roleCache.keys();
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {

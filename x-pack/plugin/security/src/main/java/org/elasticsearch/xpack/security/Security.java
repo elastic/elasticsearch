@@ -1037,6 +1037,7 @@ public class Security extends Plugin
         );
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(
             settings,
+            clusterService,
             roleProviders,
             privilegeStore,
             threadPool.getThreadContext(),

@@ -1,0 +1,5 @@
+pr: 131950
+summary: Fix encoding of non-ascii field names in ignored source
+area: Mapping
+type: bug
+issues: []

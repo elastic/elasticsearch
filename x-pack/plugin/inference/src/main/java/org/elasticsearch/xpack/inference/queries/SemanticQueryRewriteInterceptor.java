@@ -33,7 +33,12 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
-        String fieldName = getFieldName(queryBuilder);
+        Map<String, Float> fieldNamesWithWeights = getFieldNamesWithWeights(queryBuilder);
+        if (fieldNamesWithWeights.size() > 1) {
+            // Multi-field query, so return the original query, and an exception will be thrown eventually
+            return queryBuilder;
+        }
+        String fieldName = fieldNamesWithWeights.keySet().iterator().next();
         ResolvedIndices resolvedIndices = context.getResolvedIndices();
 
         if (resolvedIndices == null) {
@@ -59,9 +64,10 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
     /**
      * @param queryBuilder {@link QueryBuilder}
-     * @return The singular field name requested by the provided query builder.
+     * @return Map of field names with their weights for multi-field queries.
+     *         For single-field queries, return a map with one entry.
      */
-    protected abstract String getFieldName(QueryBuilder queryBuilder);
+    protected abstract Map<String, Float> getFieldNamesWithWeights(QueryBuilder queryBuilder);
 
     /**
      * @param queryBuilder {@link QueryBuilder}

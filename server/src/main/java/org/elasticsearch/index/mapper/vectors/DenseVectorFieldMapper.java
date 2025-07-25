@@ -3018,7 +3018,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             List<KnnVectorsFormat> extraKnnFormats = new ArrayList<>();
             for (VectorsFormatProvider vectorsFormatProvider : extraVectorsFormatProviders) {
                 KnnVectorsFormat extraKnnFormat = vectorsFormatProvider.getKnnVectorsFormat(indexSettings, indexOptions);
-                extraKnnFormats.add(extraKnnFormat);
+                if (extraKnnFormat != null) {
+                    extraKnnFormats.add(extraKnnFormat);
+                }
             }
             if (extraKnnFormats.size() > 0) {
                 format = extraKnnFormats.get(0);

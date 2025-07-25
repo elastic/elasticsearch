@@ -20,6 +20,7 @@ public interface VectorsFormatProvider {
 
     /**
      * Returns a {@link KnnVectorsFormat} instance based on the provided index settings and vector index options.
+     * May return {@code null} if the provider does not support the format for the given index settings or vector index options.
      *
      * @param indexSettings The index settings.
      * @param indexOptions The dense vector index options.

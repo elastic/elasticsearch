@@ -49,23 +49,23 @@ public class DatasetUtilsImpl implements DatasetUtils {
         }
         MemorySegment ms = input.segmentSliceOrNull(0L, input.length());
         assert ms != null; // TODO: this can be null if larger than 16GB or ...
-        if (((long) numVectors * dims * Float.BYTES) < ms.byteSize()) {
+        if (((long) numVectors * dims * Float.BYTES) > ms.byteSize()) {
             throwIllegalArgumentException(ms, numVectors, dims);
         }
         return fromMemorySegment(ms, numVectors, dims);
     }
 
     static void throwIllegalArgumentException(MemorySegment ms, int numVectors, int dims) {
-        var s = "segment of size [" + ms.byteSize() + "] too small for expected " + numVectors + " float vectors of " + dims + "dimensions";
+        var s = "segment of size [" + ms.byteSize() + "] too small for expected " + numVectors + " float vectors of " + dims + " dims";
         throw new IllegalArgumentException(s);
     }
 
     static void throwIllegalArgumentException(int numVectors, int dims) {
         String s;
         if (numVectors < 0) {
-            s = "negative number of vectors:" + numVectors;
+            s = "negative number of vectors: " + numVectors;
         } else {
-            s = "negative vector dims:" + dims;
+            s = "negative vector dims: " + dims;
         }
         throw new IllegalArgumentException(s);
     }

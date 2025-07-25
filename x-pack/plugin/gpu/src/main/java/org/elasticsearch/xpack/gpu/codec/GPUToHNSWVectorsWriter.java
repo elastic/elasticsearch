@@ -43,7 +43,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -470,7 +469,6 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#deleteFilesIgnoringExceptions(...)")
     public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         flatVectorWriter.mergeOneField(fieldInfo, mergeState);
-        FloatVectorValues vectorValues = KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState);
         // save merged vector values to a temp file
         final int numVectors;
         String tempRawVectorsFileName = null;
@@ -487,9 +485,8 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         }
         try (IndexInput in = mergeState.segmentInfo.dir.openInput(tempRawVectorsFileName, IOContext.DEFAULT)) {
             DatasetOrVectors datasetOrVectors;
-
             var input = FilterIndexInput.unwrapOnlyTest(in);
-            if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput) {
+            if (input instanceof MemorySegmentAccessInput memorySegmentAccessInput && numVectors >= MIN_NUM_VECTORS_FOR_GPU_BUILD) {
                 var ds = DatasetUtils.getInstance().fromInput(memorySegmentAccessInput, numVectors, fieldInfo.getVectorDimension());
                 datasetOrVectors = DatasetOrVectors.fromDataset(ds);
             } else {
@@ -521,7 +518,6 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         for (int docV = iterator.nextDoc(); docV != NO_MORE_DOCS; docV = iterator.nextDoc()) {
             numVectors++;
             float[] vector = floatVectorValues.vectorValue(iterator.index());
-            out.writeInt(iterator.docID());
             buffer.asFloatBuffer().put(vector);
             out.writeBytes(buffer.array(), buffer.array().length);
         }
@@ -532,12 +528,12 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         if (numVectors == 0) {
             return FloatVectorValues.fromFloats(List.of(), fieldInfo.getVectorDimension());
         }
-        final long length = (long) Float.BYTES * fieldInfo.getVectorDimension() + Integer.BYTES;
+        final long length = (long) Float.BYTES * fieldInfo.getVectorDimension();
         final float[] vector = new float[fieldInfo.getVectorDimension()];
         return new FloatVectorValues() {
             @Override
             public float[] vectorValue(int ord) throws IOException {
-                randomAccessInput.seek(ord * length + Integer.BYTES);
+                randomAccessInput.seek(ord * length);
                 randomAccessInput.readFloats(vector, 0, vector.length);
                 return vector;
             }
@@ -559,12 +555,7 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
 
             @Override
             public int ordToDoc(int ord) {
-                try {
-                    randomAccessInput.seek(ord * length);
-                    return randomAccessInput.readInt();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                throw new UnsupportedOperationException("Not implemented");
             }
         };
     }

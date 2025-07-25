@@ -24,10 +24,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -39,34 +35,20 @@ import java.util.Optional;
  * "foo" field. These component templates make up the individual pieces composing an index template.
  */
 public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToXContentObject {
-
-    // always output millis even if instantSource returns millis == 0
-    private static final DateTimeFormatter ISO8601_WITH_MILLIS_FORMATTER = new DateTimeFormatterBuilder().appendInstant(3)
-        .toFormatter(Locale.ROOT);
-
     private static final ParseField TEMPLATE = new ParseField("template");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField METADATA = new ParseField("_meta");
     private static final ParseField DEPRECATED = new ParseField("deprecated");
     private static final ParseField CREATED_DATE = new ParseField("created_date");
+    private static final ParseField CREATED_DATE_MILLIS = new ParseField("created_date_millis");
     private static final ParseField MODIFIED_DATE = new ParseField("modified_date");
+    private static final ParseField MODIFIED_DATE_MILLIS = new ParseField("modified_date_millis");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER = new ConstructingObjectParser<>(
         "component_template",
         false,
-        a -> {
-            final String createdDate = (String) a[4];
-            final String modifiedDate = (String) a[5];
-            return new ComponentTemplate(
-                (Template) a[0],
-                (Long) a[1],
-                (Map<String, Object>) a[2],
-                (Boolean) a[3],
-                createdDate == null ? null : Instant.parse(createdDate).toEpochMilli(),
-                modifiedDate == null ? null : Instant.parse(modifiedDate).toEpochMilli()
-            );
-        }
+        a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2], (Boolean) a[3], (Long) a[4], (Long) a[5])
     );
 
     static {
@@ -74,8 +56,8 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), CREATED_DATE);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), MODIFIED_DATE);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CREATED_DATE_MILLIS);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MODIFIED_DATE_MILLIS);
     }
 
     private final Template template;
@@ -239,16 +221,20 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
             builder.field(DEPRECATED.getPreferredName(), this.deprecated);
         }
         if (this.createdDateMillis != null) {
-            builder.field(CREATED_DATE.getPreferredName(), formatDate(this.createdDateMillis));
+            builder.timestampFieldsFromUnixEpochMillis(
+                CREATED_DATE_MILLIS.getPreferredName(),
+                CREATED_DATE.getPreferredName(),
+                this.createdDateMillis
+            );
         }
         if (this.modifiedDateMillis != null) {
-            builder.field(MODIFIED_DATE.getPreferredName(), formatDate(this.modifiedDateMillis));
+            builder.timestampFieldsFromUnixEpochMillis(
+                MODIFIED_DATE_MILLIS.getPreferredName(),
+                MODIFIED_DATE.getPreferredName(),
+                this.modifiedDateMillis
+            );
         }
         builder.endObject();
         return builder;
-    }
-
-    private static String formatDate(long epochMillis) {
-        return ISO8601_WITH_MILLIS_FORMATTER.format(Instant.ofEpochMilli(epochMillis));
     }
 }

@@ -1931,7 +1931,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ProjectMetadata projectMetadata = service.addComponentTemplate(temp, false, "baz", baz);
 
         ProjectMetadata result = innerRemoveComponentTemplate(projectMetadata, "foo");
-        // created_date and modified_date come from monotic increasing clock
+        // created_date and modified_date come from monotonically increasing clock
         ComponentTemplate expectedBar = new ComponentTemplate(bar.template(), bar.version(), bar.metadata(), bar.deprecated(), 1L, 1L);
         ComponentTemplate expectedBaz = new ComponentTemplate(baz.template(), baz.version(), baz.metadata(), baz.deprecated(), 2L, 2L);
         assertThat(result.componentTemplates().get("foo"), nullValue());

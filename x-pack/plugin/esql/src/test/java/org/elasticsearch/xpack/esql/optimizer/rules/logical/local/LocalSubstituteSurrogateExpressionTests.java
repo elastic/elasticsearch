@@ -14,8 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
+import org.elasticsearch.xpack.esql.expression.LocalSurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -243,18 +242,14 @@ public class LocalSubstituteSurrogateExpressionTests extends LocalLogicalPlanOpt
             fa = as(roundTo.field(), FieldAttribute.class);
             assertEquals(roundToPointsSize, roundTo.points().size());
         } else if (roundToPointsSize == 0) {
-            if (e instanceof DateTrunc dateTrunc) {
-                fa = as(dateTrunc.field(), FieldAttribute.class);
-            } else if (e instanceof Bucket bucket) {
-                fa = as(bucket.field(), FieldAttribute.class);
+            if (e instanceof LocalSurrogateExpression lse) {
+                fa = as(lse.field(), FieldAttribute.class);
             } else {
                 fail(e.getClass() + " is not supported");
             }
         } else {
-            if (e instanceof DateTrunc dateTrunc) {
-                assertTrue(dateTrunc.field() instanceof ReferenceAttribute);
-            } else if (e instanceof Bucket bucket) {
-                assertTrue(bucket.field() instanceof ReferenceAttribute);
+            if (e instanceof LocalSurrogateExpression lse) {
+                assertTrue(lse.field() instanceof ReferenceAttribute);
             } else {
                 fail(e.getClass() + " is not supported");
             }

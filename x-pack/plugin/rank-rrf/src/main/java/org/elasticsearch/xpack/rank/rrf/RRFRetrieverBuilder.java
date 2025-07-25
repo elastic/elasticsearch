@@ -90,17 +90,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), RRFRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (XContentParser p, RetrieverParserContext c) -> {
-            List<String> fields = new ArrayList<>();
-            if (p.currentToken() == null) {
-                p.nextToken();
-            }
-            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
-                String field = p.text();
-                fields.add(field);
-            }
-            return fields;
-        }, FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FIELDS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_CONSTANT_FIELD);

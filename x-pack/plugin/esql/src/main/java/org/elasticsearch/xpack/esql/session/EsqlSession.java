@@ -16,7 +16,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.Page;
@@ -44,23 +43,12 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
-import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
-import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -74,30 +62,10 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Drop;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Fork;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
-import org.elasticsearch.xpack.esql.plan.logical.Insist;
-import org.elasticsearch.xpack.esql.plan.logical.Keep;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
-import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.TopN;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
-import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -113,7 +81,6 @@ import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -123,7 +90,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.firstSubPlan;
 
 public class EsqlSession {
@@ -778,17 +744,7 @@ public class EsqlSession {
     }
 
     private static void resolveFieldNames(LogicalPlan parsed, EnrichResolution enrichResolution, ActionListener<PreAnalysisResult> l) {
-        try {
-            // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-            var enrichMatchFields = enrichResolution.resolvedEnrichPolicies()
-                .stream()
-                .map(ResolvedEnrichPolicy::matchField)
-                .collect(Collectors.toSet());
-            // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
-            l.onResponse(fieldNames(parsed, enrichMatchFields, new PreAnalysisResult(enrichResolution)));
-        } catch (Exception ex) {
-            l.onFailure(ex);
-        }
+        ActionListener.completeWith(l, () -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution));
     }
 
     private void resolveInferences(
@@ -1062,7 +1018,7 @@ public class EsqlSession {
         return plan;
     }
 
-    record PreAnalysisResult(
+    public record PreAnalysisResult(
         IndexResolution indices,
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
@@ -1070,19 +1026,9 @@ public class EsqlSession {
         Set<String> wildcardJoinIndices,
         InferenceResolution inferenceResolution
     ) {
-        PreAnalysisResult(EnrichResolution newEnrichResolution) {
-            this(null, new HashMap<>(), newEnrichResolution, Set.of(), Set.of(), InferenceResolution.EMPTY);
-        }
 
-        PreAnalysisResult withEnrichResolution(EnrichResolution newEnrichResolution) {
-            return new PreAnalysisResult(
-                indices(),
-                lookupIndices(),
-                newEnrichResolution,
-                fieldNames(),
-                wildcardJoinIndices(),
-                inferenceResolution()
-            );
+        public PreAnalysisResult(EnrichResolution enrichResolution, Set<String> fieldNames, Set<String> wildcardJoinIndices) {
+            this(null, new HashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY);
         }
 
         PreAnalysisResult withInferenceResolution(InferenceResolution newInferenceResolution) {
@@ -1110,28 +1056,6 @@ public class EsqlSession {
         PreAnalysisResult addLookupIndexResolution(String index, IndexResolution newIndexResolution) {
             lookupIndices.put(index, newIndexResolution);
             return this;
-        }
-
-        PreAnalysisResult withFieldNames(Set<String> newFields) {
-            return new PreAnalysisResult(
-                indices(),
-                lookupIndices(),
-                enrichResolution(),
-                newFields,
-                wildcardJoinIndices(),
-                inferenceResolution()
-            );
-        }
-
-        public PreAnalysisResult withWildcardJoinIndices(Set<String> wildcardJoinIndices) {
-            return new PreAnalysisResult(
-                indices(),
-                lookupIndices(),
-                enrichResolution(),
-                fieldNames(),
-                wildcardJoinIndices,
-                inferenceResolution()
-            );
         }
     }
 }

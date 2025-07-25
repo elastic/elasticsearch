@@ -133,7 +133,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         this.fields = fields == null ? null : List.copyOf(fields);
         this.query = query;
         this.rankConstant = rankConstant;
-        if (weights != null && weights.length != innerRetrievers.size()) {
+        Objects.requireNonNull(weights, "weights must not be null");
+        if (weights.length != innerRetrievers.size()) {
             throw new IllegalArgumentException(
                 "weights array length [" + weights.length + "] must match retrievers count [" + innerRetrievers.size() + "]"
             );

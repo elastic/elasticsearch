@@ -1159,7 +1159,8 @@ class NodeConstruction {
             systemIndices,
             indicesService,
             fileSettingsService,
-            threadPool
+            threadPool,
+            projectResolver.supportsMultipleProjects()
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(

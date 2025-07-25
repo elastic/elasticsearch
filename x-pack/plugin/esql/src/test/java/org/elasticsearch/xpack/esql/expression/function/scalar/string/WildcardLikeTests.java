@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPatt
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -99,6 +100,12 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
 
     @AfterClass
     public static void renderNotLike() throws Exception {
-        renderNegatedOperator(constructorWithFunctionInfo(WildcardLike.class), "LIKE", d -> d, getTestClass());
+        renderNegatedOperator(
+            constructorWithFunctionInfo(WildcardLike.class),
+            "LIKE",
+            d -> d,
+            getTestClass(),
+            DocsV3Support.callbacksFromSystemProperty()
+        );
     }
 }

@@ -44,7 +44,11 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
     }
 
     @Override
-    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float fieldWeight) {
+    protected QueryBuilder buildInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldWeight
+    ) {
         QueryBuilder inferenceQuery = buildInferenceQuery(queryBuilder, indexInformation);
 
         if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {

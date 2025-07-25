@@ -84,7 +84,11 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      * @param weight {@link Float}
      * @return {@link QueryBuilder}
      */
-    protected abstract QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float weight);
+    protected abstract QueryBuilder buildInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float weight
+    );
 
     /**
      * Builds a combined inference and non-inference query,
@@ -93,10 +97,10 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      * @param indexInformation {@link InferenceIndexInformationForField}
      * @return {@link QueryBuilder}
      */
-//    protected abstract QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
-//        QueryBuilder queryBuilder,
-//        InferenceIndexInformationForField indexInformation
-//    );
+    // protected abstract QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
+    // QueryBuilder queryBuilder,
+    // InferenceIndexInformationForField indexInformation
+    // );
 
     protected abstract QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,

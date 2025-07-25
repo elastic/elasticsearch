@@ -17,7 +17,7 @@ import java.util.Map;
 public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
     @Override
     protected Map<String, Float> getFieldNamesWithWeights(QueryBuilder queryBuilder) {
-        assert  (queryBuilder instanceof MultiMatchQueryBuilder);
+        assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder multiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
         return multiMatchQueryBuilder.fields();
     }
@@ -30,18 +30,18 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     }
 
     private QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
-        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(
-            indexInformation.fieldName(),
-            getQuery(queryBuilder),
-            false
-        );
+        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
         semanticQueryBuilder.boost(queryBuilder.boost());
         semanticQueryBuilder.queryName(queryBuilder.queryName());
         return semanticQueryBuilder;
     }
 
     @Override
-    protected QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float fieldWeight) {
+    protected QueryBuilder buildInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldWeight
+    ) {
         QueryBuilder inferenceQuery = buildInferenceQuery(queryBuilder, indexInformation);
 
         if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
@@ -51,7 +51,10 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         return inferenceQuery;
     }
 
-    private QueryBuilder buildCombinedInferenceAndNonInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    private QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation
+    ) {
         assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder originalMultiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
 
@@ -65,17 +68,11 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
 
         // Add semantic query for inference indices
         boolQueryBuilder.should(
-            createSemanticSubQuery(
-                indexInformation.getInferenceIndices(),
-                indexInformation.fieldName(),
-                getQuery(queryBuilder)
-            )
+            createSemanticSubQuery(indexInformation.getInferenceIndices(), indexInformation.fieldName(), getQuery(queryBuilder))
         );
 
         // Add regular query for non-inference indices
-        boolQueryBuilder.should(
-            createSubQueryForIndices(indexInformation.nonInferenceIndices(), multiMatchQueryBuilder)
-        );
+        boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), multiMatchQueryBuilder));
 
         // TODO:: add boost
         boolQueryBuilder.queryName(queryBuilder.queryName());
@@ -83,33 +80,31 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     }
 
     @Override
-    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float fieldWeight) {
+    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldWeight
+    ) {
         assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder originalMultiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
 
         MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder));
 
         // Create a copy for non-inference fields with only this specific field
-//        MultiMatchQueryBuilder multiMatchQueryBuilder = createSingleFieldMultiMatch(
-//            originalMultiMatchQueryBuilder,
-//            indexInformation.fieldName()
-//        );
+        // MultiMatchQueryBuilder multiMatchQueryBuilder = createSingleFieldMultiMatch(
+        // originalMultiMatchQueryBuilder,
+        // indexInformation.fieldName()
+        // );
 
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
 
         // Add semantic query for inference indices
         boolQueryBuilder.should(
-            createSemanticSubQuery(
-                indexInformation.getInferenceIndices(),
-                indexInformation.fieldName(),
-                getQuery(matchQueryBuilder)
-            )
+            createSemanticSubQuery(indexInformation.getInferenceIndices(), indexInformation.fieldName(), getQuery(matchQueryBuilder))
         );
 
         // Add regular query for non-inference indices
-        boolQueryBuilder.should(
-            createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder)
-        );
+        boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder));
 
         if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
             boolQueryBuilder.boost(fieldWeight);

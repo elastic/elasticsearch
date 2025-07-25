@@ -606,8 +606,12 @@ public class SparseVectorFieldMapper extends FieldMapper {
             }
 
             try {
-                XContentParser parser =
-                    new MapXContentParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, map, XContentType.JSON);
+                XContentParser parser = new MapXContentParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.IGNORE_DEPRECATIONS,
+                    map,
+                    XContentType.JSON
+                );
 
                 return INDEX_OPTIONS_PARSER.parse(parser, null);
             } catch (IOException ioEx) {

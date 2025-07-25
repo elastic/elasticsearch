@@ -78,10 +78,10 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
         assertBusy(() -> {
             Request request = new Request("GET", "/_ingest/geoip/stats");
             Map<String, Object> response = entityAsMap(client().performRequest(request));
-            // assert databases are downloaded
+
             Map<?, ?> downloadStats = (Map<?, ?>) response.get("stats");
             assertThat(downloadStats.get("databases_count"), equalTo(4));
-            // assert databases are loaded to node
+
             Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
             assertThat(nodes.size(), equalTo(1));
             Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
@@ -99,7 +99,7 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
      * This creates a pipeline with a geoip processor so that the GeoipDownloader will download its databases.
      * @throws IOException
      */
-    public static void putGeoipPipeline() throws IOException {
+    private void putGeoipPipeline() throws IOException {
         final BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();

@@ -9,18 +9,14 @@
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
-//apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
-  yamlRestTestImplementation project(path: ':modules:ingest-geoip', configuration: 'yamlRestImplementation')
   javaRestTestImplementation project(':modules:ingest-geoip')
   javaRestTestImplementation project(':test:external-modules:test-multi-project')
   javaRestTestImplementation project(':test:fixtures:geoip-fixture')
 
-//  testImplementation project(':modules:ingest-geoip')
   yamlRestTestImplementation project(':modules:ingest-geoip')
-
-//  yamlRestTestImplementation(testArtifact(project(":modules:ingest-geoip")))
   yamlRestTestImplementation project(':test:external-modules:test-multi-project')
   yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
   yamlRestTestImplementation project(':x-pack:qa:multi-project:yaml-test-framework')

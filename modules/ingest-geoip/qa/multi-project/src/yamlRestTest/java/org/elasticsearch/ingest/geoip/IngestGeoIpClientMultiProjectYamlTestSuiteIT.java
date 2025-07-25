@@ -38,7 +38,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT.putGeoipPipeline;
 
 public class IngestGeoIpClientMultiProjectYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
 
@@ -80,7 +79,7 @@ public class IngestGeoIpClientMultiProjectYamlTestSuiteIT extends MultipleProjec
 
     @Before
     public void waitForDatabases() throws Exception {
-        putGeoIpPipeline();
+        putGeoipPipeline();
         assertBusy(() -> {
             Request request = new Request("GET", "/_ingest/geoip/stats");
             Map<String, Object> response = entityAsMap(client().performRequest(request));
@@ -105,33 +104,33 @@ public class IngestGeoIpClientMultiProjectYamlTestSuiteIT extends MultipleProjec
      * This creates a pipeline with a geoip processor so that the GeoipDownloader will download its databases.
      * @throws IOException
      */
-//    private void putGeoipPipeline() throws IOException {
-//        final BytesReference bytes;
-//        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-//            builder.startObject();
-//            {
-//                builder.startArray("processors");
-//                {
-//                    builder.startObject();
-//                    {
-//                        builder.startObject("geoip");
-//                        {
-//                            builder.field("field", "ip");
-//                            builder.field("target_field", "ip-city");
-//                            builder.field("database_file", "GeoLite2-City.mmdb");
-//                        }
-//                        builder.endObject();
-//                    }
-//                    builder.endObject();
-//                }
-//                builder.endArray();
-//            }
-//            builder.endObject();
-//            bytes = BytesReference.bytes(builder);
-//        }
-//        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/pipeline-with-geoip");
-//        putPipelineRequest.setEntity(new ByteArrayEntity(bytes.array(), ContentType.APPLICATION_JSON));
-//        client().performRequest(putPipelineRequest);
-//    }
+    private void putGeoipPipeline() throws IOException {
+        final BytesReference bytes;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            {
+                builder.startArray("processors");
+                {
+                    builder.startObject();
+                    {
+                        builder.startObject("geoip");
+                        {
+                            builder.field("field", "ip");
+                            builder.field("target_field", "ip-city");
+                            builder.field("database_file", "GeoLite2-City.mmdb");
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+            bytes = BytesReference.bytes(builder);
+        }
+        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/pipeline-with-geoip");
+        putPipelineRequest.setEntity(new ByteArrayEntity(bytes.array(), ContentType.APPLICATION_JSON));
+        client().performRequest(putPipelineRequest);
+    }
 
 }

@@ -152,7 +152,7 @@ public class ESONDeserializationBenchmark {
                 source.length()
             )
         ) {
-            ESONSource.ESONObject eson = new ESONSource.Builder(refRecycler).parse(parser);
+            ESONSource.ESONObject eson = new ESONSource.Builder().parse(parser);
             bh.consume(eson);
         }
     }

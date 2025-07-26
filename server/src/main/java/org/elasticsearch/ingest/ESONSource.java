@@ -40,11 +40,15 @@ public class ESONSource {
         private final List<KeyEntry> keyArray;
 
         public Builder() {
-            this(BytesRefRecycler.NON_RECYCLING_INSTANCE);
+            this(0);
         }
 
-        public Builder(Recycler<BytesRef> refRecycler) {
-            this.bytes = new BytesStreamOutput(128);
+        public Builder(int expectedSize) {
+            this(BytesRefRecycler.NON_RECYCLING_INSTANCE, expectedSize);
+        }
+
+        public Builder(Recycler<BytesRef> refRecycler, int expectedSize) {
+            this.bytes = new BytesStreamOutput(expectedSize);
             this.keyArray = new ArrayList<>();
         }
 

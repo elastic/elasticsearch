@@ -274,9 +274,6 @@ tests:
 - class: org.elasticsearch.cli.keystore.AddStringKeyStoreCommandTests
   method: testStdinWithMultipleValues
   issue: https://github.com/elastic/elasticsearch/issues/126882
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
-  method: testEsqlEnrichWithSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/127368
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625

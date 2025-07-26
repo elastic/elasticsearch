@@ -521,6 +521,9 @@ tests:
 - class: org.elasticsearch.compute.aggregation.ValuesBytesRefGroupingAggregatorFunctionTests
   method: testSomeFiltered
   issue: https://github.com/elastic/elasticsearch/issues/131878
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/131964
 
 # Examples:
 #

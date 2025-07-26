@@ -17,6 +17,7 @@ import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.util.AbstractCollection;
@@ -115,9 +116,9 @@ public class ESONSource {
 
             return switch (token) {
                 case VALUE_STRING -> {
-                    byte[] stringBytes = parser.text().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                    bytes.write(stringBytes);
-                    yield new VariableValue((int) position, stringBytes.length, ValueType.STRING);
+                    XContentString.UTF8Bytes stringBytes = parser.optimizedText().bytes();
+                    bytes.write(stringBytes.bytes(), stringBytes.offset(), stringBytes.length());
+                    yield new VariableValue((int) position, stringBytes.length(), ValueType.STRING);
                 }
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numberType = parser.numberType();

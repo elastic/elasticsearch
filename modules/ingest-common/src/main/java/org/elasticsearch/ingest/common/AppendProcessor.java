@@ -114,14 +114,7 @@ public final class AppendProcessor extends AbstractProcessor {
             boolean allowDuplicates = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "allow_duplicates", true);
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
 
-            return new AppendProcessor(
-                processorTag,
-                description,
-                compiledTemplate,
-                valueSource,
-                copyFrom,
-                allowDuplicates
-            );
+            return new AppendProcessor(processorTag, description, compiledTemplate, valueSource, copyFrom, allowDuplicates);
         }
     }
 }

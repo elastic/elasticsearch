@@ -16,6 +16,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.ESONSource;
+import org.elasticsearch.ingest.ESONXContentSerializer;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -127,6 +128,14 @@ public class ESONDeserializationBenchmark {
     }
 
     @Benchmark
+    public void writeJSONFromESONFlatten(Blackhole bh) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(JsonXContent.jsonXContent.type());
+        ESONXContentSerializer.flattedToXContent(esonObject, builder, ToXContent.EMPTY_PARAMS);
+        BytesReference bytes = BytesReference.bytes(builder);
+        bh.consume(bytes);
+    }
+
+    @Benchmark
     public void readMap(Blackhole bh) throws IOException {
         Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(source, false, XContentType.JSON);
         Map<String, Object> obj = tuple.v2();
@@ -143,7 +152,7 @@ public class ESONDeserializationBenchmark {
                 source.length()
             )
         ) {
-            ESONSource.ESONObject eson = new ESONSource.Builder(refRecycler).parse(parser);
+            ESONSource.ESONObject eson = new ESONSource.Builder().parse(parser);
             bh.consume(eson);
         }
     }

@@ -301,6 +301,12 @@ public class BlockAccountingTests extends ComputeTestCase {
             + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
 
+        System.err.println("OVERHEAD PER BLOCK: " + Block.PAGE_MEM_OVERHEAD_PER_BLOCK);
+        System.err.println("RAM USED IS " + RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR));
+        System.err.println("SHALLOW SIZE IS " + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class));
+        System.err.println("also the non-vector-block size: " + RamUsageEstimator.shallowSizeOfInstance(DoubleArrayBlock.class));
+        // assertTrue("USED " + empty.ramBytesUsed() + " AND EXPECTED " + expectedEmptyUsed, false);
+
         Block emptyPlusOne = new DoubleArrayBlock(
             new double[] { randomInt() },
             1,
@@ -346,6 +352,94 @@ public class BlockAccountingTests extends ComputeTestCase {
         );
         long expectedEmptyUsed = Block.PAGE_MEM_OVERHEAD_PER_BLOCK + RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR)
             + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class);
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
+    }
+
+    public void testAggregateMetricDoubleBlock() {
+        // TODO vvvvv
+        assumeFalse("TODO: delete later", true);
+        BlockFactory blockFactory = blockFactory();
+        Block empty = new AggregateMetricDoubleArrayBlock(
+            new DoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, null, Block.MvOrdering.UNORDERED, blockFactory),
+            new DoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, null, Block.MvOrdering.UNORDERED, blockFactory),
+            new DoubleArrayBlock(new double[] {}, 0, new int[] { 0 }, null, Block.MvOrdering.UNORDERED, blockFactory),
+            new IntArrayBlock(new int[] {}, 0, new int[] { 0 }, null, Block.MvOrdering.UNORDERED, blockFactory)
+        );
+
+        // 8, 496, 40
+        System.err.println("OVERHEAD PER BLOCK: " + Block.PAGE_MEM_OVERHEAD_PER_BLOCK);
+        System.err.println("RAM USED IS " + RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR));
+        System.err.println("SHALLOW SIZE IS " + RamUsageEstimator.shallowSizeOfInstance(AggregateMetricDoubleArrayBlock.class));
+
+        // 24, 24
+        System.err.println("SHALLOW SIZE OF DOUBLE IS " + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class));
+        System.err.println("SHALLOW SIZE OF INT IS " + RamUsageEstimator.shallowSizeOfInstance(IntVectorBlock.class));
+        // 32 + 496 = 528
+        // + 24 * (3 + 1) = 528 + 96 = 624
+        long expectedEmptyUsed = Block.PAGE_MEM_OVERHEAD_PER_BLOCK * 4 + RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR)
+            + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class) * 3
+            + RamUsageEstimator.shallowSizeOfInstance(
+                IntVectorBlock.class
+            );
+        assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
+
+        Block emptyPlusOne = new AggregateMetricDoubleArrayBlock(
+            new DoubleArrayBlock(new double[] { randomInt() }, 1, new int[] { 0, 1 }, null, Block.MvOrdering.UNORDERED, blockFactory),
+            new DoubleArrayBlock(new double[] { randomInt() }, 1, new int[] { 0, 1 }, null, Block.MvOrdering.UNORDERED, blockFactory),
+            new DoubleArrayBlock(new double[] { randomInt() }, 1, new int[] { 0, 1 }, null, Block.MvOrdering.UNORDERED, blockFactory),
+            new IntArrayBlock(new int[] { randomInt() }, 1, new int[] { 0, 1 }, null, Block.MvOrdering.UNORDERED, blockFactory)
+        );
+
+        assertThat(
+            emptyPlusOne.ramBytesUsed(),
+            is(
+                empty.ramBytesUsed() + (ramBytesDiffForDoubleArrays(1, 0) + ramBytesDiffForIntArrays(2, 1)) * 3 + (ramBytesDiffForIntArrays(
+                    1,
+                    0
+                ) + ramBytesDiffForIntArrays(2, 1))
+            )
+        );
+
+        int size = randomIntBetween(2, 1024);
+        double[] randomMinData = new double[size];
+        double[] randomMaxData = new double[size];
+        double[] randomSumData = new double[size];
+        int[] randomCountData = new int[size];
+        // todo: ask about multi-values......
+        int[] valueIndices = IntStream.range(0, size + 1).toArray();
+
+        Block emptyPlusSome = new AggregateMetricDoubleArrayBlock(
+            new DoubleArrayBlock(randomMinData, size, valueIndices, null, Block.MvOrdering.UNORDERED, blockFactory),
+            new DoubleArrayBlock(randomMaxData, size, valueIndices, null, Block.MvOrdering.UNORDERED, blockFactory),
+            new DoubleArrayBlock(randomSumData, size, valueIndices, null, Block.MvOrdering.UNORDERED, blockFactory),
+            new IntArrayBlock(randomCountData, size, valueIndices, null, Block.MvOrdering.UNORDERED, blockFactory)
+        );
+
+        long expected = empty.ramBytesUsed() + (ramBytesDiffForDoubleArrays(size, 0) + ramBytesDiffForIntArrays(valueIndices.length, 1)) * 3
+            + (ramBytesDiffForIntArrays(size, 0) + ramBytesDiffForIntArrays(valueIndices.length, 1));
+
+        assertThat(emptyPlusSome.ramBytesUsed(), is(expected));
+
+        Block filterBlock = emptyPlusSome.filter(1);
+        assertThat(filterBlock.ramBytesUsed(), lessThan(emptyPlusOne.ramBytesUsed()));
+        Releasables.close(filterBlock);
+    }
+
+    public void testAggregateMetricDoubleBlockWithNullFirstValues() {
+        // TODO vvvvv
+        assumeFalse("TODO: delete later", true);
+        BlockFactory blockFactory = blockFactory();
+        Block empty = new AggregateMetricDoubleArrayBlock(
+            new DoubleArrayBlock(new double[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED, blockFactory),
+            new DoubleArrayBlock(new double[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED, blockFactory),
+            new DoubleArrayBlock(new double[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED, blockFactory),
+            new IntArrayBlock(new int[] {}, 0, null, BitSet.valueOf(new byte[] { 1 }), Block.MvOrdering.UNORDERED, blockFactory)
+        );
+
+        long expectedEmptyUsed = Block.PAGE_MEM_OVERHEAD_PER_BLOCK * 4 + RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR)
+            + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class) * 3 + RamUsageEstimator.shallowSizeOfInstance(
+            IntVectorBlock.class
+        );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
     }
 

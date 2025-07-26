@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -23,6 +24,8 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
     private final DoubleBlock sumBlock;
     private final IntBlock countBlock;
     private final int positionCount;
+
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AggregateMetricDoubleArrayBlock.class);
 
     public AggregateMetricDoubleArrayBlock(DoubleBlock minBlock, DoubleBlock maxBlock, DoubleBlock sumBlock, IntBlock countBlock) {
         this.minBlock = minBlock;
@@ -242,7 +245,18 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
 
     @Override
     public long ramBytesUsed() {
-        return minBlock.ramBytesUsed() + maxBlock.ramBytesUsed() + sumBlock.ramBytesUsed() + countBlock.ramBytesUsed();
+        // 40
+        System.err.println("BASE RAM BYTES " + BASE_RAM_BYTES_USED);
+        // 144 * 3
+        System.err.println("BLOCK BYTES USED " + minBlock.ramBytesUsed());
+        System.err.println("BLOCK BYTES USED " + maxBlock.ramBytesUsed());
+        System.err.println("BLOCK BYTES USED " + sumBlock.ramBytesUsed());
+        // 152 == 584 + 40 == 624
+        System.err.println("BLOCK BYTES USED " + countBlock.ramBytesUsed());
+        return
+//            BASE_RAM_BYTES_USED +
+                minBlock.ramBytesUsed() + maxBlock.ramBytesUsed() + sumBlock.ramBytesUsed() + countBlock
+            .ramBytesUsed();
     }
 
     @Override
@@ -288,5 +302,10 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
             return countBlock;
         }
         throw new UnsupportedOperationException("Received an index (" + index + ") outside of range for AggregateMetricDoubleBlock.");
+    }
+
+    @Override
+    public String toString() {
+        return "Min: " + minBlock + " \nMax: " + maxBlock + "\nSum: " + sumBlock + "\nCount: " + countBlock + "\n\n";
     }
 }

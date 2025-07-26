@@ -632,6 +632,7 @@ public class EsExecutors {
 
             public Builder trackExecutionTime(double alpha) {
                 trackExecutionTime = true;
+                trackUtilization = true;
                 ewmaAlpha = alpha;
                 return this;
             }

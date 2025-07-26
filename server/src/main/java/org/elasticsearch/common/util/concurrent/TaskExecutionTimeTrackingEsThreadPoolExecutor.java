@@ -153,7 +153,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     /**
      * Returns thread-pool utilization from last completed time interval(frame) {@link TaskTrackingConfig#utilizationInterval()}.
      * Utilization is measured as {@code all-threads-total-execution-time / (total-thread-count * interval)}.
-     * This metric is updated once on per interval, and returns last completed measurement. For example:
+     * This metric is updated once per interval, and returns last completed measurement. For example:
      * if interval is 30 seconds, at clock time 00:30-01:00 it will return utilization from 00:00-00:30.
      * Thou there is no synchronization with clocks and system time.
      *
@@ -283,11 +283,15 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         }
 
         /**
-         * Update frames to current time. When it's called first time or after a long period (>> interval) current and previous frames
-         * are going to be stale. But we know all ongoing tasks and can assume they still running, unless explicitly ended. For any
-         * ongoing task we always assume they will run indefinitely and apply "credit" to currentTime, if task is finished in
-         * currentFrame we deduct remaining balance. That means currentFrame can overestimate usage, but when current decay to previous
-         * it is always accurate, because task can end only in currentFrame.
+         * Update frames to current time. There are no guaranties that it will be invoked frequently.
+         * For example when there are no tasks and no requests for previousFrameTime.
+         *
+         * When it's invoked frequently, at least once per frame, we move currentTime into previousTime.
+         * That concludes currentTime and it's accurate.
+         *
+         * When it's invoked infrequently, once in multiple frames, current and previous frames are going to be stale.
+         * Which is ok, that means there were no changes in tasks(start/end), all ongoing tasks are still running.
+         * That means ongoing tasks fully utilized previous frames. And we can accurately tell previous frame usage.
          */
         private void updateFrame0(long nowTime) {
             var now = nowTime / interval;
@@ -319,11 +323,13 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         synchronized void endTask() {
             var now = timeNow.get();
             updateFrame0(now);
-            // we already assumed that task will run till end of interval, here we subtract whats left
             currentTime -= (currentFrame + 1) * interval - now;
             --ongoingTasks;
         }
 
+        /**
+         * Returns previous frame total execution time.
+         */
         synchronized long previousFrameTime() {
             updateFrame0(timeNow.get());
             return previousTime;

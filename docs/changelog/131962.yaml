@@ -1,5 +1,0 @@
-pr: 131962
-summary: "[8.19] Remove incorrectly added `EsqlCapability`"
-area: "ES|QL, TSDB"
-type: bug
-issues: []

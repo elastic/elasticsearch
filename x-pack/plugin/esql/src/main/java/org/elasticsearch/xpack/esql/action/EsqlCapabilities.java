@@ -1149,6 +1149,11 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Extra field types in the k8s.csv dataset
+         */
+        K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,

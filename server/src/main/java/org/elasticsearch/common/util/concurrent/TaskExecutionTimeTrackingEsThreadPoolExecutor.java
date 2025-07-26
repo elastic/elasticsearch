@@ -70,7 +70,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.executionTimeEwmaAlpha(), 0);
         this.trackingConfig = trackingConfig;
-        this.framedTimeTracker = new FramedTimeTracker(trackingConfig.utilizationInterval().getNano());
+        this.framedTimeTracker = new FramedTimeTracker(trackingConfig.utilizationInterval().toNanos());
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -267,13 +267,13 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
         // for testing
         FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
-            assert intervalNano >= 0;
+            assert intervalNano > 0;
             this.interval = intervalNano;
             this.timeNow = timeNow;
         }
 
         FramedTimeTracker(long intervalNano) {
-            assert intervalNano >= 0;
+            assert intervalNano > 0;
             this.interval = intervalNano;
             this.timeNow = System::nanoTime;
         }

@@ -43,7 +43,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
         if (name.equals("bulk")
             || name.equals(ThreadPool.Names.WRITE_COORDINATION)
             || name.equals(ThreadPool.Names.SYSTEM_WRITE_COORDINATION)
-//            || name.equals(ThreadPool.Names.WRITE)
+            || name.equals(ThreadPool.Names.WRITE)
             || name.equals(ThreadPool.Names.SYSTEM_WRITE)
             || name.equals(ThreadPool.Names.SYSTEM_CRITICAL_WRITE)) {
             return 1 + EsExecutors.allocatedProcessors(settings);

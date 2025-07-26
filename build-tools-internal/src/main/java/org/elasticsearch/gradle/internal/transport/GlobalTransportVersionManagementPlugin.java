@@ -30,13 +30,12 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
 
         DependencyHandler depsHandler = project.getDependencies();
-        Dependency selfDependency = depsHandler.project(Map.of("path", project.getPath()));
-        Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration(selfDependency);
+        Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration();
         tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
 
-        // iterate through all projects, and if the ES plugin build plugin is applied, add that project back as a dep to check
+        // iterate through all projects, and if the management plugin is applied, add that project back as a dep to check
         for (Project subProject : project.getRootProject().getSubprojects()) {
-            subProject.getPlugins().withType(BaseInternalPluginBuildPlugin.class).configureEach(plugin -> {
+            subProject.getPlugins().withType(TransportVersionManagementPlugin.class).configureEach(plugin -> {
                 tvReferencesConfig.getDependencies().add(depsHandler.project(Map.of("path", subProject.getPath())));
             });
         }

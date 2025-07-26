@@ -16,6 +16,8 @@ import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.IOException;
@@ -34,9 +36,11 @@ import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.
 public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTask {
 
     @InputDirectory
+    @PathSensitive(PathSensitivity.RELATIVE)
     public abstract DirectoryProperty getDefinitionsDirectory();
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getReferencesFiles();
 
     @TaskAction

@@ -27,12 +27,15 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Collects all TransportVersion references used throughout the project");
                 SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
-                t.getClassPath().setFrom(mainSourceSet.getRuntimeClasspath());
+                t.getClassPath().setFrom(mainSourceSet.getOutput());
                 t.getOutputFile().set(project.getLayout().getBuildDirectory().file("transport-version/references.txt"));
             });
 
-        Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration();
-        tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+        Configuration tvReferencesConfig = project.getConfigurations().create("transportVersionReferences", c -> {
+            c.setCanBeConsumed(true);
+            c.setCanBeResolved(false);
+            c.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
+        });
         project.getArtifacts().add(tvReferencesConfig.getName(), collectTask);
 
         var validateTask = project.getTasks()

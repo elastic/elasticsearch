@@ -14,8 +14,9 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -70,9 +71,6 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
             Path file = cpElement.toPath();
             if (Files.isDirectory(file)) {
                 addNamesFromClassesDirectory(results, file);
-            } else {
-                assert file.getFileName().toString().endsWith(".jar");
-                addNamesFromJar(results, file);
             }
         }
 
@@ -93,18 +91,6 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
                 return FileVisitResult.CONTINUE;
             }
         });
-    }
-
-    private void addNamesFromJar(Set<TransportVersionUtils.TransportVersionReference> results, Path file) throws IOException {
-        try (var jar = new JarInputStream(Files.newInputStream(file))) {
-            ZipEntry entry;
-            while ((entry = jar.getNextEntry()) != null) {
-                String filename = entry.getName();
-                if (filename.endsWith(CLASS_EXTENSION) && filename.endsWith(MODULE_INFO) == false) {
-                    addNamesFromClass(results, jar, classname(entry.toString()));
-                }
-            }
-        }
     }
 
     private void addNamesFromClass(Set<TransportVersionUtils.TransportVersionReference> results, InputStream classBytes, String classname)

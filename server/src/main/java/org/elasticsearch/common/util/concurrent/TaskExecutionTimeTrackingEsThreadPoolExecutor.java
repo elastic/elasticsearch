@@ -267,13 +267,13 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
         // for testing
         FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
-            assert intervalNano > 0;
+            assert intervalNano >= 0;
             this.interval = intervalNano;
             this.timeNow = timeNow;
         }
 
         FramedTimeTracker(long intervalNano) {
-            assert intervalNano > 0;
+            assert intervalNano >= 0;
             this.interval = intervalNano;
             this.timeNow = System::nanoTime;
         }

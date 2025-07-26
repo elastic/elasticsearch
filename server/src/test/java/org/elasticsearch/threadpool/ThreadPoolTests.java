@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -38,7 +37,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT;
@@ -49,10 +47,8 @@ import static org.elasticsearch.threadpool.ThreadPool.assertCurrentMethodIsNotCa
 import static org.elasticsearch.threadpool.ThreadPool.getMaxSnapshotThreadPoolSize;
 import static org.elasticsearch.threadpool.ThreadPool.halfAllocatedProcessorsMaxFive;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.lessThan;
 
 public class ThreadPoolTests extends ESTestCase {
 
@@ -486,85 +482,6 @@ public class ThreadPoolTests extends ESTestCase {
         } finally {
             latch.countDown();
             assertTrue(terminate(threadPool));
-        }
-    }
-
-    public void testDetailedUtilizationMetric() throws Exception {
-        final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
-        final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
-
-        final ThreadPool threadPool = new ThreadPool(
-            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test").build(),
-            meterRegistry,
-            builtInExecutorBuilders
-        );
-        try {
-            // write thread pool is tracked
-            final String threadPoolName = ThreadPool.Names.WRITE;
-            final MetricAsserter metricAsserter = new MetricAsserter(meterRegistry, threadPoolName);
-            final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);
-            final TaskExecutionTimeTrackingEsThreadPoolExecutor executor = asInstanceOf(
-                TaskExecutionTimeTrackingEsThreadPoolExecutor.class,
-                threadPool.executor(threadPoolName)
-            );
-
-            final long beforePreviousCollectNanos = System.nanoTime();
-            meterRegistry.getRecorder().collect();
-            double allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
-            final long afterPreviousCollectNanos = System.nanoTime();
-
-            var metricValue = metricAsserter.assertLatestMetricValueMatches(
-                InstrumentType.DOUBLE_GAUGE,
-                ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
-                Measurement::getDouble,
-                equalTo(0.0d)
-            );
-            logger.info("---> Utilization metric data points, APM: " + metricValue + ", Allocation: " + allocationUtilization);
-            assertThat(allocationUtilization, equalTo(0.0d));
-
-            final AtomicLong minimumDurationNanos = new AtomicLong(Long.MAX_VALUE);
-            final long beforeStartNanos = System.nanoTime();
-            final CyclicBarrier barrier = new CyclicBarrier(2);
-            Future<?> future = executor.submit(() -> {
-                long innerStartTimeNanos = System.nanoTime();
-                safeSleep(100);
-                safeAwait(barrier);
-                minimumDurationNanos.set(System.nanoTime() - innerStartTimeNanos);
-            });
-            safeAwait(barrier);
-            safeGet(future);
-            final long maxDurationNanos = System.nanoTime() - beforeStartNanos;
-
-            // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to run
-            assertBusy(() -> assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L)));
-
-            final long beforeMetricsCollectedNanos = System.nanoTime();
-            meterRegistry.getRecorder().collect();
-            allocationUtilization = executor.pollUtilization(UtilizationTrackingPurpose.ALLOCATION);
-            final long afterMetricsCollectedNanos = System.nanoTime();
-
-            // Calculate upper bound on utilisation metric
-            final long minimumPollIntervalNanos = beforeMetricsCollectedNanos - afterPreviousCollectNanos;
-            final long minimumMaxExecutionTimeNanos = minimumPollIntervalNanos * threadPoolInfo.getMax();
-            final double maximumUtilization = (double) maxDurationNanos / minimumMaxExecutionTimeNanos;
-
-            // Calculate lower bound on utilisation metric
-            final long maximumPollIntervalNanos = afterMetricsCollectedNanos - beforePreviousCollectNanos;
-            final long maximumMaxExecutionTimeNanos = maximumPollIntervalNanos * threadPoolInfo.getMax();
-            final double minimumUtilization = (double) minimumDurationNanos.get() / maximumMaxExecutionTimeNanos;
-
-            logger.info("Utilization must be in [{}, {}]", minimumUtilization, maximumUtilization);
-            Matcher<Double> matcher = allOf(greaterThan(minimumUtilization), lessThan(maximumUtilization));
-            metricValue = metricAsserter.assertLatestMetricValueMatches(
-                InstrumentType.DOUBLE_GAUGE,
-                ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION,
-                Measurement::getDouble,
-                matcher
-            );
-            logger.info("---> Utilization metric data points, APM: " + metricValue + ", Allocation: " + allocationUtilization);
-            assertThat(allocationUtilization, matcher);
-        } finally {
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 

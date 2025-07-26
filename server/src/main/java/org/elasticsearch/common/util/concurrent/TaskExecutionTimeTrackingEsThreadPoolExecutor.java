@@ -45,22 +45,12 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
     private final LongAdder totalExecutionTime = new LongAdder();
-    private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
     private final ExponentialBucketHistogram queueLatencyMillisHistogram = new ExponentialBucketHistogram(QUEUE_LATENCY_HISTOGRAM_BUCKETS);
-    private final boolean trackMaxQueueLatency;
-    private final boolean trackUtilization;
+    private final TaskTrackingConfig trackingConfig;
+    private final FramedTimeTracker framedTimeTracker;
     private LongAccumulator maxQueueLatencyMillisSinceLastPoll = new LongAccumulator(Long::max, 0);
-
-    public enum UtilizationTrackingPurpose {
-        APM,
-        ALLOCATION,
-    }
-
-    private volatile UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
-    private volatile UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
-    private final FramedTimeTracker framedTimeTracker= new FramedTimeTracker(1_000);
 
     public TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -78,10 +68,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
 
         this.runnableWrapper = runnableWrapper;
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
-        this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
-        this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
-        this.trackUtilization = trackingConfig.TrackUtilization();
+        this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.executionTimeEwmaAlpha(), 0);
+        this.trackingConfig = trackingConfig;
+        this.framedTimeTracker = new FramedTimeTracker(trackingConfig.utilizationInterval().getNano());
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -109,7 +98,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName + THREAD_POOL_METRIC_NAME_UTILIZATION,
                 "fraction of maximum thread time utilized for " + threadPoolName,
                 "fraction",
-                () -> new DoubleWithAttributes(pollUtilization(UtilizationTrackingPurpose.APM), Map.of())
+                () -> new DoubleWithAttributes(utilization(), Map.of())
             )
         );
     }
@@ -151,34 +140,33 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
-        if (trackMaxQueueLatency == false) {
+        if (trackingConfig.trackMaxQueueLatency() == false) {
             return 0;
         }
         return maxQueueLatencyMillisSinceLastPoll.getThenReset();
     }
 
+    public TaskTrackingConfig trackingConfig() {
+        return trackingConfig;
+    }
+
     /**
-     * Returns the fraction of the maximum possible thread time that was actually used since the last time this method was called.
-     * There are two periodic pulling mechanisms that access utilization reporting: {@link UtilizationTrackingPurpose} distinguishes the
-     * caller.
+     * Returns thread-pool utilization from last completed time interval(frame) {@link TaskTrackingConfig#utilizationInterval()}.
+     * Utilization is measured as {@code all-threads-total-execution-time / (total-thread-count * interval)}.
+     * This metric is updated once on per interval, and returns last completed measurement. For example:
+     * if interval is 30 seconds, at clock time 00:30-01:00 it will return utilization from 00:00-00:30.
+     * Thou there is no synchronization with clocks and system time.
      *
-     * @return the utilization as a fraction, in the range [0, 1]. This may return >1 if a task completed in the time range but started
-     * earlier, contributing a larger execution time.
+     * If caller needs longer intervals it should poll on every tracker-interval and aggregate on it's own. Another option is to extend
+     * framedTimeTracker to remember multiple past frames, and return aggregated view from here.
      */
-    public double pollUtilization(UtilizationTrackingPurpose utilizationTrackingPurpose) {
-        switch (utilizationTrackingPurpose) {
-            case APM:
-                return apmUtilizationTracker.pollUtilization();
-            case ALLOCATION:
-                return allocationUtilizationTracker.pollUtilization();
-            default:
-                throw new IllegalStateException("No operation defined for [" + utilizationTrackingPurpose + "]");
-        }
+    public double utilization() {
+        return (double) framedTimeTracker.previousFrameTime() / (double) getMaximumPoolSize() / (double) framedTimeTracker.interval;
     }
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
-        if (trackOngoingTasks) {
+        if (trackingConfig.trackOngoingTasks()) {
             ongoingTasks.put(r, System.nanoTime());
         }
 
@@ -190,11 +178,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         var queueLatencyMillis = TimeUnit.NANOSECONDS.toMillis(taskQueueLatency);
         queueLatencyMillisHistogram.addObservation(queueLatencyMillis);
 
-        if (trackMaxQueueLatency) {
+        if (trackingConfig.trackMaxQueueLatency()) {
             maxQueueLatencyMillisSinceLastPoll.accumulate(queueLatencyMillis);
         }
-        if (trackUtilization) {
-            framedTimeTracker.startTask(System.nanoTime());
+        if (trackingConfig.trackUtilization()) {
+            framedTimeTracker.startTask();
         }
     }
 
@@ -220,13 +208,13 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 executionEWMA.addValue(taskExecutionNanos);
                 totalExecutionTime.add(taskExecutionNanos);
             }
-            if (trackUtilization) {
-                framedTimeTracker.endTask(System.nanoTime());
+            if (trackingConfig.trackUtilization()) {
+                framedTimeTracker.endTask();
             }
         } finally {
             // if trackOngoingTasks is false -> ongoingTasks must be empty
-            assert trackOngoingTasks || ongoingTasks.isEmpty();
-            if (trackOngoingTasks) {
+            assert trackingConfig.trackOngoingTasks() || ongoingTasks.isEmpty();
+            if (trackingConfig.trackOngoingTasks()) {
                 ongoingTasks.remove(r);
             }
         }
@@ -250,7 +238,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * task is reflected in at least one of those two values.
      */
     public Map<Runnable, Long> getOngoingTasks() {
-        return trackOngoingTasks ? Map.copyOf(ongoingTasks) : Map.of();
+        return trackingConfig.trackOngoingTasks() ? Map.copyOf(ongoingTasks) : Map.of();
     }
 
     // Used for testing
@@ -260,64 +248,47 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
     // Used for testing
     public boolean trackingMaxQueueLatency() {
-        return trackMaxQueueLatency;
+        return trackingConfig.trackMaxQueueLatency();
     }
 
     /**
-     * Supports periodic polling for thread pool utilization. Tracks state since the last polling request so that the average utilization
-     * since the last poll can be calculated for the next polling request.
+     * Tracks treads execution in continuous, non-overlapping, and even time frames. Provides accurate total execution time measurement
+     * for past frames, specifically previous frame (now - 1 frame) to measure utilization.
      *
-     * Uses the difference of {@link #totalExecutionTime} since the last polling request to determine how much activity has occurred.
+     * Can be extended to remember multiple past frames.
      */
-    private class UtilizationTracker {
-        long lastPollTime = System.nanoTime();
-        long lastTotalExecutionTime = 0;
-
-        public synchronized double pollUtilization() {
-            final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
-            final long currentPollTimeNanos = System.nanoTime();
-
-            final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
-            final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
-
-            final long maximumExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
-            final double utilizationSinceLastPoll = (double) totalExecutionTimeSinceLastPollNanos / maximumExecutionTimeSinceLastPollNanos;
-
-            lastTotalExecutionTime = currentTotalExecutionTimeNanos;
-            lastPollTime = currentPollTimeNanos;
-
-            return utilizationSinceLastPoll;
-        }
-    }
-
     static class FramedTimeTracker {
+        final long interval;
         private final Supplier<Long> timeNow;
         long ongoingTasks;
-        long interval;
         long currentFrame;
         long currentTime;
         long previousTime;
 
         // for testing
-        FramedTimeTracker(long interval, Supplier<Long> timeNow) {
-            assert interval > 0;
-            this.interval = interval;
+        FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
+            assert intervalNano > 0;
+            this.interval = intervalNano;
             this.timeNow = timeNow;
         }
 
-        FramedTimeTracker(long interval) {
-            assert interval > 0;
-            this.interval = interval;
+        FramedTimeTracker(long intervalNano) {
+            assert intervalNano > 0;
+            this.interval = intervalNano;
             this.timeNow = System::nanoTime;
         }
 
-        /**
-         * update current and previous frames to current time
-         */
         synchronized void updateFrame() {
             updateFrame0(timeNow.get());
         }
 
+        /**
+         * Update frames to current time. When it's called first time or after a long period (>> interval) current and previous frames
+         * are going to be stale. But we know all ongoing tasks and can assume they still running, unless explicitly ended. For any
+         * ongoing task we always assume they will run indefinitely and apply "credit" to currentTime, if task is finished in
+         * currentFrame we deduct remaining balance. That means currentFrame can overestimate usage, but when current decay to previous
+         * it is always accurate, because task can end only in currentFrame.
+         */
         private void updateFrame0(long nowTime) {
             var now = nowTime / interval;
             if (currentFrame < now) {
@@ -331,17 +302,25 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             }
         }
 
-        synchronized void startTask(long startTime) {
-            updateFrame0(startTime);
-            // assume task will run indefinitely, in this case at least till end of interval
-            currentTime += (currentFrame + 1) * interval - startTime;
+        /**
+         * Start tracking new task, assume that task runs indefinitely, or at least till end of frame.
+         * If task finishes sooner than end of interval {@link FramedTimeTracker#endTask()} will deduct remaining time.
+         */
+        synchronized void startTask() {
+            var now = timeNow.get();
+            updateFrame0(now);
+            currentTime += (currentFrame + 1) * interval - now;
             ++ongoingTasks;
         }
 
-        synchronized void endTask(long endTime) {
-            updateFrame0(endTime);
+        /**
+         * Stop task tracking. We already assumed that task runs till end of frame, here we deduct not used time.
+         */
+        synchronized void endTask() {
+            var now = timeNow.get();
+            updateFrame0(now);
             // we already assumed that task will run till end of interval, here we subtract whats left
-            currentTime -= (currentFrame + 1) * interval - endTime;
+            currentTime -= (currentFrame + 1) * interval - now;
             --ongoingTasks;
         }
 

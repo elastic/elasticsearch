@@ -17,13 +17,18 @@ import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.DoubleStream;
 
+import static java.util.stream.IntStream.range;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -224,6 +229,65 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
+    }
+
+    public void testUtilization() throws InterruptedException {
+        final var interval = Duration.ofMillis(100);
+
+        final Consumer<Duration> trySleep = (d) -> {
+            try {
+                Thread.sleep(d);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        };
+
+        final Runnable waitTillNextFrame = () -> {
+            var now = System.nanoTime();
+            var waitTillNext = (now / interval.getNano() + 1) * interval.getNano() - now;
+            trySleep.accept(Duration.ofNanos(waitTillNext));
+        };
+
+        final Function<Duration, Runnable> sleepTaskFn = (d) -> () -> trySleep.accept(d);
+
+        var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) EsExecutors.newFixed(
+            "utilization",
+            4,
+            4,
+            Executors.defaultThreadFactory(),
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).trackUtilization(interval).build()
+        );
+
+        try {
+            // warm-up executor, reduces utilization metric jitter
+            waitTillNextFrame.run();
+            range(0, 4).forEach(i -> executor.submit(sleepTaskFn.apply(Duration.ofMillis(1))));
+
+            // create 4 tasks that use different thread usage per interval and start at the beginning of the frame
+            // 1. small task with 10%
+            // 2. medium task with 30%
+            // 3. larger task with 50%
+            // 4 long running task that spans over multiple intervals(3), ie 100% utilization per frame
+            // total utilization for 4-threads-pool = (10 + 30 + 50 + 100) / (4 * 100) = 190/400 = 0.475
+            // assuming overhead can be up to 10%, final range would be 0.475 - 0.575
+            waitTillNextFrame.run();
+
+            DoubleStream.of(0.1, 0.3, 0.5, 3.).forEach(loadFactor -> {
+                var sleepTime = (long) (interval.getNano() * loadFactor);
+                executor.submit(sleepTaskFn.apply(Duration.ofNanos(sleepTime)));
+            });
+
+            waitTillNextFrame.run();
+            assertEquals(0.475, executor.utilization(), 0.1);
+
+            // the long running task should still use 100% of a single thread, so 1/4=25% utilization
+            waitTillNextFrame.run();
+            assertEquals(0.25, executor.utilization(), 0.1);
+        } finally {
+            executor.shutdown();
+            executor.awaitTermination(0, TimeUnit.SECONDS);
+        }
     }
 
     public void testQueueLatencyHistogramMetrics() {

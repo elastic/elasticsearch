@@ -16,6 +16,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,6 +61,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                     .trackOngoingTasks()
                     .trackMaxQueueLatency()
                     .trackExecutionTime(indexAutoscalingEWMA)
+                    .trackUtilization(Duration.ofSeconds(30))
                     .build()
             )
         );

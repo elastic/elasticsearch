@@ -75,6 +75,7 @@ public final class GrokProcessor extends AbstractProcessor {
 
         Map<String, Object> matches = grok.captures(fieldValue);
         if (matches == null) {
+            logger.warn(">[{}] Grok expressions do not match field value: [{}]", tag, fieldValue);
             throw new IllegalArgumentException("Provided Grok expressions do not match field value: [" + fieldValue + "]");
         }
 

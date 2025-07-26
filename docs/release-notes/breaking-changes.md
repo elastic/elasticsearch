@@ -12,6 +12,25 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+```{applies_to}
+stack: coming 9.1.0
+```
+## 9.1.0 [elasticsearch-9.1.0-breaking-changes]
+
+Discovery-Plugins:
+* Upgrade `discovery-ec2` to AWS SDK v2 [#122062](https://github.com/elastic/elasticsearch/pull/122062)
+
+ES|QL:
+* Allow partial results by default in ES|QL [#127351](https://github.com/elastic/elasticsearch/pull/127351) (issue: [#122802](https://github.com/elastic/elasticsearch/issues/122802))
+* Disallow brackets in unquoted index patterns [#130427](https://github.com/elastic/elasticsearch/pull/130427) (issue: [#130378](https://github.com/elastic/elasticsearch/issues/130378))
+* Disallow mixed quoted/unquoted patterns in FROM [#127636](https://github.com/elastic/elasticsearch/pull/127636) (issue: [#122651](https://github.com/elastic/elasticsearch/issues/122651))
+* Make `skip_unavailable` catch all errors [#128163](https://github.com/elastic/elasticsearch/pull/128163)
+
+Snapshot/Restore:
+* Upgrade `repository-s3` to AWS SDK v2 [#126843](https://github.com/elastic/elasticsearch/pull/126843) (issue: [#120993](https://github.com/elastic/elasticsearch/issues/120993))
+
+
+
 ## 9.0.4 [elasticsearch-9.0.4-breaking-changes]
 
 No breaking changes in this version.

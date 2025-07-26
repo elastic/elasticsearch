@@ -911,11 +911,6 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_AVG(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
-         * Support for implicit casting of aggregate metric double when run in aggregations
-         */
-        AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
-
-        /**
          * Fixes bug when aggregate metric double is encoded as a single nul value but decoded as
          * AggregateMetricDoubleBlock (expecting 4 values) in TopN.
          */

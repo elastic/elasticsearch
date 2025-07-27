@@ -100,6 +100,14 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         disableRepoConsistencyCheck("have not necessarily written to all repositories");
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SnapshotsService.SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING.getKey(), 5) // more aggressive limit
+            .build();
+    }
+
     private static Set<String> nodeNames(Map<String, DiscoveryNode> nodesMap) {
         return nodesMap.values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet());
     }

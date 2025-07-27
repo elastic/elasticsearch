@@ -153,3 +153,87 @@ will be normalized into the following form:
   "trace_id": "abcdef1234567890abcdef1234567890"
 }
 ```
+## Structured `message` field
+
+If the `message` field in the ingested document is structured as a JSON, the
+processor will determine whether it is in ECS format or not, based on the
+existence or absence of the `@timestamp` field. If the `@timestamp` field is
+present, the `message` field will be considered to be in ECS format, and its
+contents will be merged into the root of the document and then normalized as
+described above. The `@timestamp` from the `message` field will override the
+root `@timestamp` field in the resulting document.
+If the `@timestamp` field is absent, the `message` field will be moved to
+the `body.structured` field as is, without any further normalization.
+
+For example, if the `message` field is an ECS-JSON, as follows:
+
+```json
+{
+  "@timestamp": "2023-10-01T12:00:00Z",
+  "message": "{\"@timestamp\":\"2023-10-01T12:01:00Z\",\"log.level\":\"INFO\",\"service.name\":\"my-service\",\"message\":\"The actual log message\",\"http\":{\"method\":\"GET\",\"url\":{\"path\":\"/api/v1/resource\"}}}"
+
+}
+```
+it will be normalized into the following form:
+
+```json
+{
+  "@timestamp": "2023-10-01T12:01:00Z",
+  "severity_text": "INFO",
+  "body": {
+    "text": "The actual log message"
+  },
+  "resource": {
+    "attributes": {
+      "service.name": "my-service"
+    }
+  },
+  "attributes": {
+    "http.method": "GET",
+    "http.url.path": "/api/v1/resource"
+  }
+}
+```
+
+However, if the `message` field is not recognized as ECS format, as follows:
+
+```json
+{
+  "@timestamp": "2023-10-01T12:00:00Z",
+  "log": {
+    "level": "INFO"
+  },
+  "service": {
+    "name": "my-service"
+  },
+  "tags": ["user-action", "api-call"],
+  "message": "{\"root_cause\":\"Network error\",\"http\":{\"method\":\"GET\",\"url\":{\"path\":\"/api/v1/resource\"}}}"
+}
+```
+it will be normalized into the following form:
+
+```json
+{
+  "@timestamp": "2023-10-01T12:00:00Z",
+  "severity_text": "INFO",
+  "resource": {
+    "attributes": {
+      "service.name": "my-service"
+    }
+  },
+  "attributes": {
+    "tags": ["user-action", "api-call"]
+  },
+  "body": {
+    "structured": {
+      "root_cause": "Network error",
+      "http": {
+        "method": "GET",
+        "url": {
+          "path": "/api/v1/resource"
+        }
+      }
+    }
+  }
+}
+```

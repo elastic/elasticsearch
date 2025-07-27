@@ -6,4 +6,8 @@ issues:
  - 131105
 highlight:
   title: Enable failure store for log data streams
+  body: |-
+    The failure store is now enabled for `log-*-*` data streams. This means that such data streams will now store invalid documents in a
+    dedicated failure index instead of rejecting them. Clients that previously received a `400 Bad Request` response when indexing invalid
+    documents will now receive a `201 Created` response, that would also contain the marker: `failure_store: used`.
   notable: true

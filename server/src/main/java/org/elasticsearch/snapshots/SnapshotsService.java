@@ -1335,6 +1335,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                     // TODO: Restart snapshot on another node?
                     snapshotChanged = true;
                     logger.warn("failing snapshot of shard [{}] on departed node [{}]", shardId, shardStatus.nodeId());
+                    // This can move an INIT shard directly to FAILED (completed) but does not release capacity since the node is gone.
+                    // Hence there is no need to kick off assigned-queued shards. In fact, all assigned-queued or unassigned-queued shards
+                    // on the same node should all be moved to FAILED state in this update.
                     final ShardSnapshotStatus failedState = new ShardSnapshotStatus(
                         shardStatus.nodeId(),
                         ShardState.FAILED,
@@ -3079,6 +3082,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(oldEntries.size());
         for (SnapshotsInProgress.Entry entry : oldEntries) {
             if (entry.isClone() == false && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()) {
+                // TODO: Optimize this by checking whether the entry has any assigned-queued shards before building the shards map
                 final var shardsBuilder = ImmutableOpenMap.builder(entry.shards());
                 maybeStartAssignedQueuedShardSnapshots(
                     clusterState,

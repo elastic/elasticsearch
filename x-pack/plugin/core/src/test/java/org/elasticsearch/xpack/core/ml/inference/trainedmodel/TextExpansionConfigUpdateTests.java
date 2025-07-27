@@ -32,7 +32,7 @@ public class TextExpansionConfigUpdateTests extends AbstractNlpConfigUpdateTestC
 
     public static TextExpansionConfigUpdate mutateForVersion(TextExpansionConfigUpdate instance, TransportVersion version) {
         if (version.before(TransportVersions.V_8_1_0)) {
-            return new TextExpansionConfigUpdate(instance.getResultsField(), null);
+            return new TextExpansionConfigUpdate(instance.getResultsField(), instance.getExpansionType(), null);
         }
         return instance;
     }
@@ -64,7 +64,11 @@ public class TextExpansionConfigUpdateTests extends AbstractNlpConfigUpdateTestC
 
     @Override
     Tuple<Map<String, Object>, TextExpansionConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
-        TextExpansionConfigUpdate expected = new TextExpansionConfigUpdate("ml-results", expectedTokenization);
+        TextExpansionConfigUpdate expected = new TextExpansionConfigUpdate(
+            "ml-results",
+            TextExpansionConfig.EXPANSION_TYPE_ELSER,
+            expectedTokenization
+        );
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");

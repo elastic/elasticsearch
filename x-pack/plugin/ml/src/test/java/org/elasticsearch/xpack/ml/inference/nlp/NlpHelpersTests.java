@@ -118,4 +118,50 @@ public class NlpHelpersTests extends ESTestCase {
         assertEquals(0, scoreAndIndices[2].index);
         assertEquals(1, scoreAndIndices[3].index);
     }
+
+    public void testSpladeSaturation() {
+        // Test case 1: Positive value
+        double input1 = 2.0;
+        double expected1 = Math.log(1 + 2.0);
+        double result1 = NlpHelpers.spladeSaturation(input1);
+        assertThat(result1, closeTo(expected1, 0.000001));
+
+        // Test case 2: Zero value
+        double input2 = 0.0;
+        double expected2 = 0.0;
+        double result2 = NlpHelpers.spladeSaturation(input2);
+        assertThat(result2, closeTo(expected2, 0.000001));
+
+        // Test case 3: Negative value
+        double input3 = -1.0;
+        double expected3 = 0.0; // Negative values are clamped to 0
+        double result3 = NlpHelpers.spladeSaturation(input3);
+        assertThat(result3, closeTo(expected3, 0.000001));
+
+        // Test case 4: Small positive value
+        double input4 = 0.01;
+        double expected4 = Math.log(1 + 0.01);
+        double result4 = NlpHelpers.spladeSaturation(input4);
+        assertThat(result4, closeTo(expected4, 0.000001));
+    }
+
+    public void testSpladeMaxPoolingEmbedding() {
+        // Test case 1: Single token with positive value
+        double[][] input1 = { { 2.0, 3.0, 4.0 } };
+        double[] expected1 = { Math.log(1 + 2.0), Math.log(1 + 3.0), Math.log(1 + 4.0) };
+        double[] result1 = NlpHelpers.spladeMaxPooling(input1);
+        assertArrayEquals(expected1, result1, 0.000001);
+
+        // Test case 2: Multiple tokens with mixed values
+        double[][] input2 = { { 0.5, -1.0, 2.0 }, { 3.0, 4.0, -2.0 } };
+        double[] expected2 = { Math.log(1 + 3.0), Math.log(1 + 4.0), Math.log(1 + 2.0) };
+        double[] result2 = NlpHelpers.spladeMaxPooling(input2);
+        assertArrayEquals(expected2, result2, 0.000001);
+
+        // Test case 3: All negative values
+        double[][] input3 = { { -1.0, -2.0, -3.0 } };
+        double[] expected3 = { 0.0, 0.0, 0.0 }; // All negative values should result in zero
+        double[] result3 = NlpHelpers.spladeMaxPooling(input3);
+        assertArrayEquals(expected3, result3, 0.000001);
+    }
 }

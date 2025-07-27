@@ -107,6 +107,32 @@ public final class NlpHelpers {
         return result;
     }
 
+    /**
+     * Saturation function for the SPLADE output.
+     * @param value Value to apply saturation to
+     * @return Saturated value
+     */
+    static double spladeSaturation(double value) {
+        return Math.log(1 + Math.max(0, value));
+    }
+
+    /**
+     * Applies SPLADE max pooling.
+     * @param embedding Embeddings from the model. Shape needs to be: [num_tokens][num_vocabulary]
+     * @return Max pooled results for each vocabulary item.
+     */
+    static double[] spladeMaxPooling(double[][] embedding) {
+        int numTokens = embedding.length;
+        int numVocabulary = embedding[0].length;
+        double[] results = new double[embedding[0].length];
+        for (int tokenIndex = 0; tokenIndex < numTokens; tokenIndex++) {
+            for (int vocabIndex = 0; vocabIndex < embedding[tokenIndex].length; vocabIndex++) {
+                results[vocabIndex] = Math.max(results[vocabIndex], spladeSaturation(embedding[tokenIndex][vocabIndex]));
+            }
+        }
+        return results;
+    }
+
     public static class ScoreAndIndex {
         final double score;
         final int index;

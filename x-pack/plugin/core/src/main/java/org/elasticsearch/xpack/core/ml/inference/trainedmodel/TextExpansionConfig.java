@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.MlConfigVersion;
@@ -28,6 +29,10 @@ import java.util.Optional;
 public class TextExpansionConfig implements NlpConfig {
 
     public static final String NAME = "text_expansion";
+
+    public static final ParseField EXPANSION_TYPE = new ParseField("expansion_type");
+    public static final String EXPANSION_TYPE_ELSER = "elser";
+    public static final String EXPANSION_TYPE_SPLADE = "splade";
 
     public static TextExpansionConfig fromXContentStrict(XContentParser parser) {
         return STRICT_PARSER.apply(parser, null);
@@ -44,7 +49,7 @@ public class TextExpansionConfig implements NlpConfig {
         ConstructingObjectParser<TextExpansionConfig, Void> parser = new ConstructingObjectParser<>(
             NAME,
             ignoreUnknownFields,
-            a -> new TextExpansionConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2])
+            a -> new TextExpansionConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2], (String) a[3])
         );
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             if (ignoreUnknownFields == false) {
@@ -61,28 +66,33 @@ public class TextExpansionConfig implements NlpConfig {
             TOKENIZATION
         );
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), EXPANSION_TYPE);
         return parser;
     }
 
     private final VocabularyConfig vocabularyConfig;
     private final Tokenization tokenization;
     private final String resultsField;
+    private final String expansionType;
 
     public TextExpansionConfig(
         @Nullable VocabularyConfig vocabularyConfig,
         @Nullable Tokenization tokenization,
-        @Nullable String resultsField
+        @Nullable String resultsField,
+        @Nullable String expansionType
     ) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
         this.resultsField = resultsField;
+        this.expansionType = expansionType == null ? EXPANSION_TYPE_ELSER : expansionType;
     }
 
     public TextExpansionConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
         resultsField = in.readOptionalString();
+        expansionType = in.readOptionalString();
     }
 
     @Override
@@ -90,6 +100,7 @@ public class TextExpansionConfig implements NlpConfig {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
         out.writeOptionalString(resultsField);
+        out.writeOptionalString(expansionType);
     }
 
     @Override
@@ -99,6 +110,9 @@ public class TextExpansionConfig implements NlpConfig {
         NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
         if (resultsField != null) {
             builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
+        }
+        if (expansionType != null) {
+            builder.field(EXPANSION_TYPE.getPreferredName(), expansionType);
         }
         builder.endObject();
         return builder;
@@ -121,11 +135,12 @@ public class TextExpansionConfig implements NlpConfig {
             return new TextExpansionConfig(
                 vocabularyConfig,
                 configUpdate.tokenizationUpdate == null ? tokenization : configUpdate.tokenizationUpdate.apply(tokenization),
-                Optional.ofNullable(configUpdate.getResultsField()).orElse(resultsField)
+                Optional.ofNullable(configUpdate.getResultsField()).orElse(resultsField),
+                Optional.ofNullable(configUpdate.getExpansionType()).orElse(expansionType)
             );
         } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
             var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
-            return new TextExpansionConfig(vocabularyConfig, updatedTokenization, resultsField);
+            return new TextExpansionConfig(vocabularyConfig, updatedTokenization, resultsField, expansionType);
         } else {
             throw incompatibleUpdateException(update.getName());
         }
@@ -149,6 +164,10 @@ public class TextExpansionConfig implements NlpConfig {
     @Override
     public String getResultsField() {
         return resultsField;
+    }
+
+    public String getExpansionType() {
+        return expansionType;
     }
 
     @Override
@@ -178,11 +197,12 @@ public class TextExpansionConfig implements NlpConfig {
         TextExpansionConfig that = (TextExpansionConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
             && Objects.equals(tokenization, that.tokenization)
-            && Objects.equals(resultsField, that.resultsField);
+            && Objects.equals(resultsField, that.resultsField)
+            && Objects.equals(expansionType, that.expansionType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenization, resultsField);
+        return Objects.hash(vocabularyConfig, tokenization, resultsField, expansionType);
     }
 }

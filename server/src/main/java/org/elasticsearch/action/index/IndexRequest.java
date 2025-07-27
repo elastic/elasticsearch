@@ -434,8 +434,26 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
     }
 
+    public void ensureStructureSource() {
+        if (useStructuredSource == false) {
+            this.useStructuredSource = true;
+            ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
+            try {
+                XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, contentType);
+                structuredSource = builder.parse(parser);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+    }
+
     public boolean isStructuredSource() {
         return useStructuredSource;
+    }
+
+    public ESONSource.ESONObject structuredSource() {
+        return structuredSource;
     }
 
     public Map<String, Object> sourceAsMap() {
@@ -564,13 +582,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
         if (useStructuredSource) {
-            ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
-            try {
-                XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType);
-                structuredSource = builder.parse(parser);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            ensureStructureSource();
         }
         return this;
     }

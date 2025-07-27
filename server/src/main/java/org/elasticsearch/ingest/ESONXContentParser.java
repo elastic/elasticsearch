@@ -23,6 +23,7 @@ import java.io.OutputStream;
 import java.nio.CharBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
 
 /**
  * Simplified XContentParser for flattened ESON structures.
@@ -40,7 +41,7 @@ public class ESONXContentParser extends AbstractXContentParser {
     private final XContentType xContentType;
 
     // Key array iteration state
-    private final ESONSource.KeyEntry[] keyArray;
+    private final List<ESONSource.KeyEntry> keyArray;
     private int currentIndex = 0;
 
     // Current token state
@@ -85,7 +86,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         this.xContentType = xContentType;
 
         // Convert to array for efficient indexed access
-        this.keyArray = root.getKeyArray().toArray(new ESONSource.KeyEntry[0]);
+        this.keyArray = root.getKeyArray();
     }
 
     @Override
@@ -108,12 +109,14 @@ public class ESONXContentParser extends AbstractXContentParser {
         currentValue = null;
         valueComputed = false;
 
+        int size = keyArray.size();
+
         // First token - start root object
         if (currentToken == null) {
-            if (currentIndex >= keyArray.length) {
+            if (currentIndex >= size) {
                 return null;
             }
-            ESONSource.ObjectEntry rootEntry = (ESONSource.ObjectEntry) keyArray[currentIndex];
+            ESONSource.ObjectEntry rootEntry = (ESONSource.ObjectEntry) keyArray.get(currentIndex);
             containerStack.push(new ContainerContext(ContainerContext.Type.OBJECT, rootEntry.fieldCount));
             currentIndex++;
             currentToken = Token.START_OBJECT;
@@ -121,7 +124,7 @@ public class ESONXContentParser extends AbstractXContentParser {
         }
 
         // Check if we've finished parsing
-        if (containerStack.isEmpty() && currentIndex >= keyArray.length) {
+        if (containerStack.isEmpty() && currentIndex >= size) {
             return null;
         }
 
@@ -133,14 +136,14 @@ public class ESONXContentParser extends AbstractXContentParser {
         }
 
         // If we've exhausted the array but still have containers, close them
-        if (currentIndex >= keyArray.length) {
+        if (currentIndex >= size) {
             ContainerContext ctx = containerStack.pop();
             currentToken = ctx.type == ContainerContext.Type.OBJECT ? Token.END_OBJECT : Token.END_ARRAY;
             return currentToken;
         }
 
         // Process next entry
-        ESONSource.KeyEntry entry = keyArray[currentIndex];
+        ESONSource.KeyEntry entry = keyArray.get(currentIndex);
         ContainerContext currentContainer = containerStack.peek();
 
         if (currentContainer == null) {

@@ -3676,8 +3676,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             + " as well as "
                             + shardsBuilder;
 
-                    // TODO: this may not be necessary now that we check through all repositories in computeUpdatedState
-                    // Check horizontally within the snapshot to see whether any previously limited shard snapshots can now start
+                    // Shard snapshots changed status for this entry, check within the snapshot to see whether any previously limited
+                    // shard snapshots can now start due to newly completed ones.
                     maybeStartAssignedQueuedShardSnapshots(
                         initialState,
                         entry,
@@ -3692,27 +3692,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 } else if (clonesBuilder != null) {
                     return entry.withClones(clonesBuilder.build());
                 } else {
-                    // TODO: this may not be necessary now that we check through all repositories in computeUpdatedState
-                    // If this snapshot sees no update, we still need to check whether we can start any assigned-queued shard snapshots
-                    // because all currently running shard snapshots may all belong to snapshots after this one. In this case, no future
-                    // completion of shard snapshot can kick off an assigned-queued shard snapshot for this entry if we don't do it here.
-                    if (entry.isClone() == false
-                        && perNodeShardSnapshotCounter.hasCapacityOnAnyNode()
-                        && entry.shards().values().stream().anyMatch(ShardSnapshotStatus::isAssignedQueued)) {
-                        maybeStartAssignedQueuedShardSnapshots(
-                            initialState,
-                            entry,
-                            nodeIdRemovalPredicate,
-                            shardsBuilder(),
-                            perNodeShardSnapshotCounter,
-                            shardStatusUpdateConsumer,
-                            () -> changedCount++,
-                            () -> startedCount++
-                        );
-                        return entry.withShardStates(shardsBuilder.build());
-                    } else {
-                        return entry;
-                    }
+                    return entry;
                 }
             }
 

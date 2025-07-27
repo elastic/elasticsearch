@@ -1341,21 +1341,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Builds a new ingest document from the passed-in index request.
      */
     private static IngestDocument newIngestDocument(final IndexRequest request) {
-        BytesReference source = request.source();
-        ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
-        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, request.getContentType());) {
-            ESONSource.ESONObject esonObject = builder.parse(parser);
-            return new IngestDocument(
-                request.index(),
-                request.id(),
-                request.version(),
-                request.routing(),
-                request.versionType(),
-                new MapStructuredSource(esonObject)
-            );
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("Failed to parse content to type", e);
-        }
+        request.ensureStructureSource();
+        return new IngestDocument(
+            request.index(),
+            request.id(),
+            request.version(),
+            request.routing(),
+            request.versionType(),
+            new MapStructuredSource(request.structuredSource())
+        );
     }
 
     /**

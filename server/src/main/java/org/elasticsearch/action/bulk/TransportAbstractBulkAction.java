@@ -181,6 +181,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
+                for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+                    if (actionRequest instanceof IndexRequest ir) {
+                        ir.ensureStructureSource();
+                    }
+                }
                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });

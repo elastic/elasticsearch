@@ -78,7 +78,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
@@ -3532,15 +3531,17 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 updated = updated.createCopyWithUpdatedEntriesForRepo(projectRepo.projectId(), projectRepo.name(), newEntries);
             }
 
-            // Also check snapshots in other repositories since they might have been limited earlier due to shard snapshots running
-            // from repositories currently seeing updates
-            // TODO: deduplicate the code for starting assigned-queued shards across repos
-            for (var notUpdatedRepo : Sets.difference(existing.repos(), updatesByRepo.keySet())) {
+            // Also check snapshots in all repositories to start any assigned queued shard snapshots. This is needed for both
+            // (1) Repos that have not seen updates in this batch because their snapshots may have been limited earlier
+            // due to snapshots running for a repository that is update to completion in this batch.
+            // (2) Repos that have seen updates in this batch because updates releasing capacity may all belong to later snapshots
+            // than the one has assigned-queued shards. These updates could be either for the same repo or a different repo.
+            for (var repo : existing.repos()) {
                 if (perNodeShardSnapshotCounter.hasCapacityOnAnyNode() == false) {
                     break;
                 }
                 updated = maybeStartAssignedQueuedShardSnapshotsForRepo(
-                    notUpdatedRepo,
+                    repo,
                     initialState,
                     updated,
                     perNodeShardSnapshotCounter,
@@ -3670,6 +3671,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             + " as well as "
                             + shardsBuilder;
 
+                    // TODO: this may not be necessary now that we check through all repositories in computeUpdatedState
                     // Check horizontally within the snapshot to see whether any previously limited shard snapshots can now start
                     maybeStartAssignedQueuedShardSnapshots(
                         initialState,
@@ -3685,6 +3687,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 } else if (clonesBuilder != null) {
                     return entry.withClones(clonesBuilder.build());
                 } else {
+                    // TODO: this may not be necessary now that we check through all repositories in computeUpdatedState
                     // If this snapshot sees no update, we still need to check whether we can start any assigned-queued shard snapshots
                     // because all currently running shard snapshots may all belong to snapshots after this one. In this case, no future
                     // completion of shard snapshot can kick off an assigned-queued shard snapshot for this entry if we don't do it here.

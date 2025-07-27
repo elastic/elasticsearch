@@ -1306,6 +1306,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 Starting shard [{}] with shard generation [{}] that we were waiting to start on node [{}]. Previous \
                                 shard state [{}]
                                 """, shardId, shardStatus.generation(), shardStatus.nodeId(), shardStatus.state());
+                            // TODO: The following should check node capacity
                             shards.put(shardId, new ShardSnapshotStatus(primaryNodeId, shardStatus.generation()));
                             continue;
                         } else if (shardRouting.primaryShard().initializing() || shardRouting.primaryShard().relocating()) {

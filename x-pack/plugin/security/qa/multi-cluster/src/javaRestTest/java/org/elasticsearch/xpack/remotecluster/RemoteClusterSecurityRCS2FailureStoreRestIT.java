@@ -168,7 +168,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                         + "] of user [test_user] on indices ["
                         + backingFailureIndexName
                         + "], this action is granted by the index privileges ["
-                        + (ccsMinimizeRoundtrips ? "read,all" : "view_index_metadata,manage,read_cross_cluster,all")
+                        + (ccsMinimizeRoundtrips ? "read,all" : "read_cross_cluster,view_index_metadata,manage,read,all")
                         + "]"
                 )
             );

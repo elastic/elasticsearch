@@ -628,7 +628,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testCrossClusterQueryWithOnlyRemotePrivs() throws Exception {
         configureRemoteCluster();
         populateData();
@@ -704,7 +703,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             error.getMessage(),
             containsString(
                 "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles [remote_search], "
-                    + "this action is granted by the index privileges [read,read_cross_cluster,all]"
+                    + "this action is granted by the index privileges [read_cross_cluster,read,all]"
             )
         );
 
@@ -720,7 +719,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             error.getMessage(),
             containsString(
                 "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
-                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
+                    + "[remote_search], this action is granted by the index privileges [read_cross_cluster,read,all]"
             )
         );
 
@@ -735,7 +734,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             error.getMessage(),
             containsString(
                 "action [indices:data/read/esql] is unauthorized for user [remote_search_user] with effective roles "
-                    + "[remote_search], this action is granted by the index privileges [read,read_cross_cluster,all]"
+                    + "[remote_search], this action is granted by the index privileges [read_cross_cluster,read,all]"
             )
         );
     }

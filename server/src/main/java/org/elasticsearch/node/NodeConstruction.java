@@ -60,6 +60,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -787,6 +788,15 @@ class NodeConstruction {
             )::onNewInfo
         );
 
+        clusterInfoService.addListener(
+            new WriteLoadConstraintMonitor(
+                clusterService.getClusterSettings(),
+                threadPool.relativeTimeInMillisSupplier(),
+                clusterService::state,
+                rerouteService
+            )::onNewInfo
+        );
+
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
         modules.add(indicesModule);
 
@@ -1152,6 +1162,7 @@ class NodeConstruction {
             indicesService,
             fileSettingsService,
             threadPool,
+            projectResolver.supportsMultipleProjects(),
             pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance)
         );
 

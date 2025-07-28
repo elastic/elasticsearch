@@ -31,6 +31,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.inference.telemetry.InferenceStatsTests;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -129,7 +130,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 mock(Client.class),
                 mock(ThreadPool.class),
                 mock(ClusterService.class),
-                Settings.EMPTY
+                Settings.EMPTY,
+                InferenceStatsTests.mockInferenceStats()
             )
         );
         ElasticsearchInternalModel roundTripModel = (ElasticsearchInternalModel) elserService.parsePersistedConfigWithSecrets(

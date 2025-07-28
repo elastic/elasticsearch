@@ -13,52 +13,55 @@ import org.elasticsearch.script.Metadata;
 
 import java.time.ZonedDateTime;
 
-public class MetadataBridge extends StableBridgeAPI.Proxy<Metadata> {
+/**
+ * An external bridge for {@link Metadata}
+ */
+public class MetadataBridge extends StableBridgeAPI.ProxyInternal<Metadata> {
     public MetadataBridge(final Metadata delegate) {
         super(delegate);
     }
 
     public String getIndex() {
-        return delegate.getIndex();
+        return internalDelegate.getIndex();
     }
 
     public void setIndex(final String index) {
-        delegate.setIndex(index);
+        internalDelegate.setIndex(index);
     }
 
     public String getId() {
-        return delegate.getId();
+        return internalDelegate.getId();
     }
 
     public void setId(final String id) {
-        delegate.setId(id);
+        internalDelegate.setId(id);
     }
 
     public long getVersion() {
-        return delegate.getVersion();
+        return internalDelegate.getVersion();
     }
 
     public void setVersion(final long version) {
-        delegate.setVersion(version);
+        internalDelegate.setVersion(version);
     }
 
     public String getVersionType() {
-        return delegate.getVersionType();
+        return internalDelegate.getVersionType();
     }
 
     public void setVersionType(final String versionType) {
-        delegate.setVersionType(versionType);
+        internalDelegate.setVersionType(versionType);
     }
 
     public String getRouting() {
-        return delegate.getRouting();
+        return internalDelegate.getRouting();
     }
 
     public void setRouting(final String routing) {
-        delegate.setRouting(routing);
+        internalDelegate.setRouting(routing);
     }
 
     public ZonedDateTime getNow() {
-        return delegate.getNow();
+        return internalDelegate.getNow();
     }
 }

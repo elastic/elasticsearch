@@ -2703,6 +2703,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     indicesService,
                     mock(FileSettingsService.class),
                     threadPool,
+                    false,
                     IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
                 );
                 actions.put(
@@ -2756,7 +2757,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 actions.put(
                     TransportRestoreSnapshotAction.TYPE,
-                    new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters)
+                    new TransportRestoreSnapshotAction(
+                        transportService,
+                        clusterService,
+                        threadPool,
+                        restoreService,
+                        actionFilters,
+                        TestProjectResolvers.DEFAULT_PROJECT_ONLY
+                    )
                 );
                 actions.put(
                     TransportDeleteIndexAction.TYPE,

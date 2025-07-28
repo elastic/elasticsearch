@@ -1,7 +1,7 @@
 pr: 131907
 summary: Enable `exclude_source_vectors` by default for new indices
 area: Vector Search
-type: "breaking, enhancement"
+type: breaking
 issues: []
 breaking:
   title: Enable `exclude_source_vectors` by default for new indices

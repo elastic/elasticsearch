@@ -143,7 +143,10 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
             clusterClientsHolder.closeRepositoryClients(repositoryName);
         } else {
-            getClientsHolderSafe(projectId).closeRepositoryClients(repositoryName);
+            final var old = perProjectClientsHolders.get(projectId);
+            if (old != null) {
+                old.closeRepositoryClients(repositoryName);
+            }
         }
     }
 
@@ -166,9 +169,9 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
     }
 
     private ClientsHolder getClientsHolderSafe(ProjectId projectId) {
+        assert ProjectId.DEFAULT.equals(projectId) == false;
         final var clientsHolder = perProjectClientsHolders.get(projectId);
         if (clientsHolder == null) {
-            assert ProjectId.DEFAULT.equals(projectId) == false;
             throw new IllegalArgumentException("No GCS client is configured for project [" + projectId + "]");
         }
         return clientsHolder;

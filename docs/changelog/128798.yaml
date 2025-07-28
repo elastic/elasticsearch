@@ -1,0 +1,5 @@
+pr: 128798
+summary: Add transport version support for IDP_CUSTOM_SAML_ATTRIBUTES_ADDED_8_19
+area: IdentityProvider
+type: enhancement
+issues: []

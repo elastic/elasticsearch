@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BaseTermsEnum;
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesType;
@@ -150,6 +151,102 @@ public abstract class XDocValuesConsumer extends DocValuesConsumer {
                 return current.values.longValue();
             }
         };
+    }
+
+    /** Tracks state of one binary sub-reader that we are merging */
+    private static class BinaryDocValuesSub extends DocIDMerger.Sub {
+
+        final BinaryDocValues values;
+
+        BinaryDocValuesSub(MergeState.DocMap docMap, BinaryDocValues values) {
+            super(docMap);
+            this.values = values;
+            assert values.docID() == -1;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return values.nextDoc();
+        }
+    }
+
+    /**
+     * Merges the binary docvalues from <code>MergeState</code>.
+     *
+     * <p>The default implementation calls {@link #addBinaryField}, passing a DocValuesProducer that
+     * merges and filters deleted documents on the fly.
+     */
+    public void mergeBinaryField(MergeStats mergeStats, FieldInfo mergeFieldInfo, final MergeState mergeState) throws IOException {
+        addBinaryField(mergeFieldInfo, new TsdbDocValuesProducer(mergeStats) {
+            @Override
+            public BinaryDocValues getBinary(FieldInfo fieldInfo) throws IOException {
+                if (fieldInfo != mergeFieldInfo) {
+                    throw new IllegalArgumentException("wrong fieldInfo");
+                }
+
+                List<BinaryDocValuesSub> subs = new ArrayList<>();
+
+                long cost = 0;
+                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+                    BinaryDocValues values = null;
+                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+                    if (docValuesProducer != null) {
+                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
+                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.BINARY) {
+                            values = docValuesProducer.getBinary(readerFieldInfo);
+                        }
+                    }
+                    if (values != null) {
+                        cost += values.cost();
+                        subs.add(new BinaryDocValuesSub(mergeState.docMaps[i], values));
+                    }
+                }
+
+                final DocIDMerger<BinaryDocValuesSub> docIDMerger = DocIDMerger.of(subs, mergeState.needsIndexSort);
+                final long finalCost = cost;
+
+                return new BinaryDocValues() {
+                    private BinaryDocValuesSub current;
+                    private int docID = -1;
+
+                    @Override
+                    public int docID() {
+                        return docID;
+                    }
+
+                    @Override
+                    public int nextDoc() throws IOException {
+                        current = docIDMerger.next();
+                        if (current == null) {
+                            docID = NO_MORE_DOCS;
+                        } else {
+                            docID = current.mappedDocID;
+                        }
+                        return docID;
+                    }
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public long cost() {
+                        return finalCost;
+                    }
+
+                    @Override
+                    public BytesRef binaryValue() throws IOException {
+                        return current.values.binaryValue();
+                    }
+                };
+            }
+        });
     }
 
     /** Tracks state of one sorted numeric sub-reader that we are merging */

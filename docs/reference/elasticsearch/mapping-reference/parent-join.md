@@ -1,11 +1,12 @@
 ---
+applies_to:
+  serverless: unavailable
 navigation_title: "Join"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/parent-join.html
 ---
 
 # Join field type [parent-join]
-
 
 The `join` data type is a special field that creates parent/child relation within documents of the same index. The `relations` section defines a set of possible relations within the documents, each relation being a parent name and a child name.
 
@@ -139,7 +140,7 @@ The only case where the join field makes sense is if your data contains a one-to
 
 ## Searching with parent-join [_searching_with_parent_join]
 
-The parent-join creates one field to index the name of the relation within the document (`my_parent`, `my_child`, …​).
+The parent-join creates one field to index the name of the relation within the document (`my_parent`, `my_child`, … ).
 
 It also creates one field per parent/child relation. The name of this field is the name of the `join` field followed by `#` and the name of the parent in the relation. So for instance for the `my_parent` → [`my_child`, `another_child`] relation, the `join` field creates an additional field named `my_join_field#my_parent`.
 

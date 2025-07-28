@@ -49,3 +49,15 @@ tasks.named("yamlRestCompatTestTransform") { task ->
   task.skipTest("stack/10_basic/Test kibana reporting index auto creation", "warning does not exist for compatibility")
   task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
 }
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}

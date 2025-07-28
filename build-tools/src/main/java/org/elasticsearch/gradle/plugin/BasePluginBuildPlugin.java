@@ -121,7 +121,10 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
             task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
 
             var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            FileCollection moduleInfoFile = mainSourceSet.getOutput().getAsFileTree().matching(p -> p.include("module-info.class"));
+            FileCollection moduleInfoFile = mainSourceSet.getOutput()
+                .getClassesDirs()
+                .getAsFileTree()
+                .matching(p -> p.include("module-info.class"));
             task.getModuleInfoFile().setFrom(moduleInfoFile);
 
         });
@@ -183,11 +186,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
     ) {
         var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
-        bundleSpec.from(pluginMetadata, copySpec -> {
-            // metadata (eg custom security policy)
-            // the codebases properties file is only for tests and not needed in production
-            copySpec.exclude("plugin-security.codebases");
-        });
+        bundleSpec.from(pluginMetadata);
         bundleSpec.from(
             (Callable<TaskProvider<Task>>) () -> project.getPluginManager().hasPlugin("com.gradleup.shadow")
                 ? project.getTasks().named("shadowJar")

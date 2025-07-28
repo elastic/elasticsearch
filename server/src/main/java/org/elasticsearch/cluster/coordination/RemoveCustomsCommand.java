@@ -16,6 +16,8 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
@@ -66,6 +68,8 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
             "project scoped custom metadata names: " + oldClusterState.metadata().getProject().customs().keySet()
         );
         final Metadata.Builder metadataBuilder = Metadata.builder(oldClusterState.metadata());
+        @FixForMultiProject
+        final ProjectMetadata.Builder projectBuilder = metadataBuilder.getProject(ProjectId.DEFAULT);
         for (String customToRemove : customsToRemove) {
             @FixForMultiProject
             boolean matched = false;
@@ -82,7 +86,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
             }
             for (String customKey : oldClusterState.metadata().getProject().customs().keySet()) {
                 if (Regex.simpleMatch(customToRemove, customKey)) {
-                    metadataBuilder.removeProjectCustom(customKey);
+                    projectBuilder.removeCustom(customKey);
                     if (matched == false) {
                         terminal.println("The following customs will be removed:");
                     }

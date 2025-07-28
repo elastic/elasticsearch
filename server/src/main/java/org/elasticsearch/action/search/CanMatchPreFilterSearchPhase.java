@@ -12,6 +12,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -76,7 +77,7 @@ final class CanMatchPreFilterSearchPhase {
     private int numPossibleMatches;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
 
-    CanMatchPreFilterSearchPhase(
+    private CanMatchPreFilterSearchPhase(
         Logger logger,
         SearchTransportService searchTransportService,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -123,6 +124,57 @@ final class CanMatchPreFilterSearchPhase {
         this.shardItIndexMap = shardItIndexMap;
     }
 
+    public static SubscribableListener<List<SearchShardIterator>> execute(
+        Logger logger,
+        SearchTransportService searchTransportService,
+        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        Executor executor,
+        SearchRequest request,
+        List<SearchShardIterator> shardsIts,
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        SearchTask task,
+        boolean requireAtLeastOneMatch,
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
+    ) {
+        if (shardsIts.isEmpty()) {
+            return SubscribableListener.newSucceeded(List.of());
+        }
+        final SubscribableListener<List<SearchShardIterator>> listener = new SubscribableListener<>();
+        // Note that the search is failed when this task is rejected by the executor
+        executor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
+                }
+                listener.onFailure(new SearchPhaseExecutionException("can_match", "start", e, ShardSearchFailure.EMPTY_ARRAY));
+            }
+
+            @Override
+            protected void doRun() {
+                assert assertSearchCoordinationThread();
+                new CanMatchPreFilterSearchPhase(
+                    logger,
+                    searchTransportService,
+                    nodeIdToConnection,
+                    aliasFilter,
+                    concreteIndexBoosts,
+                    executor,
+                    request,
+                    shardsIts,
+                    timeProvider,
+                    task,
+                    requireAtLeastOneMatch,
+                    coordinatorRewriteContextProvider,
+                    listener
+                ).runCoordinatorRewritePhase();
+            }
+        });
+        return listener;
+    }
+
     private static boolean assertSearchCoordinationThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
     }
@@ -165,7 +217,7 @@ final class CanMatchPreFilterSearchPhase {
             }
         }
         if (matchedShardLevelRequests.isEmpty()) {
-            finishPhase();
+            listener.onResponse(getIterator(shardsIts));
         } else {
             // verify missing shards only for the shards that we hit for the query
             checkNoMissingShards(matchedShardLevelRequests);
@@ -176,18 +228,14 @@ final class CanMatchPreFilterSearchPhase {
     private void consumeResult(boolean canMatch, ShardSearchRequest request) {
         CanMatchShardResponse result = new CanMatchShardResponse(canMatch, null);
         result.setShardIndex(request.shardRequestIndex());
-        consumeResult(result, () -> {});
+        consumeResult(result);
     }
 
-    private void consumeResult(CanMatchShardResponse result, Runnable next) {
-        try {
-            final boolean canMatch = result.canMatch();
-            final MinAndMax<?> minAndMax = result.estimatedMinAndMax();
-            if (canMatch || minAndMax != null) {
-                consumeResult(result.getShardIndex(), canMatch, minAndMax);
-            }
-        } finally {
-            next.run();
+    private void consumeResult(CanMatchShardResponse result) {
+        final boolean canMatch = result.canMatch();
+        final MinAndMax<?> minAndMax = result.estimatedMinAndMax();
+        if (canMatch || minAndMax != null) {
+            consumeResult(result.getShardIndex(), canMatch, minAndMax);
         }
     }
 
@@ -226,7 +274,7 @@ final class CanMatchPreFilterSearchPhase {
      * If there are failures during a round, there will be a follow-up round
      * to retry on other available shard copies.
      */
-    class Round extends AbstractRunnable {
+    private class Round extends AbstractRunnable {
         private final List<SearchShardIterator> shards;
         private final CountDown countDown;
         private final AtomicReferenceArray<Exception> failedResponses;
@@ -296,11 +344,10 @@ final class CanMatchPreFilterSearchPhase {
 
         private void onOperation(int idx, CanMatchShardResponse response) {
             failedResponses.set(idx, null);
-            consumeResult(response, () -> {
-                if (countDown.countDown()) {
-                    finishRound();
-                }
-            });
+            consumeResult(response);
+            if (countDown.countDown()) {
+                finishRound();
+            }
         }
 
         private void onOperationFailed(int idx, Exception e) {
@@ -322,7 +369,7 @@ final class CanMatchPreFilterSearchPhase {
                 }
             }
             if (remainingShards.isEmpty()) {
-                finishPhase();
+                listener.onResponse(getIterator(shardsIts));
             } else {
                 // trigger another round, forcing execution
                 executor.execute(new Round(remainingShards) {
@@ -339,7 +386,7 @@ final class CanMatchPreFilterSearchPhase {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
             }
-            onPhaseFailure("round", e);
+            listener.onFailure(new SearchPhaseExecutionException("can_match", "round", e, ShardSearchFailure.EMPTY_ARRAY));
         }
     }
 
@@ -363,13 +410,9 @@ final class CanMatchPreFilterSearchPhase {
         );
     }
 
-    private void finishPhase() {
-        listener.onResponse(getIterator(shardsIts));
-    }
-
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
 
-    public CanMatchNodeRequest.Shard buildShardLevelRequest(SearchShardIterator shardIt) {
+    private CanMatchNodeRequest.Shard buildShardLevelRequest(SearchShardIterator shardIt) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
@@ -384,33 +427,6 @@ final class CanMatchPreFilterSearchPhase {
             shardIt.getSearchContextKeepAlive(),
             ShardSearchRequest.computeWaitForCheckpoint(request.getWaitForCheckpoints(), shardIt.shardId(), shardRequestIndex)
         );
-    }
-
-    public void start() {
-        if (shardsIts.isEmpty()) {
-            finishPhase();
-            return;
-        }
-        // Note that the search is failed when this task is rejected by the executor
-        executor.execute(new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
-                }
-                onPhaseFailure("start", e);
-            }
-
-            @Override
-            protected void doRun() {
-                assert assertSearchCoordinationThread();
-                runCoordinatorRewritePhase();
-            }
-        });
-    }
-
-    private void onPhaseFailure(String msg, Exception cause) {
-        listener.onFailure(new SearchPhaseExecutionException("can_match", msg, cause, ShardSearchFailure.EMPTY_ARRAY));
     }
 
     private synchronized List<SearchShardIterator> getIterator(List<SearchShardIterator> shardsIts) {

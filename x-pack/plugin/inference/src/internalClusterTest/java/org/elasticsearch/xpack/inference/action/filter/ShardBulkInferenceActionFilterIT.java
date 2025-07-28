@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.action.filter;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -26,11 +26,14 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
+import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.xpack.inference.InferenceIndex;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
@@ -45,7 +48,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
+import static org.elasticsearch.xpack.inference.Utils.storeModel;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.hamcrest.Matchers.containsString;
@@ -56,6 +61,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     private final boolean useLegacyFormat;
     private final boolean useSyntheticSource;
+    private ModelRegistry modelRegistry;
 
     public ShardBulkInferenceActionFilterIT(boolean useLegacyFormat, boolean useSyntheticSource) {
         this.useLegacyFormat = useLegacyFormat;
@@ -74,7 +80,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
+        modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
         DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         // dot product means that we need normalized vectors; it's not worth doing that in this test
         SimilarityMeasure similarity = randomValueOtherThan(
@@ -135,69 +141,12 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
                 TestDenseInferenceServiceExtension.TestInferenceService.NAME
             )
         ).get();
-
-        int totalBulkReqs = randomIntBetween(2, 100);
-        long totalDocs = 0;
-        Set<String> ids = new HashSet<>();
-        for (int bulkReqs = 0; bulkReqs < totalBulkReqs; bulkReqs++) {
-            BulkRequestBuilder bulkReqBuilder = client().prepareBulk();
-            int totalBulkSize = randomIntBetween(1, 100);
-            for (int bulkSize = 0; bulkSize < totalBulkSize; bulkSize++) {
-                if (ids.size() > 0 && rarely(random())) {
-                    String id = randomFrom(ids);
-                    ids.remove(id);
-                    DeleteRequestBuilder request = new DeleteRequestBuilder(client(), INDEX_NAME).setId(id);
-                    bulkReqBuilder.add(request);
-                    continue;
-                }
-                String id = Long.toString(totalDocs++);
-                boolean isIndexRequest = randomBoolean();
-                Map<String, Object> source = new HashMap<>();
-                source.put("sparse_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
-                source.put("dense_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
-                if (isIndexRequest) {
-                    bulkReqBuilder.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(id).setSource(source));
-                    ids.add(id);
-                } else {
-                    boolean isUpsert = randomBoolean();
-                    UpdateRequestBuilder request = new UpdateRequestBuilder(client()).setIndex(INDEX_NAME).setDoc(source);
-                    if (isUpsert || ids.size() == 0) {
-                        request.setDocAsUpsert(true);
-                    } else {
-                        // Update already existing document
-                        id = randomFrom(ids);
-                    }
-                    request.setId(id);
-                    bulkReqBuilder.add(request);
-                    ids.add(id);
-                }
-            }
-            BulkResponse bulkResponse = bulkReqBuilder.get();
-            if (bulkResponse.hasFailures()) {
-                // Get more details in case something fails
-                for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-                    if (bulkItemResponse.isFailed()) {
-                        fail(
-                            bulkItemResponse.getFailure().getCause(),
-                            "Failed to index document %s: %s",
-                            bulkItemResponse.getId(),
-                            bulkItemResponse.getFailureMessage()
-                        );
-                    }
-                }
-            }
-            assertFalse(bulkResponse.hasFailures());
-        }
-
-        client().admin().indices().refresh(new RefreshRequest(INDEX_NAME)).get();
-
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
-        SearchResponse searchResponse = client().search(new SearchRequest(INDEX_NAME).source(sourceBuilder)).get();
-        try {
-            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) ids.size()));
-        } finally {
-            searchResponse.decRef();
-        }
+        assertRandomBulkOperations(INDEX_NAME, isIndexRequest -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("sparse_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
+            map.put("dense_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
+            return map;
+        });
     }
 
     public void testItemFailures() {
@@ -241,6 +190,108 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
             assertThat(bulkItemResponse.isFailed(), equalTo(true));
             assertThat(bulkItemResponse.getFailureMessage(), containsString("expected [String|Number|Boolean]"));
+        }
+    }
+
+    public void testRestart() throws Exception {
+        Model model1 = new TestSparseInferenceServiceExtension.TestSparseModel(
+            "another_inference_endpoint",
+            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
+        );
+        storeModel(modelRegistry, model1);
+        prepareCreate("index_restart").setMapping("""
+            {
+                "properties": {
+                    "sparse_field": {
+                        "type": "semantic_text",
+                        "inference_id": "new_inference_endpoint"
+                    },
+                    "other_field": {
+                        "type": "semantic_text",
+                        "inference_id": "another_inference_endpoint"
+                    }
+                }
+            }
+            """).get();
+        Model model2 = new TestSparseInferenceServiceExtension.TestSparseModel(
+            "new_inference_endpoint",
+            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
+        );
+        storeModel(modelRegistry, model2);
+
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
+        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart");
+
+        assertRandomBulkOperations("index_restart", isIndexRequest -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("sparse_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
+            map.put("other_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
+            return map;
+        });
+
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback());
+        ensureGreen(InferenceIndex.INDEX_NAME, "index_restart");
+
+        assertRandomBulkOperations("index_restart", isIndexRequest -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("sparse_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
+            map.put("other_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());
+            return map;
+        });
+    }
+
+    private void assertRandomBulkOperations(String indexName, Function<Boolean, Map<String, Object>> sourceSupplier) throws Exception {
+        int numHits = numHits(indexName);
+        int totalBulkReqs = randomIntBetween(2, 10);
+        Set<String> ids = new HashSet<>();
+        for (int bulkReqs = 0; bulkReqs < totalBulkReqs; bulkReqs++) {
+            BulkRequestBuilder bulkReqBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            int totalBulkSize = randomIntBetween(1, 100);
+            for (int bulkSize = 0; bulkSize < totalBulkSize; bulkSize++) {
+                if (ids.size() > 0 && rarely(random())) {
+                    String id = randomFrom(ids);
+                    ids.remove(id);
+                    DeleteRequestBuilder request = new DeleteRequestBuilder(client(), indexName).setId(id);
+                    bulkReqBuilder.add(request);
+                    continue;
+                }
+                boolean isIndexRequest = ids.size() == 0 || randomBoolean();
+                Map<String, Object> source = sourceSupplier.apply(isIndexRequest);
+                if (isIndexRequest) {
+                    String id = randomAlphaOfLength(20);
+                    bulkReqBuilder.add(new IndexRequestBuilder(client()).setIndex(indexName).setId(id).setSource(source));
+                    ids.add(id);
+                } else {
+                    String id = randomFrom(ids);
+                    bulkReqBuilder.add(new UpdateRequestBuilder(client()).setIndex(indexName).setId(id).setDoc(source));
+                }
+            }
+            BulkResponse bulkResponse = bulkReqBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                // Get more details in case something fails
+                for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+                    if (bulkItemResponse.isFailed()) {
+                        fail(
+                            bulkItemResponse.getFailure().getCause(),
+                            "Failed to index document %s: %s",
+                            bulkItemResponse.getId(),
+                            bulkItemResponse.getFailureMessage()
+                        );
+                    }
+                }
+            }
+            assertFalse(bulkResponse.hasFailures());
+        }
+        assertThat(numHits(indexName), equalTo(numHits + ids.size()));
+    }
+
+    private int numHits(String indexName) throws Exception {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
+        SearchResponse searchResponse = client().search(new SearchRequest(indexName).source(sourceBuilder)).get();
+        try {
+            return (int) searchResponse.getHits().getTotalHits().value();
+        } finally {
+            searchResponse.decRef();
         }
     }
 }

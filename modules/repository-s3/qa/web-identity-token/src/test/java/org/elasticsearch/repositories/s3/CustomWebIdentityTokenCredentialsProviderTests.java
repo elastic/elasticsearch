@@ -9,8 +9,9 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+
 import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
@@ -43,6 +44,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -108,7 +110,9 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                         """,
                     ROLE_ARN,
                     ROLE_NAME,
-                    ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ"))
+                    ZonedDateTime.now(Clock.systemUTC())
+                        .plusSeconds(1L) // short expiry to force a reload
+                        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ"))
                 ).getBytes(StandardCharsets.UTF_8);
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
@@ -121,7 +125,7 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
     @SuppressForbidden(reason = "HTTP server is used for testing")
     private static Map<String, String> getSystemProperties(HttpServer httpServer) {
         return Map.of(
-            "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
+            "org.elasticsearch.repositories.s3.stsEndpointOverride",
             "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
         );
     }
@@ -130,9 +134,9 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         return Map.of("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token", "AWS_ROLE_ARN", ROLE_ARN);
     }
 
-    private static void assertCredentials(AWSCredentials credentials) {
-        Assert.assertFalse(credentials.getAWSAccessKeyId().isEmpty());
-        Assert.assertFalse(credentials.getAWSSecretKey().isEmpty());
+    private static void assertCredentials(AwsCredentials credentials) {
+        Assert.assertFalse(credentials.accessKeyId().isEmpty());
+        Assert.assertFalse(credentials.secretAccessKey().isEmpty());
     }
 
     @SuppressForbidden(reason = "HTTP server is used for testing")
@@ -152,15 +156,15 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             resourceWatcherService
         );
         try {
-            AWSCredentials credentials = S3Service.buildCredentials(
+            AwsCredentials credentials = S3Service.buildCredentials(
                 LogManager.getLogger(S3Service.class),
                 S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8)),
                 webIdentityTokenCredentialsProvider
-            ).getCredentials();
+            ).resolveCredentials();
 
             assertCredentials(credentials);
         } finally {
-            webIdentityTokenCredentialsProvider.shutdown();
+            webIdentityTokenCredentialsProvider.close();
             httpServer.stop(0);
         }
     }
@@ -198,12 +202,12 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             resourceWatcherService
         );
         try {
-            AWSCredentialsProvider awsCredentialsProvider = S3Service.buildCredentials(
+            AwsCredentialsProvider awsCredentialsProvider = S3Service.buildCredentials(
                 LogManager.getLogger(S3Service.class),
                 S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8)),
                 webIdentityTokenCredentialsProvider
             );
-            assertCredentials(awsCredentialsProvider.getCredentials());
+            assertCredentials(awsCredentialsProvider.resolveCredentials());
 
             var latch = new CountDownLatch(1);
             String newWebIdentityToken = "88f84342080d4671a511e10ae905b2b0";
@@ -213,41 +217,14 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
                 }
             });
             Files.writeString(environment.configDir().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
-
-            safeAwait(latch);
-            assertCredentials(awsCredentialsProvider.getCredentials());
+            do {
+                // re-resolve credentials in order to trigger a refresh
+                assertCredentials(awsCredentialsProvider.resolveCredentials());
+            } while (latch.await(500, TimeUnit.MILLISECONDS) == false);
+            assertCredentials(awsCredentialsProvider.resolveCredentials());
         } finally {
-            webIdentityTokenCredentialsProvider.shutdown();
+            webIdentityTokenCredentialsProvider.close();
             httpServer.stop(0);
         }
-    }
-
-    public void testSupportRegionalizedEndpoints() throws Exception {
-        Map<String, String> environmentVariables = Map.of(
-            "AWS_WEB_IDENTITY_TOKEN_FILE",
-            "/var/run/secrets/eks.amazonaws.com/serviceaccount/token",
-            "AWS_ROLE_ARN",
-            ROLE_ARN,
-            "AWS_STS_REGIONAL_ENDPOINTS",
-            "regional",
-            "AWS_REGION",
-            "us-west-2"
-        );
-        Map<String, String> systemProperties = Map.of();
-
-        var webIdentityTokenCredentialsProvider = new S3Service.CustomWebIdentityTokenCredentialsProvider(
-            getEnvironment(),
-            environmentVariables::get,
-            systemProperties::getOrDefault,
-            Clock.systemUTC(),
-            resourceWatcherService
-        );
-        // We can't verify that webIdentityTokenCredentialsProvider's STS client uses the "https://sts.us-west-2.amazonaws.com"
-        // endpoint in a unit test. The client depends on hardcoded RegionalEndpointsOptionResolver that in turn depends
-        // on the system environment that we can't change in the test. So we just verify we that we called `withRegion`
-        // on stsClientBuilder which should internally correctly configure the endpoint when the STS client is built.
-        assertEquals("us-west-2", webIdentityTokenCredentialsProvider.getStsRegion());
-
-        webIdentityTokenCredentialsProvider.shutdown();
     }
 }

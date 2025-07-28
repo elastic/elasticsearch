@@ -7,10 +7,10 @@
 
 package org.elasticsearch.compute.operator.topn;
 
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -18,12 +18,23 @@ import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 
 /**
  * Extracts values into a {@link BreakingBytesRefBuilder}.
  */
 interface ValueExtractor {
     void writeValue(BreakingBytesRefBuilder values, int position);
+
+    /**
+     * This should return a non-null value if the row is supposed to hold a temporary reference to a shard (including incrementing and
+     * decrementing it) in between encoding and decoding the row values.
+     */
+    @Nullable
+    default RefCounted getRefCountedForShard(int position) {
+        return null;
+    }
 
     static ValueExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean inKey, Block block) {
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
@@ -41,7 +52,7 @@ interface ValueExtractor {
             case DOUBLE -> ValueExtractorForDouble.extractorFor(encoder, inKey, (DoubleBlock) block);
             case NULL -> new ValueExtractorForNull();
             case DOC -> new ValueExtractorForDoc(encoder, ((DocBlock) block).asVector());
-            case COMPOSITE -> new ValueExtractorForComposite(encoder, (CompositeBlock) block);
+            case AGGREGATE_METRIC_DOUBLE -> new ValueExtractorForAggregateMetricDouble(encoder, (AggregateMetricDoubleBlock) block);
             default -> {
                 assert false : "No value extractor for [" + block.elementType() + "]";
                 throw new UnsupportedOperationException("No value extractor for [" + block.elementType() + "]");

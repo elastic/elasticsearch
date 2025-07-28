@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.DynamicAwsCredentials;
+import fixture.aws.DynamicRegionSupplier;
 import fixture.aws.imds.Ec2ImdsHttpFixture;
 import fixture.aws.imds.Ec2ImdsServiceBuilder;
 import fixture.aws.imds.Ec2ImdsVersion;
@@ -25,6 +26,7 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.util.Set;
+import java.util.function.Supplier;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 @ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
@@ -35,7 +37,8 @@ public class RepositoryS3EcsCredentialsRestIT extends AbstractRepositoryS3RestTe
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String CLIENT = "ecs_credentials_client";
 
-    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials("*", "s3");
+    private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+    private static final DynamicAwsCredentials dynamicCredentials = new DynamicAwsCredentials(regionSupplier, "s3");
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
@@ -48,6 +51,7 @@ public class RepositoryS3EcsCredentialsRestIT extends AbstractRepositoryS3RestTe
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .environment("AWS_CONTAINER_CREDENTIALS_FULL_URI", () -> ec2ImdsHttpFixture.getAddress() + "/ecs_credentials_endpoint")
+        .environment("AWS_REGION", regionSupplier) // Region is supplied by environment variable when running in ECS
         .build();
 
     @ClassRule

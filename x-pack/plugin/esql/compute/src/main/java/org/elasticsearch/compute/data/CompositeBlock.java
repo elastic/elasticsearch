@@ -92,16 +92,12 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
 
     @Override
     public int getFirstValueIndex(int position) {
-        return blocks[0].getFirstValueIndex(position);
+        throw new UnsupportedOperationException("Composite block");
     }
 
     @Override
     public int getValueCount(int position) {
-        int max = 0;
-        for (var block : blocks) {
-            max = Math.max(max, block.getValueCount(position));
-        }
-        return max;
+        throw new UnsupportedOperationException("Composite block");
     }
 
     @Override

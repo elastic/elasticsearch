@@ -37,8 +37,8 @@ import static org.elasticsearch.test.ESTestCase.randomSecretKey;
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate the AWS STS endpoint")
 public class AwsStsHttpHandler implements HttpHandler {
 
-    static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
-    static final String ROLE_NAME = "sts-fixture-test";
+    public static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
+    public static final String ROLE_NAME = "sts-fixture-test";
 
     private final BiConsumer<String, String> newCredentialsConsumer;
     private final String webIdentityToken;
@@ -56,7 +56,7 @@ public class AwsStsHttpHandler implements HttpHandler {
             final var requestMethod = exchange.getRequestMethod();
             final var path = exchange.getRequestURI().getPath();
 
-            if ("POST".equals(requestMethod) && "/assume-role-with-web-identity/".equals(path)) {
+            if ("POST".equals(requestMethod) && "/".equals(path)) {
 
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 Map<String, String> params = Arrays.stream(body.split("&"))

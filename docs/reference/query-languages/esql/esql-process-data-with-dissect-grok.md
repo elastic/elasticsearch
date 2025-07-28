@@ -1,10 +1,10 @@
 ---
-navigation_title: "Data processing with DISSECT and GROK"
+navigation_title: "Extract data with DISSECT and GROK"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-process-data-with-dissect-and-grok.html
 ---
 
-# Data processing with DISSECT and GROK [esql-process-data-with-dissect-and-grok]
+# Extract data from unstructured text with `DISSECT` and `GROK`[esql-process-data-with-dissect-and-grok]
 
 
 Your data may contain unstructured strings that you want to structure. This makes it easier to analyze the data. For example, log messages may contain IP addresses that you want to extract so you can find the most active IP addresses.
@@ -120,9 +120,9 @@ $$$esql-dissect-key-modifiers-table$$$
 
 #### Right padding modifier (`->`) [esql-dissect-modifier-skip-right-padding]
 
-The algorithm that performs the dissection is very strict in that it requires all characters in the pattern to match the source string. For example, the pattern `%{{fookey}} %{{barkey}}` (1 space), will match the string "foo bar" (1 space), but will not match the string "foo  bar" (2 spaces) since the pattern has only 1 space and the source string has 2 spaces.
+The algorithm that performs the dissection is very strict in that it requires all characters in the pattern to match the source string. For example, the pattern `%{{fookey}} %{{barkey}}` (1 space), will match the string "foo bar" (1 space), but will not match the string "foo  bar" (2 spaces) since the pattern has only 1 space and the source string has 2 spaces.
 
-The right padding modifier helps with this case. Adding the right padding modifier to the pattern `%{fookey->} %{{barkey}}`, It will now will match "foo bar" (1 space) and "foo  bar" (2 spaces) and even "foo          bar" (10 spaces).
+The right padding modifier helps with this case. Adding the right padding modifier to the pattern `%{fookey->} %{{barkey}}`, It will now will match "foo bar" (1 space) and "foo  bar" (2 spaces) and even "foo          bar" (10 spaces).
 
 Use the right padding modifier to allow for repetition of the characters after a `%{keyname->}`.
 

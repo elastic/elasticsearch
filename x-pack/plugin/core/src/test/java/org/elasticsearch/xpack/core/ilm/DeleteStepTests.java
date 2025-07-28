@@ -10,11 +10,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
@@ -48,12 +48,12 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DeleteStep(key, nextKey, instance.getClient());
+        return new DeleteStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     @Override
     public DeleteStep copyInstance(DeleteStep instance) {
-        return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     private static IndexMetadata getIndexMetadata() {
@@ -83,12 +83,12 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         }).when(indicesClient).delete(any(), any());
 
         DeleteStep step = createRandomInstance();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
-        performActionAndWait(step, indexMetadata, clusterState, null);
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        performActionAndWait(step, indexMetadata, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).delete(any(), any());
     }
@@ -109,10 +109,8 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         }).when(indicesClient).delete(any(), any());
 
         DeleteStep step = createRandomInstance();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
-        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, clusterState, null)));
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
     }
 
     public void testPerformActionCallsFailureListenerIfIndexIsTheDataStreamWriteIndex() {
@@ -168,22 +166,18 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             List.of(index1.getIndex(), sourceIndexMetadata.getIndex()),
             List.of(failureIndex1.getIndex(), failureSourceIndexMetadata.getIndex())
         );
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(index1, false)
-                    .put(sourceIndexMetadata, false)
-                    .put(failureIndex1, false)
-                    .put(failureSourceIndexMetadata, false)
-                    .put(dataStream)
-                    .build()
-            )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(index1, false)
+            .put(sourceIndexMetadata, false)
+            .put(failureIndex1, false)
+            .put(failureSourceIndexMetadata, false)
+            .put(dataStream)
             .build();
 
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
         final boolean useFailureStore = randomBoolean();
         final IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
-        createRandomInstance().performDuringNoSnapshot(indexToOperateOn, clusterState, new ActionListener<>() {
+        createRandomInstance().performDuringNoSnapshot(indexToOperateOn, project, new ActionListener<>() {
             @Override
             public void onResponse(Void complete) {
                 listenerCalled.set(true);
@@ -231,9 +225,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, List.of(index1.getIndex()), List.of());
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(index1, false).put(dataStream).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(index1, true).put(dataStream));
 
         Mockito.doAnswer(invocation -> {
             DeleteDataStreamAction.Request request = (DeleteDataStreamAction.Request) invocation.getArguments()[1];
@@ -248,9 +240,11 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         // Try on the normal data stream - It should delete the data stream
         DeleteStep step = createRandomInstance();
-        performActionAndWait(step, index1, clusterState, null);
+        performActionAndWait(step, index1, state, null);
 
-        Mockito.verify(client, Mockito.only()).execute(any(), any(), any());
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).execute(any(), any(), any());
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.never()).indices();
         Mockito.verify(indicesClient, Mockito.never()).delete(any(), any());
     }
@@ -297,16 +291,13 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             List.of(failureIndex1.getIndex(), failureSourceIndexMetadata.getIndex())
         );
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(index1, false)
-                    .put(failureIndex1, false)
-                    .put(failureSourceIndexMetadata, false)
-                    .put(dataStreamWithFailureIndices)
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(index1, false)
+                .put(failureIndex1, false)
+                .put(failureSourceIndexMetadata, false)
+                .put(dataStreamWithFailureIndices)
+        );
 
         Mockito.doAnswer(invocation -> {
             DeleteDataStreamAction.Request request = (DeleteDataStreamAction.Request) invocation.getArguments()[1];
@@ -321,9 +312,11 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         // Again, the deletion should work since the data stream would be fully deleted anyway if the failure store were disabled.
         DeleteStep step = createRandomInstance();
-        performActionAndWait(step, index1, clusterState, null);
+        performActionAndWait(step, index1, state, null);
 
-        Mockito.verify(client, Mockito.only()).execute(any(), any(), any());
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(client).execute(any(), any(), any());
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.never()).indices();
         Mockito.verify(indicesClient, Mockito.never()).delete(any(), any());
     }
@@ -376,19 +369,15 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             List.of(failureIndex1.getIndex(), failureSourceIndexMetadata.getIndex())
         );
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(index1, false)
-                    .put(failureIndex1, false)
-                    .put(failureSourceIndexMetadata, false)
-                    .put(dataStreamWithFailureIndices)
-                    .build()
-            )
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .put(index1, false)
+            .put(failureIndex1, false)
+            .put(failureSourceIndexMetadata, false)
+            .put(dataStreamWithFailureIndices)
             .build();
 
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        createRandomInstance().performDuringNoSnapshot(failureSourceIndexMetadata, clusterState, new ActionListener<>() {
+        createRandomInstance().performDuringNoSnapshot(failureSourceIndexMetadata, project, new ActionListener<>() {
             @Override
             public void onResponse(Void complete) {
                 listenerCalled.set(true);

@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 
 public class EsqlGetQueryResponse extends ActionResponse implements ToXContentObject {
     // This is rather limited at the moment, as we don't extract information such as CPU and memory usage, owning user, etc. for the task.
@@ -22,20 +21,18 @@ public class EsqlGetQueryResponse extends ActionResponse implements ToXContentOb
         TaskId id,
         long startTimeMillis,
         long runningTimeNanos,
-        String query,
-        String coordinatingNode,
-        List<String> dataNodes
+        long documentsFound,
+        long valuesLoaded,
+        String query
     ) implements ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("id", id.getId());
-            builder.field("node", id.getNodeId());
             builder.field("start_time_millis", startTimeMillis);
             builder.field("running_time_nanos", runningTimeNanos);
+            builder.field("documents_found", documentsFound);
+            builder.field("values_loaded", valuesLoaded);
             builder.field("query", query);
-            builder.field("coordinating_node", coordinatingNode);
-            builder.field("data_nodes", dataNodes);
             builder.endObject();
             return builder;
         }

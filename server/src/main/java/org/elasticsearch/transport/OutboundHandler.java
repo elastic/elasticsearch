@@ -170,6 +170,7 @@ public final class OutboundHandler {
                     ),
                     ex
                 );
+                channel.setCloseException(ex);
                 channel.close();
             } else {
                 sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
@@ -206,6 +207,7 @@ public final class OutboundHandler {
         } catch (Exception sendException) {
             sendException.addSuppressed(error);
             logger.error(() -> format("Failed to send error response on channel [%s], closing channel", channel), sendException);
+            channel.setCloseException(sendException);
             channel.close();
         }
     }
@@ -229,7 +231,7 @@ public final class OutboundHandler {
         Releasable onAfter
     ) throws IOException {
         assert action != null;
-        final var compressionScheme = writeable instanceof BytesTransportRequest ? null : possibleCompressionScheme;
+        final var compressionScheme = writeable instanceof BytesTransportMessage ? null : possibleCompressionScheme;
         final BytesReference message;
         boolean serializeSuccess = false;
         final RecyclerBytesStreamOutput byteStreamOutput = new RecyclerBytesStreamOutput(recycler);
@@ -336,11 +338,11 @@ public final class OutboundHandler {
         final ReleasableBytesReference zeroCopyBuffer;
         try {
             stream.setTransportVersion(version);
-            if (writeable instanceof BytesTransportRequest bRequest) {
+            if (writeable instanceof BytesTransportMessage bRequest) {
                 assert stream == byteStreamOutput;
                 assert compressionScheme == null;
                 bRequest.writeThin(stream);
-                zeroCopyBuffer = bRequest.bytes;
+                zeroCopyBuffer = bRequest.bytes();
             } else if (writeable instanceof RemoteTransportException remoteTransportException) {
                 stream.writeException(remoteTransportException);
                 zeroCopyBuffer = ReleasableBytesReference.empty();
@@ -416,7 +418,7 @@ public final class OutboundHandler {
                     final long logThreshold = slowLogThresholdMs;
                     if (logThreshold > 0) {
                         final long took = threadPool.rawRelativeTimeInMillis() - startTime;
-                        handlingTimeTracker.addHandlingTime(took);
+                        handlingTimeTracker.addObservation(took);
                         if (took > logThreshold) {
                             logger.warn(
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "
@@ -433,6 +435,17 @@ public final class OutboundHandler {
                 }
             });
         } catch (RuntimeException ex) {
+            logger.error(
+                Strings.format(
+                    "unexpected exception calling sendMessage for transport message [%s] of size [%d] on [%s]",
+                    messageDescription.get(),
+                    messageSize,
+                    channel
+                ),
+                ex
+            );
+            assert Thread.currentThread().getName().startsWith("TEST-") : ex;
+            channel.setCloseException(ex);
             Releasables.closeExpectNoException(() -> listener.onFailure(ex), () -> CloseableChannel.closeChannel(channel));
             throw ex;
         }

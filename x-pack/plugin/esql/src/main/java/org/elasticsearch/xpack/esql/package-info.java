@@ -93,9 +93,9 @@
  *     <li><a href="https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/date-and-time-functions.html">Oracle</a>
  *         is pretty good about dates. It's fine about a lot of things but PostgreSQL is better.</li>
  *     <li>MS <a href="https://learn.microsoft.com/en-us/sql/sql-server/?view=sql-server-ver16">SQL Server</a>
- *         has a silly name but it's documentation is <strong>wonderful</strong>.</li>
+ *         has a silly name but its documentation is <strong>wonderful</strong>.</li>
  *     <li><a href="https://docs.splunk.com/Documentation/SCS/current/SearchReference/UnderstandingSPLSyntax">SPL</a>
- *         is super familiar to our users and it's a piped query language.</li>
+ *         is super familiar to our users, and is a piped query language.</li>
  * </ul>
  *
  * <h2>Major Components</h2>

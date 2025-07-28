@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -26,13 +27,13 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
 
 public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public DataStreamLifecycleUsageTransportAction(
@@ -40,10 +41,12 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
         this.globalRetentionSettings = globalRetentionSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -53,7 +56,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Collection<DataStream> dataStreams = state.metadata().getProject().dataStreams().values();
+        final Collection<DataStream> dataStreams = projectResolver.getProjectMetadata(state).dataStreams().values();
         DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = calculateStats(
             dataStreams,
             clusterService.getClusterSettings().get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
@@ -102,11 +105,12 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
                 }
             }
         }
-        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats = getGlobalRetentionStats(
-            globalRetention,
-            dataStreamsWithDefaultRetention,
-            dataStreamsWithMaxRetention
-        );
+        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats =
+            DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.getGlobalRetentionStats(
+                globalRetention,
+                dataStreamsWithDefaultRetention,
+                dataStreamsWithMaxRetention
+            );
         return new DataStreamLifecycleFeatureSetUsage.LifecycleStats(
             dataStreamsWithLifecycles,
             DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getDefault(null).equals(rolloverConfiguration),
@@ -114,32 +118,5 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
             DataStreamLifecycleFeatureSetUsage.RetentionStats.create(effectiveRetentionStats),
             globalRetentionStats
         );
-    }
-
-    private static Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> getGlobalRetentionStats(
-        DataStreamGlobalRetention globalRetention,
-        long dataStreamsWithDefaultRetention,
-        long dataStreamsWithMaxRetention
-    ) {
-        if (globalRetention == null) {
-            return Map.of();
-        }
-        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats = new HashMap<>();
-        if (globalRetention.defaultRetention() != null) {
-            globalRetentionStats.put(
-                DataStreamLifecycleFeatureSetUsage.LifecycleStats.DEFAULT_RETENTION_FIELD_NAME,
-                new DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats(
-                    dataStreamsWithDefaultRetention,
-                    globalRetention.defaultRetention()
-                )
-            );
-        }
-        if (globalRetention.maxRetention() != null) {
-            globalRetentionStats.put(
-                DataStreamLifecycleFeatureSetUsage.LifecycleStats.MAX_RETENTION_FIELD_NAME,
-                new DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats(dataStreamsWithMaxRetention, globalRetention.maxRetention())
-            );
-        }
-        return globalRetentionStats;
     }
 }

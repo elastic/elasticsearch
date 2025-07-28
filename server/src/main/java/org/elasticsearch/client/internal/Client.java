@@ -52,6 +52,8 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -398,6 +400,16 @@ public interface Client extends ElasticsearchClient {
      * issued from it.
      */
     Client filterWithHeader(Map<String, String> headers);
+
+    /**
+     * Returns a client that executes every request in the context of the given project.
+     */
+    Client projectClient(ProjectId projectId);
+
+    /**
+     * Returns this client's project resolver.
+     */
+    ProjectResolver projectResolver();
 
     /**
      * Returns a client to a remote cluster with the given cluster alias.

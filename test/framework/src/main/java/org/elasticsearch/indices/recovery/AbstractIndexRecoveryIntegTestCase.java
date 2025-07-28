@@ -58,11 +58,9 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase {
@@ -338,21 +336,9 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
                     try {
-                        assertBusy(
-                            () -> assertThat(
-                                "Expected there to be some initializing shards",
-                                client(blueNodeName).admin()
-                                    .cluster()
-                                    .prepareState(TEST_REQUEST_TIMEOUT)
-                                    .setLocal(true)
-                                    .get()
-                                    .getState()
-                                    .getRoutingTable()
-                                    .index("test")
-                                    .shard(0)
-                                    .getAllInitializingShards(),
-                                not(empty())
-                            )
+                        awaitClusterState(
+                            blueNodeName,
+                            state -> state.getRoutingTable().index("test").shard(0).getAllInitializingShards().isEmpty() == false
                         );
                     } catch (Exception e) {
                         throw new RuntimeException(e);

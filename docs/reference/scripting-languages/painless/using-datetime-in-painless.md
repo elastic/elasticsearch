@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-datetime.html
+products:
+  - id: painless
 ---
 
 # Using datetime in Painless [painless-datetime]

@@ -108,7 +108,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                         final SearchHits searchHits;
                         if (fields != null) {
                             final SearchHit hit = new SearchHit(randomInt(1000));
-                            fields.forEach((f, values) -> hit.setDocumentField(f, new DocumentField(f, values, List.of())));
+                            fields.forEach((f, values) -> hit.setDocumentField(new DocumentField(f, values, List.of())));
                             searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
                         } else {
                             searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
@@ -143,7 +143,6 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
             final List<FieldAndFormat> fetchFields = List.of(new FieldAndFormat(randomAlphaOfLength(10), null));
             {
                 leftHit0.setDocumentField(
-                    "lookup_field_1",
                     new DocumentField(
                         "lookup_field_1",
                         List.of(),
@@ -155,7 +154,6 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                     )
                 );
                 leftHit0.setDocumentField(
-                    "lookup_field_2",
                     new DocumentField(
                         "lookup_field_2",
                         List.of(),
@@ -168,7 +166,6 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
             SearchHit leftHit1 = new SearchHit(randomInt(100));
             {
                 leftHit1.setDocumentField(
-                    "lookup_field_2",
                     new DocumentField(
                         "lookup_field_2",
                         List.of(),
@@ -180,7 +177,6 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                     )
                 );
                 leftHit1.setDocumentField(
-                    "lookup_field_3",
                     new DocumentField(
                         "lookup_field_3",
                         List.of(),

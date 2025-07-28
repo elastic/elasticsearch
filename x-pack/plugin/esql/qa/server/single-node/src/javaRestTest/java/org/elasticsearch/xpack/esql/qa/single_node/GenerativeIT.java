@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
 import org.junit.ClassRule;
 
 /**
- * This test generates random queries, runs them agains the CSV test dataset and checks that they don't throw unexpected exceptions.
+ * This test generates random queries, runs them against the CSV test dataset and checks that they don't throw unexpected exceptions.
  *
  * If muted, please:
  * <ul>

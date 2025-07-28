@@ -3,12 +3,12 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-functions-aggs.html
 ---
 
-# Aggregate Functions [sql-functions-aggs]
+# Aggregate functions [sql-functions-aggs]
 
 Functions for computing a *single* result from a set of input values. Elasticsearch SQL supports aggregate functions only alongside [grouping](/reference/query-languages/sql/sql-syntax-select.md#sql-syntax-group-by) (implicit or explicit).
 
 
-## General Purpose [sql-functions-aggs-general]
+## General purpose [sql-functions-aggs-general]
 
 ## `AVG` [sql-functions-aggs-avg]
 
@@ -164,9 +164,8 @@ SELECT FIRST(a) FROM t
 
 will result in:
 
-|     |
-| --- |
 | **FIRST(a)** |
+| --- |
 | 1 |
 
 and
@@ -177,9 +176,8 @@ SELECT FIRST(a, b) FROM t
 
 will result in:
 
-|     |
-| --- |
 | **FIRST(a, b)** |
+| --- |
 | 100 |
 
 ```sql
@@ -285,9 +283,8 @@ SELECT LAST(a) FROM t
 
 will result in:
 
-|     |
-| --- |
 | **LAST(a)** |
+| --- |
 | 200 |
 
 and
@@ -298,9 +295,8 @@ SELECT LAST(a, b) FROM t
 
 will result in:
 
-|     |
-| --- |
 | **LAST(a, b)** |
+| --- |
 | 2 |
 
 ```sql

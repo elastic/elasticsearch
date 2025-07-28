@@ -73,13 +73,20 @@ public class CO2CalculatorTests extends ESTestCase {
 
         double samplingDurationInSeconds = 1_800.0d; // 30 minutes
         long samples = 100_000L; // 100k samples
-        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 19.0d);
-        CO2Calculator co2Calculator = new CO2Calculator(hostsTable, samplingDurationInSeconds, null, null, null, null);
+        double defaultFreq = TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY;
 
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples), annualCoreHours, 1.135d, 0.0002786d, 7.0d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.1d, 0.0000198d, 7.0d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_C, samples), annualCoreHours, 1.185d, 0.000410608d, 2.8d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_D, samples), annualCoreHours, 1.7d, 0.000379069d, 2.8d);
+        // Plausibility check with different frequency factors.
+        // 10x higher frequency means 10x less annualCoreHours with the same number of samples,
+        // and also 10x lower co2 emission.
+        for (double freq : new double[] { defaultFreq, defaultFreq * 10 }) {
+            double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, freq);
+            CO2Calculator co2Calculator = new CO2Calculator(hostsTable, samplingDurationInSeconds, null, null, null, null);
+
+            checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples, freq), annualCoreHours, 1.135d, 0.0002786d, 7.0d);
+            checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples, freq), annualCoreHours, 1.1d, 0.0000198d, 7.0d);
+            checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_C, samples, freq), annualCoreHours, 1.185d, 0.000410608d, 2.8d);
+            checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_D, samples, freq), annualCoreHours, 1.7d, 0.000379069d, 2.8d);
+        }
     }
 
     // Make sure that malformed data doesn't cause the CO2 calculation to fail.
@@ -110,11 +117,18 @@ public class CO2CalculatorTests extends ESTestCase {
 
         double samplingDurationInSeconds = 1_800.0d; // 30 minutes
         long samples = 100_000L; // 100k samples
-        double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, 19.0d);
-        CO2Calculator co2Calculator = new CO2Calculator(hostsTable, samplingDurationInSeconds, null, null, null, null);
+        double defaultFreq = TransportGetStackTracesAction.DEFAULT_SAMPLING_FREQUENCY;
 
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples), annualCoreHours, 1.135d, 0.0002786d, 7.0d);
-        checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples), annualCoreHours, 1.7d, 0.000379069d, 7.0d);
+        // Plausibility check with different frequency factors.
+        // 10x higher frequency means 10x less annualCoreHours with the same number of samples,
+        // and also 10x lower co2 emission.
+        for (double freq : new double[] { defaultFreq, defaultFreq * 10 }) {
+            double annualCoreHours = CostCalculator.annualCoreHours(samplingDurationInSeconds, samples, freq);
+            CO2Calculator co2Calculator = new CO2Calculator(hostsTable, samplingDurationInSeconds, null, null, null, null);
+
+            checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_A, samples, freq), annualCoreHours, 1.135d, 0.0002786d, 7.0d);
+            checkCO2Calculation(co2Calculator.getAnnualCO2Tons(HOST_ID_B, samples, freq), annualCoreHours, 1.7d, 0.000379069d, 7.0d);
+        }
     }
 
     private void checkCO2Calculation(

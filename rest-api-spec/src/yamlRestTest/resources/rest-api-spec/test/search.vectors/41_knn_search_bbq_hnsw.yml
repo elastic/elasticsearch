@@ -568,3 +568,14 @@ setup:
   - match: { hits.hits.1._score: $default_rescore1 }
   - match: { hits.hits.2._score: $override_score2 }
   - match: { hits.hits.2._score: $default_rescore2 }
+
+---
+"default oversample value":
+  - requires:
+      cluster_features: ["mapper.dense_vector.default_oversample_value_for_bbq"]
+      reason: "Needs default_oversample_value_for_bbq feature"
+  - do:
+      indices.get_mapping:
+        index: bbq_hnsw
+
+  - match: { bbq_hnsw.mappings.properties.vector.index_options.rescore_vector.oversample: 3.0 }

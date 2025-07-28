@@ -52,6 +52,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -147,7 +148,11 @@ public final class CsvTestUtils {
                     for (String value : arrayOfValues) {
                         convertedValues.add(type.convert(value));
                     }
-                    convertedValues.stream().sorted().forEach(v -> builderWrapper().append().accept(v));
+                    Stream<Object> convertedValuesStream = convertedValues.stream();
+                    if (type.sortMultiValues()) {
+                        convertedValuesStream = convertedValuesStream.sorted();
+                    }
+                    convertedValuesStream.forEach(v -> builderWrapper().append().accept(v));
                     builderWrapper().builder().endPositionEntry();
 
                     return;
@@ -486,6 +491,7 @@ public final class CsvTestUtils {
             x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
             AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
         ),
+        DENSE_VECTOR(Float::parseFloat, Float.class, false),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -528,25 +534,38 @@ public final class CsvTestUtils {
             LOOKUP.put("DATE", DATETIME);
             LOOKUP.put("DT", DATETIME);
             LOOKUP.put("V", VERSION);
+
+            LOOKUP.put("DENSE_VECTOR", DENSE_VECTOR);
         }
 
         private final Function<String, Object> converter;
         private final Class<?> clazz;
         private final Comparator<Object> comparator;
+        private final boolean sortMultiValues;
+
+        Type(Function<String, Object> converter, Class<?> clazz) {
+            this(converter, clazz, true);
+        }
 
         @SuppressWarnings("unchecked")
-        Type(Function<String, Object> converter, Class<?> clazz) {
+        Type(Function<String, Object> converter, Class<?> clazz, boolean sortMultiValues) {
             this(
                 converter,
                 Comparable.class.isAssignableFrom(clazz) ? (a, b) -> ((Comparable) a).compareTo(b) : Comparator.comparing(Object::toString),
-                clazz
+                clazz,
+                sortMultiValues
             );
         }
 
         Type(Function<String, Object> converter, Comparator<Object> comparator, Class<?> clazz) {
+            this(converter, comparator, clazz, true);
+        }
+
+        Type(Function<String, Object> converter, Comparator<Object> comparator, Class<?> clazz, boolean sortMultiValues) {
             this.converter = converter;
             this.comparator = comparator;
             this.clazz = clazz;
+            this.sortMultiValues = sortMultiValues;
         }
 
         public static Type asType(String name) {
@@ -566,15 +585,9 @@ public final class CsvTestUtils {
                 case BYTES_REF -> bytesRefBlockType(actualType);
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
-                case COMPOSITE -> compositeBlockType(actualType);
+                case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
+                case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
-            };
-        }
-
-        private static Type compositeBlockType(Type actualType) {
-            return switch (actualType) {
-                case AGGREGATE_METRIC_DOUBLE -> actualType;
-                default -> throw new IllegalArgumentException("can't assert on composite blocks that aren't aggregate metric doubles");
             };
         }
 
@@ -599,6 +612,10 @@ public final class CsvTestUtils {
 
         public Comparator<Object> comparator() {
             return comparator;
+        }
+
+        public boolean sortMultiValues() {
+            return sortMultiValues;
         }
     }
 

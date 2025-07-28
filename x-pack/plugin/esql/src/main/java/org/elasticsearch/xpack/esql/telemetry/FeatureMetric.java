@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
+import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -52,6 +54,7 @@ public enum FeatureMetric {
     STATS(Aggregate.class::isInstance),
     WHERE(Filter.class::isInstance),
     ENRICH(Enrich.class::isInstance),
+    EXPLAIN(Explain.class::isInstance),
     MV_EXPAND(MvExpand.class::isInstance),
     SHOW(ShowInfo.class::isInstance),
     ROW(Row.class::isInstance),
@@ -68,7 +71,8 @@ public enum FeatureMetric {
     INSIST(Insist.class::isInstance),
     FORK(Fork.class::isInstance),
     RRF(RrfScoreEval.class::isInstance),
-    COMPLETION(Completion.class::isInstance);
+    COMPLETION(Completion.class::isInstance),
+    SAMPLE(Sample.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

@@ -16,7 +16,6 @@ import static org.apache.lucene.tests.util.LuceneTestCase.assumeTrue;
 import static org.junit.Assert.fail;
 
 /** Simple tests system call filter is working. */
-@ESTestCase.WithoutSecurityManager
 public class SystemCallFilterTests extends ESTestCase {
 
     /** command to try to run in tests */

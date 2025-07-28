@@ -34,10 +34,13 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
+import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
@@ -174,7 +177,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
     }
 
-    static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader {
+    static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader, OffHeapStats {
 
         final Lucene99ScalarQuantizedVectorsReader delegate;
 
@@ -227,6 +230,11 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         public long ramBytesUsed() {
             return delegate.ramBytesUsed();
         }
+
+        @Override
+        public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+            return OffHeapByteSizeUtils.getOffHeapByteSize(delegate, fieldInfo);
+        }
     }
 
     static final class ESFlatVectorsScorer implements FlatVectorsScorer {
@@ -234,8 +242,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         final FlatVectorsScorer delegate;
         final VectorScorerFactory factory;
 
-        ESFlatVectorsScorer(FlatVectorsScorer delegte) {
-            this.delegate = delegte;
+        ESFlatVectorsScorer(FlatVectorsScorer delegate) {
+            this.delegate = delegate;
             factory = VectorScorerFactory.instance().orElse(null);
         }
 

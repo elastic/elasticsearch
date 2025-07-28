@@ -53,7 +53,8 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
     ) {
         return Collections.singletonMap(
             URLRepository.TYPE,
-            metadata -> new URLRepository(
+            (projectId, metadata) -> new URLRepository(
+                projectId,
                 metadata,
                 env,
                 namedXContentRegistry,

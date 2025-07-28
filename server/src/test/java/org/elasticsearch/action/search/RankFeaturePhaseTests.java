@@ -73,7 +73,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         defaultRankFeaturePhaseRankCoordinatorContext(DEFAULT_SIZE, DEFAULT_FROM, DEFAULT_RANK_WINDOW_SIZE)
     );
 
-    private record ExpectedRankFeatureDoc(int doc, int rank, float score, String featureData) {}
+    private record ExpectedRankFeatureDoc(int doc, int rank, float score, List<String> featureData) {}
 
     public void testRankFeaturePhaseWith1Shard() {
         // request params used within SearchSourceBuilder and *RankContext classes
@@ -145,8 +145,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
 
                 SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
                 List<ExpectedRankFeatureDoc> expectedShardResults = List.of(
-                    new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"),
-                    new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2")
+                    new ExpectedRankFeatureDoc(1, 1, 110.0F, List.of("ranked_1")),
+                    new ExpectedRankFeatureDoc(2, 2, 109.0F, List.of("ranked_2"))
                 );
                 List<ExpectedRankFeatureDoc> expectedFinalResults = new ArrayList<>(expectedShardResults);
                 assertShardResults(shard1Result, expectedShardResults);
@@ -263,19 +263,19 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
 
                 SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
-                List<ExpectedRankFeatureDoc> expectedShard1Results = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"));
+                List<ExpectedRankFeatureDoc> expectedShard1Results = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, List.of("ranked_1")));
                 assertShardResults(shard1Result, expectedShard1Results);
 
                 SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
-                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(2, 1, 109.0F, "ranked_2"));
+                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(2, 1, 109.0F, List.of("ranked_2")));
                 assertShardResults(shard2Result, expectedShard2Results);
 
                 SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
                 assertNull(shard3Result);
 
                 List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(
-                    new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"),
-                    new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2")
+                    new ExpectedRankFeatureDoc(1, 1, 110.0F, List.of("ranked_1")),
+                    new ExpectedRankFeatureDoc(2, 2, 109.0F, List.of("ranked_2"))
                 );
                 assertFinalResults(finalResults[0], expectedFinalResults);
             } finally {
@@ -379,7 +379,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 assertNull(shard1Result);
 
                 SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
-                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(2, 1, 109.0F, "ranked_2"));
+                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(2, 1, 109.0F, List.of("ranked_2")));
                 List<ExpectedRankFeatureDoc> expectedFinalResults = new ArrayList<>(expectedShard2Results);
                 assertShardResults(shard2Result, expectedShard2Results);
                 assertFinalResults(finalResults[0], expectedFinalResults);
@@ -609,22 +609,21 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
 
                 SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
-                List<ExpectedRankFeatureDoc> expectedShard1Results = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"));
+                List<ExpectedRankFeatureDoc> expectedShard1Results = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, List.of("ranked_1")));
                 assertShardResults(shard1Result, expectedShard1Results);
 
                 SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
                 List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(
-                    new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
-                    new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2"),
-                    new ExpectedRankFeatureDoc(200, 3, 101.0F, "ranked_200")
-
+                    new ExpectedRankFeatureDoc(11, 1, 200.0F, List.of("ranked_11")),
+                    new ExpectedRankFeatureDoc(2, 2, 109.0F, List.of("ranked_2")),
+                    new ExpectedRankFeatureDoc(200, 3, 101.0F, List.of("ranked_200"))
                 );
                 assertShardResults(shard2Result, expectedShard2Results);
 
                 SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
                 assertNull(shard3Result);
 
-                List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(new ExpectedRankFeatureDoc(1, 2, 110.0F, "ranked_1"));
+                List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(new ExpectedRankFeatureDoc(1, 2, 110.0F, List.of("ranked_1")));
                 assertFinalResults(finalResults[0], expectedFinalResults);
             } finally {
                 rankFeaturePhase.rankPhaseResults.close();
@@ -748,19 +747,21 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
 
                 SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
-                List<ExpectedRankFeatureDoc> expectedShardResults = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"));
+                List<ExpectedRankFeatureDoc> expectedShardResults = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, List.of("ranked_1")));
                 assertShardResults(shard1Result, expectedShardResults);
 
                 SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
-                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"));
+                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(
+                    new ExpectedRankFeatureDoc(11, 1, 200.0F, List.of("ranked_11"))
+                );
                 assertShardResults(shard2Result, expectedShard2Results);
 
                 SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
                 assertNull(shard3Result);
 
                 List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(
-                    new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
-                    new ExpectedRankFeatureDoc(1, 2, 110.0F, "ranked_1")
+                    new ExpectedRankFeatureDoc(11, 1, 200.0F, List.of("ranked_11")),
+                    new ExpectedRankFeatureDoc(1, 2, 110.0F, List.of("ranked_1"))
                 );
                 assertFinalResults(finalResults[0], expectedFinalResults);
             } finally {
@@ -813,7 +814,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     SearchHit hit = hits.getHits()[i];
                     rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
                     rankFeatureDocs[i].score += 100f;
-                    rankFeatureDocs[i].featureData("ranked_" + hit.docId());
+                    rankFeatureDocs[i].featureData(List.of("ranked_" + hit.docId()));
                     rankFeatureDocs[i].rank = i + 1;
                 }
                 return new RankFeatureShardResult(rankFeatureDocs);
@@ -967,7 +968,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             searchHits[i] = SearchHit.unpooled(scoreDocs[i].doc);
             searchHits[i].shard(shardTarget);
             searchHits[i].score(scoreDocs[i].score);
-            searchHits[i].setDocumentField(DEFAULT_FIELD, new DocumentField(DEFAULT_FIELD, Collections.singletonList(scoreDocs[i].doc)));
+            searchHits[i].setDocumentField(new DocumentField(DEFAULT_FIELD, Collections.singletonList(scoreDocs[i].doc)));
             if (scoreDocs[i].score > maxScore) {
                 maxScore = scoreDocs[i].score;
             }

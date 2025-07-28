@@ -38,7 +38,11 @@ public record RandomBlock(List<List<Object>> values, Block block) {
      */
     public static ElementType randomElementType() {
         return ESTestCase.randomValueOtherThanMany(
-            e -> e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE,
+            e -> e == ElementType.UNKNOWN
+                || e == ElementType.NULL
+                || e == ElementType.DOC
+                || e == ElementType.COMPOSITE
+                || e == ElementType.AGGREGATE_METRIC_DOUBLE,
             () -> ESTestCase.randomFrom(ElementType.values())
         );
     }

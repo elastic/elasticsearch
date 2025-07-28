@@ -1,0 +1,5 @@
+pr: 128405
+summary: Modify the mechanism to pause indexing
+area: Distributed
+type: bug
+issues: []

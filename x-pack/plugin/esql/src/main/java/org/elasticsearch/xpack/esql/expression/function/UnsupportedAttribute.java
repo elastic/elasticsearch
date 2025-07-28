@@ -123,10 +123,13 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public String fieldName() {
-        // The super fieldName uses parents to compute the path; this class ignores parents, so we need to rely on the name instead.
-        // Using field().getName() would be wrong: for subfields like parent.subfield that would return only the last part, subfield.
-        return name();
+    public FieldName fieldName() {
+        if (lazyFieldName == null) {
+            // The super fieldName uses parents to compute the path; this class ignores parents, so we need to rely on the name instead.
+            // Using field().getName() would be wrong: for subfields like parent.subfield that would return only the last part, subfield.
+            lazyFieldName = new FieldName(name());
+        }
+        return lazyFieldName;
     }
 
     @Override
@@ -174,7 +177,10 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         return super.innerEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
     }
 
-    @Override
+    /**
+     * This contains all the underlying ES types.
+     * On a type conflict this will have many elements, some or all of which may be actually supported types.
+     */
     public List<String> originalTypes() {
         return field().getOriginalTypes();
     }

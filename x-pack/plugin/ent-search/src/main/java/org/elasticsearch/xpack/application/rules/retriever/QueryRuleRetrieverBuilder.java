@@ -119,10 +119,6 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
         return NAME;
     }
 
-    public int rankWindowSize() {
-        return rankWindowSize;
-    }
-
     @Override
     protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder source) {
         checkValidSort(source.sorts());

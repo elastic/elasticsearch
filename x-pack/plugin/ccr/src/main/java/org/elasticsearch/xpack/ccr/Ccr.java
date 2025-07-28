@@ -375,7 +375,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         ClusterService clusterService,
         RecoverySettings recoverySettings
     ) {
-        Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(
+        Repository.Factory repositoryFactory = (projectId, metadata) -> new CcrRepository(
+            projectId,
             metadata,
             client,
             settings,

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -38,7 +39,7 @@ public class MultiMatchTests extends MatchTests {
         // We need to add the QueryBuilder to the multi_match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (mm.query().foldable() && mm.fields().stream().allMatch(field -> field instanceof FieldAttribute)) {
-            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(mm).toQueryBuilder();
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, mm).toQueryBuilder();
             mm.replaceQueryBuilder(queryBuilder);
         }
         return mm;

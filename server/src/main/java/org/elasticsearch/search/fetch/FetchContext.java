@@ -45,9 +45,9 @@ public class FetchContext {
     /**
      * Create a FetchContext based on a SearchContext
      */
-    public FetchContext(SearchContext searchContext) {
+    public FetchContext(SearchContext searchContext, SourceLoader sourceLoader) {
         this.searchContext = searchContext;
-        this.sourceLoader = searchContext.newSourceLoader();
+        this.sourceLoader = sourceLoader;
         this.storedFieldsContext = buildStoredFieldsContext(searchContext);
         this.fetchSourceContext = buildFetchSourceContext(searchContext);
     }
@@ -68,7 +68,9 @@ public class FetchContext {
         if (sfc != null && sfc.fetchFields()) {
             for (String field : sfc.fieldNames()) {
                 if (SourceFieldMapper.NAME.equals(field)) {
-                    fsc = fsc == null ? FetchSourceContext.of(true) : FetchSourceContext.of(true, fsc.includes(), fsc.excludes());
+                    fsc = fsc == null
+                        ? FetchSourceContext.of(true)
+                        : FetchSourceContext.of(true, fsc.excludeVectors(), fsc.includes(), fsc.excludes());
                 }
             }
         }

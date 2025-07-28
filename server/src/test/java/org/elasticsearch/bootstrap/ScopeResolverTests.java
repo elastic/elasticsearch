@@ -9,6 +9,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.bootstrap.agent.TestAPMAgent;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.PolicyScope;
 import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginDescriptor;
@@ -34,50 +35,42 @@ import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNN
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-@ESTestCase.WithoutSecurityManager
 public class ScopeResolverTests extends ESTestCase {
     /**
      * A test agent package name for use in tests.
      */
-    private static final String TEST_AGENTS_PACKAGE_NAME = "org.elasticsearch.entitlement.runtime.policy.agent";
+    private static final String TEST_AGENTS_PACKAGE_NAME = TestAPMAgent.class.getPackage().getName();
 
     private record TestPluginLayer(PluginBundle pluginBundle, ClassLoader pluginClassLoader, ModuleLayer pluginModuleLayer)
         implements
             PluginsLoader.PluginLayer {}
 
-    public void testBootLayer() throws ClassNotFoundException {
+    public void testBootLayer() {
         ScopeResolver scopeResolver = ScopeResolver.create(Stream.empty(), TEST_AGENTS_PACKAGE_NAME);
 
-        // Tests do not run modular, so we cannot use a server class.
-        // But we know that in production code the server module and its classes are in the boot layer.
-        // So we use an arbitrary module in the boot layer, and an arbitrary class from that module (not java.base -- it is
-        // loaded too early) to mimic a class that would be in the server module.
-        var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
-
-        assertEquals(PolicyScope.server("jdk.httpserver"), scopeResolver.resolveClassToScope(mockServerClass));
+        // Note that String is not actually a server class, but a JDK class;
+        // however, that distinction is made by PolicyManager, not by ScopeResolver.
+        assertEquals(
+            "Named module in boot layer is a server module",
+            PolicyScope.server("java.base"),
+            scopeResolver.resolveClassToScope(String.class)
+        );
+        assertEquals(
+            "Unnamed module in boot layer is unknown",
+            PolicyScope.unknown(ALL_UNNAMED),
+            scopeResolver.resolveClassToScope(ScopeResolver.class)
+        );
     }
 
-    public void testResolveModularPlugin() throws IOException, ClassNotFoundException {
-        String moduleName = "modular.plugin";
-        String pluginName = "modular-plugin";
+    public void testAPMAgent() {
+        ScopeResolver scopeResolver = ScopeResolver.create(Stream.empty(), TEST_AGENTS_PACKAGE_NAME);
 
-        final Path home = createTempDir();
-
-        Path jar = createModularPluginJar(home, pluginName, moduleName, "p", "A");
-
-        var layer = createModuleLayer(moduleName, jar);
-        var loader = layer.findLoader(moduleName);
-
-        PluginBundle bundle = createMockBundle(pluginName, moduleName, "p.A");
-        Stream<PluginsLoader.PluginLayer> pluginLayers = Stream.of(new TestPluginLayer(bundle, loader, layer));
-        ScopeResolver scopeResolver = ScopeResolver.create(pluginLayers, TEST_AGENTS_PACKAGE_NAME);
-
-        assertEquals(PolicyScope.plugin(pluginName, moduleName), scopeResolver.resolveClassToScope(loader.loadClass("p.A")));
-        assertEquals(PolicyScope.unknown(ALL_UNNAMED), scopeResolver.resolveClassToScope(ScopeResolver.class));
-        assertEquals(PolicyScope.server("java.base"), scopeResolver.resolveClassToScope(String.class));
+        // Note that java agents are always non-modular.
+        // See https://bugs.openjdk.org/browse/JDK-6932391
+        assertEquals(PolicyScope.apmAgent(ALL_UNNAMED), scopeResolver.resolveClassToScope(TestAPMAgent.class));
     }
 
-    public void testResolveMultipleModularPlugins() throws IOException, ClassNotFoundException {
+    public void testModularPlugins() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
 
         Path jar1 = createModularPluginJar(home, "plugin1", "module.one", "p", "A");
@@ -128,7 +121,7 @@ public class ScopeResolverTests extends ESTestCase {
         assertEquals(PolicyScope.plugin("plugin2", "module.two"), scopeResolver.resolveClassToScope(loader.loadClass("q.B")));
     }
 
-    public void testResolveMultipleNonModularPlugins() throws IOException, ClassNotFoundException {
+    public void testNonModularPlugins() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
 
         Path jar1 = createNonModularPluginJar(home, "plugin1", "p", "A");
@@ -145,24 +138,6 @@ public class ScopeResolverTests extends ESTestCase {
 
             assertEquals(PolicyScope.plugin("plugin1", ALL_UNNAMED), scopeResolver.resolveClassToScope(loader1.loadClass("p.A")));
             assertEquals(PolicyScope.plugin("plugin2", ALL_UNNAMED), scopeResolver.resolveClassToScope(loader2.loadClass("q.B")));
-        }
-    }
-
-    public void testResolveNonModularPlugin() throws IOException, ClassNotFoundException {
-        String pluginName = "non-modular-plugin";
-
-        final Path home = createTempDir();
-
-        Path jar = createNonModularPluginJar(home, pluginName, "p", "A");
-
-        try (var loader = createClassLoader(jar)) {
-            PluginBundle bundle = createMockBundle(pluginName, null, "p.A");
-            Stream<PluginsLoader.PluginLayer> pluginLayers = Stream.of(new TestPluginLayer(bundle, loader, ModuleLayer.boot()));
-            ScopeResolver scopeResolver = ScopeResolver.create(pluginLayers, TEST_AGENTS_PACKAGE_NAME);
-
-            assertEquals(PolicyScope.plugin(pluginName, ALL_UNNAMED), scopeResolver.resolveClassToScope(loader.loadClass("p.A")));
-            assertEquals(PolicyScope.unknown(ALL_UNNAMED), scopeResolver.resolveClassToScope(ScopeResolver.class));
-            assertEquals(PolicyScope.server("java.base"), scopeResolver.resolveClassToScope(String.class));
         }
     }
 

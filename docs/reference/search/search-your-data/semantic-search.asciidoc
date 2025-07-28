@@ -96,6 +96,7 @@ IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer 
 ** https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/search/09-semantic-text.ipynb[Semantic search with `semantic_text`]
 * Blogs:
 ** https://www.elastic.co/search-labs/blog/semantic-search-simplified-semantic-text[{es} new semantic_text mapping: Simplifying semantic search]
+** https://www.elastic.co/search-labs/blog/semantic-text-ga[`semantic_text` format changes and new features in 8.18]
 ** {blog-ref}may-2023-launch-sparse-encoder-ai-model[Introducing Elastic Learned Sparse Encoder: Elastic's AI model for semantic search]
 ** {blog-ref}lexical-ai-powered-search-elastic-vector-database[How to get the best of lexical and AI-powered search with Elastic's vector database]
 ** Information retrieval blog series:

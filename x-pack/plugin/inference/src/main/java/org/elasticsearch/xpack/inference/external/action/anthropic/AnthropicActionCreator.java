@@ -36,7 +36,7 @@ public class AnthropicActionCreator implements AnthropicActionVisitor {
     public ExecutableAction create(AnthropicChatCompletionModel model, Map<String, Object> taskSettings) {
         var overriddenModel = AnthropicChatCompletionModel.of(model, taskSettings);
         var requestCreator = AnthropicCompletionRequestManager.of(overriddenModel, serviceComponents.threadPool());
-        var errorMessage = constructFailedToSendRequestMessage(overriddenModel.getUri(), ERROR_PREFIX);
+        var errorMessage = constructFailedToSendRequestMessage(ERROR_PREFIX);
         return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, ERROR_PREFIX);
     }
 }

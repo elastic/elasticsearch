@@ -127,10 +127,19 @@ public class ModelRegistry {
     }
 
     /**
-     * Set the default inference ids provided by the services
-     * @param defaultConfigId The default
+     * Adds the default configuration information if it does not already exist internally.
+     * @param defaultConfigId the default endpoint information
      */
-    public synchronized void addDefaultIds(InferenceService.DefaultConfigId defaultConfigId) {
+    public synchronized void putDefaultIdIfAbsent(InferenceService.DefaultConfigId defaultConfigId) {
+        defaultConfigIds.putIfAbsent(defaultConfigId.inferenceId(), defaultConfigId);
+    }
+
+    /**
+     * Set the default inference ids provided by the services
+     * @param defaultConfigId The default endpoint information
+     * @throws IllegalStateException if the {@link InferenceService.DefaultConfigId#inferenceId()} already exists internally
+     */
+    public synchronized void addDefaultIds(InferenceService.DefaultConfigId defaultConfigId) throws IllegalStateException {
         var config = defaultConfigIds.get(defaultConfigId.inferenceId());
         if (config != null) {
             throw new IllegalStateException(
@@ -530,10 +539,10 @@ public class ModelRegistry {
                         format(
                             "Failed to rollback while handling failure to update inference endpoint [%s]. "
                                 + "Endpoint may be in an inconsistent state due to [%s]",
-                            inferenceEntityId
+                            inferenceEntityId,
+                            configResponse.buildFailureMessage()
                         ),
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        configResponse.buildFailureMessage()
+                        RestStatus.INTERNAL_SERVER_ERROR
                     )
                 );
             } else {

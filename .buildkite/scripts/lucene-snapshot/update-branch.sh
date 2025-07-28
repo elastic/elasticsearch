@@ -10,7 +10,7 @@ fi
 if [[ "$BUILDKITE_BRANCH" == "lucene_snapshot_10" ]]; then
   UPSTREAM="main"
 elif [[ "$BUILDKITE_BRANCH" == "lucene_snapshot" ]]; then
-  UPSTREAM="8.x"
+  UPSTREAM="8.19"
 else
   echo "Error: unknown branch: $BUILDKITE_BRANCH"
   exit 1

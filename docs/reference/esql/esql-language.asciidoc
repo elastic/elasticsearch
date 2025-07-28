@@ -11,6 +11,7 @@ Detailed reference documentation for the {esql} language:
 * <<esql-functions>>
 * <<esql-metadata-fields>>
 * <<esql-multivalued-fields>>
+* <<esql-lookup-join>>
 * <<esql-enrich-data>>
 * <<esql-process-data-with-dissect-and-grok>>
 * <<esql-implicit-casting>>
@@ -22,6 +23,7 @@ include::esql-functions-operators.asciidoc[]
 include::metadata-fields.asciidoc[]
 include::multivalued-fields.asciidoc[]
 include::esql-process-data-with-dissect-grok.asciidoc[]
+include::esql-lookup-join.asciidoc[]
 include::esql-enrich-data.asciidoc[]
 include::implicit-casting.asciidoc[]
 include::time-spans.asciidoc[]

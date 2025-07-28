@@ -38,7 +38,7 @@ artifacts {
 def restTestBlacklist = []
 // TODO: fix this rest test to not depend on a hardcoded port!
 restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
-if (buildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
   // these tests attempt to install basic/internal licenses signed against the dev/public.key
   // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
   // private key, these tests are blacklisted in non-snapshot test runs
@@ -224,3 +224,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
 })
+
+tasks.named('yamlRestTestV7CompatTest').configure {
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+}

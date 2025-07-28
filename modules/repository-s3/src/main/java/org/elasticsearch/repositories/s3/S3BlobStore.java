@@ -91,6 +91,8 @@ class S3BlobStore implements BlobStore {
 
     private final int bulkDeletionBatchSize;
 
+    private final boolean addPurposeCustomQueryParameter;
+
     S3BlobStore(
         S3Service service,
         String bucket,
@@ -115,7 +117,7 @@ class S3BlobStore implements BlobStore {
         this.snapshotExecutor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         this.s3RepositoriesMetrics = s3RepositoriesMetrics;
         this.bulkDeletionBatchSize = S3Repository.DELETION_BATCH_SIZE_SETTING.get(repositoryMetadata.settings());
-
+        this.addPurposeCustomQueryParameter = service.settings(repositoryMetadata).addPurposeCustomQueryParameter;
     }
 
     RequestMetricCollector getMetricCollector(Operation operation, OperationPurpose purpose) {
@@ -523,6 +525,14 @@ class S3BlobStore implements BlobStore {
         OperationPurpose purpose
     ) {
         request.setRequestMetricCollector(blobStore.getMetricCollector(operation, purpose));
-        request.putCustomQueryParameter(CUSTOM_QUERY_PARAMETER_PURPOSE, purpose.getKey());
+        blobStore.addPurposeQueryParameter(purpose, request);
     }
+
+    public void addPurposeQueryParameter(OperationPurpose purpose, AmazonWebServiceRequest request) {
+        if (addPurposeCustomQueryParameter || purpose == OperationPurpose.REPOSITORY_ANALYSIS) {
+            // REPOSITORY_ANALYSIS is a strict check for 100% S3 compatibility, including custom query parameter support, so is always added
+            request.putCustomQueryParameter(CUSTOM_QUERY_PARAMETER_PURPOSE, purpose.getKey());
+        }
+    }
+
 }

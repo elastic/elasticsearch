@@ -282,10 +282,7 @@ public class GoogleAiStudioService extends SenderService {
     ) {
         if (model instanceof GoogleAiStudioCompletionModel completionModel) {
             var requestManager = new GoogleAiStudioCompletionRequestManager(completionModel, getServiceComponents().threadPool());
-            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-                completionModel.uri(inputs.stream()),
-                "Google AI Studio completion"
-            );
+            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio completion");
             var action = new SingleInputSenderExecutableAction(
                 getSender(),
                 requestManager,
@@ -299,7 +296,7 @@ public class GoogleAiStudioService extends SenderService {
                 getServiceComponents().truncator(),
                 getServiceComponents().threadPool()
             );
-            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(embeddingsModel.uri(), "Google AI Studio embeddings");
+            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio embeddings");
             var action = new SenderExecutableAction(getSender(), requestManager, failedToSendRequestErrorMessage);
             action.execute(inputs, timeout, listener);
         } else {

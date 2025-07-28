@@ -493,26 +493,16 @@ public class RestEsqlIT extends RestEsqlTestCase {
             if (operators.contains("LuceneSourceOperator")) {
                 assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
             } else if (operators.contains("ExchangeSourceOperator")) {
-                if (operators.contains("ExchangeSinkOperator")) {
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
-                    for (Map<String, Object> s : first) {
-                        assertMap(s, sleepMatcher);
-                    }
-                    @SuppressWarnings("unchecked")
-                    List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
-                    for (Map<String, Object> s : last) {
-                        assertMap(s, sleepMatcher);
-                    }
-
-                } else {
-                    assertMap(
-                        sleeps,
-                        matchesMap().entry("counts", matchesMap().entry("exchange empty", 1))
-                            .entry("first", List.of(sleepMatcher))
-                            .entry("last", List.of(sleepMatcher))
-                    );
+                assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
+                for (Map<String, Object> s : first) {
+                    assertMap(s, sleepMatcher);
+                }
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
+                for (Map<String, Object> s : last) {
+                    assertMap(s, sleepMatcher);
                 }
             } else {
                 fail("unknown signature: " + operators);

@@ -42,7 +42,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             read,
             TestCaseSupplier.dateCases(),
             DataType.DATETIME,
-            v -> ((Instant) v).toEpochMilli(),
+            v -> DateUtils.toLongMillis((Instant) v),
             emptyList()
         );
         TestCaseSupplier.unary(

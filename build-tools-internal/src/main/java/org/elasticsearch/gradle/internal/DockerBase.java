@@ -13,7 +13,7 @@ package org.elasticsearch.gradle.internal;
  * This class models the different Docker base images that are used to build Docker distributions of Elasticsearch.
  */
 public enum DockerBase {
-    DEFAULT("ubuntu:20.04", "", "apt-get"),
+    DEFAULT("ubuntu:24.04", "", "apt-get"),
 
     // "latest" here is intentional, since the image name specifies "8"
     UBI("docker.elastic.co/ubi8/ubi-minimal:latest", "-ubi8", "microdnf"),
@@ -24,7 +24,7 @@ public enum DockerBase {
     // Chainguard based wolfi image with latest jdk
     // This is usually updated via renovatebot
     // spotless:off
-    WOLFI("docker.elastic.co/wolfi/chainguard-base:latest@sha256:d74b1fda6b7fee2c90b410df258e005c049e0672fe16d79d00e58f14fb69f90b",
+    WOLFI("docker.elastic.co/wolfi/chainguard-base:latest@sha256:5ba5defb8c55ea6e2d4a697ca82da534c21c6328dfa903fe460c762720875794",
         "-wolfi",
         "apk"
     ),

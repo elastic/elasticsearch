@@ -15,6 +15,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.KnnFloatVectorQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -267,6 +268,8 @@ public class SemanticTextHighlighter implements Highlighter {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromFloats(knnQuery.getTargetCopy()), null));
                 } else if (query instanceof KnnByteVectorQuery knnQuery) {
                     queries.add(fieldType.createExactKnnQuery(VectorData.fromBytes(knnQuery.getTargetCopy()), null));
+                } else if (query instanceof MatchAllDocsQuery) {
+                    queries.add(new MatchAllDocsQuery());
                 }
             }
         });
@@ -292,6 +295,13 @@ public class SemanticTextHighlighter implements Highlighter {
                     queries.add(sparseVectorQuery.getTermsQuery());
                 }
                 return this;
+            }
+
+            @Override
+            public void visitLeaf(Query query) {
+                if (query instanceof MatchAllDocsQuery) {
+                    queries.add(new MatchAllDocsQuery());
+                }
             }
         });
         return queries;

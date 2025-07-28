@@ -1209,7 +1209,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
-                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*")
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*", "-.ds-.triggered_watches-*")
             );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
@@ -2067,6 +2067,20 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static boolean aliasExists(String index, String alias) throws IOException {
         Response response = client().performRequest(new Request("HEAD", "/" + index + "/_alias/" + alias));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    @SuppressWarnings("unchecked")
+    protected static List<String> getDataStreamBackingIndexNames(String dataStreamName) throws IOException {
+        Map<String, Object> response = getAsMap(client(), "/_data_stream/" + dataStreamName);
+        List<?> dataStreams = (List<?>) response.get("data_streams");
+        assertThat(dataStreams.size(), equalTo(1));
+        Map<?, ?> dataStream = (Map<?, ?>) dataStreams.get(0);
+        assertThat(dataStream.get("name"), equalTo(dataStreamName));
+        List<?> indices = (List<?>) dataStream.get("indices");
+        return indices.stream().map(index -> ((Map<String, String>) index).get("index_name")).toList();
     }
 
     @SuppressWarnings("unchecked")

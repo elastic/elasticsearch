@@ -43,7 +43,7 @@ POST /my-index-000001/_split/split-my-index-000001
 ** The index must be read-only.
 ** The <<cluster-health, cluster health>> status must be green.
 
-You can do make an index read-only with the following request using the
+You can make an index read-only with the following request using the
 <<add-index-block,add index block>> API:
 
 [source,console]

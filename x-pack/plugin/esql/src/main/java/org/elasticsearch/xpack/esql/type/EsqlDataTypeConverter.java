@@ -96,6 +96,7 @@ import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGN
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asUnsignedLong;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 public class EsqlDataTypeConverter {
@@ -224,6 +225,9 @@ public class EsqlDataTypeConverter {
             }
             if (to == DataType.BOOLEAN) {
                 return EsqlConverter.STRING_TO_BOOLEAN;
+            }
+            if (DataType.isSpatialGeo(to)) {
+                return EsqlConverter.STRING_TO_GEO;
             }
             if (DataType.isSpatial(to)) {
                 return EsqlConverter.STRING_TO_SPATIAL;
@@ -536,6 +540,10 @@ public class EsqlDataTypeConverter {
         return UNSPECIFIED.wkbToWkt(field);
     }
 
+    public static BytesRef stringToGeo(String field) {
+        return GEO.wktToWkb(field);
+    }
+
     public static BytesRef stringToSpatial(String field) {
         return UNSPECIFIED.wktToWkb(field);
     }
@@ -555,6 +563,16 @@ public class EsqlDataTypeConverter {
     public static long dateNanosToLong(String dateNano, DateFormatter formatter) {
         Instant parsed = DateFormatters.from(formatter.parse(dateNano)).toInstant();
         return DateUtils.toLong(parsed);
+    }
+
+    public static String dateWithTypeToString(long dateTime, DataType type) {
+        if (type == DATETIME) {
+            return dateTimeToString(dateTime);
+        }
+        if (type == DATE_NANOS) {
+            return nanoTimeToString(dateTime);
+        }
+        throw new IllegalArgumentException("Unsupported data type [" + type + "]");
     }
 
     public static String dateTimeToString(long dateTime) {
@@ -684,6 +702,7 @@ public class EsqlDataTypeConverter {
         STRING_TO_LONG(x -> EsqlDataTypeConverter.stringToLong((String) x)),
         STRING_TO_INT(x -> EsqlDataTypeConverter.stringToInt((String) x)),
         STRING_TO_BOOLEAN(x -> EsqlDataTypeConverter.stringToBoolean((String) x)),
+        STRING_TO_GEO(x -> EsqlDataTypeConverter.stringToGeo((String) x)),
         STRING_TO_SPATIAL(x -> EsqlDataTypeConverter.stringToSpatial((String) x));
 
         private static final String NAME = "esql-converter";

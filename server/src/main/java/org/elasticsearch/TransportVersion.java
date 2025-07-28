@@ -107,6 +107,23 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return before(TransportVersions.V_8_9_X) || TransportVersions.VERSION_IDS.containsKey(id);
     }
 
+    /**
+     * @return the newest known {@link TransportVersion} which is no older than this instance. Returns {@link TransportVersions#ZERO} if
+     *         there are no such versions.
+     */
+    public TransportVersion bestKnownVersion() {
+        if (isKnown()) {
+            return this;
+        }
+        TransportVersion bestSoFar = TransportVersions.ZERO;
+        for (final var knownVersion : TransportVersions.VERSION_IDS.values()) {
+            if (knownVersion.after(bestSoFar) && knownVersion.before(this)) {
+                bestSoFar = knownVersion;
+            }
+        }
+        return bestSoFar;
+    }
+
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
     }

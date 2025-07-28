@@ -37,7 +37,6 @@ import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -869,21 +868,6 @@ public class PluginsServiceTests extends ESTestCase {
             // TODO should we add something to pluginInfos.get(0).pluginApiInfo() ?
         } finally {
             closePluginLoaders(pluginService);
-        }
-    }
-
-    public void testCanCreateAClassLoader() {
-        assertEquals(
-            "access denied (\"java.lang.RuntimePermission\" \"createClassLoader\")",
-            expectThrows(AccessControlException.class, () -> new Loader(this.getClass().getClassLoader())).getMessage()
-        );
-        var loader = PrivilegedOperations.supplierWithCreateClassLoader(() -> new Loader(this.getClass().getClassLoader()));
-        assertEquals(this.getClass().getClassLoader(), loader.getParent());
-    }
-
-    static final class Loader extends ClassLoader {
-        Loader(ClassLoader parent) {
-            super(parent);
         }
     }
 

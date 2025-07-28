@@ -42,9 +42,7 @@ ifeval::["{release-state}"=="unreleased"]
 endif::[]
 * <<esql-keep>>
 * <<esql-limit>>
-ifeval::["{release-state}"=="unreleased"]
-//* experimental:[] <<esql-lookup>>
-endif::[]
+* experimental:[] <<esql-lookup-join>>
 * experimental:[] <<esql-mv_expand>>
 * <<esql-rename>>
 * <<esql-sort>>
@@ -67,9 +65,7 @@ ifeval::["{release-state}"=="unreleased"]
 endif::[]
 include::processing-commands/keep.asciidoc[]
 include::processing-commands/limit.asciidoc[]
-ifeval::["{release-state}"=="unreleased"]
-//include::processing-commands/lookup.asciidoc[]
-endif::[]
+include::processing-commands/lookup.asciidoc[]
 include::processing-commands/mv_expand.asciidoc[]
 include::processing-commands/rename.asciidoc[]
 include::processing-commands/sort.asciidoc[]

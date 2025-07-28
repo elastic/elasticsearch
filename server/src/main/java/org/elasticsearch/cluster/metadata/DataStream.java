@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
@@ -67,6 +69,8 @@ import static org.elasticsearch.index.IndexSettings.LIFECYCLE_ORIGINATION_DATE;
 import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
+
+    private static final Logger LOGGER = LogManager.getLogger(DataStream.class);
 
     public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
@@ -170,7 +174,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.name = name;
         this.generation = generation;
         this.metadata = metadata;
-        assert system == false || hidden; // system indices must be hidden
+        // The following assert is commented out, because system data streams created before 8.1 are not hidden,
+        // but should be updated to hidden by 8.18/8.19 (SystemIndexMetadataUpgradeService)
+        // assert system == false || hidden; // system indices must be hidden
         this.hidden = hidden;
         this.replicated = replicated;
         this.timeProvider = timeProvider;
@@ -299,6 +305,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public boolean isFailureStoreIndex(String indexName) {
         return failureIndices.containsIndex(indexName);
+    }
+
+    /**
+     * Returns true if the index name provided belongs to this data stream.
+     */
+    public boolean containsIndex(String indexName) {
+        return backingIndices.containsIndex(indexName) || failureIndices.containsIndex(indexName);
     }
 
     public DataStreamOptions getDataStreamOptions() {
@@ -568,6 +581,12 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         } else if (dsIndexMode == IndexMode.LOGSDB && (indexModeFromTemplate == null || indexModeFromTemplate == IndexMode.STANDARD)) {
             // Allow downgrading a time series data stream to a regular data stream
             dsIndexMode = null;
+        } else if (dsIndexMode == IndexMode.TIME_SERIES && indexModeFromTemplate == IndexMode.LOGSDB) {
+            dsIndexMode = IndexMode.LOGSDB;
+            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
+        } else if (dsIndexMode == IndexMode.LOGSDB && indexModeFromTemplate == IndexMode.TIME_SERIES) {
+            dsIndexMode = IndexMode.TIME_SERIES;
+            LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
         }
 
         List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
@@ -782,8 +801,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // ensure that no aliases reference index
         ensureNoAliasesOnIndex(clusterMetadata, index);
 
-        List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
-        backingIndices.add(0, index);
+        List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices.size() + 1);
+        backingIndices.add(index);
+        backingIndices.addAll(this.backingIndices.indices);
         assert backingIndices.size() == this.backingIndices.indices.size() + 1;
         return copy().setBackingIndices(this.backingIndices.copy().setIndices(backingIndices).build())
             .setGeneration(generation + 1)
@@ -808,8 +828,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         ensureNoAliasesOnIndex(clusterMetadata, index);
 
-        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices);
-        updatedFailureIndices.add(0, index);
+        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices.size() + 1);
+        updatedFailureIndices.add(index);
+        updatedFailureIndices.addAll(failureIndices.indices);
         assert updatedFailureIndices.size() == failureIndices.indices.size() + 1;
         return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).build())
             .setGeneration(generation + 1)
@@ -1039,7 +1060,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * we return false.
      */
     public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
-        if (backingIndices.containsIndex(index.getName()) == false && failureIndices.containsIndex(index.getName()) == false) {
+        if (containsIndex(index.getName()) == false) {
             return false;
         }
         IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());

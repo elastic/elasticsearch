@@ -62,7 +62,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.admin.cluster.coordination;
     exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
-    exports org.elasticsearch.action.admin.cluster.migration;
     exports org.elasticsearch.action.admin.cluster.node.capabilities;
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;
     exports org.elasticsearch.action.admin.cluster.node.info;
@@ -282,6 +281,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.indices.recovery;
     exports org.elasticsearch.indices.recovery.plan;
     exports org.elasticsearch.indices.store;
+    exports org.elasticsearch.indices.system;
     exports org.elasticsearch.inference;
     exports org.elasticsearch.ingest;
     exports org.elasticsearch.internal
@@ -380,7 +380,6 @@ module org.elasticsearch.server {
     exports org.elasticsearch.tasks;
     exports org.elasticsearch.threadpool;
     exports org.elasticsearch.transport;
-    exports org.elasticsearch.upgrades;
     exports org.elasticsearch.usage;
     exports org.elasticsearch.watcher;
 
@@ -434,6 +433,7 @@ module org.elasticsearch.server {
             org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.ingest.IngestGeoIpFeatures,
             org.elasticsearch.search.SearchFeatures,
+            org.elasticsearch.synonyms.SynonymFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
             org.elasticsearch.reservedstate.service.FileSettingsFeatures,

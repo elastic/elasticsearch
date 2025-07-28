@@ -172,6 +172,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
             // Disable request throttling because some random values in tests might generate too many failures for the S3 client
             .put(S3ClientSettings.USE_THROTTLE_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), false)
+            .put(S3ClientSettings.ADD_PURPOSE_CUSTOM_QUERY_PARAMETER.getConcreteSettingForNamespace("test").getKey(), "true")
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .setSecureSettings(secureSettings);
 
@@ -495,19 +496,13 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 blobStore.bucket(),
                 blobStore.blobContainer(repository.basePath().add("test-multipart-upload")).path().buildAsString() + danglingBlobName
             );
-            initiateMultipartUploadRequest.putCustomQueryParameter(
-                S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE,
-                OperationPurpose.SNAPSHOT_DATA.getKey()
-            );
+            blobStore.addPurposeQueryParameter(OperationPurpose.SNAPSHOT_DATA, initiateMultipartUploadRequest);
             final var multipartUploadResult = clientRef.client().initiateMultipartUpload(initiateMultipartUploadRequest);
 
             final var listMultipartUploadsRequest = new ListMultipartUploadsRequest(blobStore.bucket()).withPrefix(
                 repository.basePath().buildAsString()
             );
-            listMultipartUploadsRequest.putCustomQueryParameter(
-                S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE,
-                OperationPurpose.SNAPSHOT_DATA.getKey()
-            );
+            blobStore.addPurposeQueryParameter(OperationPurpose.SNAPSHOT_DATA, listMultipartUploadsRequest);
             assertEquals(
                 List.of(multipartUploadResult.getUploadId()),
                 clientRef.client()

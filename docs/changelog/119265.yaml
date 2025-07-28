@@ -1,6 +1,0 @@
-pr: 119265
-summary: Fix `AbstractShapeGeometryFieldMapperTests`
-area: "ES|QL"
-type: bug
-issues:
- - 119201

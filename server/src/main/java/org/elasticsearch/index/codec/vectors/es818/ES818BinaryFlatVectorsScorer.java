@@ -64,6 +64,9 @@ public class ES818BinaryFlatVectorsScorer implements FlatVectorsScorer {
         float[] target
     ) throws IOException {
         if (vectorValues instanceof RandomAccessBinarizedByteVectorValues binarizedVectors) {
+            assert binarizedVectors.getQuantizer() != null
+                : "BinarizedByteVectorValues must have a quantizer for ES816BinaryFlatVectorsScorer";
+            assert binarizedVectors.size() > 0 : "BinarizedByteVectorValues must have at least one vector for ES816BinaryFlatVectorsScorer";
             OptimizedScalarQuantizer quantizer = binarizedVectors.getQuantizer();
             float[] centroid = binarizedVectors.getCentroid();
             // We make a copy as the quantization process mutates the input

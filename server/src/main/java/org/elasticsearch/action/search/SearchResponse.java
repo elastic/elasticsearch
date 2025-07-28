@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -91,7 +92,15 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public SearchResponse(StreamInput in) throws IOException {
         super(in);
         this.hits = SearchHits.readFrom(in, true);
-        this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
+        if (in.readBoolean()) {
+            // deserialize the aggregations trying to deduplicate the object created
+            // TODO: use DelayableWriteable instead.
+            this.aggregations = InternalAggregations.readFrom(
+                DelayableWriteable.wrapWithDeduplicatorStreamInput(in, in.getTransportVersion(), in.namedWriteableRegistry())
+            );
+        } else {
+            this.aggregations = null;
+        }
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
         this.timedOut = in.readBoolean();
         this.terminatedEarly = in.readOptionalBoolean();

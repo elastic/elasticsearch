@@ -2517,8 +2517,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                             Strings.collectionToDelimitedStringWithLimit(
                                 deleteEntry.snapshots().stream().map(SnapshotId::getName).toList(),
                                 ",",
-                                "",
-                                "",
                                 1024,
                                 sb
                             );
@@ -4086,7 +4084,15 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
                 if (featureSystemIndices.size() > 0 || featureAssociatedIndices.size() > 0 || featureDataStreamBackingIndices.size() > 0) {
 
-                    featureStates.add(new SnapshotFeatureInfo(featureName, List.copyOf(featureSystemIndices)));
+                    featureStates.add(
+                        new SnapshotFeatureInfo(
+                            featureName,
+                            List.copyOf(
+                                Stream.concat(featureSystemIndices.stream(), featureDataStreamBackingIndices.stream())
+                                    .collect(Collectors.toSet())
+                            )
+                        )
+                    );
                     indexNames.addAll(featureSystemIndices);
                     indexNames.addAll(featureAssociatedIndices);
                     indexNames.addAll(featureDataStreamBackingIndices);

@@ -1,6 +1,0 @@
-pr: 119296
-summary: Fix writing for LOOKUP status
-area: ES|QL
-type: bug
-issues:
- - 119086

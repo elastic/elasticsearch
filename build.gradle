@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.util.GradleUtils
@@ -48,8 +49,34 @@ plugins {
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id 'elasticsearch.run-ccs'
+  id 'elasticsearch.repositories'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
+  id 'com.gradleup.nmcp.aggregation'
+}
+
+version = VersionProperties.elasticsearch
+
+/**
+ * Here we package and aggregation zip file containing all maven artifacts we want to
+ * publish to maven central.
+ * The aggregation is done by picking all projects that have the elasticsearch.publish plugin applied,
+ * indicating the artifact is meant for beeing published to maven central.
+ * */
+nmcpAggregation {
+  // this breaks project isolation but this is broken in elasticsearch build atm anyhow.
+  publishAllProjectsProbablyBreakingProjectIsolation()
+}
+
+tasks.named('zipAggregation').configure {
+  // put this in a place that works well with our DRA infrastructure
+  archiveFileName.unset();
+  archiveBaseName.set("elasticsearch-maven-aggregation")
+  archiveVersion.set(VersionProperties.elasticsearch)
+  destinationDirectory.set(layout.buildDirectory.dir("distributions"));
+
+  dependsOn gradle.includedBuild('build-tools').task(':zipElasticPublication')
+  from(zipTree(gradle.includedBuild('build-tools').task(':zipElasticPublication').resolveTask().archiveFile.get()))
 }
 
 /**
@@ -118,10 +145,10 @@ tasks.register("updateCIBwcVersions") {
     outputFile.text = "# This file is auto-generated. See ${pipelineTemplatePath}\n" + pipeline
   }
 
-  // Writes a Buildkite pipelime from a template, and replaces $BWC_LIST with an array of versions
+  // Writes a Buildkite pipelime from a template, and replaces a variable with an array of versions
   // Useful for writing a list of versions in a matrix configuration
-  def expandBwcList = { String outputFilePath, String pipelineTemplatePath, List<Version> versions ->
-    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [new ListExpansion(versions: versions, variable: "BWC_LIST")])
+  def expandList = { String outputFilePath, String pipelineTemplatePath, String variable, List<Version> versions ->
+    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [new ListExpansion(versions: versions, variable: variable)])
   }
 
   // Writes a Buildkite pipeline from a template, and replaces $BWC_STEPS with a list of steps, one for each version
@@ -133,10 +160,17 @@ tasks.register("updateCIBwcVersions") {
   doLast {
     writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.allIndexCompatible))
     writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible))
-    expandBwcList(
+    expandList(
       ".buildkite/pipelines/intake.yml",
       ".buildkite/pipelines/intake.template.yml",
+      "BWC_LIST",
       filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible)
+    )
+    expandList(
+      ".buildkite/pipelines/periodic-fwc.yml",
+      ".buildkite/pipelines/periodic-fwc.template.yml",
+      "FWC_LIST",
+      buildParams.bwcVersions.released.findAll { it.major == VersionProperties.elasticsearchVersion.major && it.minor == VersionProperties.elasticsearchVersion.minor }
     )
     writeBuildkitePipeline(
       ".buildkite/pipelines/periodic.yml",
@@ -199,15 +233,23 @@ tasks.register("verifyVersions") {
         throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
       }
     }
-    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == '8.x' }.key
-    String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
-    if (versionMapping != expectedMapping) {
-      throw new GradleException(
-        "Backport label mapping for branch '8.x' is '${versionMapping}' but should be " +
-          "'${expectedMapping}'. Update .backportrc.json."
-      )
-    }
   }
+}
+
+def generateUpgradeCompatibilityFile = tasks.register("generateUpgradeCompatibilityFile") {
+  def outputFile = project.layout.buildDirectory.file("rolling-upgrade-compatible-${VersionProperties.elasticsearch}.json")
+  def rollingUpgradeCompatibleVersions = buildParams.bwcVersions.wireCompatible - VersionProperties.elasticsearchVersion
+  inputs.property("rollingUpgradeCompatibleVersions", rollingUpgradeCompatibleVersions)
+  outputs.file(outputFile)
+  doLast {
+    def versionsString = rollingUpgradeCompatibleVersions.collect { "\"${it.toString()}\"" }.join(', ')
+    outputFile.get().asFile.write("""{"rolling_upgrade_compatible_versions" : [${versionsString}]}""")
+  }
+}
+
+def upgradeCompatibilityZip = tasks.register("upgradeCompatibilityZip", Zip) {
+  archiveFile.set(project.layout.buildDirectory.file("distributions/rolling-upgrade-compatible-${VersionProperties.elasticsearch}.zip"))
+  from(generateUpgradeCompatibilityFile)
 }
 
 /*
@@ -250,15 +292,6 @@ allprojects {
     }
   }
 
-  // injecting groovy property variables into all projects
-  project.ext {
-    // for ide hacks...
-    isEclipse = providers.systemProperty("eclipse.launcher").isPresent() ||   // Detects gradle launched from Eclipse's IDE
-      providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
-      gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-      gradle.startParameter.taskNames.contains('cleanEclipse')
-  }
-
   ext.bwc_tests_enabled = bwc_tests_enabled
 
   // eclipse configuration
@@ -297,7 +330,7 @@ allprojects {
   }
 
   ext.withReleaseBuild = { Closure config ->
-    if(buildParams.snapshotBuild == false) {
+    if (buildParams.snapshotBuild == false) {
       config.call()
     }
   }
@@ -392,6 +425,38 @@ allprojects {
   apply plugin: 'elasticsearch.formatting'
 }
 
+tasks.named("updateDaemonJvm") {
+  def myPlatforms = [
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.MAC_OS
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.LINUX
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.LINUX
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.WINDOWS
+    ),
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.AARCH64,
+      org.gradle.platform.OperatingSystem.WINDOWS
+    ),
+    // anyone still using x86 osx?
+    BuildPlatformFactory.of(
+      org.gradle.platform.Architecture.X86_64,
+      org.gradle.platform.OperatingSystem.MAC_OS
+    )
+  ]
+  toolchainPlatforms.set(myPlatforms)
+  languageVersion = JavaLanguageVersion.of(21)
+  vendor = JvmVendorSpec.ADOPTIUM
+}
 
 tasks.register("verifyBwcTestsEnabled") {
   doLast {
@@ -487,6 +552,7 @@ tasks.register("buildReleaseArtifacts").configure {
   }
     .collect { GradleUtils.findByName(it.tasks, 'assemble') }
     .findAll { it != null }
+  dependsOn upgradeCompatibilityZip
 }
 
 tasks.register("spotlessApply").configure {

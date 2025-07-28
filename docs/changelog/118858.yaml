@@ -1,5 +1,0 @@
-pr: 118858
-summary: Lookup join on multiple join fields not yet supported
-area: ES|QL
-type: enhancement
-issues: []

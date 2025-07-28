@@ -553,13 +553,11 @@ public class AnthropicServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamChatCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"Hello"},{"delta":", World"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException {
+    private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
@@ -580,7 +578,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -591,11 +589,7 @@ public class AnthropicServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
+        streamChatCompletion().hasNoEvents()
             .hasErrorWithStatusCode(RestStatus.REQUEST_ENTITY_TOO_LARGE.getStatus())
             .hasErrorContaining("blah");
     }
@@ -633,6 +627,15 @@ public class AnthropicServiceTests extends ESTestCase {
                               "sensitive": false,
                               "updatable": false,
                               "type": "str",
+                              "supported_task_types": ["completion"]
+                          },
+                        "max_tokens": {
+                              "description": "The maximum number of tokens to generate before stopping.",
+                              "label": "Max Tokens",
+                              "required": true,
+                              "sensitive": false,
+                              "updatable": false,
+                              "type": "int",
                               "supported_task_types": ["completion"]
                           }
                       }

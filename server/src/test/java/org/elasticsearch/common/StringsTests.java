@@ -228,51 +228,47 @@ public class StringsTests extends ESTestCase {
 
     public void testCollectionToDelimitedStringWithLimitZero() {
         final String delimiter = randomFrom("", ",", ", ", "/");
-        final String prefix = randomFrom("", "[");
-        final String suffix = randomFrom("", "]");
 
         final int count = between(0, 100);
         final List<String> strings = new ArrayList<>(count);
         while (strings.size() < count) {
             // avoid starting with a sequence of empty appends, it makes the assertions much messier
-            final int minLength = strings.isEmpty() && delimiter.isEmpty() && prefix.isEmpty() && suffix.isEmpty() ? 1 : 0;
+            final int minLength = strings.isEmpty() && delimiter.isEmpty() ? 1 : 0;
             strings.add(randomAlphaOfLength(between(minLength, 10)));
         }
 
         final StringBuilder stringBuilder = new StringBuilder();
-        collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, 0, stringBuilder);
+        collectionToDelimitedStringWithLimit(strings, delimiter, 0, stringBuilder);
         final String completelyTruncatedDescription = stringBuilder.toString();
 
         if (count == 0) {
             assertThat(completelyTruncatedDescription, equalTo(""));
         } else if (count == 1) {
-            assertThat(completelyTruncatedDescription, equalTo(prefix + strings.get(0) + suffix));
+            assertThat(completelyTruncatedDescription, equalTo(strings.get(0)));
         } else {
             assertThat(
                 completelyTruncatedDescription,
-                equalTo(prefix + strings.get(0) + suffix + delimiter + "... (" + count + " in total, " + (count - 1) + " omitted)")
+                equalTo(strings.get(0) + delimiter + "... (" + count + " in total, " + (count - 1) + " omitted)")
             );
         }
     }
 
     public void testCollectionToDelimitedStringWithLimitTruncation() {
         final String delimiter = randomFrom("", ",", ", ", "/");
-        final String prefix = randomFrom("", "[");
-        final String suffix = randomFrom("", "]");
 
         final int count = between(2, 100);
         final List<String> strings = new ArrayList<>(count);
         while (strings.size() < count) {
             // avoid empty appends, it makes the assertions much messier
-            final int minLength = delimiter.isEmpty() && prefix.isEmpty() && suffix.isEmpty() ? 1 : 0;
+            final int minLength = delimiter.isEmpty() ? 1 : 0;
             strings.add(randomAlphaOfLength(between(minLength, 10)));
         }
 
-        final int fullDescriptionLength = collectionToDelimitedString(strings, delimiter, prefix, suffix).length();
-        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
+        final int fullDescriptionLength = collectionToDelimitedString(strings, delimiter).length();
+        final int lastItemSize = strings.get(count - 1).length();
         final int truncatedLength = between(0, fullDescriptionLength - lastItemSize - 1);
         final StringBuilder stringBuilder = new StringBuilder();
-        collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, truncatedLength, stringBuilder);
+        collectionToDelimitedStringWithLimit(strings, delimiter, truncatedLength, stringBuilder);
         final String truncatedDescription = stringBuilder.toString();
 
         assertThat(truncatedDescription, allOf(containsString("... (" + count + " in total,"), endsWith(" omitted)")));
@@ -280,14 +276,12 @@ public class StringsTests extends ESTestCase {
         assertThat(
             truncatedDescription,
             truncatedDescription.length(),
-            lessThanOrEqualTo(truncatedLength + (prefix + "0123456789" + suffix + delimiter + "... (999 in total, 999 omitted)").length())
+            lessThanOrEqualTo(truncatedLength + ("0123456789" + delimiter + "... (999 in total, 999 omitted)").length())
         );
     }
 
     public void testCollectionToDelimitedStringWithLimitNoTruncation() {
         final String delimiter = randomFrom("", ",", ", ", "/");
-        final String prefix = randomFrom("", "[");
-        final String suffix = randomFrom("", "]");
 
         final int count = between(1, 100);
         final List<String> strings = new ArrayList<>(count);
@@ -295,17 +289,17 @@ public class StringsTests extends ESTestCase {
             strings.add(randomAlphaOfLength(between(0, 10)));
         }
 
-        final String fullDescription = collectionToDelimitedString(strings, delimiter, prefix, suffix);
+        final String fullDescription = collectionToDelimitedString(strings, delimiter);
         for (String string : strings) {
-            assertThat(fullDescription, containsString(prefix + string + suffix));
+            assertThat(fullDescription, containsString(string));
         }
 
-        final int lastItemSize = prefix.length() + strings.get(count - 1).length() + suffix.length();
+        final int lastItemSize = strings.get(count - 1).length();
         final int minLimit = fullDescription.length() - lastItemSize;
         final int limit = randomFrom(between(minLimit, fullDescription.length()), between(minLimit, Integer.MAX_VALUE), Integer.MAX_VALUE);
 
         final StringBuilder stringBuilder = new StringBuilder();
-        collectionToDelimitedStringWithLimit(strings, delimiter, prefix, suffix, limit, stringBuilder);
+        collectionToDelimitedStringWithLimit(strings, delimiter, limit, stringBuilder);
         assertThat(stringBuilder.toString(), equalTo(fullDescription));
     }
 

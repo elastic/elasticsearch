@@ -90,6 +90,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         for (String allocatedNode : allocatedNodes) {
             if (randomBoolean()) {
                 internalCluster().restartNode(allocatedNode);
+                ensureGreen(indexName);
             }
         }
         ensureGreen(indexName);
@@ -151,6 +152,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             final Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
             for (String allocatedNode : allocatedNodes) {
                 internalCluster().restartNode(allocatedNode);
+                ensureGreen(indexName);
             }
             ensureGreen(indexName);
             assertNoFailuresAndResponse(

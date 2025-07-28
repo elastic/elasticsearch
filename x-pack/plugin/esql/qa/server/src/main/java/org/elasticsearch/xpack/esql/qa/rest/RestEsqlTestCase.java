@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -83,9 +84,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static final String MAPPING_ALL_TYPES;
 
+    private static final String MAPPING_ALL_TYPES_LOOKUP;
+
     static {
         String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
         MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
+        String settings = "{\"settings\" : {\"mode\" : \"lookup\"}";
+        MAPPING_ALL_TYPES_LOOKUP = settings + ", " + "\"mappings\": " + properties + "}";
     }
 
     private static final String DOCUMENT_TEMPLATE = """
@@ -796,6 +801,32 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
     }
 
+    public void testMultipleBatchesWithLookupJoin() throws IOException {
+        assumeTrue(
+            "Makes numberOfChannels consistent with layout map for join with multiple batches",
+            EsqlCapabilities.Cap.MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT.isEnabled()
+        );
+        // Create more than 10 indices to trigger multiple batches of data node execution.
+        // The sort field should be missing on some indices to reproduce NullPointerException caused by duplicated items in layout
+        for (int i = 1; i <= 20; i++) {
+            createIndex("idx" + i, randomBoolean(), "\"mappings\": {\"properties\" : {\"a\" : {\"type\" : \"keyword\"}}}");
+        }
+        bulkLoadTestDataLookupMode(10);
+        // lookup join with and without sort
+        for (String sort : List.of("", "| sort integer")) {
+            var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
+            Map<String, Object> result = runEsql(query);
+            var columns = as(result.get("columns"), List.class);
+            assertEquals(21, columns.size());
+            var values = as(result.get("values"), List.class);
+            assertEquals(10, values.size());
+        }
+        // clean up
+        for (int i = 1; i <= 20; i++) {
+            assertThat(deleteIndex("idx" + i).isAcknowledged(), is(true));
+        }
+    }
+
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
         List<String> dateMathOverflowExpressions = List.of(
             "2147483647 day + 1 day",
@@ -1377,13 +1408,22 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(count, 0, true, RestEsqlTestCase::createDocument);
     }
 
+    private static void bulkLoadTestDataLookupMode(int count) throws IOException {
+        createIndex(testIndexName(), true);
+        bulkLoadTestData(count, 0, false, RestEsqlTestCase::createDocument);
+    }
+
+    private static void createIndex(String indexName, boolean lookupMode) throws IOException {
+        Request request = new Request("PUT", "/" + indexName);
+        request.setJsonEntity(lookupMode ? MAPPING_ALL_TYPES_LOOKUP : MAPPING_ALL_TYPES);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+    }
+
     private static void bulkLoadTestData(int count, int firstIndex, boolean createIndex, IntFunction<String> createDocument)
         throws IOException {
         Request request;
         if (createIndex) {
-            request = new Request("PUT", "/" + testIndexName());
-            request.setJsonEntity(MAPPING_ALL_TYPES);
-            assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+            createIndex(testIndexName(), false);
         }
 
         if (count > 0) {
@@ -1456,6 +1496,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static String repeatValueAsMV(Object value) {
         return "[" + value + ", " + value + "]";
+    }
+
+    private static void createIndex(String indexName, boolean lookupMode, String mapping) throws IOException {
+        Request request = new Request("PUT", "/" + indexName);
+        String settings = "\"settings\" : {\"mode\" : \"lookup\"}, ";
+        request.setJsonEntity("{" + (lookupMode ? settings : "") + mapping + "}");
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {

@@ -32,7 +32,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -83,8 +82,7 @@ public class GoogleVertexAiRerankActionTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[2];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -97,7 +95,7 @@ public class GoogleVertexAiRerankActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send Google Vertex AI rerank request to [%s]", getUrl(webServer))));
+        assertThat(thrownException.getMessage(), is("Failed to send Google Vertex AI rerank request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -111,12 +109,12 @@ public class GoogleVertexAiRerankActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send Google Vertex AI rerank request to [%s]", getUrl(webServer))));
+        assertThat(thrownException.getMessage(), is("Failed to send Google Vertex AI rerank request. Cause: failed"));
     }
 
     private ExecutableAction createAction(String url, String projectId, Sender sender) {
         var model = GoogleVertexAiRerankModelTests.createModel(url, projectId, null);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "Google Vertex AI rerank");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google Vertex AI rerank");
         var requestManager = GoogleVertexAiRerankRequestManager.of(model, threadPool);
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }

@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -171,15 +170,13 @@ public class AnthropicActionCreatorTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
+            var failureCauseMessage = "Failed to find required field [content] in Anthropic chat completions response";
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
-                is(format("Failed to send Anthropic chat completions request to [%s]", getUrl(webServer)))
+                is("Failed to send Anthropic chat completions request. Cause: " + failureCauseMessage)
             );
-            assertThat(
-                thrownException.getCause().getMessage(),
-                is("Failed to find required field [content] in Anthropic chat completions response")
-            );
+            assertThat(thrownException.getCause().getMessage(), is(failureCauseMessage));
 
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());

@@ -43,6 +43,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -54,6 +55,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.IntFunction;
 
 import static java.util.Collections.emptySet;
@@ -1423,16 +1425,17 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      */
     private static final ConcurrentMap<List<String>, Boolean> capabilities = new ConcurrentHashMap<>();
 
-    public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
+    public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) {
         if (requiredCapabilities.isEmpty()) {
             return true;
         }
-        Boolean cap = capabilities.get(requiredCapabilities);
-        if (cap == null) {
-            cap = clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
-            capabilities.put(requiredCapabilities, cap);
-        }
-        return cap;
+        return capabilities.computeIfAbsent(requiredCapabilities, r -> {
+            try {
+                return clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {

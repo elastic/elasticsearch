@@ -187,8 +187,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
-    protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
-        throws IOException {
+    protected static void checkCapabilities(
+        RestClient client,
+        TestFeatureService testFeatureService,
+        String testName,
+        CsvTestCase testCase
+    ) {
         if (hasCapabilities(client, testCase.requiredCapabilities)) {
             return;
         }

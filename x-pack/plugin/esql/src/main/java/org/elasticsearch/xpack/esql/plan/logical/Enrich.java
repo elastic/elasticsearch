@@ -317,8 +317,6 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
                 badCommands.add("STATS");
             } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
                 badCommands.add("another ENRICH with coordinator policy");
-            } else if (u instanceof LookupJoin) {
-                badCommands.add("LOOKUP JOIN");
             } else if (u instanceof Fork) {
                 badCommands.add("FORK");
             }

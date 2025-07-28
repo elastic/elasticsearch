@@ -27,20 +27,14 @@ import static java.util.Collections.emptyList;
 public class PreAnalyzer {
 
     public static class PreAnalysis {
-        public static final PreAnalysis EMPTY = new PreAnalysis(null, emptyList(), emptyList(), emptyList(), emptyList());
+        public static final PreAnalysis EMPTY = new PreAnalysis(null, emptyList(), emptyList(), emptyList());
 
         public final IndexMode indexMode;
         public final List<IndexPattern> indices;
         public final List<Enrich> enriches;
         public final List<IndexPattern> lookupIndices;
 
-        public PreAnalysis(
-            IndexMode indexMode,
-            List<IndexPattern> indices,
-            List<Enrich> enriches,
-            List<String> inferenceIds,
-            List<IndexPattern> lookupIndices
-        ) {
+        public PreAnalysis(IndexMode indexMode, List<IndexPattern> indices, List<Enrich> enriches, List<IndexPattern> lookupIndices) {
             this.indexMode = indexMode;
             this.indices = indices;
             this.enriches = enriches;
@@ -61,7 +55,6 @@ public class PreAnalyzer {
 
         List<Enrich> unresolvedEnriches = new ArrayList<>();
         List<IndexPattern> lookupIndices = new ArrayList<>();
-        Set<String> inferenceIds = new HashSet<>();
 
         Holder<IndexMode> indexMode = new Holder<>();
         plan.forEachUp(UnresolvedRelation.class, p -> {
@@ -80,7 +73,7 @@ public class PreAnalyzer {
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indexMode.get(), indices.stream().toList(), unresolvedEnriches, List.copyOf(inferenceIds), lookupIndices);
+        return new PreAnalysis(indexMode.get(), indices.stream().toList(), unresolvedEnriches, lookupIndices);
     }
 
 }

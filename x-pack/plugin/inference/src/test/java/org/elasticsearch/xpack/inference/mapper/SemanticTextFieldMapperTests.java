@@ -810,7 +810,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
         }
     }
-    
+
     private static void assertSemanticTextField(
         MapperService mapperService,
         String fieldName,

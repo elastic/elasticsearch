@@ -139,6 +139,23 @@ POST _query
 
 {es-pull}129555[#129555]
 
+[discrete]
+[[es_ql_cross_cluster_querying_generally_available]]
+=== ES|QL cross-cluster querying is now generally available
+The ES|QL Cross-Cluster querying feature has been in technical preview since 8.13.
+As of releases 8.19.0 and 9.1.0 this is now generally available.
+This feature allows you to run ES|QL queries across multiple clusters.
+
+{es-pull}130034[#130034]
+
+[discrete]
+[[mark_token_pruning_for_sparse_vector_as_ga]]
+=== Mark Token Pruning for Sparse Vector as GA
+Token pruning for sparse_vector queries has been live since 8.13 as tech preview.
+As of 8.19.0 and 9.1.0, this is now generally available.
+
+{es-pull}130212[#130212]
+
 // end::notable-highlights[]
 
 

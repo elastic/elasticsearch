@@ -105,7 +105,7 @@ public class InferenceFunctionConstantFoldingTests extends AbstractLogicalPlanPr
      */
     private LogicalPlan inferenceFunctionConstantFolding(LogicalPlan plan) {
         PlainActionFuture<LogicalPlan> preOptimized = new PlainActionFuture<>();
-        new InferenceFunctionConstantFolding(mockedInferenceRunner(embeddingModel), FoldContext.small()).apply(plan, preOptimized);
+        new InferenceFunctionConstantFolding(mockBulkInferenceRunner(embeddingModel), FoldContext.small()).apply(plan, preOptimized);
         return preOptimized.actionGet();
     }
 }

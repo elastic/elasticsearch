@@ -36,7 +36,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -56,8 +55,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
 
     @Before
     public void setThreadPool() {
-        threadPool = new TestThreadPool(
-            getTestClass().getSimpleName(),
+        threadPool = createThreadPool(
             new FixedExecutorBuilder(
                 Settings.EMPTY,
                 EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,

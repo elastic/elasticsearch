@@ -50,7 +50,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
-import org.elasticsearch.xpack.esql.expression.function.inference.EmbedText;
+import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
@@ -3843,13 +3843,13 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveEmbedTextInferenceId() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | EVAL embedding = EMBED_TEXT("description", "text-embedding-inference-id")
+            | EVAL embedding = TEXT_EMBEDDING("description", "text-embedding-inference-id")
             """, "mapping-books.json");
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
         var embedTextAlias = as(eval.fields().get(0), Alias.class);
-        var embedText = as(embedTextAlias.child(), EmbedText.class);
+        var embedText = as(embedTextAlias.child(), TextEmbedding.class);
 
         assertThat(embedText.inferenceId(), equalTo(string("text-embedding-inference-id")));
         assertThat(embedText.inputText(), equalTo(string("description")));
@@ -3859,11 +3859,11 @@ public class AnalyzerTests extends ESTestCase {
         assertError(
             """
                 FROM books METADATA _score
-                | EVAL embedding = EMBED_TEXT(description, "completion-inference-id")
+                | EVAL embedding = TEXT_EMBEDDING("blue", "completion-inference-id")
                 """,
             "mapping-books.json",
             new QueryParams(),
-            "cannot use inference endpoint [completion-inference-id] with task type [completion] within a embed_text function."
+            "cannot use inference endpoint [completion-inference-id] with task type [completion] within a text_embedding function."
                 + " Only inference endpoints with the task type [text_embedding] are supported"
         );
     }
@@ -3871,28 +3871,28 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveEmbedTextInferenceMissingInferenceId() {
         assertError("""
             FROM books METADATA _score
-            | EVAL embedding = EMBED_TEXT(description, "unknown-inference-id")
+            | EVAL embedding = TEXT_EMBEDDING("blue", "unknown-inference-id")
             """, "mapping-books.json", new QueryParams(), "unresolved inference [unknown-inference-id]");
     }
 
     public void testResolveEmbedTextInferenceIdResolutionError() {
         assertError("""
             FROM books METADATA _score
-            | EVAL embedding = EMBED_TEXT(description, "error-inference-id")
+            | EVAL embedding = TEXT_EMBEDDING("blue", "error-inference-id")
             """, "mapping-books.json", new QueryParams(), "error with inference resolution");
     }
 
     public void testResolveEmbedTextInNestedExpression() {
         LogicalPlan plan = analyze("""
             FROM colors METADATA _score
-            | WHERE KNN(rgb_vector, EMBED_TEXT("blue", "text-embedding-inference-id"), 10)
+            | WHERE KNN(rgb_vector, TEXT_EMBEDDING("blue", "text-embedding-inference-id"), 10)
             """, "mapping-colors.json");
 
         var limit = as(plan, Limit.class);
         var filter = as(limit.child(), Filter.class);
 
-        // Navigate to the EMBED_TEXT function within the KNN function
-        filter.condition().forEachDown(EmbedText.class, embedText -> {
+        // Navigate to the TEXT_EMBEDDING function within the KNN function
+        filter.condition().forEachDown(TextEmbedding.class, embedText -> {
             assertThat(embedText.inferenceId(), equalTo(string("text-embedding-inference-id")));
             assertThat(embedText.inputText(), equalTo(string("blue")));
         });
@@ -3901,37 +3901,37 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveEmbedTextDataType() {
         LogicalPlan plan = analyze("""
             FROM books METADATA _score
-            | EVAL embedding = EMBED_TEXT("description", "text-embedding-inference-id")
+            | EVAL embedding = TEXT_EMBEDDING("description", "text-embedding-inference-id")
             """, "mapping-books.json");
 
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
         var embedTextAlias = as(eval.fields().get(0), Alias.class);
-        var embedText = as(embedTextAlias.child(), EmbedText.class);
+        var embedText = as(embedTextAlias.child(), TextEmbedding.class);
 
         assertThat(embedText.dataType(), equalTo(DataType.DENSE_VECTOR));
     }
 
     public void testResolveEmbedTextInvalidParameters() {
         assertError(
-            "FROM books METADATA _score| EVAL embedding = EMBED_TEXT(description, \"text-embedding-inference-id\")",
+            "FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING(description, \"text-embedding-inference-id\")",
             "mapping-books.json",
             new QueryParams(),
-            "first argument of [EMBED_TEXT(description, \"text-embedding-inference-id\")] must be a constant, received [description]"
+            "first argument of [TEXT_EMBEDDING(description, \"text-embedding-inference-id\")] must be a constant, received [description]"
         );
 
         assertError(
-            "FROM books METADATA _score| EVAL embedding = EMBED_TEXT(description)",
+            "FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING(description)",
             "mapping-books.json",
             new QueryParams(),
-            "error building [embed_text]: function [embed_text] expects exactly two arguments, it received 1",
+            "error building [text_embedding]: function [text_embedding] expects exactly two arguments, it received 1",
             ParsingException.class
         );
     }
 
     public void testResolveEmbedTextWithPositionalQueryParams() {
         LogicalPlan plan = analyze(
-            "FROM books METADATA _score| EVAL embedding = EMBED_TEXT(?, ?)",
+            "FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING(?, ?)",
             "mapping-books.json",
             new QueryParams(List.of(paramAsConstant(null, "description"), paramAsConstant(null, "text-embedding-inference-id")))
         );
@@ -3939,7 +3939,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
         var embedTextAlias = as(eval.fields().get(0), Alias.class);
-        var embedText = as(embedTextAlias.child(), EmbedText.class);
+        var embedText = as(embedTextAlias.child(), TextEmbedding.class);
 
         assertThat(embedText.inferenceId(), equalTo(string("text-embedding-inference-id")));
         assertThat(embedText.inputText(), equalTo(string("description")));
@@ -3947,7 +3947,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testResolveEmbedTextWithNamedQueryParams() {
         LogicalPlan plan = analyze(
-            "FROM books METADATA _score| EVAL embedding = EMBED_TEXT(?inputText, ?inferenceId)",
+            "FROM books METADATA _score| EVAL embedding = TEXT_EMBEDDING(?inputText, ?inferenceId)",
             "mapping-books.json",
             new QueryParams(
                 List.of(paramAsConstant("inputText", "description"), paramAsConstant("inferenceId", "text-embedding-inference-id"))
@@ -3957,7 +3957,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
         var embedTextAlias = as(eval.fields().get(0), Alias.class);
-        var embedText = as(embedTextAlias.child(), EmbedText.class);
+        var embedText = as(embedTextAlias.child(), TextEmbedding.class);
 
         assertThat(embedText.inferenceId(), equalTo(string("text-embedding-inference-id")));
         assertThat(embedText.inputText(), equalTo(string("description")));

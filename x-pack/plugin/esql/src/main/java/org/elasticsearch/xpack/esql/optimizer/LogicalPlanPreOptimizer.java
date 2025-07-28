@@ -28,7 +28,9 @@ public class LogicalPlanPreOptimizer {
     private final List<PreOptimizerRule> rules;
 
     public LogicalPlanPreOptimizer(TransportActionServices services, LogicalPreOptimizerContext preOptimizerContext) {
-        rules = List.of(new InferenceFunctionConstantFolding(services.bulkInferenceRunner(), preOptimizerContext.foldCtx()));
+        rules = List.of(
+            new InferenceFunctionConstantFolding(services.inferenceService().bulkInferenceRunner(), preOptimizerContext.foldCtx())
+        );
     }
 
     /**

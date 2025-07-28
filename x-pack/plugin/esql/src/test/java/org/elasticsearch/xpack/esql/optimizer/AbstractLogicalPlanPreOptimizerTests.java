@@ -8,7 +8,15 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
@@ -23,13 +31,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.inference.TextEmbedding;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.junit.After;
 import org.junit.Before;
@@ -39,7 +48,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.mockito.Mockito.mock;
@@ -165,31 +173,25 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
     //
     // Thread pool management for async testing
     //
-
     private ThreadPool threadPool;
 
     @Before
-    public void setupThreadPool() {
-        threadPool = createThreadPool();
+    public void setThreadPool() {
+        threadPool = createThreadPool(
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+                between(1, 10),
+                1024,
+                "esql",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
+        );
     }
 
     @After
     public void shutdownThreadPool() {
         terminate(threadPool);
-    }
-
-    /**
-     * Runs the given runnable with a random delay to simulate async behavior.
-     * Uses the thread pool to execute the runnable.
-     *
-     * @param runnable the runnable to execute
-     */
-    private void runWithDelay(Runnable runnable) {
-        if (randomBoolean()) {
-            threadPool.schedule(runnable, timeValueNanos(between(0, 5000)), threadPool.generic());
-        } else {
-            threadPool.generic().execute(runnable);
-        }
     }
 
     //
@@ -213,28 +215,27 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
      * @param textEmbeddingModel the embedding model to use
      * @return a mock inference runner
      */
-    protected InferenceRunner mockedInferenceRunner(TestEmbeddingModel textEmbeddingModel) {
-        return new InferenceRunner() {
+    protected BulkInferenceRunner mockBulkInferenceRunner(TestEmbeddingModel textEmbeddingModel) {
+        Client mockClient = new NoOpClient(threadPool) {
             @Override
-            public void execute(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
-                try {
-                    runWithDelay(
-                        () -> listener.onResponse(
-                            new InferenceAction.Response(
-                                TEST_EMBEDDING_MODELS.get(textEmbeddingModel).embeddingResults(request.getInput().getFirst())
-                            )
-                        )
-                    );
-                } catch (Exception e) {
-                    listener.onFailure(e);
-                }
-            }
+            @SuppressWarnings("unchecked")
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (action instanceof InferenceAction && request instanceof InferenceAction.Request inferenceRequest) {
+                    TextEmbeddingResults<?> inferenceResult = TEST_EMBEDDING_MODELS.get(textEmbeddingModel)
+                        .embeddingResults(inferenceRequest.getInput().getFirst());
+                    listener.onResponse((Response) new InferenceAction.Response(inferenceResult));
+                    return;
 
-            @Override
-            public void executeBulk(BulkInferenceRequestIterator requests, ActionListener<List<InferenceAction.Response>> listener) {
-                listener.onFailure(new UnsupportedOperationException("executeBulk is not supported in this test"));
+                }
+
+                listener.onFailure(new UnsupportedOperationException("Unexpected action: " + action));
             }
         };
+        return new BulkInferenceRunner(mockClient, between(1, 10));
     }
 
     /**
@@ -244,9 +245,10 @@ public class AbstractLogicalPlanPreOptimizerTests extends ESTestCase {
      * @return mock transport action services
      */
     private TransportActionServices mockTransportActionServices(TestEmbeddingModel textEmbeddingModel) {
-        TransportActionServices services = mock(TransportActionServices.class);
-        when(services.inferenceRunner()).thenReturn(mockedInferenceRunner(textEmbeddingModel));
-        return services;
+
+        InferenceService inferenceService = mock(InferenceService.class);
+        when(inferenceService.bulkInferenceRunner()).thenReturn(mockBulkInferenceRunner(textEmbeddingModel));
+        return new TransportActionServices(null, null, null, null, null, null, null, inferenceService);
     }
 
     /**

@@ -353,6 +353,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/124845
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtWithOidcAuthIT
   issue: https://github.com/elastic/elasticsearch/issues/131794
+- class: org.elasticsearch.packaging.test.DockerTests 
+  issue: https://github.com/elastic/elasticsearch/issues/131586
 
 # Examples:
 #

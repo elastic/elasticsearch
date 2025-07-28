@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.IntFunction;
 
 /**
  * <p>Transport version is used to coordinate compatible wire protocol communication between nodes, at a fine-grained level.  This replaces
@@ -351,6 +350,9 @@ public class TransportVersions {
     public static final TransportVersion SHARD_WRITE_LOAD_IN_CLUSTER_INFO = def(9_126_0_00);
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS = def(9_127_0_00);
     public static final TransportVersion ESQL_TOPN_TIMINGS = def(9_128_0_00);
+    public static final TransportVersion NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS = def(9_129_0_00);
+    public static final TransportVersion RERANK_SNIPPETS = def(9_130_0_00);
+    public static final TransportVersion PIPELINE_TRACKING_INFO = def(9_131_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -424,16 +426,6 @@ public class TransportVersions {
      */
     static final List<TransportVersion> DEFINED_VERSIONS = collectAllVersionIdsDefinedInClass(TransportVersions.class);
 
-    // the highest transport version constant defined
-    static final TransportVersion LATEST_DEFINED;
-    static {
-        LATEST_DEFINED = DEFINED_VERSIONS.getLast();
-
-        // see comment on IDS field
-        // now we're registered all the transport versions, we can clear the map
-        IDS = null;
-    }
-
     public static List<TransportVersion> collectAllVersionIdsDefinedInClass(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
         List<TransportVersion> definedTransportVersions = new ArrayList<>();
@@ -474,8 +466,6 @@ public class TransportVersions {
 
         return List.copyOf(definedTransportVersions);
     }
-
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private TransportVersions() {}

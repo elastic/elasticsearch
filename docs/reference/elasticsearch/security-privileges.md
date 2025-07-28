@@ -199,7 +199,7 @@ This section lists the privileges that you can assign to a role.
 `monitor_enrich`
 :   All read-only operations related to managing and executing enrich policies.
 
-`monitor_esql`
+`monitor_esql` {applies_to}`stack: ga 9.1`
 :   All read-only operations related to ES|QL queries.
 
 `monitor_inference`
@@ -359,6 +359,9 @@ This section lists the privileges that you can assign to a role.
 `manage_data_stream_lifecycle`
 :   All [Data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md) operations relating to reading and managing the built-in lifecycle of a data stream. This includes operations such as adding and removing a lifecycle from a data stream.
 
+`manage_failure_store` {applies_to}`stack: ga 9.1`
+:   All `monitor` privileges plus index and data stream administration limited to failure stores only. Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).
+
 `manage_follow_index`
 :   All actions that are required to manage the lifecycle of a follower index, which includes creating a follower index, closing it, and converting it to a regular index. This privilege is necessary only on clusters that contain follower indices.
 
@@ -388,6 +391,8 @@ This section lists the privileges that you can assign to a role.
 
     This privilege is not available in {{serverless-full}}.
 
+`read_failure_store` {applies_to}`stack: ga 9.1`
+:   Read-only access to actions performed on a data stream's failure store. Required for access to failure store data (count, explain, get, mget, get indexed scripts, more like this, multi percolate/search/termvector, percolate, scroll, clear_scroll, search, suggest, tv). Applies only to data streams when accessed through the [index component selector syntax](/reference/elasticsearch/rest-apis/api-conventions.md#api-component-selectors).
 
 `view_index_metadata`
 :   Read-only access to index and data stream metadata (aliases, exists, field capabilities, field mappings, get index, get data stream, ilm explain, mappings, search shards, settings, validate query). This privilege is available for use primarily by {{kib}} users.

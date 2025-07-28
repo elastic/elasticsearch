@@ -61,7 +61,7 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     FloatBlock valuesBlock = page.getBlock(channels.get(0));
     FloatVector valuesVector = valuesBlock.asVector();
@@ -144,6 +144,39 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block meanUncast = page.getBlock(channels.get(0));
+    if (meanUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector mean = ((DoubleBlock) meanUncast).asVector();
+    Block m2Uncast = page.getBlock(channels.get(1));
+    if (m2Uncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector m2 = ((DoubleBlock) m2Uncast).asVector();
+    Block countUncast = page.getBlock(channels.get(2));
+    if (countUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector count = ((LongBlock) countUncast).asVector();
+    assert mean.getPositionCount() == m2.getPositionCount() && mean.getPositionCount() == count.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        StdDevFloatAggregator.combineIntermediate(state, groupId, mean.getDouble(groupPosition + positionOffset), m2.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, FloatBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
@@ -176,6 +209,39 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block meanUncast = page.getBlock(channels.get(0));
+    if (meanUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector mean = ((DoubleBlock) meanUncast).asVector();
+    Block m2Uncast = page.getBlock(channels.get(1));
+    if (m2Uncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector m2 = ((DoubleBlock) m2Uncast).asVector();
+    Block countUncast = page.getBlock(channels.get(2));
+    if (countUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector count = ((LongBlock) countUncast).asVector();
+    assert mean.getPositionCount() == m2.getPositionCount() && mean.getPositionCount() == count.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        StdDevFloatAggregator.combineIntermediate(state, groupId, mean.getDouble(groupPosition + positionOffset), m2.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, FloatBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (values.isNull(groupPosition + positionOffset)) {
@@ -195,11 +261,6 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
       int groupId = groups.getInt(groupPosition);
       StdDevFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -229,13 +290,8 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    StdDevStates.GroupingState inState = ((StdDevFloatGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    StdDevFloatAggregator.combineStates(state, groupId, inState, position);
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

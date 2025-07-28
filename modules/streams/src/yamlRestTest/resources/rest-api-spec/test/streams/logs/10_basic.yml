@@ -41,3 +41,29 @@
   - do:
       streams.status: { }
   - is_true: logs.enabled
+
+---
+"Check streams can't be enabled with existing logs indices":
+  - do:
+      indices.create:
+        index: logs
+  - do:
+      catch: conflict
+      streams.logs_enable: { }
+  - match: { error.reason: "Cannot enable logs streams: indices named 'logs' or starting with 'logs.' already exist." }
+
+  - do:
+      indices.delete:
+        index: logs
+
+  - do:
+      indices.create:
+        index: logs.test
+  - do:
+      catch: conflict
+      streams.logs_enable: { }
+  - match: { error.reason: "Cannot enable logs streams: indices named 'logs' or starting with 'logs.' already exist." }
+
+  - do:
+      indices.delete:
+        index: logs.test

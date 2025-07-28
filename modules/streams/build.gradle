@@ -20,7 +20,7 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'streams'
+    include '_common', 'streams', 'indices'
   }
 }
 

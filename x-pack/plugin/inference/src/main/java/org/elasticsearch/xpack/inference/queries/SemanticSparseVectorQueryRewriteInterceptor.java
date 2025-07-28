@@ -27,7 +27,7 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     public SemanticSparseVectorQueryRewriteInterceptor() {}
 
     @Override
-    protected Map<String, Float> getFieldNamesWithWeights(QueryBuilder queryBuilder) {
+    protected Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
         return Map.of(sparseVectorQueryBuilder.getFieldName(), 1.0f);
@@ -40,7 +40,12 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
         return sparseVectorQueryBuilder.getQuery();
     }
 
-    private QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    @Override
+    protected QueryBuilder buildInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
+    ) {
         Map<String, List<String>> inferenceIdsIndices = indexInformation.getInferenceIdsIndices();
         QueryBuilder finalQueryBuilder;
         if (inferenceIdsIndices.size() == 1) {
@@ -52,23 +57,8 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
             finalQueryBuilder = buildInferenceQueryWithMultipleInferenceIds(queryBuilder, inferenceIdsIndices);
         }
         finalQueryBuilder.queryName(queryBuilder.queryName());
-        finalQueryBuilder.boost(queryBuilder.boost());
+        finalQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         return finalQueryBuilder;
-    }
-
-    @Override
-    protected QueryBuilder buildInferenceQuery(
-        QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation,
-        Float fieldWeight
-    ) {
-        QueryBuilder inferenceQuery = buildInferenceQuery(queryBuilder, indexInformation);
-
-        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
-            inferenceQuery.boost(fieldWeight);
-        }
-
-        return inferenceQuery;
     }
 
     private QueryBuilder buildInferenceQueryWithMultipleInferenceIds(
@@ -89,7 +79,8 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
 
     protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
     ) {
         assert (queryBuilder instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
@@ -119,23 +110,9 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
                 )
             );
         }
-        boolQueryBuilder.boost(queryBuilder.boost());
+        boolQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
-    }
-
-    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
-        QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation,
-        Float fieldWeight
-    ) {
-        QueryBuilder inferenceQuery = buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
-
-        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
-            inferenceQuery.boost(fieldWeight);
-        }
-
-        return inferenceQuery;
     }
 
     private QueryBuilder buildNestedQueryFromSparseVectorQuery(QueryBuilder queryBuilder, String searchInferenceId) {

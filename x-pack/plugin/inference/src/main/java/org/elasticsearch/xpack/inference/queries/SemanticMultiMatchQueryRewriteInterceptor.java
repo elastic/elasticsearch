@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -16,7 +15,7 @@ import java.util.Map;
 
 public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
     @Override
-    protected Map<String, Float> getFieldNamesWithWeights(QueryBuilder queryBuilder) {
+    protected Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder multiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
         return multiMatchQueryBuilder.fields();
@@ -29,61 +28,23 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         return (String) multiMatchQueryBuilder.value();
     }
 
-    private QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
-        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
-        semanticQueryBuilder.boost(queryBuilder.boost());
-        semanticQueryBuilder.queryName(queryBuilder.queryName());
-        return semanticQueryBuilder;
-    }
-
     @Override
     protected QueryBuilder buildInferenceQuery(
         QueryBuilder queryBuilder,
         InferenceIndexInformationForField indexInformation,
-        Float fieldWeight
+        Float fieldWBoost
     ) {
-        QueryBuilder inferenceQuery = buildInferenceQuery(queryBuilder, indexInformation);
-
-        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
-            inferenceQuery.boost(fieldWeight);
-        }
-
-        return inferenceQuery;
-    }
-
-    private QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
-        QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
-    ) {
-        assert (queryBuilder instanceof MultiMatchQueryBuilder);
-        MultiMatchQueryBuilder originalMultiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
-
-        // Create a copy for non-inference fields with only this specific field
-        MultiMatchQueryBuilder multiMatchQueryBuilder = createSingleFieldMultiMatch(
-            originalMultiMatchQueryBuilder,
-            indexInformation.fieldName()
-        );
-
-        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-
-        // Add semantic query for inference indices
-        boolQueryBuilder.should(
-            createSemanticSubQuery(indexInformation.getInferenceIndices(), indexInformation.fieldName(), getQuery(queryBuilder))
-        );
-
-        // Add regular query for non-inference indices
-        boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), multiMatchQueryBuilder));
-
-        // TODO:: add boost
-        boolQueryBuilder.queryName(queryBuilder.queryName());
-        return boolQueryBuilder;
+        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
+        semanticQueryBuilder.boost(queryBuilder.boost() * fieldWBoost);
+        semanticQueryBuilder.queryName(queryBuilder.queryName());
+        return semanticQueryBuilder;
     }
 
     @Override
     protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
         InferenceIndexInformationForField indexInformation,
-        Float fieldWeight
+        Float fieldBoost
     ) {
         assert (queryBuilder instanceof MultiMatchQueryBuilder);
         MultiMatchQueryBuilder multiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
@@ -101,20 +62,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
             )
         );
 
-
-        QueryBuilder nonSemanticFieldQuery = buildNonSemanticFieldQuery(
-            queryBuilder,
-            indexInformation.fieldName(),
-            fieldWeight
-        );
-//        boolQueryBuilder.should(
-//            createSubQueryForIndices(indexInformation.nonInferenceIndices(), nonSemanticFieldQuery)
-//        );
-//        boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), multiMatchQueryBuilder));
-
-        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
-            boolQueryBuilder.boost(fieldWeight);
-        }
+        boolQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
     }
@@ -122,32 +70,5 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     @Override
     public String getQueryName() {
         return MultiMatchQueryBuilder.NAME;
-    }
-
-    /**
-     * Create a MultiMatchQueryBuilder with only a single field for non-inference indices
-     */
-    private MultiMatchQueryBuilder createSingleFieldMultiMatch(MultiMatchQueryBuilder original, String fieldName) {
-        MultiMatchQueryBuilder singleFieldQuery = new MultiMatchQueryBuilder(original.value());
-
-        // Copy all properties from original query
-        singleFieldQuery.type(original.type());
-        singleFieldQuery.operator(original.operator());
-        singleFieldQuery.analyzer(original.analyzer());
-        singleFieldQuery.fuzziness(original.fuzziness());
-        singleFieldQuery.prefixLength(original.prefixLength());
-        singleFieldQuery.maxExpansions(original.maxExpansions());
-        singleFieldQuery.minimumShouldMatch(original.minimumShouldMatch());
-        singleFieldQuery.fuzzyRewrite(original.fuzzyRewrite());
-        singleFieldQuery.tieBreaker(original.tieBreaker());
-        singleFieldQuery.lenient(original.lenient());
-        singleFieldQuery.zeroTermsQuery(original.zeroTermsQuery());
-        singleFieldQuery.autoGenerateSynonymsPhraseQuery(original.autoGenerateSynonymsPhraseQuery());
-        singleFieldQuery.fuzzyTranspositions(original.fuzzyTranspositions());
-
-        // Add only the specific field (without boost for now)
-        singleFieldQuery.field(fieldName);
-
-        return singleFieldQuery;
     }
 }

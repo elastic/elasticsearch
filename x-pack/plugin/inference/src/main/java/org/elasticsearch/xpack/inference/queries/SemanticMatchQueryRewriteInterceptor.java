@@ -23,7 +23,7 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
     public SemanticMatchQueryRewriteInterceptor() {}
 
     @Override
-    protected Map<String, Float> getFieldNamesWithWeights(QueryBuilder queryBuilder) {
+    protected Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
         return Map.of(matchQueryBuilder.fieldName(), 1.0f);
@@ -36,31 +36,23 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
         return (String) matchQueryBuilder.value();
     }
 
-    private QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation) {
+    @Override
+    protected QueryBuilder buildInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
+    ) {
         SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
-        semanticQueryBuilder.boost(queryBuilder.boost());
+        semanticQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         semanticQueryBuilder.queryName(queryBuilder.queryName());
         return semanticQueryBuilder;
     }
 
     @Override
-    protected QueryBuilder buildInferenceQuery(
-        QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation,
-        Float fieldWeight
-    ) {
-        QueryBuilder inferenceQuery = buildInferenceQuery(queryBuilder, indexInformation);
-
-        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
-            inferenceQuery.boost(fieldWeight);
-        }
-
-        return inferenceQuery;
-    }
-
     protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
     ) {
         assert (queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder originalMatchQueryBuilder = (MatchQueryBuilder) queryBuilder;
@@ -76,24 +68,9 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
             )
         );
         boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder));
-        boolQueryBuilder.boost(queryBuilder.boost());
+        boolQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         boolQueryBuilder.queryName(queryBuilder.queryName());
         return boolQueryBuilder;
-    }
-
-    @Override
-    protected QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
-        QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation,
-        Float fieldWeight
-    ) {
-        QueryBuilder inferenceQuery = buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
-
-        if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
-            inferenceQuery.boost(fieldWeight);
-        }
-
-        return inferenceQuery;
     }
 
     @Override

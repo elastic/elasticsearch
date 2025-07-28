@@ -34,7 +34,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
-        Map<String, Float> fieldNamesWithWeights = getFieldNamesWithWeights(queryBuilder);
+        Map<String, Float> fieldsWithBoosts = getFieldNamesWithBoosts(queryBuilder);
         ResolvedIndices resolvedIndices = context.getResolvedIndices();
 
         if (resolvedIndices == null) {
@@ -42,13 +42,13 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-        if (fieldNamesWithWeights.size() > 1) {
+        if (fieldsWithBoosts.size() > 1) {
             // Multi-field query, so return the original query.
-            return handleMultiFieldQuery(queryBuilder, fieldNamesWithWeights, resolvedIndices);
+            return handleMultiFieldQuery(queryBuilder, fieldsWithBoosts, resolvedIndices);
         }
 
-        String fieldName = fieldNamesWithWeights.keySet().iterator().next();
-        Float weight = fieldNamesWithWeights.get(fieldName);
+        String fieldName = fieldsWithBoosts.keySet().iterator().next();
+        Float weight = fieldsWithBoosts.get(fieldName);
         InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
         if (indexInformation.getInferenceIndices().isEmpty()) {
             // No inference fields were identified, so return the original query.
@@ -106,16 +106,16 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-//        finalQueryBuilder.minimumShouldMatch(1);
         return finalQueryBuilder;
     }
 
     /**
-     * @param queryBuilder {@link QueryBuilder}
-     * @return Map of field names with their weights for multi-field queries.
-     *         For single-field queries, return a map with one entry.
+     * Extracts field names and their associated boost values from the query builder.
+     *
+     * @param queryBuilder the query builder to extract field information from
+     * @return a map where keys are field names and values are their boost multipliers
      */
-    protected abstract Map<String, Float> getFieldNamesWithWeights(QueryBuilder queryBuilder);
+    protected abstract Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder);
 
     /**
      * @param queryBuilder {@link QueryBuilder}
@@ -128,13 +128,13 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      *
      * @param queryBuilder {@link QueryBuilder}
      * @param indexInformation {@link InferenceIndexInformationForField}
-     * @param weight {@link Float}
+     * @param fieldBoost per field boost value
      * @return {@link QueryBuilder}
      */
     protected abstract QueryBuilder buildInferenceQuery(
         QueryBuilder queryBuilder,
         InferenceIndexInformationForField indexInformation,
-        Float weight
+        Float fieldBoost
     );
 
     /**
@@ -142,17 +142,13 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      * which separates the different queries into appropriate indices based on field type.
      * @param queryBuilder {@link QueryBuilder}
      * @param indexInformation {@link InferenceIndexInformationForField}
+     * @param fieldBoost per field boost value
      * @return {@link QueryBuilder}
      */
-    // protected abstract QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
-    // QueryBuilder queryBuilder,
-    // InferenceIndexInformationForField indexInformation
-    // );
-
     protected abstract QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
         InferenceIndexInformationForField indexInformation,
-        Float fieldWeight
+        Float fieldBoost
     );
 
     private InferenceIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {
@@ -172,23 +168,9 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         return new InferenceIndexInformationForField(fieldName, inferenceIndicesMetadata, nonInferenceIndices);
     }
 
-    /**
-     * Build a non-semantic field query (for multi-field scenarios)
-     */
-    protected QueryBuilder buildNonSemanticFieldQuery(QueryBuilder queryBuilder, String fieldName, Float fieldWeight) {
-        // Default implementation - subclasses can override for specific query types
-        String query = getQuery(queryBuilder);
-        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(fieldName, query);
-        matchQueryBuilder.boost(fieldWeight);
-        return matchQueryBuilder;
-    }
-
-    protected QueryBuilder createMatchSubQuery(Collection<String> indices, String fieldName, String queryText) {
+    protected QueryBuilder createMatchSubQuery(Collection<String> indices, String fieldName, String value) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, queryText);
-//        if (fieldWeight != null && !fieldWeight.equals(1.0f)) {
-//            matchQuery.boost(fieldWeight);
-//        }
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, value);
         boolQueryBuilder.must(matchQuery);
         boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return boolQueryBuilder;

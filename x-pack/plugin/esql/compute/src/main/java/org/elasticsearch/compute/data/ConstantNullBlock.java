@@ -25,7 +25,8 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         LongBlock,
         FloatBlock,
         DoubleBlock,
-        BytesRefBlock {
+        BytesRefBlock,
+        AggregateMetricDoubleBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
     private final int positionCount;
@@ -141,6 +142,31 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
             result = 31 * result - 1;
         }
         return result;
+    }
+
+    @Override
+    public DoubleBlock minBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleBlock maxBlock() {
+        return this;
+    }
+
+    @Override
+    public DoubleBlock sumBlock() {
+        return this;
+    }
+
+    @Override
+    public IntBlock countBlock() {
+        return this;
+    }
+
+    @Override
+    public Block getMetricBlock(int index) {
+        return this;
     }
 
     @Override

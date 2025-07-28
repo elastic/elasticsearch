@@ -449,8 +449,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.shortValue();
+        } else {
+            // TODO: Improve handling
+            return Short.parseShort(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override
@@ -458,8 +460,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.intValue();
+        } else {
+            // TODO: Improve handling
+            return Integer.parseInt(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override
@@ -467,8 +471,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.longValue();
+        } else {
+            // TODO: Improve handling
+            return Long.parseLong(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override
@@ -476,8 +482,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.floatValue();
+        } else {
+            // TODO: Improve handling
+            return Float.parseFloat(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override
@@ -485,8 +493,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.doubleValue();
+        } else {
+            // TODO: Improve handling
+            return Double.parseDouble(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override

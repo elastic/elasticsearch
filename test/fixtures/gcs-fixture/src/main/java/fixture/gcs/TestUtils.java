@@ -25,6 +25,13 @@ public final class TestUtils {
      * Creates a random Service Account file for testing purpose
      */
     public static byte[] createServiceAccount(final Random random) {
+        return createServiceAccount(random, UUID.randomUUID().toString());
+    }
+
+    /**
+     * Creates a random Service Account file for testing purpose with a specific private key ID.
+     */
+    public static byte[] createServiceAccount(final Random random, String privateKeyId) {
         try {
             final KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
             keyPairGenerator.initialize(2048);
@@ -36,7 +43,7 @@ public final class TestUtils {
                 {
                     builder.field("type", "service_account");
                     builder.field("project_id", "test");
-                    builder.field("private_key_id", UUID.randomUUID().toString());
+                    builder.field("private_key_id", privateKeyId);
                     builder.field("private_key", "-----BEGIN PRIVATE KEY-----\n" + privateKey + "\n-----END PRIVATE KEY-----\n");
                     builder.field("client_email", "elastic@appspot.gserviceaccount.com");
                     builder.field("client_id", String.valueOf(Math.abs(random.nextLong())));

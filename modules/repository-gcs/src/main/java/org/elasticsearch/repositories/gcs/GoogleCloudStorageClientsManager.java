@@ -41,8 +41,9 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         GcsRepositoryStatsCollector,
         MeteredStorage,
         IOException> clientBuilder;
-    private final ClusterClientsHolder clusterClientsHolder = new ClusterClientsHolder();
-    private final Map<ProjectId, ClientsHolder> projectClientHolders;
+    // A map of projectId to clients holder. Adding to and removing from the map happen only in the applier thread.
+    private final Map<ProjectId, ClientsHolder> perProjectClientsHolders;
+    private final ClusterClientsHolder clusterClientsHolder;
 
     public GoogleCloudStorageClientsManager(
         Settings nodeSettings,
@@ -55,15 +56,16 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
             .build();
         this.clientBuilder = clientBuilder;
         if (supportsMultipleProjects) {
-            this.projectClientHolders = ConcurrentCollections.newConcurrentMap();
+            this.perProjectClientsHolders = ConcurrentCollections.newConcurrentMap();
         } else {
-            this.projectClientHolders = null;
+            this.perProjectClientsHolders = null;
         }
+        this.clusterClientsHolder = new ClusterClientsHolder();
     }
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
-        assert projectClientHolders != null;
+        assert perProjectClientsHolders != null;
         final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
 
         final var updatedPerProjectClients = new HashMap<ProjectId, ClientsHolder>();
@@ -77,7 +79,7 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
             // Project secrets can be null when node restarts. It may not have any s3 credentials if s3 is not in use.
             if (projectSecrets == null || projectSecrets.getSettingNames().stream().noneMatch(key -> key.startsWith(GCS_SETTING_PREFIX))) {
                 // Most likely there won't be any existing client, but attempt to remove it anyway just in case
-                projectClientHolders.remove(project.id());
+                perProjectClientsHolders.remove(project.id());
                 continue;
             }
 
@@ -113,13 +115,13 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         // Updated projects
         for (var projectId : updatedPerProjectClients.keySet()) {
             assert ProjectId.DEFAULT.equals(projectId) == false;
-            projectClientHolders.put(projectId, updatedPerProjectClients.get(projectId));
+            perProjectClientsHolders.put(projectId, updatedPerProjectClients.get(projectId));
         }
         // Removed projects
-        for (var projectId : projectClientHolders.keySet()) {
+        for (var projectId : perProjectClientsHolders.keySet()) {
             if (currentProjects.containsKey(projectId) == false) {
                 assert ProjectId.DEFAULT.equals(projectId) == false;
-                projectClientHolders.remove(projectId);
+                perProjectClientsHolders.remove(projectId);
             }
         }
     }
@@ -140,23 +142,41 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
 
     MeteredStorage client(ProjectId projectId, String clientName, String repositoryName, GcsRepositoryStatsCollector statsCollector)
         throws IOException {
-        return getClientsHolderSafe(projectId).client(clientName, repositoryName, statsCollector);
+        if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
+            return clusterClientsHolder.client(clientName, repositoryName, statsCollector);
+        } else {
+            return getClientsHolderSafe(projectId).client(clientName, repositoryName, statsCollector);
+        }
     }
 
     void closeRepositoryClients(ProjectId projectId, String repositoryName) {
-        getClientsHolderSafe(projectId).closeRepositoryClients(repositoryName);
+        if (projectId == null || ProjectId.DEFAULT.equals(projectId)) {
+            clusterClientsHolder.closeRepositoryClients(repositoryName);
+        } else {
+            getClientsHolderSafe(projectId).closeRepositoryClients(repositoryName);
+        }
+    }
+
+    // package private for tests
+    ClusterClientsHolder getClusterClientsHolder() {
+        return clusterClientsHolder;
+    }
+
+    // package private for tests
+    Map<ProjectId, ClientsHolder> getPerProjectClientsHolders() {
+        return perProjectClientsHolders == null ? null : Map.copyOf(perProjectClientsHolders);
     }
 
     private boolean newOrUpdated(ProjectId projectId, Map<String, GoogleCloudStorageClientSettings> currentClientSettings) {
-        final var old = projectClientHolders.get(projectId);
+        final var old = perProjectClientsHolders.get(projectId);
         if (old == null) {
             return true;
         }
-        return currentClientSettings.equals(old.getClientSettings()) == false;
+        return currentClientSettings.equals(old.allClientSettings()) == false;
     }
 
     private ClientsHolder getClientsHolderSafe(ProjectId projectId) {
-        final var clientsHolder = projectClientHolders.get(projectId);
+        final var clientsHolder = perProjectClientsHolders.get(projectId);
         if (clientsHolder == null) {
             assert ProjectId.DEFAULT.equals(projectId) == false;
             throw new IllegalArgumentException("No GCS client is configured for project [" + projectId + "]");
@@ -175,7 +195,7 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         /**
          * Get the current client settings for all clients in this holder.
          */
-        protected abstract Map<String, GoogleCloudStorageClientSettings> getClientSettings();
+        protected abstract Map<String, GoogleCloudStorageClientSettings> allClientSettings();
 
         /**
          * Attempts to retrieve a client from the cache. If the client does not exist it
@@ -204,14 +224,14 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
                     return existing;
                 }
 
-                final GoogleCloudStorageClientSettings settings = getClientSettings().get(clientName);
+                final GoogleCloudStorageClientSettings settings = allClientSettings().get(clientName);
 
                 if (settings == null) {
                     throw new IllegalArgumentException(
                         "Unknown client name ["
                             + clientName
                             + "]. Existing client configs: "
-                            + Strings.collectionToDelimitedString(getClientSettings().keySet(), ",")
+                            + Strings.collectionToDelimitedString(allClientSettings().keySet(), ",")
                     );
                 }
 
@@ -228,6 +248,11 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
                 .filter(entry -> entry.getKey().equals(repositoryName) == false)
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, java.util.Map.Entry::getValue));
         }
+
+        // package private for tests
+        final boolean hasCachedClientForRepository(String repositoryName) {
+            return clientCache.containsKey(repositoryName);
+        }
     }
 
     final class ClusterClientsHolder extends ClientsHolder {
@@ -235,7 +260,7 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
 
         @Override
-        protected Map<String, GoogleCloudStorageClientSettings> getClientSettings() {
+        protected Map<String, GoogleCloudStorageClientSettings> allClientSettings() {
             return clientSettings;
         }
 
@@ -261,7 +286,7 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         }
 
         @Override
-        protected Map<String, GoogleCloudStorageClientSettings> getClientSettings() {
+        protected Map<String, GoogleCloudStorageClientSettings> allClientSettings() {
             return clientSettings;
         }
     }

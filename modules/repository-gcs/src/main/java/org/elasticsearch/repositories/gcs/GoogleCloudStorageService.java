@@ -25,6 +25,7 @@ import com.google.cloud.storage.StorageRetryStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -97,13 +98,45 @@ public class GoogleCloudStorageService {
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
+    @Deprecated(forRemoval = true)
     public MeteredStorage client(final String clientName, final String repositoryName, final GcsRepositoryStatsCollector statsCollector)
         throws IOException {
         return clientsManager.client(clientName, repositoryName, statsCollector);
     }
 
+    /**
+     * Attempts to retrieve a client from the cache. If the client does not exist it
+     * will be created from the latest settings and will populate the cache. The
+     * returned instance should not be cached by the calling code. Instead, for each
+     * use, the (possibly updated) instance should be requested by calling this
+     * method.
+     *
+     * @param clientName name of the client settings used to create the client
+     * @param repositoryName name of the repository that would use the client
+     * @return a cached client storage instance that can be used to manage objects
+     *         (blobs)
+     */
+    public MeteredStorage client(
+        final ProjectId projectId,
+        final String clientName,
+        final String repositoryName,
+        final GcsRepositoryStatsCollector statsCollector
+    ) throws IOException {
+        return clientsManager.client(projectId, clientName, repositoryName, statsCollector);
+    }
+
+    @Deprecated(forRemoval = true)
     void closeRepositoryClients(String repositoryName) {
         clientsManager.closeRepositoryClients(repositoryName);
+    }
+
+    void closeRepositoryClients(final ProjectId projectId, String repositoryName) {
+        clientsManager.closeRepositoryClients(projectId, repositoryName);
+    }
+
+    // package-private for tests
+    GoogleCloudStorageClientsManager getClientsManager() {
+        return clientsManager;
     }
 
     /**

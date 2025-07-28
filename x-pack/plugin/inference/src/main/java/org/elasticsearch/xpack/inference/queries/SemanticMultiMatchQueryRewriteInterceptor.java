@@ -51,7 +51,11 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
 
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.should(
-            createSemanticSubQuery(indexInformation.getInferenceIndices(), indexInformation.fieldName(), (String) multiMatchQueryBuilder.value())
+            createSemanticSubQuery(
+                indexInformation.getInferenceIndices(),
+                indexInformation.fieldName(),
+                (String) multiMatchQueryBuilder.value()
+            )
         );
 
         boolQueryBuilder.should(

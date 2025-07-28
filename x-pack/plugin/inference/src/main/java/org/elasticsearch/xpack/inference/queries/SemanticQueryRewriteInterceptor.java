@@ -86,7 +86,8 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
                 QueryBuilder nonSemanticQuery = createMatchSubQuery(
                     indexInformation.nonInferenceIndices(),
                     fieldName,
-                    getQuery(queryBuilder));
+                    getQuery(queryBuilder)
+                );
                 finalQueryBuilder.should(nonSemanticQuery);
             } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
                 // Mixed semantic/non-semantic field - use combined approach

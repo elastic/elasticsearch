@@ -156,7 +156,7 @@ public class BulkInferenceRunner {
         private final BulkInferenceExecutionState executionState = new BulkInferenceExecutionState();
         private final AtomicBoolean responseSent = new AtomicBoolean(false);
 
-        public BulkInferenceRequest(
+        BulkInferenceRequest(
             BulkInferenceRequestIterator requests,
             Consumer<InferenceAction.Response> responseConsumer,
             ActionListener<Void> completionListener

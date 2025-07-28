@@ -125,7 +125,6 @@ public class InferenceResolver {
         return BytesRefs.toString(e.fold(FoldContext.small()));
     }
 
-
     public static Factory factory(Client client) {
         return new Factory(client);
     }

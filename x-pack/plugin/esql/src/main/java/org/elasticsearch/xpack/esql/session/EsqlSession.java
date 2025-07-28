@@ -754,11 +754,7 @@ public class EsqlSession {
         logicalPlanListener.onResponse(plan);
     }
 
-    private void resolveInferences(
-        List<String> inferenceIds,
-        PreAnalysisResult preAnalysisResult,
-        ActionListener<PreAnalysisResult> l
-    ) {
+    private void resolveInferences(List<String> inferenceIds, PreAnalysisResult preAnalysisResult, ActionListener<PreAnalysisResult> l) {
         inferenceResolver.resolveInferenceIds(inferenceIds, l.map(preAnalysisResult::withInferenceResolution));
     }
 

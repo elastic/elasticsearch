@@ -157,7 +157,7 @@ public class InferenceResolverTests extends ESTestCase {
         });
     }
 
-    @SuppressWarnings({"unchecked", "raw-types"})
+    @SuppressWarnings({ "unchecked", "raw-types" })
     private Client mockClient() {
         Client client = mock(Client.class);
         doAnswer(i -> {

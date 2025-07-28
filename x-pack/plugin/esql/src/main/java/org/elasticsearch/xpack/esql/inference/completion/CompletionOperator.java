@@ -13,13 +13,10 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
+import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
-
-import java.util.stream.IntStream;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 
 /**
  * {@link CompletionOperator} is an {@link InferenceOperator} that performs inference using prompt-based model (e.g., text completion).
@@ -31,12 +28,12 @@ public class CompletionOperator extends InferenceOperator {
 
     public CompletionOperator(
         DriverContext driverContext,
-        InferenceRunner inferenceRunner,
-        ThreadPool threadPool,
+        BulkInferenceRunner bulkInferenceRunner,
         String inferenceId,
-        ExpressionEvaluator promptEvaluator
+        ExpressionEvaluator promptEvaluator,
+        int maxOutstandingPages
     ) {
-        super(driverContext, inferenceRunner, BulkInferenceExecutionConfig.DEFAULT, threadPool, inferenceId);
+        super(driverContext, bulkInferenceRunner, inferenceId, maxOutstandingPages);
         this.promptEvaluator = promptEvaluator;
     }
 
@@ -50,16 +47,6 @@ public class CompletionOperator extends InferenceOperator {
         return "CompletionOperator[inference_id=[" + inferenceId() + "]]";
     }
 
-    @Override
-    public void addInput(Page input) {
-        try {
-            super.addInput(input.appendBlock(promptEvaluator.eval(input)));
-        } catch (Exception e) {
-            releasePageOnAnyThread(input);
-            throw e;
-        }
-    }
-
     /**
      * Constructs the completion inference requests iterator for the given input page by evaluating the prompt expression.
      *
@@ -67,8 +54,7 @@ public class CompletionOperator extends InferenceOperator {
      */
     @Override
     protected BulkInferenceRequestIterator requests(Page inputPage) {
-        int inputBlockChannel = inputPage.getBlockCount() - 1;
-        return new CompletionOperatorRequestIterator(inputPage.getBlock(inputBlockChannel), inferenceId());
+        return new CompletionOperatorRequestIterator((BytesRefBlock) promptEvaluator.eval(inputPage), inferenceId());
     }
 
     /**
@@ -79,18 +65,17 @@ public class CompletionOperator extends InferenceOperator {
     @Override
     protected CompletionOperatorOutputBuilder outputBuilder(Page input) {
         BytesRefBlock.Builder outputBlockBuilder = blockFactory().newBytesRefBlockBuilder(input.getPositionCount());
-        return new CompletionOperatorOutputBuilder(
-            outputBlockBuilder,
-            input.projectBlocks(IntStream.range(0, input.getBlockCount() - 1).toArray())
-        );
+        return new CompletionOperatorOutputBuilder(outputBlockBuilder, input);
     }
 
     /**
      * Factory for creating {@link CompletionOperator} instances.
      */
-    public record Factory(InferenceRunner inferenceRunner, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
-        implements
-            OperatorFactory {
+    public record Factory(
+        BulkInferenceRunner.Factory inferenceRunnerFactory,
+        String inferenceId,
+        ExpressionEvaluator.Factory promptEvaluatorFactory
+    ) implements OperatorFactory {
         @Override
         public String describe() {
             return "CompletionOperator[inference_id=[" + inferenceId + "]]";
@@ -100,10 +85,10 @@ public class CompletionOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new CompletionOperator(
                 driverContext,
-                inferenceRunner,
-                inferenceRunner.threadPool(),
+                inferenceRunnerFactory.create(InferenceRunnerConfig.DEFAULT),
                 inferenceId,
-                promptEvaluatorFactory.get(driverContext)
+                promptEvaluatorFactory.get(driverContext),
+                InferenceRunnerConfig.DEFAULT.maxOutstandingBulkRequests()
             );
         }
     }

@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
@@ -56,14 +55,6 @@ public class RerankOperatorOutputBuilderTests extends ComputeTestCase {
             final Page outputPage = outputBuilder.buildOutput();
             try {
                 assertThat(outputPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
-                LogManager.getLogger(RerankOperatorOutputBuilderTests.class)
-                    .info(
-                        "{} , {}, {}, {}",
-                        scoreChannel,
-                        inputPage.getBlockCount(),
-                        outputPage.getBlockCount(),
-                        Math.max(scoreChannel + 1, inputPage.getBlockCount())
-                    );
                 assertThat(outputPage.getBlockCount(), equalTo(Integer.max(scoreChannel + 1, inputPage.getBlockCount())));
                 assertOutputContent(outputPage.getBlock(scoreChannel));
             } finally {

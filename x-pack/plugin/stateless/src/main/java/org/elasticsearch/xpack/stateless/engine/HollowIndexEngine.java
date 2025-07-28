@@ -33,10 +33,8 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.engine.ElasticsearchIndexDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.LazySoftDeletesDirectoryReaderWrapper;
 import org.elasticsearch.index.engine.SafeCommitInfo;
@@ -83,11 +81,6 @@ public class HollowIndexEngine extends Engine {
     private final SafeCommitInfo safeCommitInfo;
     private final SeqNoStats seqNoStats;
 
-    /**
-     * Only used for managing acquired/released index commits
-     */
-    private final ElasticsearchIndexDeletionPolicy indexDeletionPolicy;
-
     @SuppressWarnings("this-escape")
     public HollowIndexEngine(
         EngineConfig config,
@@ -108,57 +101,26 @@ public class HollowIndexEngine extends Engine {
             boolean success = false;
             try {
                 assert Transports.assertNotTransportThread("opening directory reader of a read-only hollow engine");
-                this.segmentInfos = Lucene.readSegmentInfos(directory);
-                this.seqNoStats = buildSeqNoStats(config, segmentInfos);
+
+                segmentInfos = Lucene.readSegmentInfos(directory);
+                indexCommit = Lucene.getIndexCommit(segmentInfos, directory);
+                try (
+                    var reader = ElasticsearchDirectoryReader.wrap(
+                        new LazySoftDeletesDirectoryReaderWrapper(
+                            DirectoryReader.open(indexCommit, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major, null),
+                            Lucene.SOFT_DELETES_FIELD
+                        ),
+                        shardId,
+                        null
+                    )
+                ) {
+                    shardFieldStats = shardFieldStats(reader.getContext().leaves());
+                    docsStats = docsStats(reader);
+                }
+
+                seqNoStats = buildSeqNoStats(config, segmentInfos);
                 this.safeCommitInfo = new SafeCommitInfo(seqNoStats.getLocalCheckpoint(), segmentInfos.totalMaxDoc());
 
-                try {
-                    var policy = config.getIndexDeletionPolicyWrapper().apply(null);
-                    if (policy instanceof HollowIndexEngineDeletionPolicy hollowIndexEngineDeletionPolicy) {
-                        hollowIndexEngineDeletionPolicy.onInit(Lucene.getIndexCommit(segmentInfos, directory), safeCommitInfo);
-                        // Acquires the latest commit for the life of the HollowIndexEngine, it will be released in #closeNoLock
-                        var acquiredCommit = hollowIndexEngineDeletionPolicy.acquireIndexCommit(true);
-                        boolean release = true;
-                        try (
-                            var reader = ElasticsearchDirectoryReader.wrap(
-                                new LazySoftDeletesDirectoryReaderWrapper(
-                                    DirectoryReader.open(
-                                        acquiredCommit,
-                                        IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major,
-                                        null
-                                    ),
-                                    Lucene.SOFT_DELETES_FIELD
-                                ),
-                                shardId,
-                                null
-                            )
-                        ) {
-                            this.shardFieldStats = shardFieldStats(reader.getContext().leaves());
-                            this.docsStats = docsStats(reader);
-                            this.indexDeletionPolicy = hollowIndexEngineDeletionPolicy;
-                            this.indexCommit = acquiredCommit;
-                            release = false;
-                        } finally {
-                            if (release) {
-                                hollowIndexEngineDeletionPolicy.releaseIndexCommit(acquiredCommit);
-                            }
-                        }
-                    } else {
-                        throw new IllegalStateException(
-                            "Expected ["
-                                + HollowIndexEngineDeletionPolicy.class.getName()
-                                + "] but got ["
-                                + policy.getClass().getName()
-                                + ']'
-                        );
-                    }
-                } catch (Exception e) {
-                    throw new EngineCreationFailureException(
-                        config.getShardId(),
-                        "Failed to initialize index deletion policy for hollow index engine",
-                        e
-                    );
-                }
                 success = true;
             } finally {
                 if (success == false) {
@@ -366,32 +328,15 @@ public class HollowIndexEngine extends Engine {
         }
     }
 
-    private IndexCommitRef acquireIndexCommitRef(final boolean acquiringSafeCommit) {
-        store.incRef();
-        boolean success = false;
-        try {
-            final var indexCommit = indexDeletionPolicy.acquireIndexCommit(acquiringSafeCommit);
-            final var commitRef = new IndexCommitRef(
-                indexCommit,
-                () -> IOUtils.close(() -> indexDeletionPolicy.releaseIndexCommit(indexCommit), store::decRef)
-            );
-            success = true;
-            return commitRef;
-        } finally {
-            if (success == false) {
-                store.decRef();
-            }
-        }
-    }
-
     @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) throws EngineException {
-        return acquireIndexCommitRef(false);
+        store.incRef();
+        return new IndexCommitRef(indexCommit, store::decRef);
     }
 
     @Override
     public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
-        return acquireIndexCommitRef(true);
+        return acquireLastIndexCommit(false);
     }
 
     @Override
@@ -403,7 +348,7 @@ public class HollowIndexEngine extends Engine {
     protected void closeNoLock(String reason, CountDownLatch closedLatch) {
         if (isClosed.compareAndSet(false, true)) {
             try {
-                IOUtils.close(() -> indexDeletionPolicy.releaseIndexCommit(indexCommit), store::decRef);
+                IOUtils.close(store::decRef);
             } catch (Exception ex) {
                 logger.warn("failed to close hollow engine", ex);
             } finally {

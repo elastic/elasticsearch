@@ -25,7 +25,6 @@ import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngineTestUtils;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
-import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
@@ -35,7 +34,6 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -44,7 +42,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -52,18 +49,14 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesRequestCache;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
@@ -82,22 +75,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCase {
 
     @Override
-    protected boolean addMockFsRepository() {
-        return false;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        var plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(StatelessMockRepositoryPlugin.class);
-        return plugins;
-    }
-
-    @Override
     protected Settings.Builder nodeSettings() {
         return super.nodeSettings().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
             // To ensure tests are not reading file from cache
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO)
+            // To have 1 BCC per refresh/flush, it's easier to reason about for this test suite
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1L))
             .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueDays(1L))
             // To speed up blobs deletion in the object store
@@ -105,9 +87,7 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCas
             // To avoid unwanted flushes that produce commits
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
             // To ensure searches are not served from request cache
-            .put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), ByteSizeValue.ZERO)
-            // To be able to install a custom repository strategy
-            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+            .put(IndicesRequestCache.INDICES_CACHE_QUERY_SIZE.getKey(), ByteSizeValue.ZERO);
     }
 
     @Override
@@ -180,9 +160,6 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCas
         final var indexNodeB = startIndexNode(indexNodeSettings);
         assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShard), equalTo(true)));
 
-        var isAllowedToDeleteSnapshotBackingBCCs = installSnapshotBackingBCCDeletionWatcher(indexNodeA, snapshot);
-        isAllowedToDeleteSnapshotBackingBCCs.set(false);
-
         var indexEngine = asInstanceOf(IndexEngine.class, indexShard.getEngineOrNull());
 
         final var handOffStarted = new CountDownLatch(1);
@@ -206,7 +183,12 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCas
         var hollowEngine = asInstanceOf(HollowIndexEngine.class, indexShard.getEngineOrNull());
 
         // Test that snapshot files can still be fully read after the engine is hollow
-        ensureSnapshotCanReadFiles(snapshot);
+        var directory = indexShard.store().directory();
+        for (var file : snapshot.getIndexCommit().getFileNames()) {
+            try (var input = directory.openChecksumInput(file)) {
+                Streams.readFully(new InputStreamIndexInput(input, directory.fileLength(file)));
+            }
+        }
 
         // Fail relocation
         failHandOff.countDown();
@@ -234,175 +216,26 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCas
         assertThat(unhollowShard, sameInstance(indexShard));
         assertThat(unhollowShard.getOperationPrimaryTerm(), equalTo(primaryTerm));
 
-        // The commit acquired on the IndexEngine for snapshotting has been retained during hollowing
+        // Wait for BCC to be deleted from the object store
         var blobName = BatchedCompoundCommit.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
-        var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
-            .listBlobs(OperationPurpose.INDICES)
-            .keySet();
-        assertThat("BCC for generation 5 exists in object store", blobs.contains(blobName), equalTo(true));
-
-        // Test that snapshot files can still be fully read after the engine is hollow
-        ensureSnapshotCanReadFiles(snapshot);
-
-        isAllowedToDeleteSnapshotBackingBCCs.set(true);
-        // Release snapshot commit
-        IOUtils.close(snapshot);
-
-        // Create a new commit to revisit the index deletion policy and deletes the fully released commit
-        flushAndRefresh(indexName);
-
-        // Wait for BCC to be deleted from the object store
         assertBusy(() -> {
-            var remainingBlobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
+            var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
                 .listBlobs(OperationPurpose.INDICES)
                 .keySet();
-            assertThat("BCC for generation 5 is deleted from object store", remainingBlobs.contains(blobName), equalTo(false));
+            assertThat("BCC for generation 5 is deleted from object store", blobs.contains(blobName), equalTo(false));
         });
-    }
 
-    public void testSnapshotCommitAcquiredOnHollowShardRetainedAfterUnhollow() throws Exception {
-        startMasterOnlyNode();
-
-        final var indexNodeSettings = Settings.builder().put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1)).build();
-        final var indexNodeA = startIndexNode(indexNodeSettings);
-        final var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
-
-        final var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
-
-        final var indexShard = findIndexShard(indexName);
-        final long primaryTerm = indexShard.getOperationPrimaryTerm();
-
-        // segments_3 (generation: 3):
-        // segments_3
-        logLastCommittedSegmentInfos(indexShard);
-
-        // Create first commit with segment _0
-        indexDocsAndRefresh(indexName, IntStream.range(0, 10));
-
-        // segments_4 (generation: 4):
-        // _0.cfe
-        // _0.cfs
-        // _0.si
-        // segments_4
-        logLastCommittedSegmentInfos(indexShard);
-
-        // create second commit with segment _0 and _1
-        indexDocsAndRefresh(indexName, IntStream.range(10, 20));
-
-        // segments_5 (generation: 5):
-        // _0.cfe
-        // _0.cfs
-        // _0.si
-        // _1.cfe
-        // _1.cfs
-        // _1.si
-        // segments_5
-        logLastCommittedSegmentInfos(indexShard);
-
-        // Start hollowing shard
-        final var indexNodeB = startIndexNode(indexNodeSettings);
-        assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShard), equalTo(true)));
-
-        var indexEngine = asInstanceOf(IndexEngine.class, indexShard.getEngineOrNull());
-
-        // Relocate index as hollow from node A to node B
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        ensureGreen(indexName);
-
-        // Wait for index engine to be closed due to hollowing/reset
-        IndexEngineTestUtils.awaitClose(indexEngine);
-
-        // Shard is hollow now
-        final var hollowShard = findIndexShard(indexName);
-        var hollowEngine = asInstanceOf(HollowIndexEngine.class, hollowShard.getEngineOrNull());
-
-        // segments_6 (generation: 6):
-        // _0.cfe
-        // _0.cfs
-        // _0.si
-        // _1.cfe
-        // _1.cfs
-        // _1.si
-        // segments_6
-        logLastCommittedSegmentInfos(hollowShard);
-
-        // Acquire commit for snapshot on hollow shard
-        var snapshot = hollowShard.acquireIndexCommitForSnapshot();
-        assertThat(snapshot.getIndexCommit().getGeneration(), equalTo(6L));
-        assertThat(snapshot.getIndexCommit().getSegmentCount(), equalTo(2));
-
-        var isAllowedToDeleteSnapshotBackingBCCs = installSnapshotBackingBCCDeletionWatcher(indexNodeA, snapshot);
-        isAllowedToDeleteSnapshotBackingBCCs.set(false);
-
-        // Test that snapshot files can be fully read on the hollow engine
-        ensureSnapshotCanReadFiles(snapshot);
-
-        // Trigger force-merge to unhollow shard and merge away the two segments
-        var forceMergeFuture = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
-
-        // Wait for hollow index engine to be closed
-        IndexEngineTestUtils.awaitClose(hollowEngine);
-        safeGet(forceMergeFuture);
-
-        // Shard is unhollow now
-        var unhollowIndexEngine = asInstanceOf(IndexEngine.class, hollowShard.getEngineOrNull());
-
-        // segments_8 (generation: 8):
-        // _2.cfe
-        // _2.cfs
-        // _2.si
-        // segments_8
-        logLastCommittedSegmentInfos(hollowShard);
-
-        // Delete all docs, then flush and force-merge to get rid of segments retained for snapshot
-        deleteDocs(indexName, IntStream.range(0, 20), WriteRequest.RefreshPolicy.NONE);
-        flushAndRefresh(indexName);
-        forceMerge(true);
-
-        // segments_a (generation: 10):
-        // _4.cfe
-        // _4.cfs
-        // _4.si
-        // segments_a
-        logLastCommittedSegmentInfos(hollowShard);
-
-        final var blobName = BatchedCompoundCommit.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration());
-
-        // The commit acquired on the HollowIndexEngine for snapshotting has been retained after unhollowing
-        {
-            var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(hollowShard.shardId(), primaryTerm)
-                .listBlobs(OperationPurpose.INDICES)
-                .keySet();
-            assertThat("BCC for generation 6 exists in object store", blobs.contains(blobName), equalTo(true));
+        // TODO ES-10929
+        //
+        // The commit acquired on the IndexEngine and retained for snapshotting has been deleted during hollowing, when the IndexEngine
+        // and its IndexWriter has been re-created: the new IndexDeletionPolicy instance thought the commits were not acquired and
+        // therefore marked them as deleted, deleting them from the directory and the blob store. Any shard snapshot task that tries to
+        // read a file from the old commit will fail.
+        for (var file : snapshot.getIndexCommit().getFileNames()) {
+            expectThrows(FileNotFoundException.class, () -> unhollowShard.store().directory().openChecksumInput(file));
         }
 
-        // Test that snapshot files can still be fully read after the engine is unhollow
-        ensureSnapshotCanReadFiles(snapshot);
-
-        isAllowedToDeleteSnapshotBackingBCCs.set(true);
-        // Release snapshot commit
         IOUtils.close(snapshot);
-
-        // Even if the commit is fully released, it is not deleted from the object store because HollowIndexEngine does not delete commits
-        // from disk (no IndexWriter). We need the IndexEngine to revisit the index deletion policy.
-        {
-            var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(hollowShard.shardId(), primaryTerm)
-                .listBlobs(OperationPurpose.INDICES)
-                .keySet();
-            assertThat("BCC for generation 6 exists in object store", blobs.contains(blobName), equalTo(true));
-        }
-
-        // Create a new commit to revisit the index deletion policy and deletes the fully released commit
-        flushAndRefresh(indexName);
-
-        // Wait for BCC to be deleted from the object store
-        assertBusy(() -> {
-            var remainingBlobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(hollowShard.shardId(), primaryTerm)
-                .listBlobs(OperationPurpose.INDICES)
-                .keySet();
-            assertThat("BCC for generation 6 is deleted from object store", remainingBlobs.contains(blobName), equalTo(false));
-        });
     }
 
     public void testSearcherAcquiredOnIndexShardRetainedAfterHollow() throws Exception {
@@ -600,13 +433,6 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCas
         assertNoFailures(bulkRequest.get());
     }
 
-    private static void deleteDocs(String indexName, IntStream docsIdsStream, WriteRequest.RefreshPolicy refreshPolicy) {
-        var bulkRequest = client().prepareBulk();
-        docsIdsStream.forEach(n -> bulkRequest.add(new DeleteRequest(indexName).id(String.valueOf(n))));
-        bulkRequest.setRefreshPolicy(refreshPolicy);
-        assertNoFailures(bulkRequest.get());
-    }
-
     private static void ensureSearcherCanAccessStoredFieldFile(Engine.Searcher searcher) throws IOException {
         searcher.search(new MatchAllDocsQuery(), new Collector() {
             @Override
@@ -629,38 +455,5 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCas
                 };
             }
         });
-    }
-
-    private static void ensureSnapshotCanReadFiles(Engine.IndexCommitRef snapshot) throws IOException {
-        var directory = snapshot.getIndexCommit().getDirectory();
-        for (var file : snapshot.getIndexCommit().getFileNames()) {
-            try (var input = directory.openChecksumInput(file)) {
-                Streams.readFully(new InputStreamIndexInput(input, directory.fileLength(file)));
-            }
-        }
-    }
-
-    private AtomicBoolean installSnapshotBackingBCCDeletionWatcher(String indexNodeA, Engine.IndexCommitRef snapshot) {
-        var isAllowedToDeleteSnapshotBackingBCCs = new AtomicBoolean(false);
-        setNodeRepositoryStrategy(indexNodeA, new StatelessMockRepositoryStrategy() {
-            @Override
-            public void blobStoreDeleteBlobsIgnoringIfNotExists(
-                CheckedRunnable<IOException> originalRunnable,
-                OperationPurpose purpose,
-                Iterator<String> blobNames
-            ) throws IOException {
-                List<String> blobsToDelete = new ArrayList<>();
-                blobNames.forEachRemaining(blobsToDelete::add);
-                var deletingSnapshotBackingBCC = blobsToDelete.stream()
-                    .anyMatch(
-                        name -> name.contains(BatchedCompoundCommit.blobNameFromGeneration(snapshot.getIndexCommit().getGeneration()))
-                    );
-                if (deletingSnapshotBackingBCC && isAllowedToDeleteSnapshotBackingBCCs.get() == false) {
-                    throw new AssertionError("Blob deletion should not be triggered " + blobsToDelete);
-                }
-                super.blobStoreDeleteBlobsIgnoringIfNotExists(originalRunnable, purpose, blobNames);
-            }
-        });
-        return isAllowedToDeleteSnapshotBackingBCCs;
     }
 }

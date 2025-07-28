@@ -75,7 +75,7 @@ Requires a manual override from Elastic Support as users cannot modify timeout s
 
 * Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
 * Split complex operations into multiple simpler queries 
-* Configure your application to handle streaming responses where supported
+* Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/configuration-reference/networking-settings.md#_http_client_configuration)
 
 **Examples**
 

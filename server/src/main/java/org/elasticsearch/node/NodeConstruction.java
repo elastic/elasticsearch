@@ -1152,7 +1152,7 @@ class NodeConstruction {
             indicesService,
             fileSettingsService,
             threadPool,
-            pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::new)
+            pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance)
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(

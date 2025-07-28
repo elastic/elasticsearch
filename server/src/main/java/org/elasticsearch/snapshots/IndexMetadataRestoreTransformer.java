@@ -18,7 +18,17 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 public interface IndexMetadataRestoreTransformer {
     IndexMetadata updateIndexMetadata(IndexMetadata original);
 
-    class NoOpRestoreTransformer implements IndexMetadataRestoreTransformer {
+    /**
+     * A default implementation of {@link IndexMetadataRestoreTransformer} which does nothing
+     */
+    final class NoOpRestoreTransformer implements IndexMetadataRestoreTransformer {
+        public static final NoOpRestoreTransformer INSTANCE = new NoOpRestoreTransformer();
+        public static NoOpRestoreTransformer getInstance() {
+            return INSTANCE;
+        }
+
+        private NoOpRestoreTransformer() {}
+
         @Override
         public IndexMetadata updateIndexMetadata(IndexMetadata original) {
             return original;

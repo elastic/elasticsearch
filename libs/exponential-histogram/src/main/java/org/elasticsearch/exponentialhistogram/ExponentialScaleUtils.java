@@ -96,16 +96,13 @@ public class ExponentialScaleUtils {
         checkIndexAndScaleBounds(index, currentScale);
 
         int newScale = currentScale + scaleAdjustment;
-        if (newScale < MIN_SCALE || newScale > MAX_SCALE) {
-            throw new IllegalArgumentException("adjusted scale must be in the range [" + MIN_SCALE + "..." + MAX_SCALE + "]");
-        }
+        assert newScale >= MIN_SCALE && newScale <= MAX_SCALE
+            : "adjusted scale must be in the range [" + MIN_SCALE + ", " + MAX_SCALE + "]";
 
         if (scaleAdjustment <= 0) {
             return index >> -scaleAdjustment;
         } else {
-            if (scaleAdjustment > MAX_INDEX_BITS) {
-                throw new IllegalArgumentException("Scaling up more than " + MAX_INDEX_BITS + " does not make sense");
-            }
+            assert scaleAdjustment <= MAX_INDEX_BITS : "Scaling up more than " + MAX_INDEX_BITS + " does not make sense";
             // When scaling up, we want to return the bucket containing the point of least relative error.
             // This bucket index can be computed as (index << adjustment) + offset.
             // The offset is a constant that depends only on the scale and adjustment, not the index.

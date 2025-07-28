@@ -131,9 +131,7 @@ public class ExponentialHistogramMerger {
             overflowCount = putBuckets(buffer, negativeMerged, false, null);
             overflowCount += putBuckets(buffer, positiveMerged, true, null);
 
-            if (overflowCount > 0) {
-                throw new IllegalStateException("Should never happen, the histogram should have had enough space");
-            }
+            assert overflowCount == 0 : "Should never happen, the histogram should have had enough space";
         }
         FixedCapacityExponentialHistogram temp = result;
         result = buffer;

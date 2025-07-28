@@ -39,15 +39,9 @@ class DownscaleStats {
      * @param currentBucketIndex the index of the current bucket
      */
     void add(long previousBucketIndex, long currentBucketIndex) {
-        if (currentBucketIndex <= previousBucketIndex) {
-            throw new IllegalArgumentException("currentBucketIndex must be greater than previousBucketIndex");
-        }
-        if (currentBucketIndex < MIN_INDEX || currentBucketIndex > MAX_INDEX) {
-            throw new IllegalArgumentException("currentBucketIndex must be in the range [" + MIN_INDEX + "..." + MAX_INDEX + "]");
-        }
-        if (previousBucketIndex < MIN_INDEX || previousBucketIndex > MAX_INDEX) {
-            throw new IllegalArgumentException("previousBucketIndex must be in the range [" + MIN_INDEX + "..." + MAX_INDEX + "]");
-        }
+        assert currentBucketIndex > previousBucketIndex;
+        assert previousBucketIndex >= MIN_INDEX && previousBucketIndex <= MAX_INDEX;
+        assert currentBucketIndex <= MAX_INDEX;
         /*
          * Below is an efficient variant of the following algorithm:
          * for (int i=0; i<63; i++) {
@@ -75,9 +69,7 @@ class DownscaleStats {
      * @return the number of buckets that will be merged
      */
     int getCollapsedBucketCountAfterScaleReduction(int reduction) {
-        if (reduction < 0 || reduction > MAX_INDEX_BITS) {
-            throw new IllegalArgumentException("reduction must be between 0 and " + (MAX_INDEX_BITS));
-        }
+        assert reduction >= 0 && reduction <= MAX_INDEX_BITS;
         int totalCollapsed = 0;
         for (int i = 0; i < reduction; i++) {
             totalCollapsed += collapsedBucketCount[i];
@@ -92,9 +84,7 @@ class DownscaleStats {
      * @return the required scale reduction
      */
     int getRequiredScaleReductionToReduceBucketCountBy(int desiredCollapsedBucketCount) {
-        if (desiredCollapsedBucketCount < 0) {
-            throw new IllegalArgumentException("desiredCollapsedBucketCount must be greater than or equal to 0");
-        }
+        assert desiredCollapsedBucketCount >= 0;
         if (desiredCollapsedBucketCount == 0) {
             return 0;
         }

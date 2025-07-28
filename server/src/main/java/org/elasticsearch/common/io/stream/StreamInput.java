@@ -803,6 +803,28 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a multiple {@code V}-values and then converts them to a {@code Map} using keyMapper.
+     *
+     * @param valueReader The value reader
+     * @param keyMapper function to create a key from a value
+     * @param constructor map constructor
+     * @return Never {@code null}.
+     */
+    public <K, V, M extends Map<K, V>> M readMapValues(
+        final Writeable.Reader<V> valueReader,
+        final Function<V, K> keyMapper,
+        final IntFunction<M> constructor
+    ) throws IOException {
+        final int size = readArraySize();
+        final M map = constructor.apply(size);
+        for (int i = 0; i < size; i++) {
+            V value = valueReader.read(this);
+            map.put(keyMapper.apply(value), value);
+        }
+        return map;
+    }
+
+    /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     @Nullable

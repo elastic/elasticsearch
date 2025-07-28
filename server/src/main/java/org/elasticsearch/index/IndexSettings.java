@@ -65,6 +65,7 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_F
  * be called for each settings update.
  */
 public final class IndexSettings {
+
     public static final Setting<List<String>> DEFAULT_FIELD_SETTING = Setting.stringListSetting(
         "index.query.default_field",
         Collections.singletonList("*"),
@@ -856,6 +857,32 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * An enum for the tri-state value of the `index.vectors.indexing.use_gpu` setting.
+     */
+    public enum GpuMode {
+        TRUE,
+        FALSE,
+        AUTO
+    }
+
+    /**
+     * Setting to control whether to use GPU for vectors indexing.
+     * Currently only applicable for index_options.type: hnsw.
+     *
+     * If unset or "auto", an automatic decision is made based on the presence of GPU, necessary libraries, vectors' count and dims.
+     * If set to <code>true</code>, GPU must be used for vectors indexing, and if GPU or necessary libraries are not available,
+     * an exception will be thrown.
+     * If set to <code>false</code>, GPU will not be used for vectors indexing.
+     */
+    public static final Setting<GpuMode> VECTORS_INDEXING_USE_GPU_SETTING = Setting.enumSetting(
+        GpuMode.class,
+        "index.vectors.indexing.use_gpu",
+        GpuMode.AUTO,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
     private final Index index;
     private final IndexVersion version;
     private final Logger logger;
@@ -953,6 +980,8 @@ public final class IndexSettings {
      * The maximum number of slices allowed in a scroll request.
      */
     private volatile int maxSlicesPerScroll;
+
+    private volatile GpuMode useGpuForVectorsIndexing;
 
     /**
      * The maximum length of regex string allowed in a regexp query.
@@ -1129,6 +1158,7 @@ public final class IndexSettings {
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         useDocValuesSkipper = DOC_VALUES_SKIPPER && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         seqNoIndexOptions = scopedSettings.get(SEQ_NO_INDEX_OPTIONS_SETTING);
+        this.useGpuForVectorsIndexing = scopedSettings.get(VECTORS_INDEXING_USE_GPU_SETTING);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1150,6 +1180,8 @@ public final class IndexSettings {
                 );
             }
         }
+
+        scopedSettings.addSettingsUpdateConsumer(VECTORS_INDEXING_USE_GPU_SETTING, this::setUseGpuForVectorsIndexing);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -1875,6 +1907,23 @@ public final class IndexSettings {
 
     private void setHnswEarlyTermination(boolean earlyTermination) {
         this.earlyTermination = earlyTermination;
+    }
+
+    private void setUseGpuForVectorsIndexing(GpuMode useGpuForVectorsIndexing) {
+        this.useGpuForVectorsIndexing = useGpuForVectorsIndexing;
+    }
+
+    /**
+     * Whether to use GPU for vectors indexing.
+     * Currently only applicable for index_options.type: hnsw
+     *
+     * @return <code>GpuMode.TRUE</code> if GPU must be used for vectors indexing;
+     * <code>GpuMode.FALSE</code> if GPU will not be used, or
+     * <code>GpuMode.AUTO</code> if the setting is not set,
+     * meaning automatic decision is maded on the presence of GPU, libraries, vectors' count and dims.
+     */
+    public GpuMode useGpuForVectorsIndexing() {
+        return useGpuForVectorsIndexing;
     }
 
     public SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions() {

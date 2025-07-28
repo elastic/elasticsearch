@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.gpu;
 
+import com.nvidia.cuvs.CuVSResources;
+
 import org.elasticsearch.common.util.FeatureFlag;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -19,15 +21,24 @@ public class GPUPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public VectorsFormatProvider getVectorsFormatProvider() {
-        // TODO check indexSettings if it allows for GPU indexing
         return (indexSettings, indexOptions) -> {
-            if (GPU_FORMAT.isEnabled()
-                && GPUVectorsFormat.cuVSResourcesOrNull(false) != null
-                && indexOptions.getType() == DenseVectorFieldMapper.VectorIndexType.HNSW) {
-                return new GPUVectorsFormat();
-            } else {
-                return null;
+            if (GPU_FORMAT.isEnabled()) {
+                IndexSettings.GpuMode gpuMode = indexSettings.getValue(IndexSettings.VECTORS_INDEXING_USE_GPU_SETTING);
+                if (gpuMode == IndexSettings.GpuMode.TRUE) {
+                    CuVSResources resources = GPUVectorsFormat.cuVSResourcesOrNull(true);
+                    if (resources == null) {
+                        throw new IllegalArgumentException(
+                            "[index.vectors.indexing.use_gpu] was set to [true], but GPU resources are not accessible on the node."
+                        );
+                    } else {
+                        return new GPUVectorsFormat();
+                    }
+                }
+                if ((gpuMode == IndexSettings.GpuMode.AUTO) && GPUVectorsFormat.cuVSResourcesOrNull(false) != null) {
+                    return new GPUVectorsFormat();
+                }
             }
+            return null;
         };
     }
 }

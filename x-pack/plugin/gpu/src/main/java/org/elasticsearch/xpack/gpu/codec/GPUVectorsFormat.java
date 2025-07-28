@@ -56,7 +56,7 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
     public KnnVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         CuVSResources cuVSResources = cuVSResourcesOrNull(true);
         if (cuVSResources == null) {
-            throw new IllegalArgumentException("GPU based vector search is not supported on this platform or java version");
+            throw new IllegalArgumentException("GPU based vector indexing is not supported on this platform or java version");
         }
         return new GPUToHNSWVectorsWriter(
             cuVSResources,
@@ -95,7 +95,7 @@ public class GPUVectorsFormat extends KnnVectorsFormat {
                 } else {
                     msg = ": " + uoe.getMessage();
                 }
-                LOG.warn("GPU based vector search is not supported on this platform or java version; " + msg);
+                LOG.warn("GPU based vector indexing is not supported on this platform or java version; " + msg);
             }
         } catch (Throwable t) {
             if (logError) {

@@ -269,7 +269,7 @@ public abstract class IndexRouting {
 
         @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
-            consumer.accept(hashToShardId(effectiveRoutingToHash(routing)));
+            consumer.accept(rerouteReadsIfResharding(hashToShardId(effectiveRoutingToHash(routing))));
         }
     }
 
@@ -297,7 +297,7 @@ public abstract class IndexRouting {
         public void collectSearchShards(String routing, IntConsumer consumer) {
             int hash = effectiveRoutingToHash(routing);
             for (int i = 0; i < routingPartitionSize; i++) {
-                consumer.accept(hashToShardId(hash + i));
+                consumer.accept(rerouteReadsIfResharding(hashToShardId(hash + i)));
             }
         }
     }

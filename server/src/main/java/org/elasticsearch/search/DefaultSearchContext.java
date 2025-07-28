@@ -51,7 +51,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -471,10 +470,6 @@ final class DefaultSearchContext extends SearchContext {
                 filters.add(slicedQuery);
             }
         }
-
-        var q = Queries.not(
-            new ShardSplittingQuery(indexService.getMetadata(), shardTarget.getShardId().getId(), nestedLookup != NestedLookup.EMPTY)
-        );
 
         if (filters.isEmpty()) {
             return query;

@@ -116,7 +116,7 @@ public class OperationRouting {
     }
 
     public Iterator<IndexShardRoutingTable> allWritableShards(ProjectState projectState, String index) {
-        return allShardsReadyForRefresh(projectState, index);
+        return allShardsReadyForWrites(projectState, index);
     }
 
     public static ShardIterator getShards(RoutingTable routingTable, ShardId shardId) {
@@ -179,10 +179,10 @@ public class OperationRouting {
     }
 
     /**
-     * Returns an iterator of shards of the index that are ready to execute refresh requests.
+     * Returns an iterator of shards of the index that are ready to execute write requests.
      * A shard may not be ready to execute these operations during processes like resharding.
      */
-    private static Iterator<IndexShardRoutingTable> allShardsReadyForRefresh(ProjectState projectState, String index) {
+    private static Iterator<IndexShardRoutingTable> allShardsReadyForWrites(ProjectState projectState, String index) {
         return allShardsExceptSplitTargetsInStateBefore(projectState, index, IndexReshardingState.Split.TargetShardState.HANDOFF);
     }
 

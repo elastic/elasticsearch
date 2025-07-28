@@ -1,7 +1,11 @@
 {
   "properties": {
     "@timestamp": {
-      "type": "date"
+      "type": "date",
+      "meta" : {
+        "fixed_interval" : "1h",
+        "time_zone" : "UTC"
+      }
     },
     "cluster": {
       "type": "keyword",
@@ -36,10 +40,6 @@
           "type": "long",
           "time_series_metric": "counter"
         },
-        "total_bytes_out": {
-          "type": "long",
-          "time_series_metric": "counter"
-        },
         "cost": {
           "type": "double"
         },
@@ -53,11 +53,25 @@
               "type": "boolean"
             },
             "tx": {
-              "type": "integer",
+              "type" : "aggregate_metric_double",
+              "metrics" : [
+                "min",
+                "max",
+                "sum",
+                "value_count"
+              ],
+              "default_metric" : "max",
               "time_series_metric": "gauge"
             },
             "rx": {
-              "type": "integer",
+              "type" : "aggregate_metric_double",
+              "metrics" : [
+                "min",
+                "max",
+                "sum",
+                "value_count"
+              ],
+              "default_metric" : "max",
               "time_series_metric": "gauge"
             },
             "last_up": {

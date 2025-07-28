@@ -12,7 +12,6 @@ package org.elasticsearch.action.index;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -41,9 +40,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.ESONSource;
 import org.elasticsearch.ingest.ESONXContentSerializer;
-import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.MapStructuredSource;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -440,15 +437,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void ensureStructureSource() {
         if (useStructuredSource == false) {
             this.useStructuredSource = true;
-            ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
-            try {
-                XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, contentType);
-                structuredSource = builder.parse(parser);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            createdStructuredSource();
         }
+    }
 
+    private void createdStructuredSource() {
+        ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
+        try {
+            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, contentType);
+            structuredSource = builder.parse(parser);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     public boolean isStructuredSource() {
@@ -585,7 +585,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
         if (useStructuredSource) {
-            ensureStructureSource();
+            createdStructuredSource();
         }
         return this;
     }

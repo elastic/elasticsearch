@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.CharBuffer;
 import java.util.ArrayDeque;
+import java.util.Base64;
 import java.util.Deque;
 import java.util.List;
 
@@ -493,8 +494,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof byte[] bytes) {
             return bytes;
+        } else {
+            // TODO: Research correct approach
+            return Base64.getDecoder().decode(currentValue.toString());
         }
-        throw new IllegalStateException("Current token is not a binary value");
     }
 
     @Override

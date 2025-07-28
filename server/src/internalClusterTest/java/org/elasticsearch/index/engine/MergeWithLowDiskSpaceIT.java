@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Priority;
@@ -287,22 +286,10 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
             .execute();
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = internalCluster().getInstance(IndicesService.class, node1)
             .getThreadPoolMergeExecutorService();
-        TestTelemetryPlugin testTelemetryPlugin = getTelemetryPlugin(node1);
         assertBusy(() -> {
             // merge executor says merging is blocked due to insufficient disk space while there is a single merge task enqueued
             assertThat(threadPoolMergeExecutorService.getMergeTasksQueueLength(), equalTo(1));
             assertTrue(threadPoolMergeExecutorService.isMergingBlockedDueToInsufficientDiskSpace());
-            // telemetry says that there are indeed some segments enqueued to be merged
-            testTelemetryPlugin.collect();
-            assertThat(
-                testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE).getLast().getLong(),
-                greaterThan(0L)
-            );
-            // but still no merges are currently running
-            assertThat(
-                testTelemetryPlugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE).getLast().getLong(),
-                equalTo(0L)
-            );
             // indices stats also says that no merge is currently running (blocked merges are NOT considered as "running")
             IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(indexName).setMerge(true).get();
             long currentMergeCount = indicesStatsResponse.getIndices().get(indexName).getPrimaries().merge.getCurrent();
@@ -324,7 +311,7 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         ensureStableCluster(2);
         setTotalSpace(node2, Long.MAX_VALUE);
         // relocate the shard from node1 to node2
-        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, node1, node2, Metadata.DEFAULT_PROJECT_ID));
+        ClusterRerouteUtils.reroute(client(), new MoveAllocationCommand(indexName, 0, node1, node2));
         ClusterHealthResponse clusterHealthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)

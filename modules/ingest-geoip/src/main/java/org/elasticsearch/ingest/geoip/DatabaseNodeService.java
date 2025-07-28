@@ -297,6 +297,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     void checkDatabases(ProjectState projectState) {
         ProjectId projectId = projectState.projectId();
         ProjectMetadata projectMetadata = projectState.metadata();
+        ClusterState clusterState = projectState.cluster();
         PersistentTasksCustomMetadata persistentTasks = projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks == null) {
             logger.trace("Not checking databases for project [{}] because persistent tasks are null", projectId);
@@ -334,7 +335,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 taskState.getDatabases()
                     .entrySet()
                     .stream()
-                    .filter(e -> e.getValue().isNewEnough(projectState.settings()))
+                    .filter(e -> e.getValue().isNewEnough(projectState.cluster().metadata().settings()))
                     .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
                     .toList()
             );
@@ -351,7 +352,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 taskState.getDatabases()
                     .entrySet()
                     .stream()
-                    .filter(e -> e.getValue().isNewEnough(projectState.settings()))
+                    .filter(e -> e.getValue().isNewEnough(projectState.cluster().metadata().settings()))
                     .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
                     .toList()
             );

@@ -297,9 +297,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
-  issue: https://github.com/elastic/elasticsearch/issues/127096
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680
@@ -444,6 +441,18 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test070BindMountCustomPathConfAndJvmOptions
   issue: https://github.com/elastic/elasticsearch/issues/131366
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test171AdditionalCliOptionsAreForwarded
+  issue: https://github.com/elastic/elasticsearch/issues/120925
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/131369
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test151MachineDependentHeapWithSizeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/123437
+- class: org.elasticsearch.xpack.stack.StackYamlIT
+  method: test {yaml=stack/10_basic/Test wrong data_stream type - logs from 9.2.0}
+  issue: https://github.com/elastic/elasticsearch/issues/131803
 
 # Examples:
 #

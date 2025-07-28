@@ -52,10 +52,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
             roleDescriptor,
             new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("metrics")
-                    .privileges("read", "view_index_metadata")
-                    .build() }
+                RoleDescriptor.IndicesPrivileges.builder().indices("metrics").privileges("read", "view_index_metadata").build() }
         );
     }
 
@@ -161,14 +158,8 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
             roleDescriptor,
             new String[] { "cross_cluster_search", "cross_cluster_replication", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("metrics")
-                    .privileges("read", "view_index_metadata")
-                    .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("logs")
-                    .privileges("read", "view_index_metadata")
-                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("metrics").privileges("read", "view_index_metadata").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges("read", "view_index_metadata").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("archive")
                     .privileges("cross_cluster_replication", "cross_cluster_replication_internal")

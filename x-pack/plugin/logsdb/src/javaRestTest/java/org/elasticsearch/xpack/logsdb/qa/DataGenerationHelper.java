@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.spatial.datageneration.GeoShapeDataSourceHandler;
 import org.elasticsearch.xpack.spatial.datageneration.ShapeDataSourceHandler;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -141,5 +142,18 @@ public class DataGenerationHelper {
         generated.putAll(additionalFields);
 
         document.map(generated);
+    }
+
+    List<Boolean> isNested(String[] path) {
+        List<Boolean> result = new ArrayList<>();
+        Map<String, Template.Entry> children = template.template();
+        for (int i = 0; i < path.length - 1; i++) {
+            var field = path[i];
+            var object = (Template.Object) children.get(field);
+            result.add(object.nested());
+            children = object.children();
+        }
+        assert children.get(path[path.length - 1]) instanceof Template.Leaf;
+        return result;
     }
 }

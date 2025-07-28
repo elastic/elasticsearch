@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
+import org.elasticsearch.datageneration.matchers.source.SourceTransforms;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -34,6 +40,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -138,13 +145,81 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    public void testTermsQuery() throws IOException {
+    private List<String> getFieldsOfType(String type, Map<String, Map<String, Object>> mappingLookup) {
+        return mappingLookup.entrySet().stream()
+            .filter(e -> {
+                var mapping = e.getValue();
+                return mapping != null && type.equals(mapping.get("type"));
+            })
+            .map(Map.Entry::getKey)
+            .toList();
+    }
+
+    private List<String> getSearchableFields(String type, Map<String, Map<String, Object>> mappingLookup) {
+        var fields = new ArrayList<String>();
+        for (var e : mappingLookup.entrySet()) {
+            var mapping = e.getValue();
+            if (mapping != null && type.equals(mapping.get("type"))) {
+                boolean isIndexed = "false".equals(mapping.get("index")) == false;
+                boolean hasDocValues = "false".equals(mapping.get("doc_values")) == false;
+                if (isIndexed || hasDocValues) {
+                    fields.add(e.getKey());
+                }
+            }
+        }
+        return fields;
+    }
+
+    private QueryBuilder nestedPhraseQuery(String path, String phrase) {
+        String[] parts = path.split("\\.");
+        List<Boolean> nested = dataGenerationHelper.isNested(parts);
+
+        QueryBuilder query = QueryBuilders.matchPhraseQuery(path, phrase);
+        for (int i = parts.length - 2; i >= 0; i--) {
+            if (nested.get(i)) {
+                var pathToObject = String.join(".", Arrays.copyOfRange(parts, 0, i + 1));
+                query = QueryBuilders.nestedQuery(pathToObject, query, ScoreMode.Max);
+            }
+        }
+        return query;
+    }
+
+    public void testPhraseQuery() throws IOException {
         int numberOfDocuments = ESTestCase.randomIntBetween(20, 80);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
 
+        var mappingLookup = dataGenerationHelper.mapping().lookup();
+        var fieldsOfType = getSearchableFields("keyword", mappingLookup);
+
+        if (fieldsOfType.isEmpty()) {
+            return;
+        }
+
+        var field = randomFrom(fieldsOfType);
+
+        XContentBuilder doc = randomFrom(documents);
+        final Map<String, Object> document = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(doc), true);
+        var normalized = SourceTransforms.normalize(document, mappingLookup);
+        List<Object> values = normalized.get(field);
+        if (values == null || values.isEmpty()) {
+            return;
+        }
+        String needle = (String) randomFrom(values);
+        var tokens = Arrays.asList(needle.split("[^a-zA-Z0-9]"));
+
+        if (tokens.isEmpty()) {
+            return;
+        }
+
+        int low = ESTestCase.randomIntBetween(0, tokens.size() - 1);
+        int hi = ESTestCase.randomIntBetween(low+1, tokens.size());
+        var phrase = String.join(" ", tokens.subList(low, hi));
+        System.out.println("phrase: " + phrase);
+
         indexDocuments(documents);
 
-        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(QueryBuilders.termQuery("method", "put"))
+        QueryBuilder queryBuilder = nestedPhraseQuery(field, phrase);
+        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder)
             .size(numberOfDocuments);
 
         final MatchResult matchResult = Matcher.matchSource()

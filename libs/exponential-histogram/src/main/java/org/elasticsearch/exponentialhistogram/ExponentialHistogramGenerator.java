@@ -73,35 +73,6 @@ public class ExponentialHistogramGenerator {
         return resultMerger.get();
     }
 
-    /**
-     * Creates a histogram representing the distribution of the given values.
-     * The histogram will have a bucket count of at most the length of the provided array
-     * and will have a relative error less than {@code 2^(2^-MAX_SCALE) - 1}.
-     *
-     * @param values the values to be added to the histogram
-     * @return a new {@link ExponentialHistogram}
-     */
-    public static ExponentialHistogram createFor(double... values) {
-        return createFor(values.length, values);
-    }
-
-    /**
-     * Creates a histogram representing the distribution of the given values with at most the given number of buckets.
-     * If the given bucketCount is greater than or equal to the number of values, the resulting histogram will have a
-     * relative error of less than {@code 2^(2^-MAX_SCALE) - 1}.
-     *
-     * @param bucketCount the maximum number of buckets
-     * @param values the values to be added to the histogram
-     * @return a new {@link ExponentialHistogram}
-     */
-    public static ExponentialHistogram createFor(int bucketCount, double... values) {
-        ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(bucketCount);
-        for (double val : values) {
-            generator.add(val);
-        }
-        return generator.get();
-    }
-
     private void mergeValuesToHistogram() {
         if (valueCount == 0) {
             return;

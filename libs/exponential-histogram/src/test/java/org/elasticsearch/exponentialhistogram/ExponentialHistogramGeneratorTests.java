@@ -18,7 +18,7 @@ public class ExponentialHistogramGeneratorTests extends ESTestCase {
 
     public void testVeryLargeValue() {
         double value = Double.MAX_VALUE / 10;
-        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(value);
+        ExponentialHistogram histo = ExponentialHistogram.create(1, value);
 
         long index = histo.positiveBuckets().iterator().peekIndex();
         int scale = histo.scale();

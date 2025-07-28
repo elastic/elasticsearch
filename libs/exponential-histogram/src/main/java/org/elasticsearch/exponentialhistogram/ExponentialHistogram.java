@@ -9,6 +9,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import java.util.Iterator;
+import java.util.List;
 import java.util.OptionalLong;
 
 /**
@@ -98,6 +100,49 @@ public interface ExponentialHistogram {
          */
         long valueCount();
 
+    }
+
+    /**
+     * Creates a histogram representing the distribution of the given values with at most the given number of buckets.
+     * If the given {@code maxBucketCount} is greater than or equal to the number of values, the resulting histogram will have a
+     * relative error of less than {@code 2^(2^-MAX_SCALE) - 1}.
+     *
+     * @param maxBucketCount the maximum number of buckets
+     * @param values the values to be added to the histogram
+     * @return a new {@link ExponentialHistogram}
+     */
+    static ExponentialHistogram create(int maxBucketCount, double... values) {
+        ExponentialHistogramGenerator generator = new ExponentialHistogramGenerator(maxBucketCount);
+        for (double val : values) {
+            generator.add(val);
+        }
+        return generator.get();
+    }
+
+    /**
+     * Merges the provided exponential histograms to a new, single histogram with at most the given amount of buckets.
+     *
+     * @param maxBucketCount the maximum number of buckets the result histogram is allowed to have
+     * @param histograms teh histograms to merge
+     * @return the merged histogram
+     */
+    static ExponentialHistogram merge(int maxBucketCount, Iterator<ExponentialHistogram> histograms) {
+        ExponentialHistogramMerger merger = new ExponentialHistogramMerger(maxBucketCount);
+        while (histograms.hasNext()) {
+            merger.add(histograms.next());
+        }
+        return merger.get();
+    }
+
+    /**
+     * Merges the provided exponential histograms to a new, single histogram with at most the given amount of buckets.
+     *
+     * @param maxBucketCount the maximum number of buckets the result histogram is allowed to have
+     * @param histograms teh histograms to merge
+     * @return the merged histogram
+     */
+    static ExponentialHistogram merge(int maxBucketCount, ExponentialHistogram... histograms) {
+        return merge(maxBucketCount, List.of(histograms).iterator());
     }
 
 }

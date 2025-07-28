@@ -126,17 +126,11 @@ public class ExponentialHistogramMergerTests extends ESTestCase {
             .boxed()
             .collect(Collectors.toCollection(ArrayList::new));
 
-        ExponentialHistogram reference = ExponentialHistogramGenerator.createFor(
-            20,
-            values.stream().mapToDouble(Double::doubleValue).toArray()
-        );
+        ExponentialHistogram reference = ExponentialHistogram.create(20, values.stream().mapToDouble(Double::doubleValue).toArray());
 
         for (int i = 0; i < 100; i++) {
             Collections.shuffle(values, random());
-            ExponentialHistogram shuffled = ExponentialHistogramGenerator.createFor(
-                20,
-                values.stream().mapToDouble(Double::doubleValue).toArray()
-            );
+            ExponentialHistogram shuffled = ExponentialHistogram.create(20, values.stream().mapToDouble(Double::doubleValue).toArray());
 
             assertThat("Expected same scale", shuffled.scale(), equalTo(reference.scale()));
             assertThat("Expected same zero-bucket", shuffled.zeroBucket(), equalTo(reference.zeroBucket()));

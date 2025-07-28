@@ -78,7 +78,7 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testPercentileOverlapsZeroBucket() {
-        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(-3.0, -2, -1, 0, 0, 0, 1, 2, 3);
+        ExponentialHistogram histo = ExponentialHistogram.create(9, -3.0, -2, -1, 0, 0, 0, 1, 2, 3);
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 8.0 / 16.0), equalTo(0.0));
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 7.0 / 16.0), equalTo(0.0));
         assertThat(ExponentialHistogramQuantile.getQuantile(histo, 9.0 / 16.0), equalTo(0.0));
@@ -132,14 +132,14 @@ public class QuantileAccuracyTests extends ESTestCase {
     }
 
     public void testEmptyHistogram() {
-        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor();
+        ExponentialHistogram histo = ExponentialHistogram.create(1);
         for (double q : QUANTILES_TO_TEST) {
             assertThat(ExponentialHistogramQuantile.getQuantile(histo, q), notANumber());
         }
     }
 
     public void testSingleValueHistogram() {
-        ExponentialHistogram histo = ExponentialHistogramGenerator.createFor(42.0);
+        ExponentialHistogram histo = ExponentialHistogram.create(1, 42.0);
         for (double q : QUANTILES_TO_TEST) {
             assertThat(ExponentialHistogramQuantile.getQuantile(histo, q), closeTo(42, 0.0000001));
         }
@@ -211,7 +211,7 @@ public class QuantileAccuracyTests extends ESTestCase {
 
     private double testQuantileAccuracy(double[] values, int bucketCount) {
         // Create histogram
-        ExponentialHistogram histogram = ExponentialHistogramGenerator.createFor(bucketCount, values);
+        ExponentialHistogram histogram = ExponentialHistogram.create(bucketCount, values);
         Arrays.sort(values);
 
         double allowedError = getMaximumRelativeError(values, bucketCount);

@@ -24,8 +24,10 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -61,13 +63,15 @@ import static org.elasticsearch.index.query.QueryStringQueryBuilder.REWRITE_FIEL
 import static org.elasticsearch.index.query.QueryStringQueryBuilder.TIME_ZONE_FIELD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPreOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.resolveTypeQuery;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
@@ -310,9 +314,17 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT);
 
     private TypeResolution resolveQuery() {
-        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text").and(
-            isNotNullAndFoldable(query(), sourceText(), FIRST)
+        TypeResolution result = isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text").and(
+            isNotNull(query(), sourceText(), FIRST)
         );
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     private Map<String, Object> queryStringOptions() throws InvalidArgumentException {
@@ -321,18 +333,13 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
         }
 
         Map<String, Object> matchOptions = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), matchOptions, SECOND, sourceText(), ALLOWED_OPTIONS);
+        Options.populateMap((MapExpression) options(), matchOptions, source(), SECOND, ALLOWED_OPTIONS);
         return matchOptions;
     }
 
     @Override
-    protected Map<String, Object> resolvedOptions() {
-        return queryStringOptions();
-    }
-
-    @Override
     protected TypeResolution resolveParams() {
-        return resolveQuery().and(resolveOptions(options(), SECOND));
+        return resolveQuery().and(Options.resolve(options(), source(), SECOND, ALLOWED_OPTIONS));
     }
 
     @Override
@@ -347,7 +354,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
 
     @Override
     protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return new QueryStringQuery(source(), Objects.toString(queryAsObject()), Map.of(), queryStringOptions());
+        return new QueryStringQuery(source(), FunctionUtils.queryAsString(query(), sourceText()), Map.of(), queryStringOptions());
     }
 
     @Override

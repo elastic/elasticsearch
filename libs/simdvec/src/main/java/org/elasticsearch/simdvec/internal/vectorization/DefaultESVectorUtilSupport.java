@@ -46,14 +46,25 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public float calculateOSQLoss(float[] target, float[] interval, float step, float invStep, float norm2, float lambda) {
-        float a = interval[0];
-        float b = interval[1];
+    public float calculateOSQLoss(
+        float[] target,
+        float low,
+        float high,
+        float step,
+        float invStep,
+        float norm2,
+        float lambda,
+        int[] quantize
+    ) {
+        float a = low;
+        float b = high;
         float xe = 0f;
         float e = 0f;
-        for (float xi : target) {
+        for (int i = 0; i < target.length; ++i) {
+            float xi = target[i];
             // this is quantizing and then dequantizing the vector
-            float xiq = fma(step, Math.round((Math.min(Math.max(xi, a), b) - a) * invStep), a);
+            quantize[i] = Math.round((Math.min(Math.max(xi, a), b) - a) * invStep);
+            float xiq = fma(step, quantize[i], a);
             // how much does the de-quantized value differ from the original value
             float xiiq = xi - xiq;
             e = fma(xiiq, xiiq, e);
@@ -63,16 +74,15 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
-    public void calculateOSQGridPoints(float[] target, float[] interval, int points, float invStep, float[] pts) {
-        float a = interval[0];
-        float b = interval[1];
+    public void calculateOSQGridPoints(float[] target, int[] quantize, int points, float[] pts) {
         float daa = 0;
         float dab = 0;
         float dbb = 0;
         float dax = 0;
         float dbx = 0;
-        for (float v : target) {
-            float k = Math.round((Math.min(Math.max(v, a), b) - a) * invStep);
+        for (int i = 0; i < target.length; ++i) {
+            float v = target[i];
+            float k = quantize[i];
             float s = k / (points - 1);
             float ms = 1f - s;
             daa = fma(ms, ms, daa);
@@ -273,11 +283,11 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public int quantizeVectorWithIntervals(float[] vector, int[] destination, float lowInterval, float upperInterval, byte bits) {
         float nSteps = ((1 << bits) - 1);
-        float step = (upperInterval - lowInterval) / nSteps;
+        float invStep = nSteps / (upperInterval - lowInterval);
         int sumQuery = 0;
         for (int h = 0; h < vector.length; h++) {
             float xi = Math.min(Math.max(vector[h], lowInterval), upperInterval);
-            int assignment = Math.round((xi - lowInterval) / step);
+            int assignment = Math.round((xi - lowInterval) * invStep);
             sumQuery += assignment;
             destination[h] = assignment;
         }

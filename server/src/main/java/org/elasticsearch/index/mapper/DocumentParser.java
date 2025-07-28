@@ -126,27 +126,14 @@ public final class DocumentParser {
 
     private XContentParser getParser(SourceToParse source, @Nullable Map<String, Object> structuredSource, XContentType xContentType)
         throws IOException {
+        XContentParserConfiguration config = parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError());
         if (structuredSource == null) {
-            return XContentHelper.createParser(
-                parserConfiguration.withIncludeSourceOnError(source.getIncludeSourceOnError()),
-                source.source(),
-                xContentType
-            );
+            return XContentHelper.createParser(config, source.source(), xContentType);
         } else {
             if (structuredSource instanceof ESONSource.ESONObject esonObject) {
-                return new ESONXContentParser(
-                    esonObject,
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.IGNORE_DEPRECATIONS,
-                    xContentType
-                );
+                return new ESONXContentParser(esonObject, config.registry(), config.deprecationHandler(), xContentType);
             } else {
-                return new MapXContentParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.IGNORE_DEPRECATIONS,
-                    structuredSource,
-                    xContentType
-                );
+                return new MapXContentParser(config.registry(), config.deprecationHandler(), structuredSource, xContentType);
             }
         }
     }

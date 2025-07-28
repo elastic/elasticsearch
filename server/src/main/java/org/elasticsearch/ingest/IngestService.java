@@ -1195,6 +1195,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         ingestDocument.doNoSelfReferencesCheck(false);
                     }
                 } catch (IllegalArgumentException ex) {
+                    // TODO: Hack to delete mutated source
+                    indexRequest.source(indexRequest.source(), indexRequest.getContentType());
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include more details
                     exceptionHandler.accept(

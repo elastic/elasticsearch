@@ -119,7 +119,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             subRet2 += sum2.reduceLanes(VectorOperators.ADD);
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         }
-        // tail as bytes
+        // process scalar tail
         in.seek(offset);
         for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
             final long value = in.readLong();
@@ -173,7 +173,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         subRet1 += sum1.reduceLanes(VectorOperators.ADD);
         subRet2 += sum2.reduceLanes(VectorOperators.ADD);
         subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-        // tail as bytes
+        // process scalar tail
         in.seek(offset);
         for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
             final long value = in.readLong();
@@ -244,7 +244,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             subRet1 += sum1.reduceLanes(VectorOperators.ADD);
             subRet2 += sum2.reduceLanes(VectorOperators.ADD);
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-            // tail as bytes
+            // process scalar tail
             in.seek(offset);
             for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
                 final long value = in.readLong();
@@ -324,7 +324,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 subRet2 += sum2.reduceLanes(VectorOperators.ADD);
                 subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             }
-            // tail as bytes
+            // process scalar tail
             in.seek(offset);
             for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
                 final long value = in.readLong();

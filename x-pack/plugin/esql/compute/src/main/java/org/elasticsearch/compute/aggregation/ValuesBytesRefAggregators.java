@@ -160,8 +160,8 @@ final class ValuesBytesRefAggregators {
         IntVector hashIds
     ) {
         for (int p = 0; p < groupIds.getPositionCount(); p++) {
+            final int groupId = groupIds.getInt(p);
             final int valuePosition = p + positionOffset;
-            final int groupId = groupIds.getInt(valuePosition);
             final int start = ordinalIds.getFirstValueIndex(valuePosition);
             final int end = start + ordinalIds.getValueCount(valuePosition);
             for (int i = start; i < end; i++) {
@@ -212,8 +212,8 @@ final class ValuesBytesRefAggregators {
         } else {
             final BytesRef scratch = new BytesRef();
             for (int p = 0; p < groupIds.getPositionCount(); p++) {
+                final int groupId = groupIds.getInt(p);
                 final int valuePosition = p + positionOffset;
-                final int groupId = groupIds.getInt(valuePosition);
                 final int start = values.getFirstValueIndex(valuePosition);
                 final int end = start + values.getValueCount(valuePosition);
                 for (int i = start; i < end; i++) {

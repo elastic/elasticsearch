@@ -30,13 +30,13 @@ import java.util.concurrent.TimeUnit;
 @Threads(12)
 @Warmup(iterations = 3, time = 200, timeUnit = TimeUnit.MILLISECONDS)
 @Measurement(iterations = 5, time = 600, timeUnit = TimeUnit.MILLISECONDS)
-@BenchmarkMode(Mode.SampleTime)
+@BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Fork(1)
 public class ThreadPoolUtilizationBenchmark {
 
-    @Param({ "0", "100", "1000" })
+    @Param({ "0", "10000", "100000" })
     private int callIntervalTicks;
 
     /**

@@ -10,7 +10,7 @@ required_capability: match_operator_colon
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC, book_no ASC
-| RERANK "war and peace" ON title OPTIONS { "inferenceId" : "test_reranker" }
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
 | EVAL _score=ROUND(_score, 2)
 | KEEP book_no, title, author, _score
 ;
@@ -29,7 +29,7 @@ required_capability: match_operator_colon
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC, book_no ASC
-| RERANK "war and peace" ON title INTO rerank_score OPTIONS { "inferenceId" : "test_reranker" }
+| RERANK rerank_score="war and peace" ON title WITH { "inference_id" : "test_reranker" }
 | EVAL _score=ROUND(_score, 2), rerank_score=ROUND(rerank_score, 2)
 | KEEP book_no, title, author, rerank_score
 ;
@@ -48,7 +48,7 @@ required_capability: match_operator_colon
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC
-| RERANK "war and peace" ON title INTO rerank_score OPTIONS { "inferenceId" : "test_reranker" }
+| RERANK rerank_score="war and peace" ON title WITH { "inference_id" : "test_reranker" }
 | EVAL _score=ROUND(_score, 2), rerank_score=ROUND(rerank_score, 2)
 | SORT rerank_score, _score ASC, book_no ASC
 | KEEP book_no, title, author, rerank_score
@@ -68,7 +68,7 @@ required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title, author OPTIONS { "inferenceId" : "test_reranker" }
+| RERANK "war and peace" ON title, author WITH { "inference_id" : "test_reranker" }
 | EVAL _score=ROUND(_score, 2)
 | SORT _score DESC, book_no ASC
 | KEEP book_no, title, author, _score
@@ -90,7 +90,7 @@ FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | SORT _score DESC, book_no ASC
 | LIMIT 3
-| RERANK "war and peace" ON title OPTIONS { "inferenceId" : "test_reranker" }
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
 | EVAL _score=ROUND(_score, 2)
 | SORT _score DESC, book_no ASC
 | KEEP book_no, title, author, _score
@@ -109,7 +109,7 @@ required_capability: match_operator_colon
 
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title OPTIONS { "inferenceId" : "test_reranker" }
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
 | EVAL _score=ROUND(_score, 2)
 | SORT _score DESC, book_no ASC
 | KEEP book_no, title, author, _score
@@ -129,7 +129,7 @@ required_capability: match_operator_colon
 
 FROM books
 | WHERE title:"war and peace" AND author:"Tolstoy"
-| RERANK "war and peace" ON title OPTIONS { "inferenceId" : "test_reranker" }
+| RERANK "war and peace" ON title WITH { "inference_id" : "test_reranker" }
 | EVAL _score=ROUND(_score, 2)
 | KEEP book_no, title, author, _score
 | SORT author, title 
@@ -153,7 +153,7 @@ FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
        ( WHERE author:"Tolkien" | SORT _score, _id DESC | LIMIT 3 )
 | FUSE
-| RERANK "Tolkien" ON title OPTIONS { "inferenceId" : "test_reranker" }
+| RERANK "Tolkien" ON title WITH { "inference_id" : "test_reranker" }
 | EVAL _score=ROUND(_score, 2)
 | SORT _score DESC, book_no ASC
 | LIMIT 2

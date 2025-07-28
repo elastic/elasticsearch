@@ -36,6 +36,8 @@ public class MapExpression extends Expression {
         MapExpression::readFrom
     );
 
+    public static final MapExpression EMPTY = new MapExpression(Source.EMPTY, List.of());
+
     private final List<EntryExpression> entryExpressions;
 
     private final Map<Expression, Expression> map;

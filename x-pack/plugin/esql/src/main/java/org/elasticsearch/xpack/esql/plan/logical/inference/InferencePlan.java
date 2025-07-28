@@ -25,7 +25,7 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         SortAgnostic,
         GeneratingPlan<InferencePlan<PlanType>> {
 
-    public static final String INFERENCE_ID_OPTION_NAME = "inferenceId";
+    public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
     private final Expression inferenceId;
 
     protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId) {

@@ -89,7 +89,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -212,7 +211,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx) {
         return p -> {
             String pattern = BytesRefs.toString(visitString(ctx.string()).fold(FoldContext.small() /* TODO remove me */));
-            Map<String, Object> options = visitCommandOptions(ctx.commandOptions());
+            Map<String, Object> options = visitDissectCommandOptions(ctx.dissectCommandOptions());
             String appendSeparator = "";
             for (Map.Entry<String, Object> item : options.entrySet()) {
                 if (item.getKey().equalsIgnoreCase("append_separator") == false) {
@@ -260,12 +259,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public Map<String, Object> visitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx) {
+    public Map<String, Object> visitDissectCommandOptions(EsqlBaseParser.DissectCommandOptionsContext ctx) {
         if (ctx == null) {
             return Map.of();
         }
         Map<String, Object> result = new HashMap<>();
-        for (EsqlBaseParser.CommandOptionContext option : ctx.commandOption()) {
+        for (EsqlBaseParser.DissectCommandOptionContext option : ctx.dissectCommandOption()) {
             result.put(visitIdentifier(option.identifier()), expression(option.constant()).fold(FoldContext.small() /* TODO remove me */));
         }
         return result;
@@ -775,17 +774,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
-            return visitRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.options);
+            return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters());
         };
     }
 
-    private Rerank visitRerankOptions(Rerank rerank, EsqlBaseParser.MapExpressionContext ctx) {
-        if (ctx == null) {
-            return rerank;
-        }
-
+    private Rerank applyRerankOptions(Rerank rerank, EsqlBaseParser.CommandNamedParametersContext ctx) {
         Rerank.Builder rerankBuilder = new Rerank.Builder(rerank);
-        Map<String, Expression> optionsMap = visitMapExpression(ctx).keyFoldedMap();
+        Map<String, Expression> optionsMap = visitCommandNamedParameters(ctx).keyFoldedMap();
 
         Expression inferenceId = optionsMap.remove(Rerank.INFERENCE_ID_OPTION_NAME);
         if (inferenceId != null) {
@@ -821,17 +816,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");
-            return visitCompletionOptions(new Completion(source, p, prompt, targetField), ctx.options);
+            return visitCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
         };
     }
 
-    private Completion visitCompletionOptions(Completion completion, EsqlBaseParser.MapExpressionContext ctx) {
-        if (ctx == null) {
-            throw new ParsingException(completion.source(), "Missing mandatory OPTIONS in COMPLETION");
-        }
-
+    private Completion visitCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {
         Completion.Builder completionBuilder = new Completion.Builder(completion);
-        Map<String, Expression> optionsMap = visitMapExpression(ctx).keyFoldedMap();
+        Map<String, Expression> optionsMap = visitCommandNamedParameters(ctx).keyFoldedMap();
 
         Expression inferenceId = optionsMap.remove(Completion.INFERENCE_ID_OPTION_NAME);
         if (inferenceId != null) {

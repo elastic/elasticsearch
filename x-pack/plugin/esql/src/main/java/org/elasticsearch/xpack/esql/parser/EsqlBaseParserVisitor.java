@@ -284,6 +284,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitDissectCommand(EsqlBaseParser.DissectCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#dissectCommandOptions}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDissectCommandOptions(EsqlBaseParser.DissectCommandOptionsContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#dissectCommandOption}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitDissectCommandOption(EsqlBaseParser.DissectCommandOptionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#commandNamedParameters}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitCommandNamedParameters(EsqlBaseParser.CommandNamedParametersContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#grokCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -295,18 +313,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitMvExpandCommand(EsqlBaseParser.MvExpandCommandContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#commandOptions}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitCommandOptions(EsqlBaseParser.CommandOptionsContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#commandOption}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitCommandOption(EsqlBaseParser.CommandOptionContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#explainCommand}.
    * @param ctx the parse tree

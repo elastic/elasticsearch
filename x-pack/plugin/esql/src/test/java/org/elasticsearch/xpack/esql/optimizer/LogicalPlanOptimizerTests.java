@@ -5513,7 +5513,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ),
             new PushDownEnrich()
         ),
-        // | COMPLETION CONCAT(some text, x) INTO y OPTIONS { "inferenceId" : "inferenceID" }
+        // | COMPLETION y =CONCAT(some text, x) INTO WITH { "inference_id" : "inferenceID" }
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Completion(
                 EMPTY,
@@ -5524,7 +5524,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ),
             new PushDownInferencePlan()
         ),
-        // | RERANK "some text" ON x INTO y OPTIONS { "inferenceId" : "inferenceID" }
+        // | RERANK "some text" ON x INTO y OPTIONS { "inference_id" : "inferenceID" }
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Rerank(
                 EMPTY,

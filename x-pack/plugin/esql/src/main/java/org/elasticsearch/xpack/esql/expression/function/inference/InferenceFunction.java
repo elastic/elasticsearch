@@ -7,17 +7,33 @@
 
 package org.elasticsearch.xpack.esql.expression.function.inference;
 
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+
+import java.util.List;
 
 /**
  * A function is a function using an inference model.
  */
-public interface InferenceFunction {
+public abstract class InferenceFunction<PlanType extends InferenceFunction<PlanType>> extends Function {
 
-    String INFERENCE_ID_PARAMETER_NAME = "inference_id";
+    public static final String INFERENCE_ID_PARAMETER_NAME = "inference_id";
+
+    protected InferenceFunction(Source source, List<Expression> children) {
+        super(source, children);
+    }
 
     /**
      * Returns the inference model ID expression.
      */
-    Expression inferenceId();
+    public abstract Expression inferenceId();
+
+    /**
+     * Returns the task type of the inference model.
+     */
+    public abstract TaskType taskType();
+
+    public abstract PlanType withInferenceResolutionError(String inferenceId, String error);
 }

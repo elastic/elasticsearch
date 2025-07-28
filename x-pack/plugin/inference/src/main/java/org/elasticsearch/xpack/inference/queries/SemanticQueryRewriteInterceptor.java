@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -41,25 +42,71 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
+        if (fieldNamesWithWeights.size() > 1) {
+            // Multi-field query, so return the original query.
+            return handleMultiFieldQuery(queryBuilder, fieldNamesWithWeights, resolvedIndices);
+        }
+
+        String fieldName = fieldNamesWithWeights.keySet().iterator().next();
+        Float weight = fieldNamesWithWeights.get(fieldName);
+        InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
+        if (indexInformation.getInferenceIndices().isEmpty()) {
+            // No inference fields were identified, so return the original query.
+            return queryBuilder;
+        } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
+            // Combined case where the field name requested by this query contains both
+            // semantic_text and non-inference fields, so we have to combine queries per index
+            // containing each field type.
+            return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation, weight);
+        } else {
+            // The only fields we've identified are inference fields (e.g. semantic_text),
+            // so rewrite the entire query to work on a semantic_text field.
+            return buildInferenceQuery(queryBuilder, indexInformation, weight);
+        }
+    }
+
+    /**
+     * Handle multi-field queries (new logic)
+     */
+    private QueryBuilder handleMultiFieldQuery(
+        QueryBuilder queryBuilder,
+        Map<String, Float> fieldNamesWithWeights,
+        ResolvedIndices resolvedIndices
+    ) {
         BoolQueryBuilder finalQueryBuilder = new BoolQueryBuilder();
-        for (Map.Entry<String, Float> fieldSet : fieldNamesWithWeights.entrySet()) {
-            String fieldName = fieldSet.getKey();
-            Float fieldWeight = fieldSet.getValue();
+        boolean hasAnySemanticFields = false;
+
+        for (Map.Entry<String, Float> fieldEntry : fieldNamesWithWeights.entrySet()) {
+            String fieldName = fieldEntry.getKey();
+            Float fieldWeight = fieldEntry.getValue();
             InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
+
             if (indexInformation.getInferenceIndices().isEmpty()) {
-                // No inference fields were identified, so return the original query.
-                finalQueryBuilder.should(queryBuilder);
+                // Pure non-semantic field - create individual match query
+                QueryBuilder nonSemanticQuery = createMatchSubQuery(
+                    indexInformation.nonInferenceIndices(),
+                    fieldName,
+                    getQuery(queryBuilder));
+                finalQueryBuilder.should(nonSemanticQuery);
             } else if (indexInformation.nonInferenceIndices().isEmpty() == false) {
-                // Combined case where the field name requested by this query contains both
-                // semantic_text and non-inference fields, so we have to combine queries per index
-                // containing each field type.
-                finalQueryBuilder.should(buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation, fieldWeight));
+                // Mixed semantic/non-semantic field - use combined approach
+                QueryBuilder combinedQuery = buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation, fieldWeight);
+                finalQueryBuilder.should(combinedQuery);
+                hasAnySemanticFields = true;
             } else {
-                // The only fields we've identified are inference fields (e.g. semantic_text),
-                // so rewrite the entire query to work on a semantic_text field.
-                finalQueryBuilder.should(buildInferenceQuery(queryBuilder, indexInformation, fieldWeight));
+                // Pure semantic field - create semantic query
+                QueryBuilder semanticQuery = buildInferenceQuery(queryBuilder, indexInformation, fieldWeight);
+                finalQueryBuilder.should(semanticQuery);
+                hasAnySemanticFields = true;
             }
         }
+
+        // If no semantic fields were found, return original query
+        if (hasAnySemanticFields == false) {
+            return queryBuilder;
+        }
+
+//        finalQueryBuilder.minimumShouldMatch(1);
         return finalQueryBuilder;
     }
 
@@ -123,6 +170,28 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         }
 
         return new InferenceIndexInformationForField(fieldName, inferenceIndicesMetadata, nonInferenceIndices);
+    }
+
+    /**
+     * Build a non-semantic field query (for multi-field scenarios)
+     */
+    protected QueryBuilder buildNonSemanticFieldQuery(QueryBuilder queryBuilder, String fieldName, Float fieldWeight) {
+        // Default implementation - subclasses can override for specific query types
+        String query = getQuery(queryBuilder);
+        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(fieldName, query);
+        matchQueryBuilder.boost(fieldWeight);
+        return matchQueryBuilder;
+    }
+
+    protected QueryBuilder createMatchSubQuery(Collection<String> indices, String fieldName, String queryText) {
+        BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder(fieldName, queryText);
+//        if (fieldWeight != null && !fieldWeight.equals(1.0f)) {
+//            matchQuery.boost(fieldWeight);
+//        }
+        boolQueryBuilder.must(matchQuery);
+        boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
+        return boolQueryBuilder;
     }
 
     protected QueryBuilder createSubQueryForIndices(Collection<String> indices, QueryBuilder queryBuilder) {

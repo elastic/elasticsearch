@@ -86,25 +86,31 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         Float fieldWeight
     ) {
         assert (queryBuilder instanceof MultiMatchQueryBuilder);
-        MultiMatchQueryBuilder originalMultiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
-
-        MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder));
-
-        // Create a copy for non-inference fields with only this specific field
-        // MultiMatchQueryBuilder multiMatchQueryBuilder = createSingleFieldMultiMatch(
-        // originalMultiMatchQueryBuilder,
-        // indexInformation.fieldName()
-        // );
+        MultiMatchQueryBuilder multiMatchQueryBuilder = (MultiMatchQueryBuilder) queryBuilder;
 
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-
-        // Add semantic query for inference indices
         boolQueryBuilder.should(
-            createSemanticSubQuery(indexInformation.getInferenceIndices(), indexInformation.fieldName(), getQuery(matchQueryBuilder))
+            createSemanticSubQuery(indexInformation.getInferenceIndices(), indexInformation.fieldName(), (String) multiMatchQueryBuilder.value())
         );
 
-        // Add regular query for non-inference indices
-        boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), matchQueryBuilder));
+        boolQueryBuilder.should(
+            createMatchSubQuery(
+                indexInformation.nonInferenceIndices(),
+                indexInformation.fieldName(),
+                (String) multiMatchQueryBuilder.value()
+            )
+        );
+
+
+        QueryBuilder nonSemanticFieldQuery = buildNonSemanticFieldQuery(
+            queryBuilder,
+            indexInformation.fieldName(),
+            fieldWeight
+        );
+//        boolQueryBuilder.should(
+//            createSubQueryForIndices(indexInformation.nonInferenceIndices(), nonSemanticFieldQuery)
+//        );
+//        boolQueryBuilder.should(createSubQueryForIndices(indexInformation.nonInferenceIndices(), multiMatchQueryBuilder));
 
         if (fieldWeight != null && fieldWeight.equals(1.0f) == false) {
             boolQueryBuilder.boost(fieldWeight);

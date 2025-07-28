@@ -1,0 +1,6 @@
+pr: 132046
+summary: Fixing handling of subobject mappings in simulate ingest API
+area: Ingest Node
+type: bug
+issues:
+ - 131608

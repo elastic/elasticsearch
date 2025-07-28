@@ -21,22 +21,34 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToLong}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToLongLinearSearchEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToLong5Evaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
 
-  private final long[] points;
+  private final long p0;
+
+  private final long p1;
+
+  private final long p2;
+
+  private final long p3;
+
+  private final long p4;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToLongLinearSearchEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      long[] points, DriverContext driverContext) {
+  public RoundToLong5Evaluator(Source source, EvalOperator.ExpressionEvaluator field, long p0,
+      long p1, long p2, long p3, long p4, DriverContext driverContext) {
     this.source = source;
     this.field = field;
-    this.points = points;
+    this.p0 = p0;
+    this.p1 = p1;
+    this.p2 = p2;
+    this.p3 = p3;
+    this.p4 = p4;
     this.driverContext = driverContext;
   }
 
@@ -65,7 +77,7 @@ public final class RoundToLongLinearSearchEvaluator implements EvalOperator.Expr
           result.appendNull();
           continue position;
         }
-        result.appendLong(RoundToLong.processLinear(fieldBlock.getLong(fieldBlock.getFirstValueIndex(p)), this.points));
+        result.appendLong(RoundToLong.process(fieldBlock.getLong(fieldBlock.getFirstValueIndex(p)), this.p0, this.p1, this.p2, this.p3, this.p4));
       }
       return result.build();
     }
@@ -74,7 +86,7 @@ public final class RoundToLongLinearSearchEvaluator implements EvalOperator.Expr
   public LongVector eval(int positionCount, LongVector fieldVector) {
     try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, RoundToLong.processLinear(fieldVector.getLong(p), this.points));
+        result.appendLong(p, RoundToLong.process(fieldVector.getLong(p), this.p0, this.p1, this.p2, this.p3, this.p4));
       }
       return result.build();
     }
@@ -82,7 +94,7 @@ public final class RoundToLongLinearSearchEvaluator implements EvalOperator.Expr
 
   @Override
   public String toString() {
-    return "RoundToLongLinearSearchEvaluator[" + "field=" + field + "]";
+    return "RoundToLong5Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + "]";
   }
 
   @Override
@@ -107,22 +119,35 @@ public final class RoundToLongLinearSearchEvaluator implements EvalOperator.Expr
 
     private final EvalOperator.ExpressionEvaluator.Factory field;
 
-    private final long[] points;
+    private final long p0;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, long[] points) {
+    private final long p1;
+
+    private final long p2;
+
+    private final long p3;
+
+    private final long p4;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, long p0, long p1,
+        long p2, long p3, long p4) {
       this.source = source;
       this.field = field;
-      this.points = points;
+      this.p0 = p0;
+      this.p1 = p1;
+      this.p2 = p2;
+      this.p3 = p3;
+      this.p4 = p4;
     }
 
     @Override
-    public RoundToLongLinearSearchEvaluator get(DriverContext context) {
-      return new RoundToLongLinearSearchEvaluator(source, field.get(context), points, context);
+    public RoundToLong5Evaluator get(DriverContext context) {
+      return new RoundToLong5Evaluator(source, field.get(context), p0, p1, p2, p3, p4, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToLongLinearSearchEvaluator[" + "field=" + field + "]";
+      return "RoundToLong5Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + "]";
     }
   }
 }

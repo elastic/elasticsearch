@@ -163,7 +163,7 @@ public abstract class IndexRouting {
         return rerouteFromSplitTargetShard(shardId, IndexReshardingState.Split.TargetShardState.HANDOFF);
     }
 
-    protected final int rerouteReadsIfResharding(int shardId) {
+    protected final int rerouteSearchIfResharding(int shardId) {
         return rerouteFromSplitTargetShard(shardId, IndexReshardingState.Split.TargetShardState.SPLIT);
     }
 
@@ -269,7 +269,7 @@ public abstract class IndexRouting {
 
         @Override
         public void collectSearchShards(String routing, IntConsumer consumer) {
-            consumer.accept(rerouteReadsIfResharding(hashToShardId(effectiveRoutingToHash(routing))));
+            consumer.accept(rerouteSearchIfResharding(hashToShardId(effectiveRoutingToHash(routing))));
         }
     }
 
@@ -297,7 +297,7 @@ public abstract class IndexRouting {
         public void collectSearchShards(String routing, IntConsumer consumer) {
             int hash = effectiveRoutingToHash(routing);
             for (int i = 0; i < routingPartitionSize; i++) {
-                consumer.accept(rerouteReadsIfResharding(hashToShardId(hash + i)));
+                consumer.accept(rerouteSearchIfResharding(hashToShardId(hash + i)));
             }
         }
     }

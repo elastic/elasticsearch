@@ -4,4 +4,3 @@
 
 `field`
 :   Expression to categorize
-

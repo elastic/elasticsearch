@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -74,7 +75,25 @@ public class GetPipelineResponse extends ActionResponse implements ToXContentObj
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         for (PipelineConfiguration pipeline : pipelines) {
-            builder.field(pipeline.getId(), summary ? Map.of() : pipeline.getConfig());
+            builder.startObject(pipeline.getId());
+            for (final Map.Entry<String, Object> configProperty : (summary ? Map.<String, Object>of() : pipeline.getConfig()).entrySet()) {
+                if (Pipeline.CREATED_DATE_MILLIS.equals(configProperty.getKey())) {
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        Pipeline.CREATED_DATE_MILLIS,
+                        Pipeline.CREATED_DATE,
+                        (Long) configProperty.getValue()
+                    );
+                } else if (Pipeline.MODIFIED_DATE_MILLIS.equals(configProperty.getKey())) {
+                    builder.timestampFieldsFromUnixEpochMillis(
+                        Pipeline.MODIFIED_DATE_MILLIS,
+                        Pipeline.MODIFIED_DATE,
+                        (Long) configProperty.getValue()
+                    );
+                } else {
+                    builder.field(configProperty.getKey(), configProperty.getValue());
+                }
+            }
+            builder.endObject();
         }
         builder.endObject();
         return builder;

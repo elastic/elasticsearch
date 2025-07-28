@@ -23,6 +23,7 @@ public interface IndexMetadataRestoreTransformer {
      */
     final class NoOpRestoreTransformer implements IndexMetadataRestoreTransformer {
         public static final NoOpRestoreTransformer INSTANCE = new NoOpRestoreTransformer();
+
         public static NoOpRestoreTransformer getInstance() {
             return INSTANCE;
         }

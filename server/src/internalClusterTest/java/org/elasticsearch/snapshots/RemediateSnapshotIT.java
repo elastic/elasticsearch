@@ -82,15 +82,9 @@ public class RemediateSnapshotIT extends AbstractSnapshotIntegTestCase {
             .get();
 
         assertDocCount("test-idx-1", 100L);
-        assertThat(
-            INDEX_SEARCH_IDLE_AFTER.get(getIndexResponseAfter.settings().get("test-idx-1")),
-            equalTo(TimeValue.timeValueMinutes(2))
-        );
+        assertThat(INDEX_SEARCH_IDLE_AFTER.get(getIndexResponseAfter.settings().get("test-idx-1")), equalTo(TimeValue.timeValueMinutes(2)));
         assertDocCount("test-idx-2", 100L);
-        assertThat(
-            INDEX_SEARCH_IDLE_AFTER.get(getIndexResponseAfter.settings().get("test-idx-2")),
-            equalTo(TimeValue.timeValueMinutes(2))
-        );
+        assertThat(INDEX_SEARCH_IDLE_AFTER.get(getIndexResponseAfter.settings().get("test-idx-2")), equalTo(TimeValue.timeValueMinutes(2)));
     }
 
     /**

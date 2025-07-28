@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -544,11 +545,11 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         indexRequest.source(Collections.emptyMap());
         indexRequest.setPipeline("testpipeline");
         bulkRequest.add(indexRequest);
-        BulkResponse bulkResponse = mock(BulkResponse.class);
+        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[0], 1234);
         AtomicBoolean responseCalled = new AtomicBoolean(false);
         ActionListener<BulkResponse> listener = ActionTestUtils.assertNoFailureListener(response -> {
             responseCalled.set(true);
-            assertSame(bulkResponse, response);
+            assertThat(response, equalTo(bulkResponse));
         });
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 

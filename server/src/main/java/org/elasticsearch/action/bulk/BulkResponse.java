@@ -19,7 +19,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.Objects;
 
 /**
  * A response of a bulk execution. Holding a response for each item responding (in order) of the
@@ -165,5 +167,22 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
             }
             return builder.startArray(ITEMS);
         }), Iterators.forArray(responses), Iterators.<ToXContent>single((builder, p) -> builder.endArray().endObject()));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof BulkResponse that) {
+            return tookInMillis == that.tookInMillis
+                && ingestTookInMillis == that.ingestTookInMillis
+                && Arrays.equals(responses, that.responses)
+                && Objects.equals(incrementalState, that.incrementalState);
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(Arrays.hashCode(responses), tookInMillis, ingestTookInMillis, incrementalState);
     }
 }

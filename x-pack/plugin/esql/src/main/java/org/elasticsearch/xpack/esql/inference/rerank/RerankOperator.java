@@ -15,6 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
@@ -81,7 +82,7 @@ public class RerankOperator extends InferenceOperator {
      * Factory for creating {@link RerankOperator} instances
      */
     public record Factory(
-        BulkInferenceRunner.Factory inferenceRunnerFactory,
+        InferenceService inferenceService,
         String inferenceId,
         String queryText,
         ExpressionEvaluator.Factory rowEncoderFactory,
@@ -97,7 +98,7 @@ public class RerankOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new RerankOperator(
                 driverContext,
-                inferenceRunnerFactory.create(BulkInferenceRunnerConfig.DEFAULT),
+                inferenceService.bulkInferenceRunner(),
                 inferenceId,
                 queryText,
                 rowEncoderFactory.get(driverContext),

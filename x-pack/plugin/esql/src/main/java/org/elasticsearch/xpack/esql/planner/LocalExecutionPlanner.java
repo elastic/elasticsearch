@@ -318,10 +318,7 @@ public class LocalExecutionPlanner {
             source.layout
         );
 
-        return source.with(
-            new CompletionOperator.Factory(inferenceService.bulkInferenceRunnerFactory(), inferenceId, promptEvaluatorFactory),
-            outputLayout
-        );
+        return source.with(new CompletionOperator.Factory(inferenceService, inferenceId, promptEvaluatorFactory), outputLayout);
     }
 
     private PhysicalOperation planRrfScoreEvalExec(RrfScoreEvalExec rrf, LocalExecutionPlannerContext context) {
@@ -657,13 +654,7 @@ public class LocalExecutionPlanner {
         int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
-            new RerankOperator.Factory(
-                inferenceService.bulkInferenceRunnerFactory(),
-                inferenceId,
-                queryText,
-                rowEncoderFactory,
-                scoreChannel
-            ),
+            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rowEncoderFactory, scoreChannel),
             outputLayout
         );
     }

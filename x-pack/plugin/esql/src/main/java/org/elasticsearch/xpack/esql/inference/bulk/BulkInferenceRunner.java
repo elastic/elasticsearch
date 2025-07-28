@@ -128,6 +128,9 @@ public class BulkInferenceRunner {
         new BulkInferenceRequest(requests, responseConsumer, completionListener).executePendingRequests();
     }
 
+    /**
+     * Returns the thread pool used for executing inference requests.
+     */
     public ThreadPool threadPool() {
         return client.threadPool();
     }

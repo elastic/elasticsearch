@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
@@ -71,11 +72,9 @@ public class CompletionOperator extends InferenceOperator {
     /**
      * Factory for creating {@link CompletionOperator} instances.
      */
-    public record Factory(
-        BulkInferenceRunner.Factory inferenceRunnerFactory,
-        String inferenceId,
-        ExpressionEvaluator.Factory promptEvaluatorFactory
-    ) implements OperatorFactory {
+    public record Factory(InferenceService inferenceService, String inferenceId, ExpressionEvaluator.Factory promptEvaluatorFactory)
+        implements
+            OperatorFactory {
         @Override
         public String describe() {
             return "CompletionOperator[inference_id=[" + inferenceId + "]]";
@@ -85,7 +84,7 @@ public class CompletionOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new CompletionOperator(
                 driverContext,
-                inferenceRunnerFactory.create(BulkInferenceRunnerConfig.DEFAULT),
+                inferenceService.bulkInferenceRunner(),
                 inferenceId,
                 promptEvaluatorFactory.get(driverContext),
                 BulkInferenceRunnerConfig.DEFAULT.maxOutstandingBulkRequests()

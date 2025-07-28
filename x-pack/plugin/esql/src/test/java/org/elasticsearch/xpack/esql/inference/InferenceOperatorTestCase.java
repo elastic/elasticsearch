@@ -39,7 +39,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -135,7 +134,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
     }
 
     @SuppressWarnings("unchecked")
-    protected BulkInferenceRunner.Factory mockedInferenceRunnerFactory() {
+    protected InferenceService mockedInferenceService() {
         Client mockClient = new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -154,7 +153,7 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             }
         };
 
-        return BulkInferenceRunner.factory(mockClient);
+        return new InferenceService(mockClient);
     }
 
     protected abstract InferenceResultsType mockInferenceResult(InferenceAction.Request request);

@@ -37,7 +37,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CompletionOperator.Factory(mockedInferenceRunnerFactory(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
+        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
     }
 
     @Override

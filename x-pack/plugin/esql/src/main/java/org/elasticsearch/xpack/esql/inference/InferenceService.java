@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
 public class InferenceService {
     private final InferenceResolver.Factory inferenceResolverFactory;
@@ -38,12 +39,11 @@ public class InferenceService {
         return inferenceResolverFactory.create();
     }
 
-    /**
-     * Returns the bulk inference runner factory for executing batched inference operations.
-     *
-     * @return the bulk inference runner factory
-     */
-    public BulkInferenceRunner.Factory bulkInferenceRunnerFactory() {
-        return bulkInferenceRunnerFactory;
+    public BulkInferenceRunner bulkInferenceRunner() {
+        return bulkInferenceRunner(BulkInferenceRunnerConfig.DEFAULT);
+    }
+
+    public BulkInferenceRunner bulkInferenceRunner(BulkInferenceRunnerConfig bulkInferenceRunnerConfig) {
+        return bulkInferenceRunnerFactory.create(bulkInferenceRunnerConfig);
     }
 }

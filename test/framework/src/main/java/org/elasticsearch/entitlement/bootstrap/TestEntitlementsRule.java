@@ -227,7 +227,7 @@ public class TestEntitlementsRule implements TestRule {
         // always return a new unmodifiable copy
         return (BaseDir baseDir, Collection<Path> paths) -> {
             Collection<Path> newPaths = new Multiset<>();
-            if(paths != null){
+            if (paths != null) {
                 newPaths.addAll(paths);
             }
             consumer.accept(newPaths);

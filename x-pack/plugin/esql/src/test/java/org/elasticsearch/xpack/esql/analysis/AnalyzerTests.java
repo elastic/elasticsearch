@@ -3394,14 +3394,14 @@ public class AnalyzerTests extends ESTestCase {
             | FORK (EVAL a = 1) (EVAL a = 2)
             | FORK (EVAL b = 3) (EVAL b = 4)
             """));
-        assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
+        assertThat(e.getMessage(), containsString("Only a single FORK command is supported, but found multiple"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             FROM test
             | FORK (FORK (WHERE true) (WHERE true))
                    (WHERE true)
             """));
-        assertThat(e.getMessage(), containsString("Only a single FORK command is allowed, but found multiple"));
+        assertThat(e.getMessage(), containsString("Only a single FORK command is supported, but found multiple"));
     }
 
     public void testValidFuse() {
@@ -4125,7 +4125,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testGroupingOverridesInInlinestats() {
-        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V8.isEnabled());
+        assumeTrue("INLINESTATS required", EsqlCapabilities.Cap.INLINESTATS_V9.isEnabled());
         verifyUnsupported("""
             from test
             | inlinestats MIN(salary) BY x = languages, x = x + 1

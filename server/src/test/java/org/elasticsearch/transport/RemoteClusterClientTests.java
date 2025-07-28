@@ -95,7 +95,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 service.acceptIncomingRequests();
                 logger.info("now accepting incoming requests on local transport");
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-                assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
+                assertTrue(isRemoteNodeConnected("test", remoteNode, remoteClusterService));
                 var client = remoteClusterService.getRemoteClusterClient(
                     "test",
                     threadPool.executor(TEST_THREAD_POOL_NAME),
@@ -172,7 +172,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 // the right calls in place in the RemoteAwareClient
                 service.acceptIncomingRequests();
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-                assertBusy(() -> assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode)));
+                assertBusy(() -> assertTrue(isRemoteNodeConnected("test", remoteNode, remoteClusterService)));
                 for (int i = 0; i < 10; i++) {
                     RemoteClusterConnection remoteClusterConnection = remoteClusterService.getRemoteClusterConnection("test");
                     assertBusy(remoteClusterConnection::assertNoRunningConnections);
@@ -286,7 +286,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 );
 
                 try {
-                    assertFalse(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
+                    assertFalse(isRemoteNodeConnected("test", remoteNode, remoteClusterService));
 
                     // check that we quickly fail
                     if (randomBoolean()) {
@@ -325,8 +325,12 @@ public class RemoteClusterClientTests extends ESTestCase {
                         () -> safeAwait(listener -> client.getConnection(null, listener.map(v -> v)))
                     )
                 );
-                assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
+                assertTrue(isRemoteNodeConnected("test", remoteNode, remoteClusterService));
             }
         }
+    }
+
+    private static boolean isRemoteNodeConnected(String clusterName, DiscoveryNode node, RemoteClusterService service) {
+        return service.getRemoteClusterConnection(clusterName).isNodeConnected(node);
     }
 }

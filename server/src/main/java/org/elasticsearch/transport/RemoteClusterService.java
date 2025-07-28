@@ -174,17 +174,6 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     /**
-     * Returns <code>true</code> if at least one remote cluster is configured
-     */
-    public boolean isCrossClusterSearchEnabled() {
-        return remoteClusters.isEmpty() == false;
-    }
-
-    boolean isRemoteNodeConnected(final String remoteCluster, final DiscoveryNode node) {
-        return remoteClusters.get(remoteCluster).isNodeConnected(node);
-    }
-
-    /**
      * Group indices by cluster alias mapped to OriginalIndices for that cluster.
      * @param remoteClusterNames Set of configured remote cluster names.
      * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
@@ -257,13 +246,6 @@ public final class RemoteClusterService extends RemoteClusterAware
     @Override
     public Set<String> getConfiguredClusters() {
         return getRegisteredRemoteClusterNames();
-    }
-
-    /**
-     * Returns <code>true</code> iff the given cluster is configured as a remote cluster. Otherwise <code>false</code>
-     */
-    boolean isRemoteClusterRegistered(String clusterName) {
-        return remoteClusters.containsKey(clusterName);
     }
 
     /**

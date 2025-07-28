@@ -779,6 +779,13 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new LookupFromIndexOperator.MatchConfig(right, input));
         }
+        // pass matchFields left
+        // pass matchFields right - why do we even need this? Right can figure out the field names from the expression
+        // pass expression to evaluate e.g.
+        // (left.field1 = right.field2 or left.field1 = right.field3) and right.field4 = 'value'
+        // in this case the left and right size is different, because one field on the left is referenced twice in the join expression
+        // for every column from left side in the expression, we will make sure the corresponding matchField is sent to the right side for
+        // Lucene search
 
         return source.with(
             new LookupFromIndexOperator.Factory(
@@ -790,7 +797,8 @@ public class LocalExecutionPlanner {
                 localSourceExec.indexPattern(),
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
-                join.source()
+                join.source(),
+                null
             ),
             layout
         );

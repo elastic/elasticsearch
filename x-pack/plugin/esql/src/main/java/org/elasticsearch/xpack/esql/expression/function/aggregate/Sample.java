@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
@@ -63,7 +65,9 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             "version" },
         description = "Collects sample values for a field.",
         type = FunctionType.AGGREGATE,
-        examples = @Example(file = "stats_sample", tag = "doc")
+        examples = @Example(file = "stats_sample", tag = "doc"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") }
+
     )
     public Sample(
         Source source,

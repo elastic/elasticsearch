@@ -21,22 +21,50 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link RoundToDouble}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToDoubleLinearSearchEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class RoundToDouble10Evaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
   private final EvalOperator.ExpressionEvaluator field;
 
-  private final double[] points;
+  private final double p0;
+
+  private final double p1;
+
+  private final double p2;
+
+  private final double p3;
+
+  private final double p4;
+
+  private final double p5;
+
+  private final double p6;
+
+  private final double p7;
+
+  private final double p8;
+
+  private final double p9;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToDoubleLinearSearchEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      double[] points, DriverContext driverContext) {
+  public RoundToDouble10Evaluator(Source source, EvalOperator.ExpressionEvaluator field, double p0,
+      double p1, double p2, double p3, double p4, double p5, double p6, double p7, double p8,
+      double p9, DriverContext driverContext) {
     this.source = source;
     this.field = field;
-    this.points = points;
+    this.p0 = p0;
+    this.p1 = p1;
+    this.p2 = p2;
+    this.p3 = p3;
+    this.p4 = p4;
+    this.p5 = p5;
+    this.p6 = p6;
+    this.p7 = p7;
+    this.p8 = p8;
+    this.p9 = p9;
     this.driverContext = driverContext;
   }
 
@@ -65,7 +93,7 @@ public final class RoundToDoubleLinearSearchEvaluator implements EvalOperator.Ex
           result.appendNull();
           continue position;
         }
-        result.appendDouble(RoundToDouble.processLinear(fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p)), this.points));
+        result.appendDouble(RoundToDouble.process(fieldBlock.getDouble(fieldBlock.getFirstValueIndex(p)), this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
       }
       return result.build();
     }
@@ -74,7 +102,7 @@ public final class RoundToDoubleLinearSearchEvaluator implements EvalOperator.Ex
   public DoubleVector eval(int positionCount, DoubleVector fieldVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, RoundToDouble.processLinear(fieldVector.getDouble(p), this.points));
+        result.appendDouble(p, RoundToDouble.process(fieldVector.getDouble(p), this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
       }
       return result.build();
     }
@@ -82,7 +110,7 @@ public final class RoundToDoubleLinearSearchEvaluator implements EvalOperator.Ex
 
   @Override
   public String toString() {
-    return "RoundToDoubleLinearSearchEvaluator[" + "field=" + field + "]";
+    return "RoundToDouble10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
   }
 
   @Override
@@ -107,22 +135,51 @@ public final class RoundToDoubleLinearSearchEvaluator implements EvalOperator.Ex
 
     private final EvalOperator.ExpressionEvaluator.Factory field;
 
-    private final double[] points;
+    private final double p0;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, double[] points) {
+    private final double p1;
+
+    private final double p2;
+
+    private final double p3;
+
+    private final double p4;
+
+    private final double p5;
+
+    private final double p6;
+
+    private final double p7;
+
+    private final double p8;
+
+    private final double p9;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field, double p0,
+        double p1, double p2, double p3, double p4, double p5, double p6, double p7, double p8,
+        double p9) {
       this.source = source;
       this.field = field;
-      this.points = points;
+      this.p0 = p0;
+      this.p1 = p1;
+      this.p2 = p2;
+      this.p3 = p3;
+      this.p4 = p4;
+      this.p5 = p5;
+      this.p6 = p6;
+      this.p7 = p7;
+      this.p8 = p8;
+      this.p9 = p9;
     }
 
     @Override
-    public RoundToDoubleLinearSearchEvaluator get(DriverContext context) {
-      return new RoundToDoubleLinearSearchEvaluator(source, field.get(context), points, context);
+    public RoundToDouble10Evaluator get(DriverContext context) {
+      return new RoundToDouble10Evaluator(source, field.get(context), p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToDoubleLinearSearchEvaluator[" + "field=" + field + "]";
+      return "RoundToDouble10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
     }
   }
 }

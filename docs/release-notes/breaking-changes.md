@@ -110,7 +110,7 @@ Existing `repository-s3` configurations may no longer be compatible. Notable dif
 
 **Action:**
 Test the upgrade in a non-production environment. Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items:
-- Specify the correct signing region using the `s3.client.${CLIENT_NAME}.region` setting on each node. {es} will try and determine the correct region based on the endpoint URL and other data drawn from the operating environment but cannot guarantee to do so correctly in all cases.
+- Specify the correct signing region using the `s3.client.${CLIENT_NAME}.region` setting on each node. {es} will try to determine the correct region based on the endpoint URL and other data drawn from the operating environment, but might not do so correctly in all cases.
 - If you use IMDS to determine the availability zone of a node or to obtain credentials for accessing the EC2 API, ensure that it supports the IMDSv2 protocol.
 - If applicable, discontinue use of the `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
 - If applicable, specify that you wish to use the insecure HTTP protocol to access the S3 API by setting `s3.client.${CLIENT_NAME}.endpoint` to a URL which starts with `http://`.

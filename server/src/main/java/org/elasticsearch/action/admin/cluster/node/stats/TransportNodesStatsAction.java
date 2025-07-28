@@ -34,7 +34,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
@@ -179,7 +179,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         );
     }
 
-    public static class NodeStatsRequest extends TransportRequest {
+    public static class NodeStatsRequest extends AbstractTransportRequest {
 
         private final NodesStatsRequestParameters nodesStatsRequestParameters;
 

@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
@@ -24,11 +25,13 @@ public class BlobCacheMetrics {
     private static final double BYTES_PER_NANOSECONDS_TO_MEBIBYTES_PER_SECOND = 1e9D / (1 << 20);
     public static final String CACHE_POPULATION_REASON_ATTRIBUTE_KEY = "reason";
     public static final String CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY = "source";
-    public static final String SHARD_ID_ATTRIBUTE_KEY = "shard_id";
-    public static final String INDEX_ATTRIBUTE_KEY = "index_name";
+    public static final String LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY = "file_extension";
+    public static final String NON_LUCENE_EXTENSION_TO_RECORD = "other";
+    public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
+    private final LongCounter totalEvictedCount;
     private final LongHistogram cacheMissLoadTimes;
     private final DoubleHistogram cachePopulationThroughput;
     private final LongCounter cachePopulationBytes;
@@ -40,9 +43,17 @@ public class BlobCacheMetrics {
          */
         Warming,
         /**
+         * When warming the cache as a result of an incoming request
+         */
+        OnlinePrewarming,
+        /**
          * When the data we need is not in the cache
          */
-        CacheMiss
+        CacheMiss,
+        /**
+         * When data is prefetched upon new commit notifications
+         */
+        PreFetchingNewCommit
     }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
@@ -55,6 +66,11 @@ public class BlobCacheMetrics {
             meterRegistry.registerLongCounter(
                 "es.blob_cache.count_of_evicted_used_regions.total",
                 "The number of times a cache entry was evicted where the frequency was not zero",
+                "entries"
+            ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL,
+                "The number of times a cache entry was evicted, irrespective of the frequency",
                 "entries"
             ),
             meterRegistry.registerLongHistogram(
@@ -83,6 +99,7 @@ public class BlobCacheMetrics {
     BlobCacheMetrics(
         LongCounter cacheMissCounter,
         LongCounter evictedCountNonZeroFrequency,
+        LongCounter totalEvictedCount,
         LongHistogram cacheMissLoadTimes,
         DoubleHistogram cachePopulationThroughput,
         LongCounter cachePopulationBytes,
@@ -90,6 +107,7 @@ public class BlobCacheMetrics {
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
+        this.totalEvictedCount = totalEvictedCount;
         this.cacheMissLoadTimes = cacheMissLoadTimes;
         this.cachePopulationThroughput = cachePopulationThroughput;
         this.cachePopulationBytes = cachePopulationBytes;
@@ -106,6 +124,10 @@ public class BlobCacheMetrics {
         return evictedCountNonZeroFrequency;
     }
 
+    public LongCounter getTotalEvictedCount() {
+        return totalEvictedCount;
+    }
+
     public LongHistogram getCacheMissLoadTimes() {
         return cacheMissLoadTimes;
     }
@@ -113,22 +135,28 @@ public class BlobCacheMetrics {
     /**
      * Record the various cache population metrics after a chunk is copied to the cache
      *
+     * @param blobName The file that was requested and triggered the cache population.
      * @param bytesCopied The number of bytes copied
      * @param copyTimeNanos The time taken to copy the bytes in nanoseconds
      * @param cachePopulationReason The reason for the cache being populated
      * @param cachePopulationSource The source from which the data is being loaded
      */
     public void recordCachePopulationMetrics(
+        String blobName,
         int bytesCopied,
         long copyTimeNanos,
         CachePopulationReason cachePopulationReason,
         CachePopulationSource cachePopulationSource
     ) {
+        LuceneFilesExtensions luceneFilesExtensions = LuceneFilesExtensions.fromFile(blobName);
+        String blobFileExtension = luceneFilesExtensions != null ? luceneFilesExtensions.getExtension() : NON_LUCENE_EXTENSION_TO_RECORD;
         Map<String, Object> metricAttributes = Map.of(
             CACHE_POPULATION_REASON_ATTRIBUTE_KEY,
             cachePopulationReason.name(),
             CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY,
-            cachePopulationSource.name()
+            cachePopulationSource.name(),
+            LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY,
+            blobFileExtension
         );
         assert bytesCopied > 0 : "We shouldn't be recording zero-sized copies";
         cachePopulationBytes.incrementBy(bytesCopied, metricAttributes);

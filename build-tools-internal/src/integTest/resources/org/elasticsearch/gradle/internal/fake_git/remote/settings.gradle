@@ -11,6 +11,7 @@ rootProject.name = "root"
 
 include ":distribution:bwc:bugfix"
 include ":distribution:bwc:bugfix2"
+include ":distribution:bwc:bugfix3"
 include ":distribution:bwc:minor"
 include ":distribution:bwc:major"
 include ":distribution:bwc:staged"

@@ -137,6 +137,12 @@ public class MockScriptEngine implements ScriptEngine {
                             Map<String, Object> vars = new HashMap<>(parameters);
                             vars.put("params", parameters);
                             vars.put("doc", getDoc());
+                            try {
+                                vars.put("_score", get_score());
+                            } catch (Exception ignore) {
+                                // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                                // which is ok if _score was not requested e.g. top_hits.
+                            }
                             return ((Number) script.apply(vars)).doubleValue();
                         }
                     };
@@ -163,10 +169,10 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(AggregationScript.class)) {
             return context.factoryClazz.cast(new MockAggregationScript(script));
         } else if (context.instanceClazz.equals(IngestConditionalScript.class)) {
-            IngestConditionalScript.Factory factory = parameters -> new IngestConditionalScript(parameters) {
+            IngestConditionalScript.Factory factory = (parameters, ctxMap) -> new IngestConditionalScript(parameters, ctxMap) {
                 @Override
-                public boolean execute(Map<String, Object> ctx) {
-                    return (boolean) script.apply(ctx);
+                public boolean execute() {
+                    return (boolean) script.apply(ctxMap);
                 }
             };
             return context.factoryClazz.cast(factory);
@@ -881,6 +887,12 @@ public class MockScriptEngine implements ScriptEngine {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
+                    try {
+                        vars.put("_score", get_score());
+                    } catch (Exception ignore) {
+                        // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                        // which is ok if _score was not requested e.g. top_hits.
+                    }
                     return String.valueOf(script.apply(vars));
                 }
             };
@@ -907,6 +919,12 @@ public class MockScriptEngine implements ScriptEngine {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
+                    try {
+                        vars.put("_score", get_score());
+                    } catch (Exception ignore) {
+                        // nothing to do: if get_score throws we don't set the _score, likely the scorer is null,
+                        // which is ok if _score was not requested e.g. top_hits.
+                    }
                     return (BytesRefProducer) script.apply(vars);
                 }
             };

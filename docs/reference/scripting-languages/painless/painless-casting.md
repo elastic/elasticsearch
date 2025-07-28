@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-casting.html
+products:
+  - id: painless
 ---
 
 # Casting [painless-casting]

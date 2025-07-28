@@ -24,23 +24,10 @@ public interface InferenceServiceResults extends NamedWriteable, ChunkedToXConte
 
     /**
      * <p>Transform the result to match the format required for the TransportCoordinatedInferenceAction.
-     * For the inference plugin TextEmbeddingResults, the {@link #transformToLegacyFormat()} transforms the
-     * results into an intermediate format only used by the plugin's return value. It doesn't align with what the
-     * TransportCoordinatedInferenceAction expects. TransportCoordinatedInferenceAction expects an ml plugin
-     * TextEmbeddingResults.</p>
-     *
-     * <p>For other results like SparseEmbeddingResults, this method can be a pass through to the transformToLegacyFormat.</p>
+     * TransportCoordinatedInferenceAction expects an ml plugin TextEmbeddingResults or SparseEmbeddingResults.</p>
      */
     default List<? extends InferenceResults> transformToCoordinationFormat() {
         throw new UnsupportedOperationException("transformToCoordinationFormat() is not implemented");
-    }
-
-    /**
-     * Transform the result to match the format required for versions prior to
-     * {@link org.elasticsearch.TransportVersions#V_8_12_0}
-     */
-    default List<? extends InferenceResults> transformToLegacyFormat() {
-        throw new UnsupportedOperationException("transformToLegacyFormat() is not implemented");
     }
 
     /**

@@ -26,15 +26,15 @@ public class RegisteredPolicySnapshotsSerializationTests extends AbstractChunked
             RegisteredPolicySnapshots.Builder builder = new RegisteredPolicySnapshots.Builder(RegisteredPolicySnapshots.EMPTY);
             var snap = new SnapshotId(randomAlphaOfLength(10), randomUUID());
 
-            builder.maybeAdd(null, snap);
-            builder.maybeAdd(Map.of(), snap);
-            builder.maybeAdd(Map.of("not_policy", "policy-10"), snap);
-            builder.maybeAdd(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, 5), snap);
+            builder.addIfSnapshotIsSLMInitiated(null, snap);
+            builder.addIfSnapshotIsSLMInitiated(Map.of(), snap);
+            builder.addIfSnapshotIsSLMInitiated(Map.of("not_policy", "policy-10"), snap);
+            builder.addIfSnapshotIsSLMInitiated(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, 5), snap);
 
             // immutable map in Map.of doesn't allows nulls
             var meta = new HashMap<String, Object>();
             meta.put(SnapshotsService.POLICY_ID_METADATA_FIELD, null);
-            builder.maybeAdd(meta, snap);
+            builder.addIfSnapshotIsSLMInitiated(meta, snap);
 
             RegisteredPolicySnapshots registered = builder.build();
             assertTrue(registered.getSnapshots().isEmpty());
@@ -43,7 +43,7 @@ public class RegisteredPolicySnapshotsSerializationTests extends AbstractChunked
         {
             RegisteredPolicySnapshots.Builder builder = new RegisteredPolicySnapshots.Builder(RegisteredPolicySnapshots.EMPTY);
             var snap = new SnapshotId(randomAlphaOfLength(10), randomUUID());
-            builder.maybeAdd(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, "cheddar"), snap);
+            builder.addIfSnapshotIsSLMInitiated(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, "cheddar"), snap);
             RegisteredPolicySnapshots registered = builder.build();
             assertEquals(List.of(new RegisteredPolicySnapshots.PolicySnapshot("cheddar", snap)), registered.getSnapshots());
         }

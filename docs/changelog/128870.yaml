@@ -1,0 +1,5 @@
+pr: 128870
+summary: Check `TooComplex` exception for `HasPrivileges` body
+area: Authorization
+type: enhancement
+issues: []

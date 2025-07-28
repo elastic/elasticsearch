@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
 import java.io.IOException;
@@ -59,7 +60,7 @@ public class FileOperatorUsersStore {
     public FileOperatorUsersStore(Environment env, ResourceWatcherService watcherService) {
         this.file = XPackPlugin.resolveConfigFile(env, "operator_users.yml");
         this.operatorUsersDescriptor = parseFile(this.file, logger);
-        FileWatcher watcher = new FileWatcher(file.getParent(), true);
+        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent(), true);
         watcher.addListener(new FileOperatorUsersStore.FileListener());
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);

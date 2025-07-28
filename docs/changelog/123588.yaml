@@ -1,0 +1,5 @@
+pr: 123588
+summary: Give Kibana user 'all' permissions for .entity_analytics.* indices
+area: Infra/Core
+type: enhancement
+issues: []

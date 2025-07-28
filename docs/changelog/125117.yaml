@@ -1,0 +1,8 @@
+pr: 125117
+summary: "Permanently switch from Java SecurityManager to Entitlements.
+  The Java SecurityManager has been deprecated since Java 17, and it is now completely disabled in Java 24. In order
+  to retain an similar level of protection, Elasticsearch implemented its own protection mechanism, Entitlements.
+  Starting with this version, Entitlements will permanently replace the Java SecurityManager."
+area: Infra/Core
+type: upgrade
+issues: []

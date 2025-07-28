@@ -124,7 +124,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected void waitUntilAnalyticsIsStopped(String id) throws Exception {
-        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(90));
+        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(180));
     }
 
     protected void waitUntilAnalyticsIsStopped(String id, TimeValue waitTime) throws Exception {
@@ -367,7 +367,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         // Make sure we wrote to the audit
         // Since calls to write the AbstractAuditor are sent and forgot (async) we could have returned from the start,
         // finished the job (as this is a very short analytics job), all without the audit being fully written.
-        assertBusy(() -> assertTrue(indexExists(NotificationsIndex.NOTIFICATIONS_INDEX)));
+        awaitIndexExists(NotificationsIndex.NOTIFICATIONS_INDEX);
 
         @SuppressWarnings("unchecked")
         Matcher<String>[] itemMatchers = Arrays.stream(expectedAuditMessagePrefixes).map(Matchers::startsWith).toArray(Matcher[]::new);

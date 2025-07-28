@@ -26,6 +26,8 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -44,6 +46,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
 
 /**
  * Field Mapper for point type.
@@ -124,6 +128,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                 hasDocValues.get(),
                 parser,
                 nullValue.get(),
+                context.isSourceSynthetic(),
                 meta.get()
             );
             return new PointFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
@@ -187,6 +192,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
     }
 
     public static class PointFieldType extends AbstractPointFieldType<CartesianPoint> implements ShapeQueryable {
+        private final boolean isSyntheticSource;
 
         private PointFieldType(
             String name,
@@ -195,14 +201,16 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             boolean hasDocValues,
             CartesianPointParser parser,
             CartesianPoint nullValue,
+            boolean isSyntheticSource,
             Map<String, String> meta
         ) {
             super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         // only used in test
         public PointFieldType(String name) {
-            this(name, true, false, true, null, null, Collections.emptyMap());
+            this(name, true, false, true, null, null, false, Collections.emptyMap());
         }
 
         @Override
@@ -229,6 +237,20 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         protected Function<List<CartesianPoint>, List<Object>> getFormatter(String format) {
             return GeometryFormatterFactory.getFormatter(format, p -> new Point(p.getX(), p.getY()));
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
+
+            // Multi fields don't have fallback synthetic source.s
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
         }
     }
 

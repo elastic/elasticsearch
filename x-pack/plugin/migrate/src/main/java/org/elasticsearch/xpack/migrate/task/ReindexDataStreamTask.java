@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.migrate.task;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.TimeValue;
@@ -26,11 +27,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReindexDataStreamTask extends AllocatedPersistentTask {
     public static final String TASK_NAME = "reindex-data-stream";
+    private final ProjectId projectId;
     private final ClusterService clusterService;
     private final long persistentTaskStartTime;
     private final int initialTotalIndices;
     private final int initialTotalIndicesToBeUpgraded;
-    private volatile boolean complete = false;
+    private boolean isCompleteLocally = false;
     private volatile Exception exception;
     private final Set<String> inProgress = Collections.synchronizedSet(new HashSet<>());
     private final AtomicInteger pending = new AtomicInteger();
@@ -39,6 +41,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
 
     @SuppressWarnings("this-escape")
     public ReindexDataStreamTask(
+        ProjectId projectId,
         ClusterService clusterService,
         long persistentTaskStartTime,
         int initialTotalIndices,
@@ -51,6 +54,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         Map<String, String> headers
     ) {
         super(id, type, action, description, parentTask, headers);
+        this.projectId = projectId;
         this.clusterService = clusterService;
         this.persistentTaskStartTime = persistentTaskStartTime;
         this.initialTotalIndices = initialTotalIndices;
@@ -69,22 +73,30 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     public ReindexDataStreamStatus getStatus() {
         int totalIndices = initialTotalIndices;
         int totalIndicesToBeUpgraded = initialTotalIndicesToBeUpgraded;
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = PersistentTasksCustomMetadata.getTaskWithId(
-            clusterService.state(),
-            getPersistentTaskId()
-        );
+        final var projectMetadata = clusterService.state().metadata().getProject(projectId);
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = projectMetadata == null
+            ? null
+            : PersistentTasksCustomMetadata.getTaskWithId(projectMetadata, getPersistentTaskId());
+        boolean isComplete;
         if (persistentTask != null) {
             ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTask.getState();
-            if (state != null && state.totalIndices() != null && state.totalIndicesToBeUpgraded() != null) {
-                totalIndices = Math.toIntExact(state.totalIndices());
-                totalIndicesToBeUpgraded = Math.toIntExact(state.totalIndicesToBeUpgraded());
+            if (state != null) {
+                isComplete = state.isComplete();
+                if (state.totalIndices() != null && state.totalIndicesToBeUpgraded() != null) {
+                    totalIndices = Math.toIntExact(state.totalIndices());
+                    totalIndicesToBeUpgraded = Math.toIntExact(state.totalIndicesToBeUpgraded());
+                }
+            } else {
+                isComplete = false;
             }
+        } else {
+            isComplete = false;
         }
         return new ReindexDataStreamStatus(
             persistentTaskStartTime,
             totalIndices,
             totalIndicesToBeUpgraded,
-            complete,
+            isComplete,
             exception,
             inProgress,
             pending.get(),
@@ -93,7 +105,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     }
 
     public void allReindexesCompleted(ThreadPool threadPool, TimeValue timeToLive) {
-        this.complete = true;
+        isCompleteLocally = true;
         if (isCancelled()) {
             completeTask.run();
         } else {
@@ -120,6 +132,23 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         pending.decrementAndGet();
     }
 
+    private boolean isCompleteInClusterState() {
+        final var projectMetadata = clusterService.state().metadata().getProject(projectId);
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = projectMetadata == null
+            ? null
+            : PersistentTasksCustomMetadata.getTaskWithId(projectMetadata, getPersistentTaskId());
+        if (persistentTask != null) {
+            ReindexDataStreamPersistentTaskState state = (ReindexDataStreamPersistentTaskState) persistentTask.getState();
+            if (state != null) {
+                return state.isComplete();
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
     public void setPendingIndicesCount(int size) {
         pending.set(size);
     }
@@ -130,8 +159,10 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
          * If the task is complete, but just waiting for its scheduled removal, we go ahead and call markAsCompleted/markAsFailed
          * immediately. This results in the running task being removed from the task manager. If the task is not complete, then one of
          * allReindexesCompleted or taskFailed will be called in the future, resulting in the same thing.
+         * We check both the cluster state and isCompleteLocally -- it is possible (especially in tests) that hte cluster state
+         * update has not happened in between when allReindexesCompleted was called and when this is called.
          */
-        if (complete) {
+        if (isCompleteInClusterState() || isCompleteLocally) {
             completeTask.run();
         }
     }

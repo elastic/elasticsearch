@@ -9,12 +9,10 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
-public class NotEntitledException extends SecurityException {
+import java.security.AccessControlException;
+
+public class NotEntitledException extends AccessControlException {
     public NotEntitledException(String message) {
         super(message);
-    }
-
-    public NotEntitledException(String message, Throwable cause) {
-        super(message, cause);
     }
 }

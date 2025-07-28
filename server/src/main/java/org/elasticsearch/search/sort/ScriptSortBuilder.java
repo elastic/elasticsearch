@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -52,6 +53,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.search.sort.FieldSortBuilder.validateMaxChildrenExistOnlyInTopLevelNestedSort;
@@ -278,11 +280,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    StringSortScript leafScript;
+                    final Map<Object, StringSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
+                        StringSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScripts.put(context.id(), leafScript);
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
@@ -302,8 +306,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer) {
-                        leafScript.setScorer(scorer);
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        leafScripts.get(context.id()).setScorer(scorer);
                     }
 
                     @Override
@@ -326,13 +330,15 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             case NUMBER -> {
                 final NumberSortScript.Factory numberSortFactory = context.compile(script, NumberSortScript.CONTEXT);
                 // searchLookup is unnecessary here, as it's just used for expressions
-                final NumberSortScript.LeafFactory numberSortScript = numberSortFactory.newFactory(script.getParams(), searchLookup);
+                final NumberSortScript.LeafFactory numberSortScriptFactory = numberSortFactory.newFactory(script.getParams(), searchLookup);
                 return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    NumberSortScript leafScript;
+                    final Map<Object, NumberSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = numberSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
+                        NumberSortScript leafScript = numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScripts.put(context.id(), leafScript);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) {
@@ -349,8 +355,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer) {
-                        leafScript.setScorer(scorer);
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        leafScripts.get(context.id()).setScorer(scorer);
                     }
                 };
             }
@@ -358,11 +364,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 final BytesRefSortScript.Factory factory = context.compile(script, BytesRefSortScript.CONTEXT);
                 final BytesRefSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    BytesRefSortScript leafScript;
+                    final Map<Object, BytesRefSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
+                        BytesRefSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        leafScripts.put(context.id(), leafScript);
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
 
                             @Override
@@ -391,8 +399,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
 
                     @Override
-                    protected void setScorer(Scorable scorer) {
-                        leafScript.setScorer(scorer);
+                    protected void setScorer(LeafReaderContext context, Scorable scorer) {
+                        leafScripts.get(context.id()).setScorer(scorer);
                     }
 
                     @Override

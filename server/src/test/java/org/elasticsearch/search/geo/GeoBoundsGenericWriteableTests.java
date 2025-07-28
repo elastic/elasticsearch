@@ -85,7 +85,7 @@ public class GeoBoundsGenericWriteableTests extends AbstractWireTestCase<Generic
             output.setTransportVersion(older);
             assertThat(
                 expectThrows(Throwable.class, () -> output.writeGenericValue(testInstance)).getMessage(),
-                containsString("[GeoBoundingBox] requires minimal transport version")
+                containsString("[GeoBoundingBox] doesn't support serialization with transport version")
             );
         }
     }

@@ -10,13 +10,14 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,7 @@ public class VerifyNodeRepositoryAction {
 
         private final ClusterService clusterService;
         private final RepositoriesService repositoriesService;
+        private final ProjectResolver projectResolver;
 
         @Inject
         public TransportAction(
@@ -46,18 +48,20 @@ public class VerifyNodeRepositoryAction {
             ActionFilters actionFilters,
             ThreadPool threadPool,
             ClusterService clusterService,
-            RepositoriesService repositoriesService
+            RepositoriesService repositoriesService,
+            ProjectResolver projectResolver
         ) {
             super(ACTION_NAME, transportService, actionFilters, Request::new, threadPool.executor(ThreadPool.Names.SNAPSHOT));
             this.clusterService = clusterService;
             this.repositoriesService = repositoriesService;
+            this.projectResolver = projectResolver;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<ActionResponse.Empty> listener) {
             DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
             try {
-                Repository repository = repositoriesService.repository(request.repository);
+                Repository repository = repositoriesService.repository(projectResolver.getProjectId(), request.repository);
                 repository.verify(request.verificationToken, localNode);
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             } catch (Exception e) {
@@ -67,7 +71,7 @@ public class VerifyNodeRepositoryAction {
         }
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         protected final String repository;
         protected final String verificationToken;

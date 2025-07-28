@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -20,14 +19,11 @@ import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
@@ -82,7 +78,7 @@ public final class SSLConfigurationReloader {
     }
 
     /**
-     * Collects all of the directories that need to be monitored for the provided {@link SslConfiguration} instances and ensures that
+     * Collects all of the files that need to be monitored for the provided {@link SslConfiguration} instances and ensures that
      * they are being watched for changes
      */
     private static void startWatching(
@@ -93,8 +89,8 @@ public final class SSLConfigurationReloader {
         Map<Path, List<SslConfiguration>> pathToConfigurationsMap = new HashMap<>();
         for (SslConfiguration sslConfiguration : sslConfigurations) {
             final Collection<Path> filesToMonitor = sslConfiguration.getDependentFiles();
-            for (Path directory : directoriesToMonitor(filesToMonitor)) {
-                pathToConfigurationsMap.compute(directory, (path, list) -> {
+            for (Path file : filesToMonitor) {
+                pathToConfigurationsMap.compute(file, (path, list) -> {
                     if (list == null) {
                         list = new ArrayList<>();
                     }
@@ -110,21 +106,10 @@ public final class SSLConfigurationReloader {
             fileWatcher.addListener(changeListener);
             try {
                 resourceWatcherService.add(fileWatcher, Frequency.HIGH);
-            } catch (IOException | AccessControlException | NotEntitledException e) {
-                logger.error("failed to start watching directory [{}] for ssl configurations [{}] - {}", path, configurations, e);
+            } catch (IOException | SecurityException e) {
+                logger.error("failed to start watching file [{}] for ssl configurations [{}] - {}", path, configurations, e);
             }
         });
-    }
-
-    /**
-     * Returns a unique set of directories that need to be monitored based on the provided file paths
-     */
-    private static Set<Path> directoriesToMonitor(Iterable<Path> filePaths) {
-        Set<Path> paths = new HashSet<>();
-        for (Path path : filePaths) {
-            paths.add(path.getParent());
-        }
-        return paths;
     }
 
     private static class ChangeListener implements FileChangesListener {

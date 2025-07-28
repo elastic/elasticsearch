@@ -9,16 +9,19 @@ lexer grammar Expression;
 //
 // Expression - used by many commands
 //
+COMPLETION : 'completion'     -> pushMode(EXPRESSION_MODE);
 DISSECT : 'dissect'           -> pushMode(EXPRESSION_MODE);
 EVAL : 'eval'                 -> pushMode(EXPRESSION_MODE);
 GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
+SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 
-DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
+DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats' -> pushMode(EXPRESSION_MODE);
+DEV_RERANK : {this.isDevVersion()}? 'rerank'           -> pushMode(EXPRESSION_MODE);
 
 
 mode EXPRESSION_MODE;
@@ -82,11 +85,11 @@ DECIMAL_LITERAL
     | DOT DIGIT+ EXPONENT
     ;
 
-BY : 'by';
 
 AND : 'and';
 ASC : 'asc';
 ASSIGN : '=';
+BY : 'by';
 CAST_OP : '::';
 COLON : ':';
 COMMA : ',';
@@ -101,10 +104,12 @@ LIKE: 'like';
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
+ON: 'on';
 OR : 'or';
 PARAM: '?';
 RLIKE: 'rlike';
 TRUE : 'true';
+WITH: 'with';
 
 EQ  : '==';
 CIEQ  : '=~';
@@ -123,11 +128,18 @@ PERCENT : '%';
 LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
 
+DOUBLE_PARAMS: '??';
+
 NESTED_WHERE : WHERE -> type(WHERE);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
     | PARAM DIGIT+
+    ;
+
+NAMED_OR_POSITIONAL_DOUBLE_PARAMS
+    : DOUBLE_PARAMS (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
+    | DOUBLE_PARAMS DIGIT+
     ;
 
 // Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one

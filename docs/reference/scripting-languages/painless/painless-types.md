@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-types.html
+products:
+  - id: painless
 ---
 
 # Types [painless-types]
@@ -28,10 +30,10 @@ The following primitive types are available. The corresponding reference type is
 :   16-bit, unsigned, Unicode character. Range: [`0`, `65535`]. Default: `0` or `\u0000`.
 
 `int` (`Integer`)
-:   32-bit, signed, two’s complement integer. Range: [`-2^31`, `2^31-1`]. Default: `0`.
+:   32-bit, signed, two’s complement integer. Range: [`-2^31`, `2^31 - 1`]. Default: `0`.
 
 `long` (`Long`)
-:   64-bit, signed, two’s complement integer. Range: [`-2^63`, `2^63-1`]. Default: `0`.
+:   64-bit, signed, two’s complement integer. Range: [`-2^63`, `2^63 - 1`]. Default: `0`.
 
 `float (`Float`)`
 :   32-bit, signed, single-precision, IEEE 754 floating point number. Default `0.0`.

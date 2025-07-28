@@ -16,7 +16,7 @@ When an API is targeted for removal or is going to be changed in a non-compatibl
 
 When you request REST API compatibility, {{es}} attempts to honor the previous REST API version. {{es}} attempts to apply the most compatible URL, request body, response body, and HTTP parameters.
 
-For compatible APIs, this has no effect—​it only impacts calls to APIs that have breaking changes from the previous version. An error can still be returned in compatibility mode if {{es}} cannot automatically resolve the incompatibilities.
+For compatible APIs, this has no effect— it only impacts calls to APIs that have breaking changes from the previous version. An error can still be returned in compatibility mode if {{es}} cannot automatically resolve the incompatibilities.
 
 ::::{important}
 REST API compatibility does not guarantee the same behavior as the prior version. It instructs {{es}} to automatically resolve any incompatibilities so the request can be processed instead of returning an error.
@@ -55,12 +55,12 @@ To enable REST API compatibility for all requests received by {{es}} set the env
 
 ## REST API compatibility workflow [_rest_api_compatibility_workflow]
 
-To leverage REST API compatibility during an upgrade from the last 8.x to 9.0.0-beta1:
+To leverage REST API compatibility during an upgrade from the last 8.x to {{version}}:
 
 1. Upgrade your [{{es}} clients](https://www.elastic.co/guide/en/elasticsearch/client/index.html) to the latest 8.x version and enable REST API compatibility.
 2. Use the [Upgrade Assistant](docs-content://deploy-manage/upgrade/prepare-to-upgrade/upgrade-assistant.md) to review all critical issues and explore the deprecation logs. Some critical issues might be mitigated by REST API compatibility.
 3. Resolve all critical issues before proceeding with the upgrade.
-4. Upgrade Elasticsearch to 9.0.0-beta1.
+4. Upgrade Elasticsearch to {{version}}.
 5. Review the deprecation logs for entries with the category `compatible_api`. Review the workflow associated with the requests that relied on compatibility mode.
 6. Upgrade your {{es}} clients to 9.x and resolve compatibility issues manually where needed.
 

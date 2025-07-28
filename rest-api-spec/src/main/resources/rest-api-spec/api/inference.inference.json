@@ -1,0 +1,45 @@
+{
+  "inference.inference": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/post-inference-api.html",
+      "description": "Perform inference"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_inference/{inference_id}",
+          "methods": ["POST"],
+          "parts": {
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
+            }
+          }
+        },
+        {
+          "path": "/_inference/{task_type}/{inference_id}",
+          "methods": ["POST"],
+          "parts": {
+            "task_type": {
+              "type": "string",
+              "description": "The task type"
+            },
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The inference payload"
+    }
+  }
+}

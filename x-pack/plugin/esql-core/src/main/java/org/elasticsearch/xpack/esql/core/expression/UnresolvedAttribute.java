@@ -19,10 +19,19 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-// unfortunately we can't use UnresolvedNamedExpression
+/**
+ * An unresolved attribute. We build these while walking the syntax
+ * tree and then resolve them into other {@link Attribute} subclasses during
+ * analysis.
+ * <p>
+ *     For example, if they reference the data directly from lucene they'll be
+ *     {@link FieldAttribute}s. If they reference the results of another calculation
+ *     they will be {@link ReferenceAttribute}s.
+ * </p>
+ */
 public class UnresolvedAttribute extends Attribute implements Unresolvable {
-    private final String unresolvedMsg;
     private final boolean customMessage;
+    private final String unresolvedMsg;
     private final Object resolutionMetadata;
 
     public UnresolvedAttribute(Source source, String name) {
@@ -119,16 +128,16 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     }
 
     @Override
+    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
     public int hashCode() {
         return Objects.hash(super.hashCode(), resolutionMetadata, unresolvedMsg);
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (super.equals(obj)) {
-            UnresolvedAttribute ua = (UnresolvedAttribute) obj;
-            return Objects.equals(resolutionMetadata, ua.resolutionMetadata) && Objects.equals(unresolvedMsg, ua.unresolvedMsg);
-        }
-        return false;
+    protected boolean innerEquals(Object o) {
+        var other = (UnresolvedAttribute) o;
+        return super.innerEquals(other)
+            && Objects.equals(resolutionMetadata, other.resolutionMetadata)
+            && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 }

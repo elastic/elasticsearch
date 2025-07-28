@@ -10,30 +10,29 @@ package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.voyageai.VoyageAIActionVisitor;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
+import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils.HOST;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils.HOST;
 
 public class VoyageAIEmbeddingsModel extends VoyageAIModel {
-    public static VoyageAIEmbeddingsModel of(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
+    public static VoyageAIEmbeddingsModel of(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings);
-        return new VoyageAIEmbeddingsModel(
-            model,
-            VoyageAIEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings, inputType)
-        );
+        return new VoyageAIEmbeddingsModel(model, VoyageAIEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
     public VoyageAIEmbeddingsModel(
@@ -51,29 +50,21 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
             VoyageAIEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            buildUri(VoyageAIService.NAME, VoyageAIEmbeddingsModel::buildRequestUri)
         );
+    }
+
+    public static URI buildRequestUri() throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(HOST)
+            .setPathSegments(VoyageAIUtils.VERSION_1, VoyageAIUtils.EMBEDDINGS_PATH)
+            .build();
     }
 
     // should only be used for testing
     VoyageAIEmbeddingsModel(
-        String modelId,
-        String service,
-        VoyageAIEmbeddingsServiceSettings serviceSettings,
-        VoyageAIEmbeddingsTaskSettings taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secretSettings
-    ) {
-        super(
-            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings.getCommonSettings()
-        );
-    }
-
-    VoyageAIEmbeddingsModel(
-        String modelId,
+        String inferenceId,
         String service,
         String url,
         VoyageAIEmbeddingsServiceSettings serviceSettings,
@@ -81,12 +72,24 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(inferenceId, service, serviceSettings, taskSettings, chunkingSettings, secretSettings, ServiceUtils.createUri(url));
+    }
+
+    private VoyageAIEmbeddingsModel(
+        String inferenceId,
+        String service,
+        VoyageAIEmbeddingsServiceSettings serviceSettings,
+        VoyageAIEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
+        @Nullable DefaultSecretSettings secretSettings,
+        URI uri
+    ) {
         super(
-            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(inferenceId, TaskType.TEXT_EMBEDDING, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
             serviceSettings.getCommonSettings(),
-            url
+            uri
         );
     }
 
@@ -114,14 +117,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
     }
 
     @Override
-    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
-        return visitor.create(this, taskSettings, inputType);
-    }
-
-    protected URI buildRequestUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(HOST)
-            .setPathSegments(VoyageAIUtils.VERSION_1, VoyageAIUtils.EMBEDDINGS_PATH)
-            .build();
+    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings) {
+        return visitor.create(this, taskSettings);
     }
 }

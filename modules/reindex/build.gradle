@@ -44,9 +44,6 @@ dependencies {
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
-
-  internalClusterTestImplementation project(':modules:lang-painless')
-  internalClusterTestImplementation project(':modules:lang-painless:spi')
 }
 
 restResources {
@@ -171,11 +168,11 @@ if (OS.current() == OS.WINDOWS) {
 
     tasks.named("javaRestTest").configure {
       dependsOn fixture
-        systemProperty "tests.fromOld", "true"
-        /* Use a closure on the string to delay evaluation until right before we
-         * run the integration tests so that we can be sure that the file is
-         * ready. */
-        nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
+      systemProperty "tests.fromOld", "true"
+      /* Use a closure on the string to delay evaluation until right before we
+       * run the integration tests so that we can be sure that the file is
+       * ready. */
+      nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
     }
   }
 }

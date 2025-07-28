@@ -35,8 +35,8 @@ public class StYMinTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedGeo = "StYMinFromWKBGeoEvaluator[field=Attribute[channel=0]]";
-        String expectedCartesian = "StYMinFromWKBEvaluator[field=Attribute[channel=0]]";
+        String expectedGeo = "StYMinFromWKBGeoEvaluator[wkb=Attribute[channel=0]]";
+        String expectedCartesian = "StYMinFromWKBEvaluator[wkb=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, DOUBLE, StYMinTests::valueOfGeo, List.of());
         TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StYMinTests::valueOfCartesian, List.of());

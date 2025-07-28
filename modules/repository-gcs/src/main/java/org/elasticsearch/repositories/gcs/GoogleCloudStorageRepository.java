@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.gcs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
@@ -85,16 +86,20 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private final TimeValue retryThrottledCasDelayIncrement;
     private final int retryThrottledCasMaxNumberOfRetries;
     private final TimeValue retryThrottledCasMaxDelay;
+    private final GcsRepositoryStatsCollector statsCollector;
 
     GoogleCloudStorageRepository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final GcsRepositoryStatsCollector statsCollector
     ) {
         super(
+            projectId,
             metadata,
             namedXContentRegistry,
             clusterService,
@@ -104,13 +109,13 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             buildLocation(metadata)
         );
         this.storageService = storageService;
-
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
         this.retryThrottledCasDelayIncrement = RETRY_THROTTLED_CAS_DELAY_INCREMENT.get(metadata.settings());
         this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
         this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
+        this.statsCollector = statsCollector;
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
@@ -140,13 +145,18 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             storageService,
             bigArrays,
             bufferSize,
-            BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay)
+            BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
+            statsCollector
         );
     }
 
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    GcsRepositoryStatsCollector statsCollector() {
+        return statsCollector;
     }
 
     /**

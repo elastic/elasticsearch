@@ -57,13 +57,12 @@ public final class TestProjectResolvers {
 
     /**
      * This method returns a ProjectResolver that is unable to provide the project-id unless explicitly specified
-     * with the executeOnProject method. This is mostly useful in places where we just need a placeholder to satisfy
-     * the constructor signature.
+     * with the executeOnProject method.
      */
-    public static ProjectResolver singleProjectOnly() {
+    public static ProjectResolver mustExecuteFirst() {
         return new ProjectResolver() {
 
-            private ProjectId enforceProjectId = null;
+            private volatile ProjectId enforceProjectId = null;
 
             @Override
             public ProjectId getProjectId() {
@@ -82,14 +81,16 @@ public final class TestProjectResolvers {
 
             @Override
             public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
-                if (enforceProjectId != null) {
-                    throw new IllegalStateException("Cannot nest calls to executeOnProject");
-                }
-                try {
-                    enforceProjectId = projectId;
-                    body.run();
-                } finally {
-                    enforceProjectId = null;
+                synchronized (this) {
+                    if (enforceProjectId != null) {
+                        throw new IllegalStateException("Cannot nest calls to executeOnProject");
+                    }
+                    try {
+                        enforceProjectId = projectId;
+                        body.run();
+                    } finally {
+                        enforceProjectId = null;
+                    }
                 }
             }
 
@@ -100,12 +101,46 @@ public final class TestProjectResolvers {
         };
     }
 
+    private static final ProjectResolver ALWAYS_THROW = new ProjectResolver() {
+        @Override
+        public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+            throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
+        }
+
+        @Override
+        public ProjectId getProjectId() {
+            throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
+        }
+
+        @Override
+        public boolean supportsMultipleProjects() {
+            throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
+        }
+    };
+
+    /**
+     * This method returns a ProjectResolver that always throw for all methods. This is mostly useful in places where
+     * we just need a placeholder to satisfy the constructor signature.
+     */
+    public static ProjectResolver alwaysThrow() {
+        return ALWAYS_THROW;
+    }
+
     /**
      * This method returns a ProjectResolver that gives back the specified project-id when its getProjectId method is called.
-     * It also assumes it is the only project in the cluster state and throws if that is not the case.
+     * The ProjectResolver can work with cluster state containing multiple projects and its supportsMultipleProjects returns true.
      */
     public static ProjectResolver singleProject(ProjectId projectId) {
         return singleProject(projectId, false);
+    }
+
+    /**
+     * This method returns a ProjectResolver that returns the given ProjectId.
+     * It also assumes it is the only project in the cluster state and throws if that is not the case.
+     * In addition, the ProjectResolvers returns false for supportsMultipleProjects.
+     */
+    public static ProjectResolver singleProjectOnly(ProjectId projectId) {
+        return singleProject(projectId, true);
     }
 
     private static ProjectResolver singleProject(ProjectId projectId, boolean only) {
@@ -144,7 +179,7 @@ public final class TestProjectResolvers {
 
             @Override
             public boolean supportsMultipleProjects() {
-                return true;
+                return only == false;
             }
         };
     }

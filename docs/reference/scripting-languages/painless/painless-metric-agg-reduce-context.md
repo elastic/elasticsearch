@@ -1,11 +1,13 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-metric-agg-reduce-context.html
+products:
+  - id: painless
 ---
 
 # Metric aggregation reduce context [painless-metric-agg-reduce-context]
 
-Use a Painless script to [reduce](/reference/data-analysis/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md) values to produce the result of a scripted metric aggregation. A reduce script is run once on the coordinating node following a [combine script](/reference/scripting-languages/painless/painless-metric-agg-combine-context.md) (or a [map script](/reference/scripting-languages/painless/painless-metric-agg-map-context.md) if no combine script is specified) and is optional as part of a full metric aggregation.
+Use a Painless script to [reduce](/reference/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md) values to produce the result of a scripted metric aggregation. A reduce script is run once on the coordinating node following a [combine script](/reference/scripting-languages/painless/painless-metric-agg-combine-context.md) (or a [map script](/reference/scripting-languages/painless/painless-metric-agg-map-context.md) if no combine script is specified) and is optional as part of a full metric aggregation.
 
 **Variables**
 

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -199,7 +200,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
 
     @Override
     protected ClusterBlockException checkBlock(SimulateIndexTemplateRequest request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     /**
@@ -266,7 +267,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
             simulatedProject,
-            matchingTemplate,
+            template,
             xContentRegistry,
             simulatedIndexName
         );
@@ -344,16 +345,18 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         );
 
         Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
-        DataStreamLifecycle lifecycle = resolveLifecycle(simulatedProject, matchingTemplate);
+        DataStreamLifecycle.Builder lifecycleBuilder = resolveLifecycle(simulatedProject, matchingTemplate);
+        DataStreamLifecycle.Template lifecycle = lifecycleBuilder == null ? null : lifecycleBuilder.buildTemplate();
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
-            lifecycle = DataStreamLifecycle.DEFAULT;
+            lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         }
+        DataStreamOptions.Builder optionsBuilder = resolveDataStreamOptions(simulatedProject, matchingTemplate);
         return new Template(
             settings,
             mergedMapping,
             aliasesByName,
             lifecycle,
-            resolveDataStreamOptions(simulatedProject, matchingTemplate)
+            optionsBuilder == null ? null : optionsBuilder.buildTemplate()
         );
     }
 

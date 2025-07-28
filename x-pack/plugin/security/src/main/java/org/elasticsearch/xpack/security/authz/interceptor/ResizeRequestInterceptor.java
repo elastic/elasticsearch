@@ -103,7 +103,7 @@ public final class ResizeRequestInterceptor implements RequestInterceptor {
             );
             return listener;
         } else {
-            return SubscribableListener.newSucceeded(null);
+            return SubscribableListener.nullSuccess();
         }
     }
 }

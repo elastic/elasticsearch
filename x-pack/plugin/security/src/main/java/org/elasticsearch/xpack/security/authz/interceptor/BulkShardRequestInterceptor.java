@@ -81,6 +81,6 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
                 }
             }
         }
-        return SubscribableListener.newSucceeded(null);
+        return SubscribableListener.nullSuccess();
     }
 }

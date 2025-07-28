@@ -36,16 +36,3 @@ tasks.named("yamlRestCompatTestTransform").configure { task ->
   task.replaceValueInMatch("tokens.0.token", "absenț", "romanian")
   task.skipTest("indices.analyze/15_analyze/Custom analyzer is not buildable", "error response changed with #123743")
 }
-
-tasks.named("yamlRestTest").configure {
-  if (buildParams.getRuntimeJavaVersion().map{ it.majorVersion.toInteger() }.get() >= 24 ||
-    "-Des.entitlements.enabled=true".equals(System.getProperty("tests.jvm.argline"))) {
-    systemProperty 'tests.rest.blacklist',
-      [
-        // AWAITSFIX: this test relies on security manager, which doesn't exist in JDK 24.
-        // and entitlements don't yet replace the functionality.
-        // see https://github.com/elastic/elasticsearch/issues/119130
-        'analysis-common/40_token_filters/stemmer_override file access',
-      ].join(',')
-  }
-}

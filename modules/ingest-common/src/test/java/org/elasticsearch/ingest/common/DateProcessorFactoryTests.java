@@ -10,11 +10,14 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -43,8 +46,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo(sourceField));
         assertThat(processor.getTargetField(), equalTo(DateProcessor.DEFAULT_TARGET_FIELD));
         assertThat(processor.getFormats(), equalTo(List.of("dd/MM/yyyyy")));
-        assertNull(processor.getLocale());
-        assertNull(processor.getTimezone());
+        assertThat(processor.getTimezone(null), equalTo(ZoneOffset.UTC));
+        assertThat(processor.getLocale(null), equalTo(Locale.ENGLISH));
     }
 
     public void testMatchFieldIsMandatory() throws Exception {
@@ -81,11 +84,12 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", List.of("dd/MM/yyyyy"));
-        Locale locale = randomFrom(Locale.GERMANY, Locale.FRENCH, Locale.ROOT);
+        Locale locale = randomFrom(Locale.GERMANY, Locale.FRENCH, Locale.CANADA);
         config.put("locale", locale.toLanguageTag());
 
         DateProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getLocale().newInstance(Map.of()).execute(), equalTo(locale.toLanguageTag()));
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
+        assertThat(processor.getLocale(document), equalTo(locale));
     }
 
     public void testParseTimezone() throws Exception {
@@ -97,7 +101,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
         ZoneId timezone = randomZone();
         config.put("timezone", timezone.getId());
         DateProcessor processor = factory.create(null, null, null, config, null);
-        assertThat(processor.getTimezone().newInstance(Map.of()).execute(), equalTo(timezone.getId()));
+        IngestDocument document = RandomDocumentPicks.randomIngestDocument(random(), Map.of());
+        assertThat(processor.getTimezone(document), equalTo(timezone));
     }
 
     public void testParseMatchFormats() throws Exception {

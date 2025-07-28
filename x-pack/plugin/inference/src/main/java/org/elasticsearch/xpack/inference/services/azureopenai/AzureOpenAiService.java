@@ -11,12 +11,15 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -29,8 +32,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -38,11 +40,11 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionCreator;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -69,8 +71,16 @@ public class AzureOpenAiService extends SenderService {
     private static final String SERVICE_NAME = "Azure OpenAI";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
-    public AzureOpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    public AzureOpenAiService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public AzureOpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -249,7 +259,6 @@ public class AzureOpenAiService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -266,9 +275,14 @@ public class AzureOpenAiService extends SenderService {
     }
 
     @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -281,7 +295,7 @@ public class AzureOpenAiService extends SenderService {
         AzureOpenAiModel azureOpenAiModel = (AzureOpenAiModel) model;
         var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             azureOpenAiModel.getConfigurations().getChunkingSettings()
@@ -289,21 +303,8 @@ public class AzureOpenAiService extends SenderService {
 
         for (var request : batchedRequests) {
             var action = azureOpenAiModel.accept(actionCreator, taskSettings);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
         }
-    }
-
-    /**
-     * For text embedding models get the embedding size and
-     * update the service settings.
-     *
-     * @param model    The new model
-     * @param listener The listener
-     */
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
     @Override

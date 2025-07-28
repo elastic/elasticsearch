@@ -119,6 +119,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         sizes.put(ThreadPool.Names.SNAPSHOT_META, n -> Math.min(n * 3, 50));
         sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceAllocatedProcessors);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceAllocatedProcessors);
+        sizes.put(ThreadPool.Names.MERGE, Function.identity());
         return sizes.get(threadPoolName).apply(numberOfProcessors);
     }
 

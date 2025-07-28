@@ -33,6 +33,14 @@ public interface ProjectResolver extends ProjectIdResolver {
         return getProjectMetadata(clusterState.metadata());
     }
 
+    default boolean hasProject(ClusterState clusterState) {
+        return hasProject(clusterState.metadata());
+    }
+
+    default boolean hasProject(Metadata metadata) {
+        return metadata.hasProject(getProjectId());
+    }
+
     // TODO: What happens if the context does not have a project? throw or return null?
     default ProjectState getProjectState(ClusterState clusterState) {
         final ProjectId id = getProjectId();
@@ -76,14 +84,4 @@ public interface ProjectResolver extends ProjectIdResolver {
      *                               It is an error to attempt to override the active project-id
      */
     <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E;
-
-    /**
-     * Returns {@code false} if the cluster runs in a setup that always expects only a single default project (see also
-     * {@link Metadata#DEFAULT_PROJECT_ID}).
-     * Otherwise, it should return {@code true} to indicate the cluster can accommodate multiple projects regardless
-     * how many project it current has.
-     */
-    default boolean supportsMultipleProjects() {
-        return false;
-    }
 }

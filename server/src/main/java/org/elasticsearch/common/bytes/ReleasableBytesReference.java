@@ -29,7 +29,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     private static final ReleasableBytesReference EMPTY = new ReleasableBytesReference(BytesArray.EMPTY, RefCounted.ALWAYS_REFERENCED);
 
-    private final BytesReference delegate;
+    private BytesReference delegate;
     private final RefCounted refCounted;
 
     public static ReleasableBytesReference empty() {
@@ -63,24 +63,41 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public boolean decRef() {
-        return refCounted.decRef();
+        boolean res = refCounted.decRef();
+        if (res) {
+            delegate = null;
+        }
+        return res;
     }
 
     @Override
     public boolean hasReferences() {
-        return refCounted.hasReferences();
+        boolean hasRef = refCounted.hasReferences();
+        // delegate is nulled out when the ref-count reaches zero but only via a plain store, and also we could be racing with a concurrent
+        // decRef so need to check #refCounted again in case we run into a non-null delegate but saw a reference before
+        assert delegate != null || refCounted.hasReferences() == false;
+        return hasRef;
     }
 
     public ReleasableBytesReference retain() {
-        refCounted.incRef();
+        refCounted.mustIncRef();
         return this;
     }
 
+    /**
+     * Same as {@link #slice} except that the slice is not guaranteed to share the same underlying reference count as this instance.
+     * This method is equivalent to calling {@code .slice(from, length).retain()} but might be more efficient through the avoidance of
+     * retaining unnecessary buffers.
+     */
     public ReleasableBytesReference retainedSlice(int from, int length) {
+        assert hasReferences();
         if (from == 0 && length() == length) {
             return retain();
         }
         final BytesReference slice = delegate.slice(from, length);
+        if (slice instanceof ReleasableBytesReference releasable) {
+            return releasable.retain();
+        }
         refCounted.incRef();
         return new ReleasableBytesReference(slice, refCounted);
     }
@@ -128,17 +145,26 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public int length() {
+        assert hasReferences();
         return delegate.length();
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * The returned bytes reference will share the reference count of this instance and as such any ref-counting operations on the return
+     * are shared with this instance and vice versa. Using {@link #retainedSlice(int, int)} might be more efficient in situations where the
+     * return of this method is subsequently retained by increasing its ref-count.
+     */
     @Override
-    public BytesReference slice(int from, int length) {
+    public ReleasableBytesReference slice(int from, int length) {
         assert hasReferences();
-        return delegate.slice(from, length);
+        return new ReleasableBytesReference(delegate.slice(from, length), refCounted);
     }
 
     @Override
     public long ramBytesUsed() {
+        assert hasReferences();
         return delegate.ramBytesUsed();
     }
 
@@ -160,6 +186,11 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
             @Override
             public ReleasableBytesReference readReleasableBytesReference() throws IOException {
                 final int len = readVInt();
+                return retainAndSkip(len);
+            }
+
+            @Override
+            public ReleasableBytesReference readReleasableBytesReference(int len) throws IOException {
                 return retainAndSkip(len);
             }
 
@@ -213,6 +244,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public boolean isFragment() {
+        assert hasReferences();
         return delegate.isFragment();
     }
 

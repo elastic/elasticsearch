@@ -12,9 +12,10 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -49,8 +50,8 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
-        createSnapshot(indexMetadata, new ActionListener<>() {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
+        createSnapshot(currentProject.id(), indexMetadata, new ActionListener<>() {
             @Override
             public void onResponse(Boolean complete) {
                 // based on the result of action we'll decide what the next step will be
@@ -77,7 +78,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         });
     }
 
-    void createSnapshot(IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
+    void createSnapshot(ProjectId projectId, IndexMetadata indexMetadata, ActionListener<Boolean> listener) {
         final String indexName = indexMetadata.getIndex().getName();
 
         final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -107,7 +108,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         request.waitForCompletion(true);
         request.includeGlobalState(false);
 
-        getClient().admin().cluster().createSnapshot(request, listener.map(response -> {
+        getClient(projectId).admin().cluster().createSnapshot(request, listener.map(response -> {
             logger.debug(
                 "create snapshot response for policy [{}] and index [{}] is: {}",
                 policyName,

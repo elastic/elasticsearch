@@ -24,8 +24,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 
@@ -84,7 +82,7 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
     }
 
     public static AttributeSet computeReferences(List<Alias> fields) {
-        AttributeSet generated = new AttributeSet(asAttributes(fields));
+        AttributeSet generated = AttributeSet.of(asAttributes(fields));
         return Expressions.references(fields).subtract(generated);
     }
 
@@ -179,14 +177,6 @@ public class Eval extends UnaryPlan implements GeneratingPlan<Eval>, PostAnalysi
                     )
                 );
             }
-            // check no aggregate functions are used
-            field.forEachDown(AggregateFunction.class, af -> {
-                if (af instanceof Rate) {
-                    failures.add(fail(af, "aggregate function [{}] not allowed outside METRICS command", af.sourceText()));
-                } else {
-                    failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
-                }
-            });
         });
     }
 }

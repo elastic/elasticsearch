@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/cloud/current/ec-custom-bundles.html
+applies_to:
+  deployment:
+    ess: ga
 ---
 
 # Upload custom plugins and bundles [ec-custom-bundles]
@@ -81,7 +84,7 @@ Bundles
 
     The dictionary `synonyms.txt` can be used as `synonyms.txt` or using the full path `/app/config/synonyms.txt` in the `synonyms_path` of the `synonym-filter`.
 
-    To learn more about analyzing with synonyms, check [Synonym token filter](/reference/data-analysis/text-analysis/analysis-synonym-tokenfilter.md) and [Formatting Synonyms](https://www.elastic.co/guide/en/elasticsearch/guide/2.x/synonym-formats.html).
+    To learn more about analyzing with synonyms, check [Synonym token filter](/reference/text-analysis/analysis-synonym-tokenfilter.md) and [Formatting Synonyms](https://www.elastic.co/guide/en/elasticsearch/guide/2.x/synonym-formats.html).
 
     **GeoIP database bundle**
 

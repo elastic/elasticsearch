@@ -127,14 +127,14 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
             // getWriteIndex() selects the latest added index:
             Index head = dataStream.getWriteIndex();
-            IndexMetadata im = project.getIndexSafe(head);
-            Instant currentEnd = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
-            TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(im.getSettings());
-            Instant newEnd = DataStream.getCanonicalTimestampBound(
-                now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS)
-            );
-            if (newEnd.isAfter(currentEnd)) {
-                try {
+            try {
+                IndexMetadata im = project.getIndexSafe(head);
+                Instant currentEnd = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
+                TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(im.getSettings());
+                Instant newEnd = DataStream.getCanonicalTimestampBound(
+                    now.plus(lookAheadTime.getMillis(), ChronoUnit.MILLIS).plus(pollInterval.getMillis(), ChronoUnit.MILLIS)
+                );
+                if (newEnd.isAfter(currentEnd)) {
                     Settings settings = Settings.builder()
                         .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DEFAULT_DATE_TIME_FORMATTER.format(newEnd))
                         .build();
@@ -151,17 +151,17 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                     mBuilder.updateSettings(settings, head.getName());
                     // Verify that all temporal ranges of each backing index is still valid:
                     dataStream.validate(mBuilder::get);
-                } catch (Exception e) {
-                    LOGGER.error(
-                        () -> format(
-                            "unable to update [%s] for data stream [%s] and backing index [%s]",
-                            IndexSettings.TIME_SERIES_END_TIME.getKey(),
-                            dataStream.getName(),
-                            head.getName()
-                        ),
-                        e
-                    );
                 }
+            } catch (Exception e) {
+                LOGGER.error(
+                    () -> format(
+                        "unable to update [%s] for data stream [%s] and backing index [%s]",
+                        IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                        dataStream.getName(),
+                        head.getName()
+                    ),
+                    e
+                );
             }
         }
         return mBuilder;

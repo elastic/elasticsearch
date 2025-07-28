@@ -28,7 +28,11 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
         AggregatorMode mode = randomFrom(AggregatorMode.values());
         List<Attribute> intermediateAttributes = randomFieldAttributes(0, 5, false);
         Integer estimatedRowSize = randomEstimatedRowSize();
-        return new AggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        if (randomBoolean()) {
+            return new AggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        } else {
+            return new TimeSeriesAggregateExec(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize, null);
+        }
     }
 
     @Override
@@ -56,7 +60,20 @@ public class AggregateExecSerializationTests extends AbstractPhysicalPlanSeriali
             );
             default -> throw new IllegalStateException();
         }
-        return new AggregateExec(instance.source(), child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        if (instance instanceof TimeSeriesAggregateExec) {
+            return new TimeSeriesAggregateExec(
+                instance.source(),
+                child,
+                groupings,
+                aggregates,
+                mode,
+                intermediateAttributes,
+                estimatedRowSize,
+                null
+            );
+        } else {
+            return new AggregateExec(instance.source(), child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
+        }
     }
 
     @Override

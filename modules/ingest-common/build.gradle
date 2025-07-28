@@ -33,7 +33,7 @@ restResources {
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 testClusters.configureEach {

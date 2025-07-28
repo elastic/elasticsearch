@@ -28,7 +28,7 @@ public class ResultDeduplicatorTests extends ESTestCase {
         AtomicInteger successCount = new AtomicInteger();
         AtomicInteger failureCount = new AtomicInteger();
         Exception failure = randomBoolean() ? new TransportException("simulated") : null;
-        final TransportRequest request = new TransportRequest() {
+        final TransportRequest request = new AbstractTransportRequest() {
             @Override
             public void setParentTask(final TaskId taskId) {}
         };

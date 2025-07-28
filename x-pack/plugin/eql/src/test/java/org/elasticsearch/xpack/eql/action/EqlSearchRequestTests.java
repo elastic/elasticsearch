@@ -129,13 +129,13 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.size(instance.size());
         mutatedInstance.fetchSize(instance.fetchSize());
         mutatedInstance.query(instance.query());
-        mutatedInstance.ccsMinimizeRoundtrips(version.onOrAfter(TransportVersions.V_7_15_0) == false || instance.ccsMinimizeRoundtrips());
+        mutatedInstance.ccsMinimizeRoundtrips(instance.ccsMinimizeRoundtrips());
         mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
         mutatedInstance.keepAlive(instance.keepAlive());
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
         mutatedInstance.fetchFields(instance.fetchFields());
         mutatedInstance.runtimeMappings(instance.runtimeMappings());
-        mutatedInstance.resultPosition(version.onOrAfter(TransportVersions.V_7_17_8) ? instance.resultPosition() : "tail");
+        mutatedInstance.resultPosition(instance.resultPosition());
         mutatedInstance.maxSamplesPerKey(version.onOrAfter(TransportVersions.V_8_7_0) ? instance.maxSamplesPerKey() : 1);
         mutatedInstance.allowPartialSearchResults(
             version.onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS) ? instance.allowPartialSearchResults() : false

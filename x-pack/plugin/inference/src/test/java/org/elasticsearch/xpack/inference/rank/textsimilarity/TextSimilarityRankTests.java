@@ -57,7 +57,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
             Float minScore,
             int topN
         ) {
-            super(field, inferenceId + "-task-settings-top-" + topN, inferenceText, rankWindowSize, minScore, false);
+            super(field, inferenceId + "-task-settings-top-" + topN, inferenceText, rankWindowSize, minScore, false, null);
         }
     }
 
@@ -76,7 +76,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
             Float minScore,
             int inferenceResultCount
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore, false);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, false, null);
             this.inferenceResultCount = inferenceResultCount;
         }
 
@@ -90,7 +90,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 inferenceId,
                 inferenceText,
                 minScore,
-                failuresAllowed()
+                failuresAllowed(),
+                null
             ) {
                 @Override
                 protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -98,9 +99,11 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                         TaskType.RERANK,
                         this.inferenceId,
                         inferenceText,
+                        null,
+                        null,
                         docFeatures,
                         Map.of("inferenceResultCount", inferenceResultCount),
-                        InputType.SEARCH,
+                        InputType.INTERNAL_SEARCH,
                         InferenceAction.Request.DEFAULT_TIMEOUT,
                         false
                     );
@@ -134,7 +137,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         ElasticsearchAssertions.assertNoFailuresAndResponse(
             // Execute search with text similarity reranking
             client.prepareSearch()
-                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 0.0f, false))
+                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 0.0f, false, null))
                 .setQuery(QueryBuilders.matchAllQuery()),
             response -> {
                 // Verify order, rank and score of results
@@ -157,7 +160,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         ElasticsearchAssertions.assertNoFailuresAndResponse(
             // Execute search with text similarity reranking
             client.prepareSearch()
-                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, false))
+                .setRankBuilder(new TextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, false, null))
                 .setQuery(QueryBuilders.matchAllQuery()),
             response -> {
                 // Verify order, rank and score of results
@@ -181,7 +184,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                         "my query",
                         0.7f,
                         false,
-                        AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name()
+                        AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name(),
+                        null
                     )
                 )
                 .setQuery(QueryBuilders.matchAllQuery()),
@@ -202,7 +206,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                         "my query",
                         null,
                         true,
-                        AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name()
+                        AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT.name(),
+                        null
                     )
                 )
                 .setQuery(

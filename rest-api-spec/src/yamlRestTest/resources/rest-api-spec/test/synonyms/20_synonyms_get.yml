@@ -14,12 +14,6 @@ setup:
             - synonyms: "test => check"
               id: "test-id-3"
 
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
 ---
 "Get synonyms set":
   - do:

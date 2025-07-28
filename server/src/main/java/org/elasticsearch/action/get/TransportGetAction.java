@@ -40,6 +40,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -167,20 +168,18 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     }
 
     @Override
-    protected Executor getExecutor(GetRequest request, ShardId shardId) {
+    protected Executor getExecutor(ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
         if (projectResolver.getProjectMetadata(clusterState).getIndexSafe(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
-        } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
-            return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);
         } else {
-            return super.getExecutor(request, shardId);
+            return super.getExecutor(shardId);
         }
     }
 
     private void asyncGet(GetRequest request, ShardId shardId, ActionListener<GetResponse> listener) throws IOException {
         if (request.refresh() && request.realtime() == false) {
-            getExecutor(request, shardId).execute(ActionRunnable.wrap(listener, l -> {
+            getExecutor(shardId).execute(ActionRunnable.wrap(listener, l -> {
                 var indexShard = getIndexShard(shardId);
                 indexShard.externalRefresh("refresh_flag_get", l.map(r -> shardOperation(request, shardId)));
             }));
@@ -237,10 +236,11 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("get_from_translog failed", cause);
+            // All of the following exceptions can be thrown if the shard is relocated
             if (cause instanceof ShardNotFoundException
                 || cause instanceof IndexNotFoundException
+                || cause instanceof IllegalIndexShardStateException
                 || cause instanceof AlreadyClosedException) {
-                // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
                 logger.debug("retrying get_from_translog");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -255,13 +255,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
-                        if (cause instanceof AlreadyClosedException) {
-                            // Do an additional retry just in case AlreadyClosedException didn't generate a cluster update
-                            tryGetFromTranslog(request, indexShard, node, l);
-                        } else {
-                            l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
-                        }
+                        l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
                     }
                 });
             } else {
@@ -302,7 +296,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                         indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
                     }
                 }
-            }), TransportGetFromTranslogAction.Response::new, getExecutor(request, shardId))
+            }), TransportGetFromTranslogAction.Response::new, getExecutor(shardId))
         );
     }
 

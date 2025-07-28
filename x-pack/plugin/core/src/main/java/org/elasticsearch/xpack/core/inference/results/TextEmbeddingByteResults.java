@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -48,9 +47,7 @@ import java.util.Objects;
  *     ]
  * }
  */
-public record TextEmbeddingByteResults(List<Embedding> embeddings)
-    implements
-        TextEmbeddingResults<TextEmbeddingByteResults.Chunk, TextEmbeddingByteResults.Embedding> {
+public record TextEmbeddingByteResults(List<Embedding> embeddings) implements TextEmbeddingResults<TextEmbeddingByteResults.Embedding> {
     public static final String NAME = "text_embedding_service_byte_results";
     public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
 
@@ -88,16 +85,6 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
             .toList();
     }
 
-    @Override
-    @SuppressWarnings("deprecation")
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.toFloatArray())).toList()
-        );
-
-        return List.of(legacyEmbedding);
-    }
-
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(TEXT_EMBEDDING_BYTES, embeddings);
@@ -118,8 +105,19 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingResults.Embedding<Chunk> {
+    // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging
+    // embeddings should happen inbetween serializations.
+    public record Embedding(byte[] values, int[] sumMergedValues, int numberOfMergedEmbeddings)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingResults.Embedding<Embedding> {
+
         public static final String EMBEDDING = "embedding";
+
+        public Embedding(byte[] values) {
+            this(values, null, 1);
+        }
 
         public Embedding(StreamInput in) throws IOException {
             this(in.readByteArray());
@@ -187,25 +185,26 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
         }
 
         @Override
-        public Chunk toChunk(ChunkedInference.TextOffset offset) {
-            return new Chunk(values, offset);
+        public Embedding merge(Embedding embedding) {
+            byte[] newValues = new byte[values.length];
+            int[] newSumMergedValues = new int[values.length];
+            int newNumberOfMergedEmbeddings = numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings;
+            for (int i = 0; i < values.length; i++) {
+                newSumMergedValues[i] = (numberOfMergedEmbeddings == 1 ? values[i] : sumMergedValues[i])
+                    + (embedding.numberOfMergedEmbeddings == 1 ? embedding.values[i] : embedding.sumMergedValues[i]);
+                // Add (newNumberOfMergedEmbeddings / 2) in the numerator to round towards the
+                // closest byte instead of truncating.
+                newValues[i] = (byte) ((newSumMergedValues[i] + newNumberOfMergedEmbeddings / 2) / newNumberOfMergedEmbeddings);
+            }
+            return new Embedding(newValues, newSumMergedValues, newNumberOfMergedEmbeddings);
         }
-    }
 
-    /**
-     * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
-     */
-    public record Chunk(byte[] embedding, ChunkedInference.TextOffset offset) implements EmbeddingResults.Chunk {
-
-        public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
-            return new ChunkedInference.Chunk(offset, toBytesReference(xcontent, embedding));
-        }
-
-        private static BytesReference toBytesReference(XContent xContent, byte[] value) throws IOException {
+        @Override
+        public BytesReference toBytesRef(XContent xContent) throws IOException {
             XContentBuilder builder = XContentBuilder.builder(xContent);
             builder.startArray();
-            for (byte v : value) {
-                builder.value(v);
+            for (byte value : values) {
+                builder.value(value);
             }
             builder.endArray();
             return BytesReference.bytes(builder);

@@ -22,9 +22,11 @@ import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -44,6 +46,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -586,13 +589,18 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 for (int i = 0; i < aliasCount; i++) {
                     builder.putAlias(randomAlias());
                 }
+                if (randomBoolean()) {
+                    builder.reshardingMetadata(
+                        IndexReshardingMetadata.newSplitByMultiple(builder.numberOfShards(), randomIntBetween(2, 5))
+                    );
+                }
                 return builder.build();
             }
 
             @Override
             public IndexMetadata randomChange(IndexMetadata part) {
                 IndexMetadata.Builder builder = IndexMetadata.builder(part);
-                switch (randomIntBetween(0, 3)) {
+                switch (randomIntBetween(0, 4)) {
                     case 0:
                         builder.settings(Settings.builder().put(part.getSettings()).put(randomSettings(Settings.EMPTY)));
                         break;
@@ -608,6 +616,15 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         break;
                     case 3:
                         builder.putInferenceFields(randomInferenceFields());
+                        break;
+                    case 4:
+                        if (randomBoolean()) {
+                            builder.reshardingMetadata(
+                                IndexReshardingMetadata.newSplitByMultiple(builder.numberOfShards(), randomIntBetween(2, 5))
+                            );
+                        } else {
+                            builder.reshardingMetadata(null);
+                        }
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");
@@ -691,12 +708,15 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public Metadata.Builder remove(Metadata.Builder builder, String name) {
+                @FixForMultiProject
+                final var projectBuilder = builder.getProject(ProjectId.DEFAULT);
                 if (IndexGraveyard.TYPE.equals(name)) {
                     // there must always be at least an empty graveyard
-                    return builder.indexGraveyard(IndexGraveyard.builder().build());
+                    projectBuilder.indexGraveyard(IndexGraveyard.builder().build());
                 } else {
-                    return builder.removeProjectCustom(name);
+                    projectBuilder.removeCustom(name);
                 }
+                return builder;
             }
 
             @Override

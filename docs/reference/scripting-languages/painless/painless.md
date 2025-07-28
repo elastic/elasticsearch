@@ -2,6 +2,8 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/index.html
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-guide.html
+products:
+  - id: painless
 ---
 
 # Painless [painless-guide]
@@ -11,7 +13,7 @@ mapped_pages:
 You can use Painless anywhere scripts are used in Elasticsearch. Painless provides:
 
 * Fast performance: Painless scripts [ run several times faster](https://benchmarks.elastic.co/index.md#search_qps_scripts) than the alternatives.
-* Safety: Fine-grained allowlist with method call/field granularity. See the [Painless API Reference](https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-api-reference.html) for a complete list of available classes and methods.
+* Safety: Fine-grained allowlist with method call/field granularity.
 * Optional typing: Variables and parameters can use explicit types or the dynamic `def` type.
 * Syntax: Extends a subset of Java’s syntax to provide additional scripting language features.
 * Optimizations: Designed specifically for Elasticsearch scripting.

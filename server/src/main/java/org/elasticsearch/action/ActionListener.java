@@ -401,7 +401,9 @@ public interface ActionListener<Response> {
 
                 private void assertFirstRun() {
                     var previousRun = firstCompletion.compareAndExchange(null, new ElasticsearchException("executed already"));
-                    assert previousRun == null : "[" + delegate + "] " + previousRun; // reports the stack traces of both completions
+                    assert previousRun == null
+                        // reports the stack traces of both completions
+                        : new AssertionError("[" + delegate + "]", previousRun);
                 }
 
                 @Override

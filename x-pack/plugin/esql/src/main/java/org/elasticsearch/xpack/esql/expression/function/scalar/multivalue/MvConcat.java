@@ -121,8 +121,8 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     /**
-     * Evaluator for {@link MvConcat}. Not generated and doesn't extend from
-     * {@link AbstractMultivalueFunction.AbstractEvaluator} because it's just
+     * Evaluator for {@link MvConcat}. Not generated and doesn’t extend from
+     * {@link AbstractMultivalueFunction.AbstractEvaluator} because it’s just
      * too different from all the other mv operators:
      * <ul>
      *     <li>It takes an extra parameter - the delimiter</li>
@@ -146,7 +146,7 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
             try (BytesRefBlock fieldVal = (BytesRefBlock) field.eval(page); BytesRefBlock delimVal = (BytesRefBlock) delim.eval(page)) {
                 int positionCount = page.getPositionCount();
                 try (BytesRefBlock.Builder builder = context.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-                    BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don't blow past circuit breakers
+                    BytesRefBuilder work = new BytesRefBuilder(); // TODO BreakingBytesRefBuilder so we don’t blow past circuit breakers
                     BytesRef fieldScratch = new BytesRef();
                     BytesRef delimScratch = new BytesRef();
                     for (int p = 0; p < positionCount; p++) {

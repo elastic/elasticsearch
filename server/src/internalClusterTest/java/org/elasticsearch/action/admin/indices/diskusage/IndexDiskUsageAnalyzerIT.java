@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -59,6 +60,13 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         plugins.add(EngineTestPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
+        var b = super.setRandomIndexSettings(random, builder);
+        b.remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
+        return b;
     }
 
     private static final Set<ShardId> failOnFlushShards = ConcurrentCollections.newConcurrentSet();

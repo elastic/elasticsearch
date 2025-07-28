@@ -11,13 +11,16 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -30,8 +33,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -39,13 +41,14 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.azureaistudio.action.AzureAiStudioActionCreator;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -71,13 +74,28 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 
 public class AzureAiStudioService extends SenderService {
 
-    static final String NAME = "azureaistudio";
+    public static final String NAME = "azureaistudio";
 
     private static final String SERVICE_NAME = "Azure AI Studio";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.RERANK);
 
-    public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-        super(factory, serviceComponents);
+    private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
+
+    public AzureAiStudioService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
+    ) {
+        this(factory, serviceComponents, context.clusterService());
+    }
+
+    public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents, ClusterService clusterService) {
+        super(factory, serviceComponents, clusterService);
     }
 
     @Override
@@ -95,7 +113,6 @@ public class AzureAiStudioService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -110,9 +127,14 @@ public class AzureAiStudioService extends SenderService {
     }
 
     @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -121,7 +143,7 @@ public class AzureAiStudioService extends SenderService {
         if (model instanceof AzureAiStudioModel baseAzureAiStudioModel) {
             var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());
 
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 inputs.getInputs(),
                 EMBEDDING_MAX_BATCH_SIZE,
                 baseAzureAiStudioModel.getConfigurations().getChunkingSettings()
@@ -129,7 +151,7 @@ public class AzureAiStudioService extends SenderService {
 
             for (var request : batchedRequests) {
                 var action = baseAzureAiStudioModel.accept(actionCreator, taskSettings);
-                action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+                action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
             }
         } else {
             listener.onFailure(createInvalidModelException(model));
@@ -259,8 +281,9 @@ public class AzureAiStudioService extends SenderService {
         ConfigurationParseContext context
     ) {
 
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            var embeddingsModel = new AzureAiStudioEmbeddingsModel(
+        AzureAiStudioModel model;
+        switch (taskType) {
+            case TEXT_EMBEDDING -> model = new AzureAiStudioEmbeddingsModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -270,16 +293,7 @@ public class AzureAiStudioService extends SenderService {
                 secretSettings,
                 context
             );
-            checkProviderAndEndpointTypeForTask(
-                TaskType.TEXT_EMBEDDING,
-                embeddingsModel.getServiceSettings().provider(),
-                embeddingsModel.getServiceSettings().endpointType()
-            );
-            return embeddingsModel;
-        }
-
-        if (taskType == TaskType.COMPLETION) {
-            var completionModel = new AzureAiStudioChatCompletionModel(
+            case COMPLETION -> model = new AzureAiStudioChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -288,15 +302,12 @@ public class AzureAiStudioService extends SenderService {
                 secretSettings,
                 context
             );
-            checkProviderAndEndpointTypeForTask(
-                TaskType.COMPLETION,
-                completionModel.getServiceSettings().provider(),
-                completionModel.getServiceSettings().endpointType()
-            );
-            return completionModel;
+            case RERANK -> model = new AzureAiStudioRerankModel(inferenceEntityId, serviceSettings, taskSettings, secretSettings, context);
+            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         }
-
-        throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
+        final var azureAiStudioServiceSettings = (AzureAiStudioServiceSettings) model.getServiceSettings();
+        checkProviderAndEndpointTypeForTask(taskType, azureAiStudioServiceSettings.provider(), azureAiStudioServiceSettings.endpointType());
+        return model;
     }
 
     private AzureAiStudioModel createModelFromPersistent(
@@ -318,12 +329,6 @@ public class AzureAiStudioService extends SenderService {
             failureMessage,
             ConfigurationParseContext.PERSISTENT
         );
-    }
-
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
     @Override

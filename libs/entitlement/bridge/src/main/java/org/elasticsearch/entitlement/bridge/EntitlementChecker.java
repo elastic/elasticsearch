@@ -53,6 +53,8 @@ import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
@@ -64,6 +66,7 @@ import java.nio.file.FileStore;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
@@ -95,6 +98,9 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 
+/**
+ * Contains one "check" method for each distinct JDK method we want to instrument.
+ */
 @SuppressWarnings("unused") // Called from instrumentation code inserted by the Entitlements agent
 public interface EntitlementChecker {
 
@@ -584,6 +590,16 @@ public interface EntitlementChecker {
      * (not instrumentable).
      */
 
+    void check$java_nio_channels_spi_AbstractSelectableChannel$register(
+        Class<?> callerClass,
+        SelectableChannel that,
+        Selector sel,
+        int ops,
+        Object att
+    );
+
+    void check$java_nio_channels_SelectableChannel$register(Class<?> callerClass, SelectableChannel that, Selector sel, int ops);
+
     // bind
 
     void check$java_nio_channels_AsynchronousServerSocketChannel$bind(
@@ -606,6 +622,12 @@ public interface EntitlementChecker {
     void check$java_nio_channels_ServerSocketChannel$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local);
 
     void check$sun_nio_ch_ServerSocketChannelImpl$bind(Class<?> callerClass, ServerSocketChannel that, SocketAddress local, int backlog);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, java.net.ProtocolFamily family);
+
+    void check$java_nio_channels_SocketChannel$$open(Class<?> callerClass, SocketAddress remote);
 
     void check$sun_nio_ch_SocketChannelImpl$bind(Class<?> callerClass, SocketChannel that, SocketAddress local);
 
@@ -653,6 +675,18 @@ public interface EntitlementChecker {
 
     // provider methods (dynamic)
     void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenDatagramChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenServerSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that);
+
+    void checkSelectorProviderOpenSocketChannel(Class<?> callerClass, SelectorProvider that, java.net.ProtocolFamily family);
 
     /// /////////////////
     //
@@ -1203,7 +1237,7 @@ public interface EntitlementChecker {
     void checkType(Class<?> callerClass, FileStore that);
 
     // path
-    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options);
+    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException;
 
     void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events);
 
@@ -1234,6 +1268,34 @@ public interface EntitlementChecker {
     void check$sun_net_www_protocol_file_FileURLConnection$getLastModified(Class<?> callerClass, java.net.URLConnection that);
 
     void check$sun_net_www_protocol_file_FileURLConnection$getInputStream(Class<?> callerClass, java.net.URLConnection that);
+
+    void check$java_net_JarURLConnection$getManifest(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getMainAttributes(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$java_net_JarURLConnection$getCertificates(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarFile(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getJarEntry(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$connect(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getInputStream(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLength(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentLengthLong(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContent(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getContentType(Class<?> callerClass, java.net.JarURLConnection that);
+
+    void check$sun_net_www_protocol_jar_JarURLConnection$getHeaderField(Class<?> callerClass, java.net.JarURLConnection that, String name);
 
     ////////////////////
     //

@@ -14,12 +14,28 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class LifecycleExecutionStateTests extends ESTestCase {
 
     public void testConversion() {
         Map<String, String> customMetadata = createCustomMetadata();
         LifecycleExecutionState parsed = LifecycleExecutionState.fromCustomMetadata(customMetadata);
         assertEquals(customMetadata, parsed.asMap());
+    }
+
+    public void testTruncatingStepInfo() {
+        Map<String, String> custom = createCustomMetadata();
+        LifecycleExecutionState state = LifecycleExecutionState.fromCustomMetadata(custom);
+        assertThat(custom.get("step_info"), equalTo(state.stepInfo()));
+        String longStepInfo = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100);
+        LifecycleExecutionState newState = LifecycleExecutionState.builder(state).setStepInfo(longStepInfo).build();
+        // Length includes the post suffix
+        assertThat(newState.stepInfo().length(), equalTo(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 25));
+        assertThat(
+            newState.stepInfo().substring(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH, 1049),
+            equalTo("... (100 chars truncated)")
+        );
     }
 
     public void testEmptyValuesAreNotSerialized() {

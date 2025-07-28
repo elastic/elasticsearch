@@ -28,10 +28,10 @@ isNullForDocs
 // tag::is-null[]
 FROM employees
 | WHERE birth_date IS NULL
+// end::is-null[]
 | KEEP first_name, last_name
 | SORT first_name
 | LIMIT 3
-// end::is-null[]
 ;
 
 // tag::is-null-result[]
@@ -202,4 +202,17 @@ FROM employees
 ;
 
 fullname:keyword | job_positions:keyword | salary:integer | salary_change:double
+;
+
+inConvertedNull
+required_capability: filter_in_converted_null
+FROM employees
+| WHERE emp_no in (10021, 10022, null::int)
+| KEEP emp_no, first_name, last_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword   
+10021          | Ramzi              | Erde
+10022          | Shahaf             | Famili
 ;

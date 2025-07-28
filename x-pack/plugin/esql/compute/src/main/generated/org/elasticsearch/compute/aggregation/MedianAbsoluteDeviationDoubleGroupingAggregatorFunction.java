@@ -16,7 +16,8 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -57,7 +58,7 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     DoubleBlock valuesBlock = page.getBlock(channels.get(0));
     DoubleVector valuesVector = valuesBlock.asVector();
@@ -67,7 +68,12 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
       }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
 
@@ -83,7 +89,12 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
 
@@ -98,39 +109,15 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
-        continue;
-      }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        MedianAbsoluteDeviationDoubleAggregator.combine(state, groupId, values.getDouble(v));
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      MedianAbsoluteDeviationDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleBlock values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
@@ -140,7 +127,7 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleVector values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, DoubleVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -155,8 +142,102 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
   }
 
   @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block quartUncast = page.getBlock(channels.get(0));
+    if (quartUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
+    BytesRef scratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(groupPosition + positionOffset, scratch));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          MedianAbsoluteDeviationDoubleAggregator.combine(state, groupId, values.getDouble(v));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, DoubleVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        MedianAbsoluteDeviationDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
+      }
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block quartUncast = page.getBlock(channels.get(0));
+    if (quartUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
+    BytesRef scratch = new BytesRef();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        MedianAbsoluteDeviationDoubleAggregator.combineIntermediate(state, groupId, quart.getBytesRef(groupPosition + positionOffset, scratch));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int groupId = groups.getInt(groupPosition);
+      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      for (int v = valuesStart; v < valuesEnd; v++) {
+        MedianAbsoluteDeviationDoubleAggregator.combine(state, groupId, values.getDouble(v));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      MedianAbsoluteDeviationDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
+    }
   }
 
   @Override
@@ -176,13 +257,8 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    QuantileStates.GroupingState inState = ((MedianAbsoluteDeviationDoubleGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    MedianAbsoluteDeviationDoubleAggregator.combineStates(state, groupId, inState, position);
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -192,8 +268,8 @@ public final class MedianAbsoluteDeviationDoubleGroupingAggregatorFunction imple
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = MedianAbsoluteDeviationDoubleAggregator.evaluateFinal(state, selected, driverContext);
+      GroupingAggregatorEvaluationContext evaluatorContext) {
+    blocks[offset] = MedianAbsoluteDeviationDoubleAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
   }
 
   @Override

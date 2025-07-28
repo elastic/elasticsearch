@@ -1,0 +1,5 @@
+pr: 128273
+summary: Improve get-snapshots message for unreadable repository
+area: Snapshot/Restore
+type: enhancement
+issues: []

@@ -123,3 +123,39 @@ setup:
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._id: "4" }
+
+---
+"test bad dates in range - past":
+  - requires:
+      cluster_features: [ "mapper.range.invalid_date_fix" ]
+      reason: "Fix for invalid date required"
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+        index: dates
+        body:
+          sort: field
+          query:
+            range:
+              date:
+                gte: -522000000
+                lte: 2023
+                format: date_optional_time
+
+---
+"test bad dates in range - future":
+  - requires:
+      cluster_features: [ "mapper.range.invalid_date_fix" ]
+      reason: "Fix for invalid date required"
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+        index: dates
+        body:
+          sort: field
+          query:
+            range:
+              date:
+                gte: 2020
+                lte: 522000000
+                format: date_optional_time

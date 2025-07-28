@@ -51,7 +51,7 @@ PUT my-index-000001/_doc/1?refresh
 }
 ```
 
-The most efficient way of querying to serve a search-as-you-type use case is usually a [`multi_match`](/reference/query-languages/query-dsl-multi-match-query.md) query of type [`bool_prefix`](/reference/query-languages/query-dsl-match-bool-prefix-query.md) that targets the root `search_as_you_type` field and its shingle subfields. This can match the query terms in any order, but will score documents higher if they contain the terms in order in a shingle subfield.
+The most efficient way of querying to serve a search-as-you-type use case is usually a [`multi_match`](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md) query of type [`bool_prefix`](/reference/query-languages/query-dsl/query-dsl-match-bool-prefix-query.md) that targets the root `search_as_you_type` field and its shingle subfields. This can match the query terms in any order, but will score documents higher if they contain the terms in order in a shingle subfield.
 
 ```console
 GET my-index-000001/_search
@@ -115,7 +115,7 @@ GET my-index-000001/_search
 }
 ```
 
-To search for documents that strictly match the query terms in order, or to search using other properties of phrase queries, use a [`match_phrase_prefix` query](/reference/query-languages/query-dsl-match-query-phrase-prefix.md) on the root field. A [`match_phrase` query](/reference/query-languages/query-dsl-match-query-phrase.md) can also be used if the last term should be matched exactly, and not as a prefix. Using phrase queries may be less efficient than using the `match_bool_prefix` query.
+To search for documents that strictly match the query terms in order, or to search using other properties of phrase queries, use a [`match_phrase_prefix` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase-prefix.md) on the root field. A [`match_phrase` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) can also be used if the last term should be matched exactly, and not as a prefix. Using phrase queries may be less efficient than using the `match_bool_prefix` query.
 
 ```console
 GET my-index-000001/_search
@@ -146,7 +146,7 @@ More subfields enables more specific queries but increases index size.
 The following parameters are accepted in a mapping for the `search_as_you_type` field due to its nature as a text-like field, and behave similarly to their behavior when configuring a field of the [`text`](/reference/elasticsearch/mapping-reference/text.md) data type. Unless otherwise noted, these options configure the root fields subfields in the same way.
 
 [`analyzer`](/reference/elasticsearch/mapping-reference/analyzer.md)
-:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for `text` fields, both at index-time and at search-time (unless overridden by the [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to the default index analyzer, or the [`standard` analyzer](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md).
+:   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used for `text` fields, both at index-time and at search-time (unless overridden by the [`search_analyzer`](/reference/elasticsearch/mapping-reference/search-analyzer.md)). Defaults to the default index analyzer, or the [`standard` analyzer](/reference/text-analysis/analysis-standard-analyzer.md).
 
 [`index`](/reference/elasticsearch/mapping-reference/mapping-index.md)
 :   Should the field be searchable? Accepts `true` (default) or `false`.
@@ -175,16 +175,11 @@ The following parameters are accepted in a mapping for the `search_as_you_type` 
 
 ## Optimization of prefix queries [prefix-queries]
 
-When making a [`prefix`](/reference/query-languages/query-dsl-prefix-query.md) query to the root field or any of its subfields, the query will be rewritten to a [`term`](/reference/query-languages/query-dsl-term-query.md) query on the `._index_prefix` subfield. This matches more efficiently than is typical of `prefix` queries on text fields, as prefixes up to a certain length of each shingle are indexed directly as terms in the `._index_prefix` subfield.
+When making a [`prefix`](/reference/query-languages/query-dsl/query-dsl-prefix-query.md) query to the root field or any of its subfields, the query will be rewritten to a [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) query on the `._index_prefix` subfield. This matches more efficiently than is typical of `prefix` queries on text fields, as prefixes up to a certain length of each shingle are indexed directly as terms in the `._index_prefix` subfield.
 
 The analyzer of the `._index_prefix` subfield slightly modifies the shingle-building behavior to also index prefixes of the terms at the end of the field’s value that normally would not be produced as shingles. For example, if the value `quick brown fox` is indexed into a `search_as_you_type` field with `max_shingle_size` of 3, prefixes for `brown fox` and `fox` are also indexed into the `._index_prefix` subfield even though they do not appear as terms in the `._3gram` subfield. This allows for completion of all the terms in the field’s input.
 
 ### Synthetic `_source` [search-as-you-type-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 `search_as_you_type` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 

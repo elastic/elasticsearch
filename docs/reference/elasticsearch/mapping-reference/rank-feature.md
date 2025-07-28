@@ -7,7 +7,7 @@ mapped_pages:
 # Rank feature field type [rank-feature]
 
 
-A `rank_feature` field can index numbers so that they can later be used to boost documents in queries with a [`rank_feature`](/reference/query-languages/query-dsl-rank-feature-query.md) query.
+A `rank_feature` field can index numbers so that they can later be used to boost documents in queries with a [`rank_feature`](/reference/query-languages/query-dsl/query-dsl-rank-feature-query.md) query.
 
 ```console
 PUT my-index-000001
@@ -51,7 +51,7 @@ GET my-index-000001/_search
 
 
 ::::{note}
-`rank_feature` fields do not support querying, sorting or aggregating. They may only be used within [`rank_feature`](/reference/query-languages/query-dsl-rank-feature-query.md) queries.
+`rank_feature` fields do not support querying, sorting or aggregating. They may only be used within [`rank_feature`](/reference/query-languages/query-dsl/query-dsl-rank-feature-query.md) queries.
 ::::
 
 
@@ -60,5 +60,5 @@ GET my-index-000001/_search
 ::::
 
 
-Rank features that correlate negatively with the score should set `positive_score_impact` to `false` (defaults to `true`). This will be used by the [`rank_feature`](/reference/query-languages/query-dsl-rank-feature-query.md) query to modify the scoring formula in such a way that the score decreases with the value of the feature instead of increasing. For instance in web search, the url length is a commonly used feature which correlates negatively with scores.
+Rank features that correlate negatively with the score should set `positive_score_impact` to `false` (defaults to `true`). This will be used by the [`rank_feature`](/reference/query-languages/query-dsl/query-dsl-rank-feature-query.md) query to modify the scoring formula in such a way that the score decreases with the value of the feature instead of increasing. For instance in web search, the url length is a commonly used feature which correlates negatively with scores.
 

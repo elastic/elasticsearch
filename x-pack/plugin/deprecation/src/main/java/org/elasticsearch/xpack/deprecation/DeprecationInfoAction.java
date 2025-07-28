@@ -59,7 +59,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         private final Map<String, List<DeprecationIssue>> pluginSettingsIssues;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             clusterSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
             nodeSettingsIssues = in.readCollectionAsList(DeprecationIssue::new);
             Map<String, Map<String, List<DeprecationIssue>>> mutableResourceDeprecations = in.getTransportVersion()

@@ -50,7 +50,10 @@ public class AssignmentPlanner {
 
     public AssignmentPlanner(List<Node> nodes, List<AssignmentPlan.Deployment> deployments) {
         this.nodes = nodes.stream().sorted(Comparator.comparing(Node::id)).toList();
-        this.deployments = deployments.stream().sorted(Comparator.comparing(AssignmentPlan.Deployment::deploymentId)).toList();
+        this.deployments = deployments.stream()
+            .filter(deployment -> deployment.allocations() > 0)
+            .sorted(Comparator.comparing(AssignmentPlan.Deployment::deploymentId))
+            .toList();
     }
 
     public AssignmentPlan computePlan() {
@@ -112,6 +115,7 @@ public class AssignmentPlanner {
             .map(
                 m -> new AssignmentPlan.Deployment(
                     m.deploymentId(),
+                    m.modelId(),
                     m.memoryBytes(),
                     1,
                     m.threadsPerAllocation(),
@@ -145,6 +149,7 @@ public class AssignmentPlanner {
                 : Map.of();
             return new AssignmentPlan.Deployment(
                 m.deploymentId(),
+                m.modelId(),
                 m.memoryBytes(),
                 m.allocations(),
                 m.threadsPerAllocation(),

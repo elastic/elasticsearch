@@ -253,7 +253,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
 
-            Source s = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+            Source s = SourceProvider.fromLookup(mapperService.mappingLookup(), null, mapperService.getMapperMetrics().sourceFieldMetrics())
+                .getSource(readerContext, 0);
 
             Map<String, DocumentField> fetchedFields = fieldFetcher.fetch(s, 0);
             assertThat(fetchedFields.size(), equalTo(5));
@@ -1539,7 +1540,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
             fieldFetcher.setNextReader(readerContext);
-            Source source = SourceProvider.fromStoredFields().getSource(readerContext, 0);
+            Source source = SourceProvider.fromLookup(
+                mapperService.mappingLookup(),
+                null,
+                mapperService.getMapperMetrics().sourceFieldMetrics()
+            ).getSource(readerContext, 0);
             Map<String, DocumentField> fields = fieldFetcher.fetch(source, 0);
             assertEquals(1, fields.size());
             DocumentField field = fields.get("runtime_field");

@@ -177,9 +177,8 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             }
             if (foundShard == null) {
                 throw new IllegalArgumentException(Strings.format("""
-                    No shard was specified in the request which means the response should explain a randomly-chosen unassigned shard, but \
-                    there are no unassigned shards in this cluster. To explain the allocation of an assigned shard you must specify the \
-                    target shard in the request. See %s for more information.""", ReferenceDocs.ALLOCATION_EXPLAIN_API));
+                    There are no unassigned shards in this cluster. Specify an assigned shard in the request body to explain its \
+                    allocation. See %s for more information.""", ReferenceDocs.ALLOCATION_EXPLAIN_API));
             }
         } else {
             if (projectIds.size() != 1) {

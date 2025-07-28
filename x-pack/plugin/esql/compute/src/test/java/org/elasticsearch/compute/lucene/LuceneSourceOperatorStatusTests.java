@@ -12,7 +12,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -31,7 +33,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             123,
             99990,
             8000,
-            222
+            222,
+            Map.of("b:0", LuceneSliceQueue.PartitioningStrategy.SHARD, "a:1", LuceneSliceQueue.PartitioningStrategy.DOC)
         );
     }
 
@@ -54,7 +57,11 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
               "slice_min" : 123,
               "slice_max" : 99990,
               "current" : 8000,
-              "rows_emitted" : 222
+              "rows_emitted" : 222,
+              "partitioning_strategies" : {
+                "a:1" : "DOC",
+                "b:0" : "SHARD"
+              }
             }""";
     }
 
@@ -80,7 +87,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeInt(),
-            randomNonNegativeLong()
+            randomNonNegativeLong(),
+            randomPartitioningStrategies()
         );
     }
 
@@ -102,6 +110,18 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
         return set;
     }
 
+    private static Map<String, LuceneSliceQueue.PartitioningStrategy> randomPartitioningStrategies() {
+        int size = between(0, 10);
+        Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies = new HashMap<>();
+        while (partitioningStrategies.size() < size) {
+            partitioningStrategies.put(
+                randomAlphaOfLength(3) + ":" + between(0, 10),
+                randomFrom(LuceneSliceQueue.PartitioningStrategy.values())
+            );
+        }
+        return partitioningStrategies;
+    }
+
     @Override
     protected LuceneSourceOperator.Status mutateInstance(LuceneSourceOperator.Status instance) {
         int processedSlices = instance.processedSlices();
@@ -115,7 +135,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
         int sliceMax = instance.sliceMax();
         int current = instance.current();
         long rowsEmitted = instance.rowsEmitted();
-        switch (between(0, 10)) {
+        Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies = instance.partitioningStrategies();
+        switch (between(0, 11)) {
             case 0 -> processedSlices = randomValueOtherThan(processedSlices, ESTestCase::randomNonNegativeInt);
             case 1 -> processedQueries = randomValueOtherThan(processedQueries, LuceneSourceOperatorStatusTests::randomProcessedQueries);
             case 2 -> processedShards = randomValueOtherThan(processedShards, LuceneSourceOperatorStatusTests::randomProcessedShards);
@@ -127,6 +148,10 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             case 8 -> sliceMax = randomValueOtherThan(sliceMax, ESTestCase::randomNonNegativeInt);
             case 9 -> current = randomValueOtherThan(current, ESTestCase::randomNonNegativeInt);
             case 10 -> rowsEmitted = randomValueOtherThan(rowsEmitted, ESTestCase::randomNonNegativeLong);
+            case 11 -> partitioningStrategies = randomValueOtherThan(
+                partitioningStrategies,
+                LuceneSourceOperatorStatusTests::randomPartitioningStrategies
+            );
             default -> throw new UnsupportedOperationException();
         }
         return new LuceneSourceOperator.Status(
@@ -140,7 +165,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             sliceMin,
             sliceMax,
             current,
-            rowsEmitted
+            rowsEmitted,
+            partitioningStrategies
         );
     }
 }

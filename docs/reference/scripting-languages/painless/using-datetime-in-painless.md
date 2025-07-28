@@ -1,6 +1,8 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-datetime.html
+products:
+  - id: painless
 ---
 
 # Using datetime in Painless [painless-datetime]
@@ -707,7 +709,7 @@ Run the following curl commands to load the data necessary for the context examp
 
 ### Day-of-the-Week Bucket Aggregation Example [_day_of_the_week_bucket_aggregation_example]
 
-The following example uses a [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-script) as part of the [bucket script aggregation context](/reference/scripting-languages/painless/painless-bucket-script-agg-context.md) to display the number of messages from each day-of-the-week.
+The following example uses a [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-script) as part of the [bucket script aggregation context](/reference/scripting-languages/painless/painless-bucket-script-agg-context.md) to display the number of messages from each day-of-the-week.
 
 ```console
 GET /messages/_search?pretty=true
@@ -725,7 +727,7 @@ GET /messages/_search?pretty=true
 
 ### Morning/Evening Bucket Aggregation Example [_morningevening_bucket_aggregation_example]
 
-The following example uses a [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-script) as part of the [bucket script aggregation context](/reference/scripting-languages/painless/painless-bucket-script-agg-context.md) to display the number of messages received in the morning versus the evening.
+The following example uses a [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-script) as part of the [bucket script aggregation context](/reference/scripting-languages/painless/painless-bucket-script-agg-context.md) to display the number of messages received in the morning versus the evening.
 
 ```console
 GET /messages/_search?pretty=true

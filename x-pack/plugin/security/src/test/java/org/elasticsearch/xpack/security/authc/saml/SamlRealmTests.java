@@ -59,7 +59,6 @@ import org.opensaml.security.x509.X509Credential;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -145,7 +144,7 @@ public class SamlRealmTests extends SamlTestCase {
 
     public void testReadIdpMetadataFromHttps() throws Exception {
         final Path path = getDataPath("idp1.xml");
-        final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+        final String body = Files.readString(path);
         TestsSSLService sslService = buildTestSslService();
         try (MockWebServer proxyServer = new MockWebServer(sslService.sslContext("xpack.security.http.ssl"), false)) {
             proxyServer.start();
@@ -204,7 +203,7 @@ public class SamlRealmTests extends SamlTestCase {
 
     public void testRetryFailedHttpsMetadata() throws Exception {
         final Path path = getDataPath("idp1.xml");
-        final String body = new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+        final String body = Files.readString(path);
         TestsSSLService sslService = buildTestSslService();
         doTestReloadFailedHttpsMetadata(body, sslService, true);
         doTestReloadFailedHttpsMetadata(body, sslService, false);

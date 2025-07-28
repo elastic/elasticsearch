@@ -23,7 +23,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
-@ESTestCase.WithoutSecurityManager
 public class InstrumentationServiceImplTests extends ESTestCase {
 
     final InstrumentationService instrumentationService = new InstrumentationServiceImpl();

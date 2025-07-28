@@ -7,9 +7,9 @@ mapped_pages:
 # Aggregate metric field type [aggregate-metric-double]
 
 
-Stores pre-aggregated numeric values for [metric aggregations](/reference/data-analysis/aggregations/metrics.md). An `aggregate_metric_double` field is an object containing one or more of the following metric sub-fields: `min`, `max`, `sum`, and `value_count`.
+Stores pre-aggregated numeric values for [metric aggregations](/reference/aggregations/metrics.md). An `aggregate_metric_double` field is an object containing one or more of the following metric sub-fields: `min`, `max`, `sum`, and `value_count`.
 
-When you run certain metric aggregations on an `aggregate_metric_double` field, the aggregation uses the related sub-field’s values. For example, a [`min`](/reference/data-analysis/aggregations/search-aggregations-metrics-min-aggregation.md) aggregation on an `aggregate_metric_double` field returns the minimum value of all `min` sub-fields.
+When you run certain metric aggregations on an `aggregate_metric_double` field, the aggregation uses the related sub-field’s values. For example, a [`min`](/reference/aggregations/search-aggregations-metrics-min-aggregation.md) aggregation on an `aggregate_metric_double` field returns the minimum value of all `min` sub-fields.
 
 ::::{important}
 An `aggregate_metric_double` field stores a single numeric [doc value](/reference/elasticsearch/mapping-reference/doc-values.md) for each metric sub-field. Array values are not supported. `min`, `max`, and `sum` values are `double` numbers. `value_count` is a positive `long` number.
@@ -34,7 +34,7 @@ PUT my-index
 ## Parameters for `aggregate_metric_double` fields [aggregate-metric-double-params]
 
 `metrics`
-:   (Required, array of strings) Array of metric sub-fields to store. Each value corresponds to a [metric aggregation](/reference/data-analysis/aggregations/metrics.md). Valid values are [`min`](/reference/data-analysis/aggregations/search-aggregations-metrics-min-aggregation.md), [`max`](/reference/data-analysis/aggregations/search-aggregations-metrics-max-aggregation.md), [`sum`](/reference/data-analysis/aggregations/search-aggregations-metrics-sum-aggregation.md), and [`value_count`](/reference/data-analysis/aggregations/search-aggregations-metrics-valuecount-aggregation.md). You must specify at least one value.
+:   (Required, array of strings) Array of metric sub-fields to store. Each value corresponds to a [metric aggregation](/reference/aggregations/metrics.md). Valid values are [`min`](/reference/aggregations/search-aggregations-metrics-min-aggregation.md), [`max`](/reference/aggregations/search-aggregations-metrics-max-aggregation.md), [`sum`](/reference/aggregations/search-aggregations-metrics-sum-aggregation.md), and [`value_count`](/reference/aggregations/search-aggregations-metrics-valuecount-aggregation.md). You must specify at least one value.
 
 `default_metric`
 :   (Required, string) Default metric sub-field to use for queries, scripts, and aggregations that don’t use a sub-field. Must be a value from the `metrics` array.
@@ -42,35 +42,33 @@ PUT my-index
 `time_series_metric`
 :   (Optional, string) Marks the field as a [time series metric](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). The value is the metric type. You can’t update this parameter for existing fields.
 
-    ::::{dropdown} Valid `time_series_metric` values for `aggregate_metric_double` fields
+    **Valid `time_series_metric` values for `aggregate_metric_double` fields**:
+
     `gauge`
     :   A metric that represents a single numeric that can arbitrarily increase or decrease. For example, a temperature or available disk space.
 
     `null` (Default)
     :   Not a time series metric.
 
-    ::::
-
-
 
 ## Uses [aggregate-metric-double-uses]
 
 We designed `aggregate_metric_double` fields for use with the following aggregations:
 
-* A [`min`](/reference/data-analysis/aggregations/search-aggregations-metrics-min-aggregation.md) aggregation returns the minimum value of all `min` sub-fields.
-* A [`max`](/reference/data-analysis/aggregations/search-aggregations-metrics-max-aggregation.md) aggregation returns the maximum value of all `max` sub-fields.
-* A [`sum`](/reference/data-analysis/aggregations/search-aggregations-metrics-sum-aggregation.md) aggregation returns the sum of the values of all `sum` sub-fields.
-* A [`value_count`](/reference/data-analysis/aggregations/search-aggregations-metrics-valuecount-aggregation.md) aggregation returns the sum of the values of all `value_count` sub-fields.
-* A [`avg`](/reference/data-analysis/aggregations/search-aggregations-metrics-avg-aggregation.md) aggregation. There is no `avg` sub-field; the result of the `avg` aggregation is computed using the `sum` and `value_count` metrics. To run an `avg` aggregation, the field must contain both `sum` and `value_count` metric sub-field.
+* A [`min`](/reference/aggregations/search-aggregations-metrics-min-aggregation.md) aggregation returns the minimum value of all `min` sub-fields.
+* A [`max`](/reference/aggregations/search-aggregations-metrics-max-aggregation.md) aggregation returns the maximum value of all `max` sub-fields.
+* A [`sum`](/reference/aggregations/search-aggregations-metrics-sum-aggregation.md) aggregation returns the sum of the values of all `sum` sub-fields.
+* A [`value_count`](/reference/aggregations/search-aggregations-metrics-valuecount-aggregation.md) aggregation returns the sum of the values of all `value_count` sub-fields.
+* A [`avg`](/reference/aggregations/search-aggregations-metrics-avg-aggregation.md) aggregation. There is no `avg` sub-field; the result of the `avg` aggregation is computed using the `sum` and `value_count` metrics. To run an `avg` aggregation, the field must contain both `sum` and `value_count` metric sub-field.
 
 Running any other aggregation on an `aggregate_metric_double` field will fail with an "unsupported aggregation" error.
 
 Finally, an `aggregate_metric_double` field supports the following queries for which it behaves as a `double` by delegating its behavior to its `default_metric` sub-field:
 
-* [`exists`](/reference/query-languages/query-dsl-exists-query.md)
-* [`range`](/reference/query-languages/query-dsl-range-query.md)
-* [`term`](/reference/query-languages/query-dsl-term-query.md)
-* [`terms`](/reference/query-languages/query-dsl-terms-query.md)
+* [`exists`](/reference/query-languages/query-dsl/query-dsl-exists-query.md)
+* [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md)
+* [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md)
+* [`terms`](/reference/query-languages/query-dsl/query-dsl-terms-query.md)
 
 
 ## Examples [aggregate-metric-double-example]
@@ -203,11 +201,6 @@ The search returns the following hit. The value of the `default_metric` field, `
 
 
 ## Synthetic `_source` [aggregate-metric-double-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 For example:
 

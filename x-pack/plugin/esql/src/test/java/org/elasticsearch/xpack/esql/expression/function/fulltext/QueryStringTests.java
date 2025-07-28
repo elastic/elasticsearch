@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,7 +27,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,10 +57,7 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
                     new TestCaseSupplier.TypedData(
                         new MapExpression(
                             Source.EMPTY,
-                            List.of(
-                                new Literal(Source.EMPTY, "default_field", KEYWORD),
-                                new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD)
-                            )
+                            List.of(Literal.keyword(Source.EMPTY, "default_field"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
                         ),
                         UNSUPPORTED,
                         "options"
@@ -79,7 +76,7 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0).foldable()) {
-            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(qstr).asBuilder();
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, qstr).toQueryBuilder();
             qstr.replaceQueryBuilder(queryBuilder);
         }
         return qstr;

@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlock;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -32,14 +32,16 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
-public class FromAggregateMetricDouble extends EsqlScalarFunction {
+public class FromAggregateMetricDouble extends EsqlScalarFunction implements ConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "FromAggregateMetricDouble",
@@ -145,8 +147,9 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
                             return block;
                         }
                         try {
-                            CompositeBlock compositeBlock = (CompositeBlock) block;
-                            Block resultBlock = compositeBlock.getBlock(((Number) subfieldIndex.fold(FoldContext.small())).intValue());
+                            Block resultBlock = ((AggregateMetricDoubleBlock) block).getMetricBlock(
+                                ((Number) subfieldIndex.fold(FoldContext.small())).intValue()
+                            );
                             resultBlock.incRef();
                             return resultBlock;
                         } finally {
@@ -167,5 +170,15 @@ public class FromAggregateMetricDouble extends EsqlScalarFunction {
 
             }
         };
+    }
+
+    @Override
+    public Expression field() {
+        return field;
+    }
+
+    @Override
+    public Set<DataType> supportedTypes() {
+        return Set.of(AGGREGATE_METRIC_DOUBLE);
     }
 }

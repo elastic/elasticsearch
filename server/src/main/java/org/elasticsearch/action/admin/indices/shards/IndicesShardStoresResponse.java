@@ -245,7 +245,6 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
     }
 
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
-        super(in);
         storeStatuses = in.readImmutableMap(
             i -> i.readImmutableMap(StreamInput::readInt, j -> j.readCollectionAsImmutableList(StoreStatus::new))
         );

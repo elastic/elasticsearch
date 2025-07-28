@@ -11,6 +11,7 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -40,7 +41,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -340,7 +340,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             // For null blocks, the element type is NULL, so if the provided matcher matches, the type works too
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
-            return toJavaObject(blocks[resultBlockIndex], 0);
+            return toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], 0);
         } finally {
             Releasables.close(blocks);
         }
@@ -354,7 +354,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
         var blocks = new Block[blocksArraySize];
         try (var groups = IntVector.range(0, groupCount, driverContext().blockFactory())) {
-            aggregator.evaluate(blocks, resultBlockIndex, groups, driverContext());
+            aggregator.evaluate(blocks, resultBlockIndex, groups, new GroupingAggregatorEvaluationContext(driverContext()));
 
             var block = blocks[resultBlockIndex];
 
@@ -362,7 +362,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             assertThat(block.elementType(), is(oneOf(expectedElementType, ElementType.NULL)));
 
             return IntStream.range(resultBlockIndex, groupCount)
-                .mapToObj(position -> toJavaObject(blocks[resultBlockIndex], position))
+                .mapToObj(position -> toJavaObjectUnsignedLongAware(blocks[resultBlockIndex], position))
                 .toList();
         } finally {
             Releasables.close(blocks);

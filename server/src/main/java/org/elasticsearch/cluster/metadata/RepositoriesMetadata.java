@@ -37,7 +37,7 @@ import java.util.function.UnaryOperator;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
+public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "repositories";
 
@@ -51,8 +51,13 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.Cluster
 
     private final List<RepositoryMetadata> repositories;
 
+    @Deprecated(forRemoval = true)
     public static RepositoriesMetadata get(ClusterState state) {
-        return state.metadata().custom(TYPE, EMPTY);
+        return get(state.metadata().getDefaultProject());
+    }
+
+    public static RepositoriesMetadata get(ProjectMetadata project) {
+        return project.custom(TYPE, EMPTY);
     }
 
     /**
@@ -182,8 +187,8 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.Cluster
         this.repositories = in.readCollectionAsImmutableList(RepositoryMetadata::new);
     }
 
-    public static NamedDiff<Metadata.ClusterCustom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Metadata.ClusterCustom.class, TYPE, in);
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
     }
 
     /**

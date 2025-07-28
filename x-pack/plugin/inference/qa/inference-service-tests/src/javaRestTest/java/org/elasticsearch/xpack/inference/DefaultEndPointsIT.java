@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -60,6 +61,25 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
         var rerankModel = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
         assertDefaultRerankConfig(rerankModel);
+    }
+
+    public void testDefaultModels() throws IOException {
+        var elserModel = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
+        assertDefaultElserConfig(elserModel);
+
+        var e5Model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
+        assertDefaultE5Config(e5Model);
+
+        var rerankModel = getModel(ElasticsearchInternalService.DEFAULT_RERANK_ID);
+        assertDefaultRerankConfig(rerankModel);
+
+        putModel("my-model", mockCompletionServiceModelConfig(TaskType.SPARSE_EMBEDDING, "streaming_completion_test_service"));
+        var registeredModels = getMinimalConfigs();
+        assertThat(registeredModels.size(), equalTo(1));
+        assertTrue(registeredModels.containsKey("my-model"));
+        assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_E5_ID));
+        assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_ELSER_ID));
+        assertFalse(registeredModels.containsKey(ElasticsearchInternalService.DEFAULT_RERANK_ID));
     }
 
     @SuppressWarnings("unchecked")

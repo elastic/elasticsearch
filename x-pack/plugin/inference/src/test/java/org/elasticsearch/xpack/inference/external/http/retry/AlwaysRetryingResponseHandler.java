@@ -35,8 +35,14 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
         this.parseFunction = Objects.requireNonNull(parseFunction);
     }
 
-    public void validateResponse(ThrottlerManager throttlerManager, Logger logger, Request request, HttpResult result)
-        throws RetryException {
+    @Override
+    public void validateResponse(
+        ThrottlerManager throttlerManager,
+        Logger logger,
+        Request request,
+        HttpResult result,
+        boolean checkForErrorObject
+    ) throws RetryException {
         try {
             checkForFailureStatusCode(throttlerManager, logger, request, result);
             checkForEmptyBody(throttlerManager, logger, request, result);

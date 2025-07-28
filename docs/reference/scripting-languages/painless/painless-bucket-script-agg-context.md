@@ -1,11 +1,13 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-bucket-script-agg-context.html
+products:
+  - id: painless
 ---
 
 # Bucket script aggregation context [painless-bucket-script-agg-context]
 
-Use a Painless script in an [`bucket_script` pipeline aggregation](/reference/data-analysis/aggregations/search-aggregations-pipeline-bucket-script-aggregation.md) to calculate a value as a result in a bucket.
+Use a Painless script in an [`bucket_script` pipeline aggregation](/reference/aggregations/search-aggregations-pipeline-bucket-script-aggregation.md) to calculate a value as a result in a bucket.
 
 ## Variables [_variables]
 

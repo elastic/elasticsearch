@@ -58,7 +58,7 @@ The following parameters are accepted by `token_count` fields:
 :   The [analyzer](docs-content://manage-data/data-store/text-analysis.md) which should be used to analyze the string value. Required. For best performance, use an analyzer without token filters.
 
 `enable_position_increments`
-:   Indicates if position increments should be counted. Set to `false` if you don’t want to count tokens removed by analyzer filters (like [`stop`](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md)). Defaults to `true`.
+:   Indicates if position increments should be counted. Set to `false` if you don’t want to count tokens removed by analyzer filters (like [`stop`](/reference/text-analysis/analysis-stop-tokenfilter.md)). Defaults to `true`.
 
 [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md)
 :   Should the field be stored on disk in a column-stride fashion, so that it can later be used for sorting, aggregations, or scripting? Accepts `true` (default) or `false`.
@@ -73,11 +73,6 @@ The following parameters are accepted by `token_count` fields:
 :   Whether the field value should be stored and retrievable separately from the [`_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) field. Accepts `true` or `false` (default).
 
 ### Synthetic `_source` [token-count-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 `token_count` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration.
 

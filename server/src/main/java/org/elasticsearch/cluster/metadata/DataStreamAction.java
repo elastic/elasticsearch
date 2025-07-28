@@ -143,7 +143,7 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         builder.startObject(type.fieldName);
         builder.field(DATA_STREAM.getPreferredName(), dataStream);
         builder.field(INDEX.getPreferredName(), index);
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureStore) {
+        if (failureStore) {
             builder.field(FAILURE_STORE.getPreferredName(), failureStore);
         }
         builder.endObject();
@@ -181,14 +181,12 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             ObjectParser.ValueType.STRING
         );
         ADD_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            ADD_BACKING_INDEX_PARSER.declareField(
-                DataStreamAction::setFailureStore,
-                XContentParser::booleanValue,
-                FAILURE_STORE,
-                ObjectParser.ValueType.BOOLEAN
-            );
-        }
+        ADD_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setFailureStore,
+            XContentParser::booleanValue,
+            FAILURE_STORE,
+            ObjectParser.ValueType.BOOLEAN
+        );
         REMOVE_BACKING_INDEX_PARSER.declareField(
             DataStreamAction::setDataStream,
             XContentParser::text,
@@ -196,14 +194,12 @@ public class DataStreamAction implements Writeable, ToXContentObject {
             ObjectParser.ValueType.STRING
         );
         REMOVE_BACKING_INDEX_PARSER.declareField(DataStreamAction::setIndex, XContentParser::text, INDEX, ObjectParser.ValueType.STRING);
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            REMOVE_BACKING_INDEX_PARSER.declareField(
-                DataStreamAction::setFailureStore,
-                XContentParser::booleanValue,
-                FAILURE_STORE,
-                ObjectParser.ValueType.BOOLEAN
-            );
-        }
+        REMOVE_BACKING_INDEX_PARSER.declareField(
+            DataStreamAction::setFailureStore,
+            XContentParser::booleanValue,
+            FAILURE_STORE,
+            ObjectParser.ValueType.BOOLEAN
+        );
     }
 
     private static ObjectParser<DataStreamAction, Void> parser(String name, Supplier<DataStreamAction> supplier) {

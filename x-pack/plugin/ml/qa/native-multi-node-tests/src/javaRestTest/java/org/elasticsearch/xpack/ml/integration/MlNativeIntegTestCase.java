@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
@@ -55,6 +56,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ExternalTestCluster;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
@@ -80,6 +82,7 @@ import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
@@ -96,11 +99,13 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.slm.SnapshotLifecycle;
 import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
+import org.junit.After;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -314,6 +319,13 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return client().execute(PutFilterAction.INSTANCE, new PutFilterAction.Request(filter)).actionGet();
     }
 
+    protected PutFilterAction.Response updateMlFilter(String filterId, List<String> addItems, List<String> removeItems) {
+        UpdateFilterAction.Request request = new UpdateFilterAction.Request(filterId);
+        request.setAddItems(addItems);
+        request.setRemoveItems(removeItems);
+        return client().execute(UpdateFilterAction.INSTANCE, request).actionGet();
+    }
+
     protected static List<String> fetchAllAuditMessages(String jobId) throws Exception {
         RefreshRequest refreshRequest = new RefreshRequest(NotificationsIndex.NOTIFICATIONS_INDEX);
         BroadcastResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
@@ -334,8 +346,11 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         return messages;
     }
 
-    @Override
-    protected void ensureClusterStateConsistency() throws IOException {
+    /**
+     * Asserts that all ML named writeables pass a cluster state round-trip (de)serialization.
+     */
+    @After
+    protected void assertClusterRoundTrip() throws IOException {
         if (cluster() != null && cluster().size() > 0) {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedWriteables());
             entries.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
@@ -416,7 +431,35 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(
                 new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class, MlScalingReason.NAME, MlScalingReason::new)
             );
-            doEnsureClusterStateConsistency(new NamedWriteableRegistry(entries));
+
+            entries.add(
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new)
+            );
+            entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
+
+            // Retrieve the cluster state from a random node, and serialize and deserialize it.
+            final ClusterStateResponse clusterStateResponse = client().admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .all()
+                .get(TEST_REQUEST_TIMEOUT);
+            byte[] clusterStateBytes = ClusterState.Builder.toBytes(clusterStateResponse.getState());
+            final ClusterState parsedClusterState = ClusterState.Builder.fromBytes(
+                clusterStateBytes,
+                clusterStateResponse.getState().nodes().getLocalNode(),
+                new NamedWriteableRegistry(entries)
+            );
+            final var responseMap = XContentTestUtils.convertToMap(clusterStateResponse.getState());
+            final var parsedMap = XContentTestUtils.convertToMap(parsedClusterState);
+            final var diff = XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder(responseMap, parsedMap);
+            if (diff != null) {
+                logger.error(
+                    "Cluster state response:\n{}\nParsed cluster state:\n{}",
+                    clusterStateResponse.getState().toString(),
+                    parsedClusterState.toString()
+                );
+                assertNull("cluster state JSON serialization does not match", diff);
+            }
         }
     }
 

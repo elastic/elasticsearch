@@ -20,10 +20,10 @@ Integrations are not plugins, but are external tools or modules that make it eas
 
 ### Supported by Elastic: [_supported_by_elastic]
 
-* [Logstash output to Elasticsearch](logstash://reference/plugins-outputs-elasticsearch.md): The Logstash `elasticsearch` output plugin.
-* [Elasticsearch input to Logstash](logstash://reference/plugins-inputs-elasticsearch.md) The Logstash `elasticsearch` input plugin.
-* [Elasticsearch event filtering in Logstash](logstash://reference/plugins-filters-elasticsearch.md) The Logstash `elasticsearch` filter plugin.
-* [Elasticsearch bulk codec](logstash://reference/plugins-codecs-es_bulk.md) The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
+* [Logstash output to Elasticsearch](logstash-docs-md://lsr//plugins-outputs-elasticsearch.md): The Logstash `elasticsearch` output plugin.
+* [Elasticsearch input to Logstash](logstash-docs-md://lsr/plugins-inputs-elasticsearch.md) The Logstash `elasticsearch` input plugin.
+* [Elasticsearch event filtering in Logstash](logstash-docs-md://lsr/plugins-filters-elasticsearch.md) The Logstash `elasticsearch` filter plugin.
+* [Elasticsearch bulk codec](logstash-docs-md://lsr//plugins-codecs-es_bulk.md) The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 
 
 ### Supported by the community: [_supported_by_the_community_2]
@@ -31,7 +31,7 @@ Integrations are not plugins, but are external tools or modules that make it eas
 * [Ingest processor template](https://github.com/spinscale/cookiecutter-elasticsearch-ingest-processor): A template for creating new ingest processors.
 * [Kafka Standalone Consumer (Indexer)](https://github.com/BigDataDevs/kafka-elasticsearch-consumer): Kafka Standalone Consumer [Indexer] will read messages from Kafka in batches, processes(as implemented) and bulk-indexes them into Elasticsearch. Flexible and scalable. More documentation in above GitHub repo’s Wiki.
 * [Scrutineer](https://github.com/Aconex/scrutineer): A high performance consistency checker to compare what you’ve indexed with your source of truth content (e.g. DB)
-* [FS Crawler](https://github.com/dadoonet/fscrawler): The File System (FS) crawler allows to index documents (PDF, Open Office…​) from your local file system and over SSH. (by David Pilato)
+* [FS Crawler](https://github.com/dadoonet/fscrawler): The File System (FS) crawler allows to index documents (PDF, Open Office… ) from your local file system and over SSH. (by David Pilato)
 * [Elasticsearch Evolution](https://github.com/senacor/elasticsearch-evolution): A library to migrate elasticsearch mappings.
 * [PGSync](https://pgsync.com): A tool for syncing data from Postgres to Elasticsearch.
 

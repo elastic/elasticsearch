@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class FilterOperatorTests extends OperatorTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
-        return new TupleBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
+        return new TupleLongLongBlockSourceOperator(blockFactory, LongStream.range(0, end).mapToObj(l -> Tuple.tuple(l, end - l)));
     }
 
     record SameLastDigit(DriverContext context, int lhs, int rhs) implements EvalOperator.ExpressionEvaluator {
@@ -54,7 +54,7 @@ public class FilterOperatorTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new FilterOperator.FilterOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
 
             @Override

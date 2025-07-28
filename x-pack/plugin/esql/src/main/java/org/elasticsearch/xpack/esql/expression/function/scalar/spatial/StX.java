@@ -72,7 +72,7 @@ public class StX extends UnaryScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new StXFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
+        return new StXFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

@@ -116,10 +116,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // some tests rely on the translog not being flushed
             .setting("indices.memory.shard_inactive_time", "60m")
             .apply(() -> clusterConfig)
-            .feature(FeatureFlag.TIME_SERIES_MODE)
-            .feature(FeatureFlag.FAILURE_STORE_ENABLED);
+            .feature(FeatureFlag.TIME_SERIES_MODE);
 
-        if (oldVersion.before(Version.fromString("9.1.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

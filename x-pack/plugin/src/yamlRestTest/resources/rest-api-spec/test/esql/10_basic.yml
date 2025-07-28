@@ -197,8 +197,8 @@ basic with documents_found:
           query: 'from test | keep data | sort data | limit 2'
           columnar: true
 
-  - match: {documents_found: 10}   # two documents per shard
-  - match: {values_loaded: 10}     # one per document
+  - gte:   {documents_found: 2}   # we might early terminate, so the most we can assume is >=2
+  - gte:   {values_loaded: 2}     # same as above
   - match: {columns.0.name: "data"}
   - match: {columns.0.type: "long"}
   - match: {values.0: [1, 1]}
@@ -555,11 +555,11 @@ FROM EVAL SORT LIMIT with documents_found:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ parameter_for_limit ]
+          capabilities: [ normalized_limit_error_message ]
       reason: "named or positional parameters for field names"
 
   - do:
-      catch: "/Invalid value for LIMIT \\[foo: String\\], expecting a non negative integer/"
+      catch: "/value of \\[limit \\?l\\] must be a non negative integer, found value \\[\\?l\\] type \\[keyword\\]/"
       esql.query:
         body:
           query: 'from test | limit ?l'

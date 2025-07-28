@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
@@ -377,21 +376,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         Object val = expression(ctx.constant()).fold(FoldContext.small() /* TODO remove me */);
-        if (val instanceof Integer i) {
-            if (i < 0) {
-                throw new ParsingException(source, "Invalid value for LIMIT [" + i + "], expecting a non negative integer");
-            }
+        if (val instanceof Integer i && i >= 0) {
             return input -> new Limit(source, new Literal(source, i, DataType.INTEGER), input);
-        } else {
-            throw new ParsingException(
-                source,
-                "Invalid value for LIMIT ["
-                    + BytesRefs.toString(val)
-                    + ": "
-                    + (expression(ctx.constant()).dataType() == KEYWORD ? "String" : val.getClass().getSimpleName())
-                    + "], expecting a non negative integer"
-            );
         }
+
+        String valueType = expression(ctx.constant()).dataType().typeName();
+
+        throw new ParsingException(
+            source,
+            "value of ["
+                + source.text()
+                + "] must be a non negative integer, found value ["
+                + ctx.constant().getText()
+                + "] type ["
+                + valueType
+                + "]"
+        );
     }
 
     @Override
@@ -498,8 +498,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
-    private static Tuple<Mode, String> parsePolicyName(Token policyToken) {
-        String stringValue = policyToken.getText();
+    private static Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
+        String stringValue;
+        if (ctx.ENRICH_POLICY_NAME() != null) {
+            stringValue = ctx.ENRICH_POLICY_NAME().getText();
+        } else {
+            stringValue = ctx.QUOTED_STRING().getText();
+            stringValue = stringValue.substring(1, stringValue.length() - 1);
+        }
+
         int index = stringValue.indexOf(":");
         Mode mode = null;
         if (index >= 0) {
@@ -511,7 +518,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             if (mode == null) {
                 throw new ParsingException(
-                    source(policyToken),
+                    source(ctx),
                     "Unrecognized value [{}], ENRICH policy qualifier needs to be one of {}",
                     modeValue,
                     Arrays.stream(Mode.values()).map(s -> "_" + s).toList()

@@ -42,7 +42,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
 
   public static ValuesBytesRefGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new ValuesBytesRefGroupingAggregatorFunction(channels, ValuesBytesRefAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new ValuesBytesRefGroupingAggregatorFunction(channels, ValuesBytesRefAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -55,7 +55,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
     BytesRefVector valuesVector = valuesBlock.asVector();

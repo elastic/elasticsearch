@@ -16,7 +16,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 
 import java.io.IOException;
 import java.util.concurrent.Executor;
@@ -31,7 +30,6 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     private final boolean canTripCircuitBreaker;
     private final Executor executor;
     private final TaskManager taskManager;
-    private final Tracer tracer;
     private final Writeable.Reader<Request> requestReader;
     private final TransportActionStatsTracker statsTracker = new TransportActionStatsTracker();
 
@@ -42,8 +40,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
         TransportRequestHandler<Request> handler,
         Executor executor,
         boolean forceExecution,
-        boolean canTripCircuitBreaker,
-        Tracer tracer
+        boolean canTripCircuitBreaker
     ) {
         this.action = action;
         this.requestReader = requestReader;
@@ -52,7 +49,6 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
         this.canTripCircuitBreaker = canTripCircuitBreaker;
         this.executor = executor;
         this.taskManager = taskManager;
-        this.tracer = tracer;
     }
 
     public String getAction() {
@@ -112,8 +108,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
             handler,
             registry.executor,
             registry.forceExecution,
-            registry.canTripCircuitBreaker,
-            registry.tracer
+            registry.canTripCircuitBreaker
         );
     }
 

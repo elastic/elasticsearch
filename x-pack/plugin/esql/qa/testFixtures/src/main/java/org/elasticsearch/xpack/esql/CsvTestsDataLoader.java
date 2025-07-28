@@ -358,9 +358,6 @@ public class CsvTestsDataLoader {
                 }
             }
         }
-        deleteSparseEmbeddingInferenceEndpoint(client);
-        deleteRerankInferenceEndpoint(client);
-        deleteCompletionInferenceEndpoint(client);
     }
 
     /** The semantic_text mapping type require an inference endpoint that needs to be setup before creating the index. */

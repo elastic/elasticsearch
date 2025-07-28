@@ -41,7 +41,9 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
-        String fieldName = fieldsWithBoosts.keySet().stream().findFirst().get();
+        String fieldName = fieldsWithBoosts.keySet().iterator().next();
+        Float fieldBoost = fieldsWithBoosts.get(fieldName);
+
         InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
         if (indexInformation.getInferenceIndices().isEmpty()) {
             // No inference fields were identified, so return the original query.
@@ -50,11 +52,11 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             // Combined case where the field name requested by this query contains both
             // semantic_text and non-inference fields, so we have to combine queries per index
             // containing each field type.
-            return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation);
+            return buildCombinedInferenceAndNonInferenceQuery(queryBuilder, indexInformation, fieldBoost);
         } else {
             // The only fields we've identified are inference fields (e.g. semantic_text),
             // so rewrite the entire query to work on a semantic_text field.
-            return buildInferenceQuery(queryBuilder, indexInformation);
+            return buildInferenceQuery(queryBuilder, indexInformation, fieldBoost);
         }
     }
 
@@ -77,20 +79,23 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      *
      * @param queryBuilder {@link QueryBuilder}
      * @param indexInformation {@link InferenceIndexInformationForField}
+     * @param fieldBoost per field boost value
      * @return {@link QueryBuilder}
      */
-    protected abstract QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation);
+    protected abstract QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float fieldBoost);
 
     /**
      * Builds a combined inference and non-inference query,
      * which separates the different queries into appropriate indices based on field type.
      * @param queryBuilder {@link QueryBuilder}
      * @param indexInformation {@link InferenceIndexInformationForField}
+     * @param fieldBoost per field boost value
      * @return {@link QueryBuilder}
      */
     protected abstract QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         QueryBuilder queryBuilder,
-        InferenceIndexInformationForField indexInformation
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
     );
 
     private InferenceIndexInformationForField resolveIndicesForField(String fieldName, ResolvedIndices resolvedIndices) {

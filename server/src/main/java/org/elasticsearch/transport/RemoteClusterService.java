@@ -180,25 +180,6 @@ public final class RemoteClusterService extends RemoteClusterAware
         }
     }
 
-    /**
-     * Returns the map of connections for the {@link ProjectId} currently returned by the {@link ProjectResolver}.
-     */
-    private Map<String, RemoteClusterConnection> getConnectionsMapForCurrentProject() {
-        return getConnectionsMapForProject(projectResolver.getProjectId());
-    }
-
-    /**
-     * Returns the map of connections for the given {@link ProjectId}.
-     */
-    private Map<String, RemoteClusterConnection> getConnectionsMapForProject(ProjectId projectId) {
-        if (projectResolver.supportsMultipleProjects()) {
-            assert ProjectId.DEFAULT.equals(projectId) == false : "The default project ID should not be used in multi-project environment";
-            return remoteClusters.computeIfAbsent(projectId, unused -> ConcurrentCollections.newConcurrentMap());
-        }
-        assert ProjectId.DEFAULT.equals(projectId) : "Only the default project ID should be used when multiple projects are not supported";
-        return remoteClusters.get(projectId);
-    }
-
     public DiscoveryNode getLocalNode() {
         return transportService.getLocalNode();
     }
@@ -749,6 +730,25 @@ public final class RemoteClusterService extends RemoteClusterAware
                 );
             }
         );
+    }
+
+    /**
+     * Returns the map of connections for the {@link ProjectId} currently returned by the {@link ProjectResolver}.
+     */
+    private Map<String, RemoteClusterConnection> getConnectionsMapForCurrentProject() {
+        return getConnectionsMapForProject(projectResolver.getProjectId());
+    }
+
+    /**
+     * Returns the map of connections for the given {@link ProjectId}.
+     */
+    private Map<String, RemoteClusterConnection> getConnectionsMapForProject(ProjectId projectId) {
+        if (projectResolver.supportsMultipleProjects()) {
+            assert ProjectId.DEFAULT.equals(projectId) == false : "The default project ID should not be used in multi-project environment";
+            return remoteClusters.computeIfAbsent(projectId, unused -> ConcurrentCollections.newConcurrentMap());
+        }
+        assert ProjectId.DEFAULT.equals(projectId) : "Only the default project ID should be used when multiple projects are not supported";
+        return remoteClusters.get(projectId);
     }
 
     private static class RemoteConnectionEnabled<T> implements Setting.Validator<T> {

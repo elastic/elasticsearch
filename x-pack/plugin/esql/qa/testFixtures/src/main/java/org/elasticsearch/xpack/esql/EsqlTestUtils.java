@@ -165,12 +165,12 @@ import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
 
-    public static final Literal ONE = new Literal(Source.EMPTY, 1, DataType.INTEGER);
-    public static final Literal TWO = new Literal(Source.EMPTY, 2, DataType.INTEGER);
-    public static final Literal THREE = new Literal(Source.EMPTY, 3, DataType.INTEGER);
-    public static final Literal FOUR = new Literal(Source.EMPTY, 4, DataType.INTEGER);
-    public static final Literal FIVE = new Literal(Source.EMPTY, 5, DataType.INTEGER);
-    public static final Literal SIX = new Literal(Source.EMPTY, 6, DataType.INTEGER);
+    public static final Literal ONE = new Literal(EMPTY, 1, INTEGER);
+    public static final Literal TWO = new Literal(EMPTY, 2, INTEGER);
+    public static final Literal THREE = new Literal(EMPTY, 3, INTEGER);
+    public static final Literal FOUR = new Literal(EMPTY, 4, INTEGER);
+    public static final Literal FIVE = new Literal(EMPTY, 5, INTEGER);
+    public static final Literal SIX = new Literal(EMPTY, 6, INTEGER);
 
     public static Equals equalsOf(Expression left, Expression right) {
         return new Equals(EMPTY, left, right, null);
@@ -181,19 +181,19 @@ public final class EsqlTestUtils {
     }
 
     public static GreaterThan greaterThanOf(Expression left, Expression right) {
-        return new GreaterThan(EMPTY, left, right, ESTestCase.randomZone());
+        return new GreaterThan(EMPTY, left, right, randomZone());
     }
 
     public static NotEquals notEqualsOf(Expression left, Expression right) {
-        return new NotEquals(EMPTY, left, right, ESTestCase.randomZone());
+        return new NotEquals(EMPTY, left, right, randomZone());
     }
 
     public static LessThanOrEqual lessThanOrEqualOf(Expression left, Expression right) {
-        return new LessThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
+        return new LessThanOrEqual(EMPTY, left, right, randomZone());
     }
 
     public static GreaterThanOrEqual greaterThanOrEqualOf(Expression left, Expression right) {
-        return new GreaterThanOrEqual(EMPTY, left, right, ESTestCase.randomZone());
+        return new GreaterThanOrEqual(EMPTY, left, right, randomZone());
     }
 
     public static FieldAttribute getFieldAttribute() {
@@ -217,7 +217,7 @@ public final class EsqlTestUtils {
     }
 
     public static Literal of(Object value) {
-        return of(Source.EMPTY, value);
+        return of(EMPTY, value);
     }
 
     /**
@@ -455,11 +455,11 @@ public final class EsqlTestUtils {
     }
 
     public static LogicalPlan emptySource() {
-        return new LocalRelation(Source.EMPTY, emptyList(), EmptyLocalSupplier.EMPTY);
+        return new LocalRelation(EMPTY, emptyList(), EmptyLocalSupplier.EMPTY);
     }
 
     public static LogicalPlan localSource(BlockFactory blockFactory, List<Attribute> fields, List<Object> row) {
-        return new LocalRelation(Source.EMPTY, fields, LocalSupplier.of(BlockUtils.fromListRow(blockFactory, row)));
+        return new LocalRelation(EMPTY, fields, LocalSupplier.of(BlockUtils.fromListRow(blockFactory, row)));
     }
 
     public static <T> T as(Object node, Class<T> type) {
@@ -619,10 +619,7 @@ public final class EsqlTestUtils {
             BytesRefBlock namesBlock = names.build();
             tables.put(
                 "int_number_names",
-                table(
-                    Map.entry("int", new Column(DataType.INTEGER, intsBlock)),
-                    Map.entry("name", new Column(DataType.KEYWORD, namesBlock))
-                )
+                table(Map.entry("int", new Column(INTEGER, intsBlock)), Map.entry("name", new Column(DataType.KEYWORD, namesBlock)))
             );
             tables.put(
                 "long_number_names",
@@ -682,8 +679,8 @@ public final class EsqlTestUtils {
                 table(
                     Map.entry("aa", new Column(DataType.KEYWORD, aa.build())),
                     Map.entry("ab", new Column(DataType.KEYWORD, ab.build())),
-                    Map.entry("na", new Column(DataType.INTEGER, na.build())),
-                    Map.entry("nb", new Column(DataType.INTEGER, nb.build()))
+                    Map.entry("na", new Column(INTEGER, na.build())),
+                    Map.entry("nb", new Column(INTEGER, nb.build()))
                 )
             );
         }
@@ -816,7 +813,7 @@ public final class EsqlTestUtils {
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
     public static Literal randomLiteral(DataType type) {
-        return new Literal(Source.EMPTY, switch (type) {
+        return new Literal(EMPTY, switch (type) {
             case BOOLEAN -> randomBoolean();
             case BYTE -> randomByte();
             case SHORT -> randomShort();
@@ -827,7 +824,7 @@ public final class EsqlTestUtils {
             case DATETIME -> randomMillisUpToYear9999();
             case DATE_NANOS -> randomLongBetween(0, Long.MAX_VALUE);
             case DOUBLE, SCALED_FLOAT, COUNTER_DOUBLE -> randomDouble();
-            case FLOAT -> randomFloat();
+            case FLOAT, COUNTER_FLOAT -> randomFloat();
             case HALF_FLOAT -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(randomFloat()));
             case KEYWORD -> new BytesRef(randomAlphaOfLength(5));
             case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));

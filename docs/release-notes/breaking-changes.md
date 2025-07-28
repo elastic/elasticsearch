@@ -22,7 +22,7 @@ Discovery-Plugins:
 The `discovery-ec2` plugin now uses AWS SDK v2 instead of v1, as AWS plans to deprecate SDK v1 before the end of Elasticsearch 8.19’s support period. AWS SDK v2 introduces several behavior changes that affect configuration.
 
 **Impact:**
-If you use the `discovery-ec2` plugin, your existing settings may no longer be compatible. Notable changes include but not limited to:
+If you use the `discovery-ec2` plugin, your existing settings may no longer be compatible. Notable changes include, but may not be limited to:
 - AWS SDK v2 does not support the EC2 IMDSv1 protocol.
 - AWS SDK v2 does not support the `aws.secretKey` or `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
 - AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so the `discovery.ec2.protocol` setting is no longer effective.

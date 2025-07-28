@@ -188,9 +188,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     void addBatchedPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
-        synchronized (batchedResults) {
-            batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
-        }
+        batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
     }
 
     @Override
@@ -215,10 +213,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         buffer.sort(RESULT_COMPARATOR);
         final TopDocsStats topDocsStats = this.topDocsStats;
         var mergeResult = this.mergeResult;
-        final ArrayDeque<Tuple<TopDocsStats, MergeResult>> batchedResults;
-        synchronized (this.batchedResults) {
-            batchedResults = this.batchedResults;
-        }
+        final ArrayDeque<Tuple<TopDocsStats, MergeResult>> batchedResults = this.batchedResults;
         final int resultSize = buffer.size() + (mergeResult == null ? 0 : 1) + batchedResults.size();
         final List<TopDocs> topDocsList = hasTopDocs ? new ArrayList<>(resultSize) : null;
         final Deque<DelayableWriteable<InternalAggregations>> aggsList = hasAggs ? new ArrayDeque<>(resultSize) : null;

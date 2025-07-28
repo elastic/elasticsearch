@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -415,7 +416,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
         AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
-        final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
+        final var transportService = searchTransportService.transportService();
+        final String localNodeId = transportService.getLocalNode().getId();
         final int numberOfShardsTotal = shardsIts.size();
         for (int i = 0; i < numberOfShardsTotal; i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
@@ -452,6 +454,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
             }
         }
+        final Executor singleThreadedExecutor = ThrottledTaskRunner.buildSingleThreadedExecutor(
+            "node_query_response",
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)
+        );
         perNodeQueries.forEach((routing, request) -> {
             if (request.shards.size() == 1) {
                 executeAsSingleRequest(routing, request.shards.getFirst());
@@ -471,8 +477,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 executeWithoutBatching(routing, request);
                 return;
             }
-            searchTransportService.transportService()
-                .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, request, task, new TransportResponseHandler<NodeQueryResponse>() {
+            transportService.sendChildRequest(
+                connection,
+                NODE_SEARCH_ACTION_NAME,
+                request,
+                task,
+                new TransportResponseHandler<NodeQueryResponse>() {
                     @Override
                     public NodeQueryResponse read(StreamInput in) throws IOException {
                         return new NodeQueryResponse(in);
@@ -480,7 +490,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                     @Override
                     public Executor executor() {
-                        return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                        return singleThreadedExecutor;
                     }
 
                     @Override
@@ -526,7 +536,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             onPhaseFailure(getName(), "", cause);
                         }
                     }
-                });
+                }
+            );
         });
     }
 

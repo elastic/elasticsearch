@@ -1,5 +1,5 @@
 pr: 132026
-summary: "[Multi Match] Refactor `QueryIntercepter` Rewrite"
+summary: "Refactor semantic query rewrite interceptors to support multi-field queries with boost handling"
 area: Relevance
 type: enhancement
 issues: []

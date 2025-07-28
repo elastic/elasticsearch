@@ -10,7 +10,7 @@ The `COMPLETION` command allows you to send prompts and context to a Large Langu
 **Syntax**
 
 ```esql
-COMPLETION [column =] prompt WITH inference_id
+COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" }
 ```
 
 **Parameters**
@@ -55,7 +55,7 @@ Use the default column name (results stored in `completion` column):
 
 ```esql
 ROW question = "What is Elasticsearch?"
-| COMPLETION question WITH test_completion_model
+| COMPLETION question WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP question, completion
 ```
 
@@ -67,7 +67,7 @@ Specify the output column (results stored in `answer` column):
 
 ```esql
 ROW question = "What is Elasticsearch?"
-| COMPLETION answer = question WITH test_completion_model
+| COMPLETION answer = question WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP question, answer
 ```
 
@@ -87,7 +87,7 @@ FROM movies
    "Synopsis: ", synopsis, "\n",
    "Actors: ", MV_CONCAT(actors, ", "), "\n",
   )
-| COMPLETION summary = prompt WITH test_completion_model
+| COMPLETION summary = prompt WITH { "inference_id" : "my_inference_endpoint" }
 | KEEP title, summary, rating
 ```
 

@@ -24,7 +24,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -54,6 +54,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
@@ -237,32 +238,37 @@ public class MockNode extends Node {
     }
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
+    // handle for node paths specific entitlement grants
+    private final Closeable entitlementGrant;
 
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
+        this(settings, classpathPlugins, true, () -> {});
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitlementGrant
     ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings, entitlementGrant);
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final Path configPath,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitlementGrant
     ) {
-        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings);
+        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings, entitlementGrant);
     }
 
     private MockNode(
         final Environment environment,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitlementGrant
     ) {
         super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
 
@@ -273,10 +279,10 @@ public class MockNode extends Node {
         }, forbidPrivateIndexSettings));
 
         this.classpathPlugins = classpathPlugins;
+        this.entitlementGrant = entitlementGrant;
     }
 
     private static Environment prepareEnvironment(final Settings settings, final Path configPath) {
-        TestEntitlementBootstrap.registerNodeBaseDirs(settings, configPath);
         return InternalSettingsPreparer.prepareEnvironment(
             Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
             Collections.emptyMap(),
@@ -291,7 +297,7 @@ public class MockNode extends Node {
             return super.awaitClose(timeout, timeUnit);
         } finally {
             // wipePendingDataDirectories requires entitlement delegation to work due to this using FileSystemUtils ES-10920
-            // TestEntitlementBootstrap.unregisterNodeBaseDirs(settings(), getEnvironment().configDir());
+            IOUtils.closeWhileHandlingException(entitlementGrant);
         }
     }
 

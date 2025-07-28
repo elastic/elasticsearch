@@ -77,7 +77,8 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
                 InternalSettingsPlugin.class,
                 getTestTransportPlugin()
             ),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::newNodeGrant
         );
         secondCluster.beforeTest(random());
     }

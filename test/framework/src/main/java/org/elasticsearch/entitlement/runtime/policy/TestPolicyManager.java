@@ -29,8 +29,8 @@ import static java.util.Objects.requireNonNull;
 
 public class TestPolicyManager extends PolicyManager {
 
-    boolean isActive;
-    boolean isTriviallyAllowingTestCode;
+    boolean isActive = true;
+    boolean isTriviallyAllowingTestCode = true;
     String[] entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
 
     /**
@@ -53,7 +53,6 @@ public class TestPolicyManager extends PolicyManager {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
         this.classpath = classpath;
         this.testOnlyClasspath = testOnlyClasspath;
-        resetAfterTest();
     }
 
     public void setActive(boolean newValue) {
@@ -65,22 +64,18 @@ public class TestPolicyManager extends PolicyManager {
     }
 
     public void setEntitledTestPackages(String... entitledTestPackages) {
+        if (entitledTestPackages == null || entitledTestPackages.length == 0) {
+            this.entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES; // already validated and sorted
+            return;
+        }
+
         assertNoRedundantPrefixes(TEST_FRAMEWORK_PACKAGE_PREFIXES, entitledTestPackages, false);
         if (entitledTestPackages.length > 1) {
             assertNoRedundantPrefixes(entitledTestPackages, entitledTestPackages, true);
         }
-        String[] packages = ArrayUtils.concat(this.entitledTestPackages, entitledTestPackages);
+        String[] packages = ArrayUtils.concat(TEST_FRAMEWORK_PACKAGE_PREFIXES, entitledTestPackages);
         Arrays.sort(packages);
         this.entitledTestPackages = packages;
-    }
-
-    /**
-     * Called between tests so each test is not affected by prior tests
-     */
-    public final void resetAfterTest() {
-        clearModuleEntitlementsCache();
-        isActive = false;
-        isTriviallyAllowingTestCode = true;
     }
 
     /**

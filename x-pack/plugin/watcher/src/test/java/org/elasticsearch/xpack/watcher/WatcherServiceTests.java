@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -38,6 +39,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -84,6 +86,8 @@ import static org.mockito.Mockito.when;
 public class WatcherServiceTests extends ESTestCase {
 
     private final Client client = mock(Client.class);
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+    private final ProjectId projectId = ProjectId.DEFAULT;
 
     @Before
     public void configureMockClient() {
@@ -113,10 +117,10 @@ public class WatcherServiceTests extends ESTestCase {
         };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).state(IndexMetadata.State.CLOSE).settings(indexSettings));
-        csBuilder.metadata(metadataBuilder);
+        csBuilder.putProjectMetadata(metadataBuilder);
 
         assertThat(service.validate(csBuilder.build()), is(false));
     }
@@ -142,10 +146,10 @@ public class WatcherServiceTests extends ESTestCase {
 
         // cluster state setup, with one node, one shard
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
-        csBuilder.metadata(metadataBuilder);
+        csBuilder.putProjectMetadata(metadataBuilder);
 
         Index watchIndex = new Index(Watch.INDEX, "uuid");
         ShardId shardId = new ShardId(watchIndex, 0);
@@ -157,7 +161,7 @@ public class WatcherServiceTests extends ESTestCase {
             )
             .build();
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
-        csBuilder.routingTable(routingTable);
+        csBuilder.putRoutingTable(projectId, routingTable);
 
         csBuilder.nodes(new DiscoveryNodes.Builder().masterNodeId("node").localNodeId("node").add(newNode()));
         ClusterState clusterState = csBuilder.build();
@@ -165,7 +169,7 @@ public class WatcherServiceTests extends ESTestCase {
         // response setup, successful refresh response
         BroadcastResponse refreshResponse = mock(BroadcastResponse.class);
         when(refreshResponse.getSuccessfulShards()).thenReturn(
-            clusterState.getMetadata().getProject().indices().get(Watch.INDEX).getNumberOfShards()
+            clusterState.getMetadata().getProject(ProjectId.DEFAULT).indices().get(Watch.INDEX).getNumberOfShards()
         );
         doAnswer(invocation -> {
             ActionListener<BroadcastResponse> listener = (ActionListener<BroadcastResponse>) invocation.getArguments()[2];
@@ -261,10 +265,10 @@ public class WatcherServiceTests extends ESTestCase {
         };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectMetadata.Builder metadataBuilder = ProjectMetadata.builder(projectId);
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 1).build();
         metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
-        csBuilder.metadata(metadataBuilder);
+        csBuilder.putProjectMetadata(metadataBuilder);
         ClusterState clusterState = csBuilder.build();
 
         AtomicReference<Exception> exceptionReference = new AtomicReference<>();
@@ -358,7 +362,7 @@ public class WatcherServiceTests extends ESTestCase {
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
         Metadata metadata = mock(Metadata.class);
         ProjectMetadata project = mock(ProjectMetadata.class);
-        when(metadata.getProject()).thenReturn(project);
+        when(metadata.getProject(projectId)).thenReturn(project);
         // simulate exception in WatcherService's private loadWatches()
         when(project.getIndicesLookup()).thenThrow(RuntimeException.class);
 

@@ -20,9 +20,11 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.List;
@@ -51,6 +53,9 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     public void testFetchTen() throws IOException {
         testQuery(null, """
@@ -106,7 +111,7 @@ public class StoredFieldsSequentialIT extends ESRestTestCase {
         setPercent(percent);
         RestEsqlTestCase.RequestObjectBuilder builder = requestObjectBuilder().query(query);
         builder.profile(true);
-        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
+        Map<String, Object> result = runEsql(builder, new AssertWarnings.NoWarnings(), profileLogger, RestEsqlTestCase.Mode.SYNC);
         assertMap(
             result,
             matchesMap().entry("documents_found", documentsFound)

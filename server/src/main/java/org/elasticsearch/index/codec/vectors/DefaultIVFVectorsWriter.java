@@ -48,6 +48,76 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         this.vectorPerCluster = vectorPerCluster;
     }
 
+    private static void deltaEncode(int[] vals, int size, int[] deltas) {
+        if (size == 0) {
+            return;
+        }
+        deltas[0] = vals[0];
+        for (int i = 1; i < size; i++) {
+            assert vals[i] >= vals[i - 1] : "vals are not sorted: " + vals[i] + " < " + vals[i - 1];
+            deltas[i] = vals[i] - vals[i - 1];
+        }
+    }
+
+    private static void translateOrdsToDocs(
+        int[] ords,
+        int size,
+        int[] spillOrds,
+        int spillSize,
+        int[] docIds,
+        int[] spillDocIds,
+        IntToIntFunction ordToDoc
+    ) {
+        int ordIdx = 0, spillOrdIdx = 0;
+        while (ordIdx < size || spillOrdIdx < spillSize) {
+            int nextOrd = (ordIdx < size) ? ords[ordIdx] : Integer.MAX_VALUE;
+            int nextSpillOrd = (spillOrdIdx < spillSize) ? spillOrds[spillOrdIdx] : Integer.MAX_VALUE;
+            if (nextOrd < nextSpillOrd) {
+                docIds[ordIdx] = ordToDoc.apply(nextOrd);
+                ordIdx++;
+            } else {
+                spillDocIds[spillOrdIdx] = ordToDoc.apply(nextSpillOrd);
+                spillOrdIdx++;
+            }
+        }
+    }
+
+    private static void pivotAssignments(
+        int centroidCount,
+        int[] assignments,
+        int[] overspillAssignments,
+        int[][] assignmentsByCluster,
+        int[][] overspillAssignmentsByCluster
+    ) {
+        int[] centroidVectorCount = new int[centroidCount];
+        int[] overspillVectorCount = new int[centroidCount];
+        for (int i = 0; i < assignments.length; i++) {
+            centroidVectorCount[assignments[i]]++;
+            // if soar assignments are present, count them as well
+            if (overspillAssignments.length > i && overspillAssignments[i] != -1) {
+                overspillVectorCount[overspillAssignments[i]]++;
+            }
+        }
+        for (int c = 0; c < centroidCount; c++) {
+            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
+            overspillAssignmentsByCluster[c] = new int[overspillVectorCount[c]];
+        }
+        Arrays.fill(centroidVectorCount, 0);
+        Arrays.fill(overspillVectorCount, 0);
+
+        for (int i = 0; i < assignments.length; i++) {
+            int c = assignments[i];
+            assignmentsByCluster[c][centroidVectorCount[c]++] = i;
+            // if soar assignments are present, add them to the cluster as well
+            if (overspillAssignments.length > i) {
+                int s = overspillAssignments[i];
+                if (s != -1) {
+                    overspillAssignmentsByCluster[s][overspillVectorCount[s]++] = i;
+                }
+            }
+        }
+    }
+
     @Override
     LongValues buildAndWritePostingsLists(
         FieldInfo fieldInfo,
@@ -57,37 +127,20 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         int[] assignments,
         int[] overspillAssignments
     ) throws IOException {
-        int[] centroidVectorCount = new int[centroidSupplier.size()];
-        for (int i = 0; i < assignments.length; i++) {
-            centroidVectorCount[assignments[i]]++;
-            // if soar assignments are present, count them as well
-            if (overspillAssignments.length > i && overspillAssignments[i] != -1) {
-                centroidVectorCount[overspillAssignments[i]]++;
-            }
-        }
 
-        int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
-        for (int c = 0; c < centroidSupplier.size(); c++) {
-            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
-        }
-        Arrays.fill(centroidVectorCount, 0);
-
-        for (int i = 0; i < assignments.length; i++) {
-            int c = assignments[i];
-            assignmentsByCluster[c][centroidVectorCount[c]++] = i;
-            // if soar assignments are present, add them to the cluster as well
-            if (overspillAssignments.length > i) {
-                int s = overspillAssignments[i];
-                if (s != -1) {
-                    assignmentsByCluster[s][centroidVectorCount[s]++] = i;
-                }
-            }
-        }
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-        DocIdsWriter docIdsWriter = new DocIdsWriter();
         DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
-        OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
+        // pivot the assignments into clusters
+        int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
+        int[][] overspillAssignmentsByCluster = new int[centroidSupplier.size()][];
+        pivotAssignments(centroidSupplier.size(), assignments, overspillAssignments, assignmentsByCluster, overspillAssignmentsByCluster);
+
+        int[] docIds = null;
+        int[] docDeltas = null;
+        int[] spillDocIds = null;
+        int[] spillDeltas = null;
+        final OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
             fieldInfo.getVectorDimension(),
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
@@ -96,26 +149,47 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
+            int[] overspillCluster = overspillAssignmentsByCluster[c];
             offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
             buffer.asFloatBuffer().put(centroid);
             // write raw centroid for quantizing the query vectors
             postingsOutput.writeBytes(buffer.array(), buffer.array().length);
-            // write centroid dot product for quantizing the query vectors
-            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
             int size = cluster.length;
-            // write docIds
-            postingsOutput.writeVInt(size);
-            onHeapQuantizedVectors.reset(centroid, size, ord -> cluster[ord]);
+            int spillSize = overspillCluster.length;
+            if (docIds == null || docIds.length < size) {
+                docIds = new int[size];
+                docDeltas = new int[size];
+            }
+            if (spillDocIds == null || spillDocIds.length < spillSize) {
+                spillDocIds = new int[spillSize];
+                spillDeltas = new int[spillSize];
+            }
+            translateOrdsToDocs(cluster, size, overspillCluster, spillSize, docIds, spillDocIds, floatVectorValues::ordToDoc);
+            // encode doc deltas
+            if (size > 0) {
+                deltaEncode(docIds, size, docDeltas);
+            }
+            if (spillSize > 0) {
+                deltaEncode(spillDocIds, spillSize, spillDeltas);
+            }
+            postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+            postingsOutput.writeInt(size);
+            postingsOutput.writeInt(spillSize);
             // TODO we might want to consider putting the docIds in a separate file
             // to aid with only having to fetch vectors from slower storage when they are required
             // keeping them in the same file indicates we pull the entire file into cache
-            docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
-            // write vectors
+            postingsOutput.writeGroupVInts(docDeltas, size);
+            postingsOutput.writeGroupVInts(spillDeltas, spillSize);
+            onHeapQuantizedVectors.reset(centroid, size, j -> cluster[j]);
+            bulkWriter.writeVectors(onHeapQuantizedVectors);
+            // write overspill vectors
+            onHeapQuantizedVectors.reset(centroid, spillSize, j -> overspillCluster[j]);
             bulkWriter.writeVectors(onHeapQuantizedVectors);
         }
 
         if (logger.isDebugEnabled()) {
             printClusterQualityStatistics(assignmentsByCluster);
+            printClusterQualityStatistics(overspillAssignmentsByCluster);
         }
 
         return offsets.build();
@@ -177,69 +251,73 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 mergeState.segmentInfo.dir.deleteFile(quantizedVectorsTemp.getName());
             }
         }
-        int[] centroidVectorCount = new int[centroidSupplier.size()];
-        for (int i = 0; i < assignments.length; i++) {
-            centroidVectorCount[assignments[i]]++;
-            // if soar assignments are present, count them as well
-            if (overspillAssignments.length > i && overspillAssignments[i] != -1) {
-                centroidVectorCount[overspillAssignments[i]]++;
-            }
-        }
-
         int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
-        boolean[][] isOverspillByCluster = new boolean[centroidSupplier.size()][];
-        for (int c = 0; c < centroidSupplier.size(); c++) {
-            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
-            isOverspillByCluster[c] = new boolean[centroidVectorCount[c]];
-        }
-        Arrays.fill(centroidVectorCount, 0);
-
-        for (int i = 0; i < assignments.length; i++) {
-            int c = assignments[i];
-            assignmentsByCluster[c][centroidVectorCount[c]++] = i;
-            // if soar assignments are present, add them to the cluster as well
-            if (overspillAssignments.length > i) {
-                int s = overspillAssignments[i];
-                if (s != -1) {
-                    assignmentsByCluster[s][centroidVectorCount[s]] = i;
-                    isOverspillByCluster[s][centroidVectorCount[s]++] = true;
-                }
-            }
-        }
+        int[][] overspillAssignmentsByCluster = new int[centroidSupplier.size()][];
+        // pivot the assignments into clusters
+        pivotAssignments(centroidSupplier.size(), assignments, overspillAssignments, assignmentsByCluster, overspillAssignmentsByCluster);
         // now we can read the quantized vectors from the temporary file
         try (IndexInput quantizedVectorsInput = mergeState.segmentInfo.dir.openInput(quantizedVectorsTempName, IOContext.DEFAULT)) {
             final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-            OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
+
+            final DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(
+                ES91OSQVectorsScorer.BULK_SIZE,
+                postingsOutput
+            );
+            final OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
                 quantizedVectorsInput,
                 fieldInfo.getVectorDimension()
             );
-            DocIdsWriter docIdsWriter = new DocIdsWriter();
-            DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
+            int[] docIds = null;
+            int[] docDeltas = null;
+            int[] spillDocIds = null;
+            int[] spillDeltas = null;
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
-                boolean[] isOverspill = isOverspillByCluster[c];
+                int[] overspillCluster = overspillAssignmentsByCluster[c];
                 offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
                 // write raw centroid for quantizing the query vectors
                 buffer.asFloatBuffer().put(centroid);
                 postingsOutput.writeBytes(buffer.array(), buffer.array().length);
-                // write centroid dot product for quantizing the query vectors
-                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
-                // write docIds
                 int size = cluster.length;
-                postingsOutput.writeVInt(size);
-                offHeapQuantizedVectors.reset(size, ord -> isOverspill[ord], ord -> cluster[ord]);
+                int spillSize = overspillCluster.length;
+                if (docIds == null || docIds.length < size) {
+                    docIds = new int[size];
+                    docDeltas = new int[size];
+                }
+                if (spillDocIds == null || spillDocIds.length < spillSize) {
+                    spillDocIds = new int[spillSize];
+                    spillDeltas = new int[spillSize];
+                }
+                // translate ordinals to docIds
+                translateOrdsToDocs(cluster, size, overspillCluster, spillSize, docIds, spillDocIds, floatVectorValues::ordToDoc);
+                // encode doc deltas
+                if (size > 0) {
+                    deltaEncode(docIds, size, docDeltas);
+                }
+                if (spillSize > 0) {
+                    deltaEncode(spillDocIds, spillSize, spillDeltas);
+                }
+                postingsOutput.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(centroid, centroid)));
+                postingsOutput.writeInt(size);
+                postingsOutput.writeInt(spillSize);
                 // TODO we might want to consider putting the docIds in a separate file
                 // to aid with only having to fetch vectors from slower storage when they are required
                 // keeping them in the same file indicates we pull the entire file into cache
-                docIdsWriter.writeDocIds(j -> floatVectorValues.ordToDoc(cluster[j]), size, postingsOutput);
-                // write vectors
+                postingsOutput.writeGroupVInts(docDeltas, size);
+                postingsOutput.writeGroupVInts(spillDeltas, spillSize);
+                // write overspill vectors
+
+                offHeapQuantizedVectors.reset(size, false, j -> cluster[j]);
+                bulkWriter.writeVectors(offHeapQuantizedVectors);
+                offHeapQuantizedVectors.reset(spillSize, true, j -> overspillCluster[j]);
                 bulkWriter.writeVectors(offHeapQuantizedVectors);
             }
 
             if (logger.isDebugEnabled()) {
                 printClusterQualityStatistics(assignmentsByCluster);
+                printClusterQualityStatistics(overspillAssignmentsByCluster);
             }
             return offsets.build();
         }
@@ -411,10 +489,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         OptimizedScalarQuantizer.QuantizationResult getCorrections() throws IOException;
     }
 
-    interface IntToBooleanFunction {
-        boolean apply(int ord);
-    }
-
     static class OnHeapQuantizedVectors implements QuantizedVectorValues {
         private final FloatVectorValues vectorValues;
         private final OptimizedScalarQuantizer quantizer;
@@ -436,7 +510,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.corrections = null;
         }
 
-        private void reset(float[] centroid, int count, IntToIntFunction ordTransformer) {
+        void reset(float[] centroid, int count, IntToIntFunction ordTransformer) {
             this.currentCentroid = centroid;
             this.ordTransformer = ordTransformer;
             this.currOrd = -1;
@@ -482,7 +556,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         private short bitSum;
         private int currOrd = -1;
         private int count;
-        private IntToBooleanFunction isOverspill = null;
+        private boolean isOverspill;
         private IntToIntFunction ordTransformer = null;
 
         OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, int dimension) {
@@ -491,7 +565,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Short.BYTES);
         }
 
-        private void reset(int count, IntToBooleanFunction isOverspill, IntToIntFunction ordTransformer) {
+        private void reset(int count, boolean isOverspill, IntToIntFunction ordTransformer) {
             this.count = count;
             this.isOverspill = isOverspill;
             this.ordTransformer = ordTransformer;
@@ -510,7 +584,6 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
             currOrd++;
             int ord = ordTransformer.apply(currOrd);
-            boolean isOverspill = this.isOverspill.apply(currOrd);
             return getVector(ord, isOverspill);
         }
 

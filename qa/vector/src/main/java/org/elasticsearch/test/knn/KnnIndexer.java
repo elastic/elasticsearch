@@ -25,6 +25,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.DirectoryReader;
@@ -33,6 +34,8 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.PrintStreamInfoStream;
 import org.elasticsearch.common.io.Channels;
@@ -69,6 +72,7 @@ class KnnIndexer {
     private final Codec codec;
     private final int numDocs;
     private final int numIndexThreads;
+    private final boolean sortIndex;
 
     KnnIndexer(
         List<Path> docsPath,
@@ -78,7 +82,8 @@ class KnnIndexer {
         VectorEncoding vectorEncoding,
         int dim,
         VectorSimilarityFunction similarityFunction,
-        int numDocs
+        int numDocs,
+        boolean sortIndex
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -88,6 +93,7 @@ class KnnIndexer {
         this.dim = dim;
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
+        this.sortIndex = sortIndex;
     }
 
     void numSegments(KnnIndexTester.Results result) {
@@ -103,7 +109,9 @@ class KnnIndexer {
         iwc.setCodec(codec);
         iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
         iwc.setUseCompoundFile(false);
-
+        if (sortIndex) {
+            iwc.setIndexSort(new Sort(new SortField(ID_FIELD + "_sort", SortField.Type.LONG, false)));
+        }
         iwc.setMaxFullFlushMergeWaitMillis(0);
 
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
@@ -292,6 +300,7 @@ class KnnIndexer {
                     logger.debug("Done indexing " + (id + 1) + " documents.");
                 }
                 doc.add(new StoredField(ID_FIELD, id));
+                doc.add(new NumericDocValuesField(ID_FIELD + "_sort", id));
                 iw.addDocument(doc);
             }
         }

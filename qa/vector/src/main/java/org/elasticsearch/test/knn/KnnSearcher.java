@@ -115,6 +115,7 @@ class KnnSearcher {
     private final float overSamplingFactor;
     private final int searchThreads;
     private final int numSearchers;
+    private final CmdLineArgs.FILTER_KIND filterKind;
 
     KnnSearcher(Path indexPath, CmdLineArgs cmdLineArgs, int nProbe) {
         this.docPath = cmdLineArgs.docVectors();
@@ -137,10 +138,13 @@ class KnnSearcher {
         this.numSearchers = cmdLineArgs.numSearchers();
         this.randomSeed = cmdLineArgs.seed();
         this.selectivity = cmdLineArgs.filterSelectivity();
+        this.filterKind = cmdLineArgs.filterKind();
     }
 
     void runSearch(KnnIndexTester.Results finalResults, boolean earlyTermination) throws IOException {
-        Query filterQuery = this.selectivity < 1f ? generateRandomQuery(new Random(randomSeed), indexPath, numDocs, selectivity) : null;
+        Query filterQuery = this.selectivity < 1f
+            ? generateRandomQuery(new Random(randomSeed), indexPath, numDocs, selectivity, filterKind)
+            : null;
         TopDocs[] results = new TopDocs[numQueryVectors];
         int[][] resultIds = new int[numQueryVectors][];
         long elapsed, totalCpuTimeMS, totalVisited = 0;
@@ -307,14 +311,27 @@ class KnnSearcher {
         finalResults.avgCpuCount = (double) totalCpuTimeMS / elapsed;
     }
 
-    private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity) throws IOException {
+    private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, CmdLineArgs.FILTER_KIND filterKind)
+        throws IOException {
         FixedBitSet bitSet = new FixedBitSet(size);
-        for (int i = 0; i < size; i++) {
-            if (random.nextFloat() < selectivity) {
-                bitSet.set(i);
-            } else {
-                bitSet.clear(i);
-            }
+        switch (filterKind) {
+            case RANDOM:
+                for (int i = 0; i < size; i++) {
+                    if (random.nextFloat() < selectivity) {
+                        bitSet.set(i);
+                    } else {
+                        bitSet.clear(i);
+                    }
+                }
+                break;
+            case RANGE:
+                int rangeBound = (int) (size * selectivity);
+                // set a random range of bits of length rangeBound
+                int start = random.nextInt(size - rangeBound);
+                for (int i = start; i < start + rangeBound; i++) {
+                    bitSet.set(i);
+                }
+                break;
         }
 
         try (Directory dir = FSDirectory.open(indexPath); DirectoryReader reader = DirectoryReader.open(dir)) {
@@ -346,6 +363,7 @@ class KnnSearcher {
                 topK,
                 similarityFunction.ordinal(),
                 selectivity,
+                filterKind,
                 randomSeed
             ),
             36

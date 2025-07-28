@@ -58,7 +58,7 @@ setup:
   - match: { hits.hits.0._id: "1" }
 
 ---
-"Weighted RRF retriever defaults to weight 1":
+"Weighted RRF retriever allows optional weight field":
   - do:
       search:
         index: restaurants
@@ -79,6 +79,31 @@ setup:
                   weight: 0.7
   - match: { hits.total.value: 3 }
   - match: { hits.hits.0._id: "1" }
+
+---
+"Weighted RRF retriever changes result order":
+  - do:
+      search:
+        index: restaurants
+        body:
+          retriever:
+            rrf:
+              retrievers:
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          description: "pizza"
+                  weight: 0.1
+                - retriever:
+                    standard:
+                      query:
+                        match:
+                          description: "burgers"
+                  weight: 0.9
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
 
 ---
 "Weighted RRF retriever errors on negative weight":

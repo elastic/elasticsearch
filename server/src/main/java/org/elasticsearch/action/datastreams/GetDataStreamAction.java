@@ -423,15 +423,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.startObject(SETTINGS_FIELD.getPreferredName());
                 dataStream.getSettings().toXContent(builder, params);
                 builder.endObject();
-                if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-                    builder.field(MAPPINGS_FIELD.getPreferredName());
-                    Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(
-                        dataStream.getMappings().uncompressed(),
-                        true,
-                        builder.contentType()
-                    ).v2();
-                    builder.map(uncompressedMappings);
-                }
+                builder.field(MAPPINGS_FIELD.getPreferredName());
+                Map<String, Object> uncompressedMappings = XContentHelper.convertToMap(
+                    dataStream.getMappings().uncompressed(),
+                    true,
+                    builder.contentType()
+                ).v2();
+                builder.map(uncompressedMappings);
                 builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
                 builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
                 builder.field(DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(), dataStream.getFailureComponent().isRolloverOnWrite());

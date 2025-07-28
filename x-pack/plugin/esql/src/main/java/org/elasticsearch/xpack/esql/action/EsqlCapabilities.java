@@ -98,6 +98,11 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_UNSIGNED_LONG,
 
         /**
+         * Accept unsigned longs on VALUES and SAMPLE aggregations.
+         */
+        AGG_VALUES_SAMPLE_UNSIGNED_LONG,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,

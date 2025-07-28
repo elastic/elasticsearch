@@ -1,13 +1,13 @@
 pr: 131261
-summary: Enable failure store for log-*-* data streams
+summary: Enable Failure Store for new logs-*-* data streams
 area: Data streams
 type: feature
 issues:
  - 131105
 highlight:
-  title: Enable failure store for log data streams
+  title: Enable Failure Store for new logs data streams
   body: |-
-    The failure store is now enabled for `log-*-*` data streams. This means that such data streams will now store invalid documents in a
-    dedicated failure index instead of rejecting them. Clients that previously received a `400 Bad Request` response when indexing invalid
-    documents will now receive a `201 Created` response, that would also contain the marker: `failure_store: used`.
+    The [Failure Store](https://www.elastic.co/docs/manage-data/data-store/data-streams/failure-store) is now enabled by default for new logs data streams matching the pattern `logs-*-*`. This means that such data streams will now store invalid documents in a
+    dedicated failure index instead of rejecting them, allowing better visibility and control over data quality issues without loosing data. This can be [enabled manually](https://www.elastic.co/docs/manage-data/data-store/data-streams/failure-store#set-up-failure-store-existing) for existing data streams. 
+    Note: With the failure store enabled, the http response code clients receive when indexing invalid documents will change from `400 Bad Request` to `201 Created`, with an additional response attribute `"failure_store" : "used"`. 
   notable: true

@@ -1421,7 +1421,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     /**
      * Cache of capabilities.
      */
-    private static final Map<List<String>, Boolean> capabilities = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<List<String>, Boolean> capabilities = new ConcurrentHashMap<>();
 
     public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) throws IOException {
         if (requiredCapabilities.isEmpty()) {

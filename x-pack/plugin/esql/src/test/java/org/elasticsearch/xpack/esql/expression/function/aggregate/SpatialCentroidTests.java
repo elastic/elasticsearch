@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.license.License;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -39,6 +40,10 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
+        return SpatialAggregationTestCase.licenseRequirement(fieldTypes);
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         var suppliers = Stream.of(
@@ -47,7 +52,6 @@ public class SpatialCentroidTests extends AbstractAggregationTestCase {
         ).flatMap(List::stream).map(SpatialCentroidTests::makeSupplier).toList();
 
         // The withNoRowsExpectingNull() cases don't work here, as this aggregator doesn't return nulls.
-        // return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
         return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
     }
 

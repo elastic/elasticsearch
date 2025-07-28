@@ -33,6 +33,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -47,6 +48,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -220,14 +222,13 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 ctx -> internalCluster().getInstance(TransportEsqlQueryAction.class, finalNodeWithShard).getLookupFromIndexService(),
                 keyType,
                 "lookup",
-                "key",
+                new FieldAttribute.FieldName("key"),
                 List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
                 Source.EMPTY
             );
             DriverContext driverContext = driverContext();
             try (
-                var driver = new Driver(
-                    "test",
+                var driver = TestDriverFactory.create(
                     driverContext,
                     source.get(driverContext),
                     List.of(reader.get(driverContext), lookup.get(driverContext)),
@@ -247,8 +248,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         } finally {
                             page.releaseBlocks();
                         }
-                    }),
-                    () -> {}
+                    })
                 )
             ) {
                 PlainActionFuture<Void> future = new PlainActionFuture<>();

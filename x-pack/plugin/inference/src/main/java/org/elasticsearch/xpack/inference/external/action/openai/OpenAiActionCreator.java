@@ -43,7 +43,7 @@ public class OpenAiActionCreator implements OpenAiActionVisitor {
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var errorMessage = constructFailedToSendRequestMessage(overriddenModel.getServiceSettings().uri(), "OpenAI embeddings");
+        var errorMessage = constructFailedToSendRequestMessage("OpenAI embeddings");
         return new SenderExecutableAction(sender, requestCreator, errorMessage);
     }
 
@@ -51,7 +51,7 @@ public class OpenAiActionCreator implements OpenAiActionVisitor {
     public ExecutableAction create(OpenAiChatCompletionModel model, Map<String, Object> taskSettings) {
         var overriddenModel = OpenAiChatCompletionModel.of(model, taskSettings);
         var requestCreator = OpenAiCompletionRequestManager.of(overriddenModel, serviceComponents.threadPool());
-        var errorMessage = constructFailedToSendRequestMessage(overriddenModel.getServiceSettings().uri(), COMPLETION_ERROR_PREFIX);
+        var errorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
         return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, COMPLETION_ERROR_PREFIX);
     }
 }

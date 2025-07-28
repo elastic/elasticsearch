@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -1693,6 +1694,81 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testSystemDataStreamsIgnoredByValidateIndexTemplateV2() throws Exception {
+        /*
+         * This test makes sure that system data streams (which do not have named templates) do not appear in the list of data streams
+         * without named templates when validateIndexTemplateV2 fails due to another non-system data stream not having a named template.
+         */
+        MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
+        final String dataStreamTemplateName = "data_stream_template";
+        final String indexTemplateName = "index_template";
+        final String systemDataStreamName = "system_ds";
+        final String ordinaryDataStreamName = "my_ds";
+        final String ordinaryDataStreamIndexPattern = "my_ds*";
+        ComposableIndexTemplate highPriorityDataStreamTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(ordinaryDataStreamIndexPattern))
+            .priority(275L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean()))
+            .build();
+        ComposableIndexTemplate highPriorityIndexTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(ordinaryDataStreamIndexPattern))
+            .priority(200L)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(
+                Metadata.builder()
+                    .dataStreams(
+                        Map.of(
+                            systemDataStreamName,
+                            DataStreamTestHelper.randomInstance(systemDataStreamName, System::currentTimeMillis, randomBoolean(), true),
+                            ordinaryDataStreamName,
+                            DataStreamTestHelper.randomInstance(ordinaryDataStreamName, System::currentTimeMillis, randomBoolean(), false)
+                        ),
+                        Map.of()
+                    )
+                    .indexTemplates(
+                        Map.of(dataStreamTemplateName, highPriorityDataStreamTemplate, indexTemplateName, highPriorityIndexTemplate)
+                    )
+            )
+            .build();
+        ComposableIndexTemplate lowPriorityDataStreamTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(ordinaryDataStreamIndexPattern))
+            .priority(1L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean()))
+            .build();
+        /*
+         * Here we attempt to change the priority of a template that matches an existing non-system data stream so that it is so low that
+         * the data stream matches the index (non data-stream) template instead. We expect an error, but that the error only mentions the
+         * non-system data stream.
+         */
+        Exception exception = expectThrows(
+            Exception.class,
+            () -> metadataIndexTemplateService.validateIndexTemplateV2(dataStreamTemplateName, lowPriorityDataStreamTemplate, clusterState)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                Strings.format(
+                    "composable template [%s] with index patterns [%s], priority [1] would cause data streams [%s] to no longer "
+                        + "match a data stream template",
+                    dataStreamTemplateName,
+                    ordinaryDataStreamIndexPattern,
+                    ordinaryDataStreamName
+                )
+            )
+        );
+        ComposableIndexTemplate mediumPriorityDataStreamTemplate = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(ordinaryDataStreamIndexPattern))
+            .priority(201L)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(randomBoolean(), randomBoolean()))
+            .build();
+        /*
+         * We have now corrected the problem -- the priority of the new template is lower than the old data stream template but still higher
+         * than the non-data-stream index template. So we expect no validation errors.
+         */
+        metadataIndexTemplateService.validateIndexTemplateV2(dataStreamTemplateName, mediumPriorityDataStreamTemplate, clusterState);
+    }
+
     private ClusterState addComponentTemplate(
         MetadataIndexTemplateService service,
         ClusterState state,
@@ -2590,6 +2666,59 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(
             parsedMappings.get(1),
             equalTo(Map.of("_doc", Map.of("properties", Map.of("parent.subfield", Map.of("type", "keyword")))))
+        );
+    }
+
+    public void testComposableTemplateWithSubobjectsFalseObjectAndSubfield() throws Exception {
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ClusterState state = ClusterState.EMPTY_STATE;
+
+        ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "properties": {
+                "foo": {
+                   "type": "object",
+                   "subobjects": false
+                 },
+                 "foo.bar": {
+                   "type": "keyword"
+                 }
+              }
+            }
+            """), null), null, null);
+
+        state = service.addComponentTemplate(state, true, "subobjects", subobjects);
+        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(new Template(null, null, null))
+            .componentTemplates(List.of("subobjects", "field_mapping"))
+            .priority(0L)
+            .version(1L)
+            .build();
+        state = service.addIndexTemplateV2(state, true, "composable-template", it);
+
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "composable-template", "test-index");
+
+        assertNotNull(mappings);
+        assertThat(mappings.size(), equalTo(1));
+        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
+            try {
+                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
+            } catch (Exception e) {
+                logger.error(e);
+                fail("failed to parse mappings: " + m.string());
+                return null;
+            }
+        }).toList();
+
+        assertThat(
+            parsedMappings.get(0),
+            equalTo(
+                Map.of(
+                    "_doc",
+                    Map.of("properties", Map.of("foo.bar", Map.of("type", "keyword"), "foo", Map.of("type", "object", "subobjects", false)))
+                )
+            )
         );
     }
 

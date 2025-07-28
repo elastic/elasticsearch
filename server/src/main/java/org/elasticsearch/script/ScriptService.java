@@ -687,12 +687,12 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         PutStoredScriptRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        if (request.content().length() > maxSizeInBytes) {
+        if (request.contentLength() > maxSizeInBytes) {
             throw new IllegalArgumentException(
                 "exceeded max allowed stored script size in bytes ["
                     + maxSizeInBytes
                     + "] with size ["
-                    + request.content().length()
+                    + request.contentLength()
                     + "] for script ["
                     + request.id()
                     + "]"

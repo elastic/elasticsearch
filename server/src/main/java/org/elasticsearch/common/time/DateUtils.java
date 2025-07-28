@@ -186,7 +186,7 @@ public class DateUtils {
 
     /**
      * convert a java time instant to a long value which is stored in lucene
-     * the long value resembles the nanoseconds since the epoch
+     * the long value represents the nanoseconds since the epoch
      *
      * @param instant the instant to convert
      * @return        the nano seconds and seconds as a single long
@@ -206,9 +206,34 @@ public class DateUtils {
     }
 
     /**
+     * Convert a java time instant to a long value which is stored in lucene,
+     * the long value represents the milliseconds since epoch
+     *
+     * @param instant the instant to convert
+     * @return        the total milliseconds as a single long
+     */
+    public static long toLongMillis(Instant instant) {
+        try {
+            return instant.toEpochMilli();
+        } catch (ArithmeticException e) {
+            if (instant.isAfter(Instant.now())) {
+                throw new IllegalArgumentException(
+                    "date[" + instant + "] is too far in the future to be represented in a long milliseconds variable",
+                    e
+                );
+            } else {
+                throw new IllegalArgumentException(
+                    "date[" + instant + "] is too far in the past to be represented in a long milliseconds variable",
+                    e
+                );
+            }
+        }
+    }
+
+    /**
      * Returns an instant that is with valid nanosecond resolution. If
      * the parameter is before the valid nanosecond range then this returns
-     * the minimum {@linkplain Instant} valid for nanosecond resultion. If
+     * the minimum {@linkplain Instant} valid for nanosecond resolution. If
      * the parameter is after the valid nanosecond range then this returns
      * the maximum {@linkplain Instant} valid for nanosecond resolution.
      * <p>

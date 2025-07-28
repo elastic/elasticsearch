@@ -96,10 +96,16 @@
                     "snapshot": {
                       "type": "boolean"
                     },
+                    "complete": {
+                      "type": "boolean"
+                    },
                     "upgradeable": {
                       "type": "boolean"
                     },
                     "unprivileged": {
+                      "type": "boolean"
+                    },
+                    "fips": {
                       "type": "boolean"
                     },
                     "version": {

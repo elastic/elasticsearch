@@ -136,6 +136,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     public PhysicalPlan estimateRowSize(State state) {
         state.add(false, aggregates);  // The groupings are contained within the aggregates
         int size = state.consumeAllFields(true);
+        size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size)
             ? this
             : new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, size);
@@ -185,8 +186,8 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     @Override
     protected AttributeSet computeReferences() {
         return mode.isInputPartial()
-            ? new AttributeSet(intermediateAttributes)
-            : Aggregate.computeReferences(aggregates, groupings).subtract(new AttributeSet(ordinalAttributes()));
+            ? AttributeSet.of(intermediateAttributes)
+            : Aggregate.computeReferences(aggregates, groupings).subtract(AttributeSet.of(ordinalAttributes()));
     }
 
     /** Returns the attributes that can be loaded from ordinals -- no explicit extraction is needed */

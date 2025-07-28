@@ -83,4 +83,10 @@ public class ToDatePeriodTests extends AbstractScalarFunctionTestCase {
     public void testSerializationOfSimple() {
         assertTrue("Serialization test does not apply", true);
     }
+
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        // Can't be serialized
+        return expression;
+    }
 }

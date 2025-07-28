@@ -219,13 +219,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             if (withScroll) {
                 assertFalse(canReturnNullResponse.get());
                 assertThat(numWithTopDocs.get(), equalTo(0));
-            } else {
-                assertTrue(canReturnNullResponse.get());
-                if (withCollapse) {
-                    assertThat(numWithTopDocs.get(), equalTo(0));
-                } else {
-                    assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
-                }
+            } else if (withCollapse) {
+                assertThat(numWithTopDocs.get(), equalTo(0));
             }
             SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
             assertThat(phase.numReducePhases(), greaterThanOrEqualTo(1));

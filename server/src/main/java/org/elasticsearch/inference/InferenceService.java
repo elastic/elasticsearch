@@ -241,4 +241,10 @@ public interface InferenceService extends Closeable {
     default void updateModelsWithDynamicFields(List<Model> model, ActionListener<List<Model>> listener) {
         listener.onResponse(model);
     }
+
+    /**
+     * Called after the Elasticsearch node has completed its start up. This allows the service to perform initialization
+     * after ensuring the node's internals are set up (for example if this ensures the internal ES client is ready for use).
+     */
+    default void onNodeStarted() {}
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
 
 import java.util.ArrayList;
@@ -28,7 +29,10 @@ import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.E
 
 /**
  * A service that allows the resolution of {@link AnalyticsCollection} by name.
+ * @deprecated in 9.0
  */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class AnalyticsCollectionResolver {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 

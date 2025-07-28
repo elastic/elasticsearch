@@ -344,18 +344,21 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        final List<B> originalBuckets = getBuckets();
+        final List<B> buckets = new ArrayList<>(originalBuckets.size());
+        for (B bucket : originalBuckets) {
+            buckets.add(
+                createBucket(
+                    samplingContext.scaleUp(bucket.getDocCount()),
+                    InternalAggregations.finalizeSampling(bucket.getAggregations(), samplingContext),
+                    getShowDocCountError() ? samplingContext.scaleUp(bucket.getDocCountError()) : 0,
+                    bucket
+                )
+            );
+        }
         return create(
             name,
-            getBuckets().stream()
-                .map(
-                    b -> createBucket(
-                        samplingContext.scaleUp(b.getDocCount()),
-                        InternalAggregations.finalizeSampling(b.getAggregations(), samplingContext),
-                        getShowDocCountError() ? samplingContext.scaleUp(b.getDocCountError()) : 0,
-                        b
-                    )
-                )
-                .toList(),
+            buckets,
             getOrder(),
             samplingContext.scaleUp(getDocCountError()),
             samplingContext.scaleUp(getSumOfOtherDocCounts())

@@ -6,13 +6,8 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
-  testImplementation project(':modules:ingest-common')
-}
-
-testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-  setting 'xpack.security.enabled', 'false'
-  setting 'node.roles', '[data,master,remote_cluster_client]'
+  clusterModules project(':modules:ingest-common')
 }

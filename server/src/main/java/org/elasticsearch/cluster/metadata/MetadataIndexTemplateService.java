@@ -838,7 +838,13 @@ public class MetadataIndexTemplateService {
      * addition/update time
      */
     private static void validateDataStreamsStillReferenced(ClusterState state, String templateName, ComposableIndexTemplate newTemplate) {
-        final Set<String> dataStreams = state.metadata().dataStreams().keySet();
+        final Set<String> dataStreams = state.metadata()
+            .dataStreams()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().isSystem() == false)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
 
         Function<Metadata, Set<String>> findUnreferencedDataStreams = meta -> {
             final Set<String> unreferenced = new HashSet<>();
@@ -895,12 +901,15 @@ public class MetadataIndexTemplateService {
         final String candidateName,
         final List<String> indexPatterns
     ) {
-        Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
+        // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+        // Determinization is avoided because it can fail or become very costly due to state explosion.
+        Automaton v2automaton = Regex.simpleMatchToNonDeterminizedAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (Map.Entry<String, IndexTemplateMetadata> cursor : state.metadata().templates().entrySet()) {
             String name = cursor.getKey();
             IndexTemplateMetadata template = cursor.getValue();
-            Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
+            // No need to determinize the automaton, as it is only used to check for intersection with another automaton.
+            Automaton v1automaton = Regex.simpleMatchToNonDeterminizedAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
                 logger.debug(
                     "composable template {} and legacy template {} would overlap: {} <=> {}",
@@ -1858,7 +1867,7 @@ public class MetadataIndexTemplateService {
             createdIndex = dummyIndexService.index();
 
             if (mappings != null) {
-                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
+                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.INDEX_TEMPLATE);
             }
 
         } finally {

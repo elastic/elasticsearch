@@ -13,6 +13,7 @@ import org.apache.http.nio.IOControl;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -39,51 +40,31 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
  * so this publisher will send a single HttpResult. If the HttpResponse is healthy, Apache will send an HttpResponse with or without
  * the HttpEntity.</p>
  */
-class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResponse>, Flow.Publisher<HttpResult> {
-    private final HttpSettings settings;
-    private final ActionListener<Flow.Publisher<HttpResult>> listener;
+class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<Void> {
+    private final ActionListener<StreamingHttpResult> listener;
     private final AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-    // used to manage the HTTP response
-    private volatile HttpResponse response;
-    private volatile Exception ex;
-
-    // used to control the state of this publisher (Apache) and its interaction with its subscriber
     private final AtomicBoolean isDone = new AtomicBoolean(false);
     private final AtomicBoolean subscriptionCanceled = new AtomicBoolean(false);
-    private volatile Flow.Subscriber<? super HttpResult> subscriber;
 
-    private final RequestBasedTaskRunner taskRunner;
-    private final AtomicBoolean pendingRequest = new AtomicBoolean(false);
-    private final Deque<Runnable> queue = new ConcurrentLinkedDeque<>();
-
-    // used to control the flow of data from the Apache client, if we're producing more bytes than we can consume then we'll pause
     private final SimpleInputBuffer inputBuffer = new SimpleInputBuffer(4096);
-    private final AtomicLong bytesInQueue = new AtomicLong(0);
-    private final Object ioLock = new Object();
-    private volatile IOControl savedIoControl;
+    private final DataPublisher publisher;
+    private final ApacheClientBackpressure backpressure;
 
-    StreamingHttpResultPublisher(ThreadPool threadPool, HttpSettings settings, ActionListener<Flow.Publisher<HttpResult>> listener) {
-        this.settings = Objects.requireNonNull(settings);
+    private volatile Exception exception;
+
+    StreamingHttpResultPublisher(ThreadPool threadPool, HttpSettings settings, ActionListener<StreamingHttpResult> listener) {
         this.listener = ActionListener.notifyOnce(Objects.requireNonNull(listener));
 
-        this.taskRunner = new RequestBasedTaskRunner(new OffloadThread(), threadPool, UTILITY_THREAD_POOL_NAME);
+        this.publisher = new DataPublisher(threadPool);
+        this.backpressure = new ApacheClientBackpressure(Objects.requireNonNull(settings));
     }
 
     @Override
     public void responseReceived(HttpResponse httpResponse) {
-        this.response = httpResponse;
-    }
-
-    @Override
-    public void subscribe(Flow.Subscriber<? super HttpResult> subscriber) {
-        if (this.subscriber != null) {
-            subscriber.onError(new IllegalStateException("Only one subscriber is allowed for this Publisher."));
-            return;
+        if (listenerCalled.compareAndSet(false, true)) {
+            listener.onResponse(new StreamingHttpResult(httpResponse, publisher));
         }
-
-        this.subscriber = subscriber;
-        subscriber.onSubscribe(new HttpSubscription());
     }
 
     @Override
@@ -100,46 +81,17 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
             if (consumed > 0) {
                 var allBytes = new byte[consumed];
                 inputBuffer.read(allBytes);
-                queue.offer(() -> {
-                    subscriber.onNext(new HttpResult(response, allBytes));
-                    var currentBytesInQueue = bytesInQueue.updateAndGet(current -> Long.max(0, current - allBytes.length));
-                    if (savedIoControl != null) {
-                        var maxBytes = settings.getMaxResponseSize().getBytes() * 0.5;
-                        if (currentBytesInQueue <= maxBytes) {
-                            resumeProducer();
-                        }
-                    }
-                });
-
-                // always check if totalByteSize > the configured setting in case the settings change
-                if (bytesInQueue.accumulateAndGet(allBytes.length, Long::sum) >= settings.getMaxResponseSize().getBytes()) {
-                    pauseProducer(ioControl);
-                }
-
-                taskRunner.requestNextRun();
-
-                if (listenerCalled.compareAndSet(false, true)) {
-                    listener.onResponse(this);
-                }
+                backpressure.addBytesAndMaybePause(consumed, ioControl);
+                publisher.onNext(allBytes);
             }
+        } catch (Exception e) {
+            // if the provider closes the connection in the middle of the stream,
+            // the contentDecoder will throw an exception trying to read the payload,
+            // we should catch that and forward it downstream so we can properly handle it
+            exception = e;
+            publisher.onError(e);
         } finally {
             inputBuffer.reset();
-        }
-    }
-
-    private void pauseProducer(IOControl ioControl) {
-        ioControl.suspendInput();
-        synchronized (ioLock) {
-            savedIoControl = ioControl;
-        }
-    }
-
-    private void resumeProducer() {
-        synchronized (ioLock) {
-            if (savedIoControl != null) {
-                savedIoControl.requestInput();
-                savedIoControl = null;
-            }
         }
     }
 
@@ -153,9 +105,8 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
             if (listenerCalled.compareAndSet(false, true)) {
                 listener.onFailure(e);
             } else {
-                ex = e;
-                queue.offer(() -> subscriber.onError(e));
-                taskRunner.requestNextRun();
+                exception = e;
+                publisher.onError(e);
             }
         }
     }
@@ -164,8 +115,7 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
     @Override
     public void close() {
         if (isDone.compareAndSet(false, true)) {
-            queue.offer(() -> subscriber.onComplete());
-            taskRunner.requestNextRun();
+            publisher.onComplete();
         }
     }
 
@@ -178,12 +128,12 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
 
     @Override
     public Exception getException() {
-        return ex;
+        return exception;
     }
 
     @Override
-    public HttpResponse getResult() {
-        return response;
+    public Void getResult() {
+        return null;
     }
 
     @Override
@@ -191,44 +141,148 @@ class StreamingHttpResultPublisher implements HttpAsyncResponseConsumer<HttpResp
         return isDone.get();
     }
 
-    private class HttpSubscription implements Flow.Subscription {
-        @Override
-        public void request(long n) {
-            if (subscriptionCanceled.get()) {
+    /**
+     * We only want to push payload data when the client is ready to receive it, so the client will use
+     * {@link Flow.Subscription#request(long)} to request more data. We collect the payload bytes in a queue and process them on a
+     * separate thread from both the Apache IO thread reading from the provider and the client's transport thread requesting more data.
+     * Clients use {@link Flow.Subscription#cancel()} to exit early, and we'll forward that cancellation to the provider.
+     */
+    private class DataPublisher implements Flow.Processor<byte[], byte[]> {
+        private final RequestBasedTaskRunner taskRunner;
+        private final Deque<byte[]> contentQueue = new ConcurrentLinkedDeque<>();
+        private final AtomicLong pendingRequests = new AtomicLong(0);
+        private volatile Exception pendingError = null;
+        private volatile boolean completed = false;
+        private volatile Flow.Subscriber<? super byte[]> downstream;
+
+        private DataPublisher(ThreadPool threadPool) {
+            this.taskRunner = new RequestBasedTaskRunner(this::sendToSubscriber, threadPool, UTILITY_THREAD_POOL_NAME);
+        }
+
+        private void sendToSubscriber() {
+            if (downstream == null) {
                 return;
             }
-
-            if (n > 0) {
-                pendingRequest.set(true);
-                taskRunner.requestNextRun();
-            } else {
-                // per Subscription's spec, fail the subscriber and stop the processor
-                cancel();
-                subscriber.onError(new IllegalArgumentException("Subscriber requested a non-positive number " + n));
+            if (pendingRequests.get() > 0 && pendingError != null) {
+                pendingRequests.decrementAndGet();
+                downstream.onError(pendingError);
+                return;
+            }
+            byte[] nextBytes;
+            while (pendingRequests.get() > 0 && (nextBytes = contentQueue.poll()) != null) {
+                pendingRequests.decrementAndGet();
+                backpressure.subtractBytesAndMaybeUnpause(nextBytes.length);
+                downstream.onNext(nextBytes);
+            }
+            if (pendingRequests.get() > 0 && contentQueue.isEmpty() && completed) {
+                pendingRequests.decrementAndGet();
+                downstream.onComplete();
             }
         }
 
         @Override
-        public void cancel() {
-            if (subscriptionCanceled.compareAndSet(false, true)) {
-                taskRunner.cancel();
+        public void subscribe(Flow.Subscriber<? super byte[]> subscriber) {
+            if (this.downstream != null) {
+                subscriber.onError(new IllegalStateException("Only one subscriber is allowed for this Publisher."));
+                return;
             }
+
+            this.downstream = subscriber;
+            downstream.onSubscribe(new Flow.Subscription() {
+                @Override
+                public void request(long n) {
+                    if (n > 0) {
+                        pendingRequests.addAndGet(n);
+                        taskRunner.requestNextRun();
+                    } else {
+                        // per Subscription's spec, fail the subscriber and stop the processor
+                        cancel();
+                        subscriber.onError(new IllegalArgumentException("Subscriber requested a non-positive number " + n));
+                    }
+                }
+
+                @Override
+                public void cancel() {
+                    if (subscriptionCanceled.compareAndSet(false, true)) {
+                        taskRunner.cancel();
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void onNext(byte[] item) {
+            contentQueue.offer(item);
+            taskRunner.requestNextRun();
+        }
+
+        @Override
+        public void onError(Throwable throwable) {
+            if (throwable instanceof Exception e) {
+                pendingError = e;
+            } else {
+                ExceptionsHelper.maybeError(throwable).ifPresent(ExceptionsHelper::maybeDieOnAnotherThread);
+                pendingError = new RuntimeException("Unhandled error while streaming");
+            }
+            taskRunner.requestNextRun();
+        }
+
+        @Override
+        public void onComplete() {
+            completed = true;
+            taskRunner.requestNextRun();
+        }
+
+        @Override
+        public void onSubscribe(Flow.Subscription subscription) {
+            assert false : "Apache never calls this.";
+            throw new UnsupportedOperationException("Apache never calls this.");
         }
     }
 
-    private class OffloadThread implements Runnable {
-        @Override
-        public void run() {
-            if (subscriptionCanceled.get()) {
-                return;
-            }
+    /**
+     * We want to keep track of how much memory we are consuming while reading the payload from the external provider. Apache continuously
+     * pushes payload data to us, whereas the client only requests the next set of bytes when they are ready, so we want to track how much
+     * data we are holding in memory and potentially pause the Apache client if we have reached our limit.
+     */
+    private static class ApacheClientBackpressure {
+        private final HttpSettings settings;
+        private final AtomicLong bytesInQueue = new AtomicLong(0);
+        private final Object ioLock = new Object();
+        private volatile IOControl savedIoControl;
 
-            if (queue.isEmpty() == false && pendingRequest.compareAndSet(true, false)) {
-                var next = queue.poll();
-                if (next != null) {
-                    next.run();
-                } else {
-                    pendingRequest.set(true);
+        private ApacheClientBackpressure(HttpSettings settings) {
+            this.settings = settings;
+        }
+
+        private void addBytesAndMaybePause(long count, IOControl ioControl) {
+            if (bytesInQueue.addAndGet(count) >= settings.getMaxResponseSize().getBytes()) {
+                pauseProducer(ioControl);
+            }
+        }
+
+        private void pauseProducer(IOControl ioControl) {
+            ioControl.suspendInput();
+            synchronized (ioLock) {
+                savedIoControl = ioControl;
+            }
+        }
+
+        private void subtractBytesAndMaybeUnpause(long count) {
+            var currentBytesInQueue = bytesInQueue.updateAndGet(current -> Long.max(0, current - count));
+            if (savedIoControl != null) {
+                var maxBytes = settings.getMaxResponseSize().getBytes() * 0.5;
+                if (currentBytesInQueue <= maxBytes) {
+                    resumeProducer();
+                }
+            }
+        }
+
+        private void resumeProducer() {
+            synchronized (ioLock) {
+                if (savedIoControl != null) {
+                    savedIoControl.requestInput();
+                    savedIoControl = null;
                 }
             }
         }

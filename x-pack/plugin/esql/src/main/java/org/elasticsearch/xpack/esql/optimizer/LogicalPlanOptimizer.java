@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
@@ -78,7 +79,7 @@ import static java.util.Arrays.asList;
  *     <li>The {@link LogicalPlanOptimizer#substitutions()} phase rewrites things to expand out shorthand in the syntax.  For example,
  *     a nested expression embedded in a stats gets replaced with an eval followed by a stats, followed by another eval.  This phase
  *     also applies surrogates, such as replacing an average with a sum divided by a count.</li>
- *     <li>{@link LogicalPlanOptimizer#operators()} (NB: The word "operator" is extremely overloaded and referrers to many different
+ *     <li>{@link LogicalPlanOptimizer#operators(boolean)} (NB: The word "operator" is extremely overloaded and referrers to many different
  *     things.) transform the tree in various different ways.  This includes folding (i.e. computing constant expressions at parse
  *     time), combining expressions, dropping redundant clauses, and some normalization such as putting literals on the right whenever
  *     possible.  These rules are run in a loop until none of the rules make any changes to the plan (there is also a safety shut off
@@ -86,7 +87,7 @@ import static java.util.Arrays.asList;
  *     <li>{@link LogicalPlanOptimizer#cleanup()}  Which can replace sorts+limit with a TopN</li>
  * </ul>
  *
- * <p>Note that the {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()} steps are reapplied at the
+ * <p>Note that the {@link LogicalPlanOptimizer#operators(boolean)} and {@link LogicalPlanOptimizer#cleanup()} steps are reapplied at the
  * {@link LocalLogicalPlanOptimizer} layer.</p>
  */
 public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LogicalOptimizerContext> {
@@ -117,7 +118,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
         var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(substitutions(), operators(), skip, cleanup(), label);
+        return asList(substitutions(), operators(false), skip, cleanup(), label);
     }
 
     protected static Batch<LogicalPlan> substitutions() {
@@ -139,21 +140,23 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
             new TranslateMetricsAggregate(),
             new ReplaceAggregateNestedExpressionWithEval(),
+            // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
+            // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin
+            new PropagateInlineEvals(),
             new ReplaceRegexMatch(),
             new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSpatialSurrogates(),
-            new ReplaceOrderByExpressionWithEval(),
-            new PropagateInlineEvals()
+            new ReplaceOrderByExpressionWithEval()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }
 
-    protected static Batch<LogicalPlan> operators() {
+    protected static Batch<LogicalPlan> operators(boolean local) {
         return new Batch<>(
             "Operator Optimization",
-            new CombineProjections(),
+            new CombineProjections(local),
             new CombineEvals(),
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
@@ -193,6 +196,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     protected static Batch<LogicalPlan> cleanup() {
-        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation());
+        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation(), new PropgateUnmappedFields());
     }
 }

@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,24 +25,24 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.convert.ParseIp.FROM_KEYWORD_LEADING_ZEROS_REJECTED;
 
 public class ToIP extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToIP", ToIP::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(IP, (field, source) -> field),
-        Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new),
-        Map.entry(SEMANTIC_TEXT, ToIPFromStringEvaluator.Factory::new)
+        Map.entry(IP, (source, field) -> field),
+        Map.entry(KEYWORD, FROM_KEYWORD_LEADING_ZEROS_REJECTED),
+        Map.entry(TEXT, FROM_KEYWORD_LEADING_ZEROS_REJECTED),
+        Map.entry(SEMANTIC_TEXT, FROM_KEYWORD_LEADING_ZEROS_REJECTED)
     );
 
     @FunctionInfo(
         returnType = "ip",
         description = "Converts an input string to an IP value.",
         examples = @Example(file = "ip", tag = "to_ip", explanation = """
-            Note that in this example, the last conversion of the string isn't possible.
-            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            Note that in this example, the last conversion of the string isn’t possible.
+            When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
             The header will provide information on the source of the failure:
 
             `"Line 1:68: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded."`
@@ -91,10 +89,5 @@ public class ToIP extends AbstractConvertFunction {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, ToIP::new, field());
-    }
-
-    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromKeyword(BytesRef asString) {
-        return stringToIP(asString);
     }
 }

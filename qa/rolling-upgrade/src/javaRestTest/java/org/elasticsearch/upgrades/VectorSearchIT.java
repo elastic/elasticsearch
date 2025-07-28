@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
@@ -36,14 +37,16 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String BBQ_INDEX_NAME = "bbq_vector_index";
     private static final String FLAT_QUANTIZED_INDEX_NAME = "flat_quantized_vector_index";
     private static final String FLAT_BBQ_INDEX_NAME = "flat_bbq_vector_index";
-    private static final String FLOAT_VECTOR_SEARCH_VERSION = "8.4.0";
-    private static final String BYTE_VECTOR_SEARCH_VERSION = "8.6.0";
-    private static final String QUANTIZED_VECTOR_SEARCH_VERSION = "8.12.1";
-    private static final String FLAT_QUANTIZED_VECTOR_SEARCH_VERSION = "8.13.0";
-    private static final String BBQ_VECTOR_SEARCH_VERSION = "8.18.0";
+
+    // TODO: replace these with proper test features
+    private static final String FLOAT_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.4.0";
+    private static final String BYTE_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.6.0";
+    private static final String QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.12.1";
+    private static final String FLAT_QUANTIZED_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.13.0";
+    private static final String BBQ_VECTOR_SEARCH_TEST_FEATURE = "gte_v8.18.0";
 
     public void testScriptByteVectorSearch() throws Exception {
-        assumeTrue("byte vector search is not supported on this version", getOldClusterTestVersion().onOrAfter(BYTE_VECTOR_SEARCH_VERSION));
+        assumeTrue("byte vector search is not supported on this version", oldClusterHasFeature(BYTE_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             // create index and index 10 random floating point vectors
             String mapping = """
@@ -90,10 +93,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testScriptVectorSearch() throws Exception {
-        assumeTrue(
-            "Float vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(FLOAT_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Float vector search is not supported on this version", oldClusterHasFeature(FLOAT_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             // create index and index 10 random floating point vectors
             String mapping = """
@@ -139,10 +139,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testFloatVectorSearch() throws Exception {
-        assumeTrue(
-            "Float vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(FLOAT_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Float vector search is not supported on this version", oldClusterHasFeature(FLOAT_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {
@@ -214,7 +211,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testByteVectorSearch() throws Exception {
-        assumeTrue("Byte vector search is not supported on this version", getOldClusterTestVersion().onOrAfter(BYTE_VECTOR_SEARCH_VERSION));
+        assumeTrue("Byte vector search is not supported on this version", oldClusterHasFeature(BYTE_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {
@@ -287,10 +284,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testQuantizedVectorSearch() throws Exception {
-        assumeTrue(
-            "Quantized vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(QUANTIZED_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Quantized vector search is not supported on this version", oldClusterHasFeature(QUANTIZED_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {
@@ -363,7 +357,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public void testFlatQuantizedVectorSearch() throws Exception {
         assumeTrue(
             "Quantized vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(FLAT_QUANTIZED_VECTOR_SEARCH_VERSION)
+            oldClusterHasFeature(FLAT_QUANTIZED_VECTOR_SEARCH_TEST_FEATURE)
         );
         if (isOldCluster()) {
             String mapping = """
@@ -433,10 +427,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testBBQVectorSearch() throws Exception {
-        assumeTrue(
-            "Quantized vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(BBQ_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Quantized vector search is not supported on this version", oldClusterHasFeature(BBQ_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {
@@ -456,7 +447,11 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
                 }
                 """;
             // create index and index 10 random floating point vectors
-            createIndex(BBQ_INDEX_NAME, Settings.EMPTY, mapping);
+            createIndex(
+                BBQ_INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+                mapping
+            );
             index64DimVectors(BBQ_INDEX_NAME);
             // force merge the index
             client().performRequest(new Request("POST", "/" + BBQ_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
@@ -485,8 +480,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         Map<String, Object> response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(7));
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
+        assertThat("hits: " + response, hits.get(0).get("_id"), equalTo("0"));
+        assertThat("hits: " + response, (double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
 
         // search with knn
         searchRequest = new Request("POST", "/" + BBQ_INDEX_NAME + "/_search");
@@ -504,15 +499,16 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
+        assertThat("expected: 0 received" + hits.get(0).get("_id") + " hits: " + response, hits.get(0).get("_id"), equalTo("0"));
+        assertThat(
+            "expected_near: 0.99 received" + hits.get(0).get("_score") + "hits: " + response,
+            (double) hits.get(0).get("_score"),
+            closeTo(0.9934857, 0.005)
+        );
     }
 
     public void testFlatBBQVectorSearch() throws Exception {
-        assumeTrue(
-            "Quantized vector search is not supported on this version",
-            getOldClusterTestVersion().onOrAfter(BBQ_VECTOR_SEARCH_VERSION)
-        );
+        assumeTrue("Quantized vector search is not supported on this version", oldClusterHasFeature(BBQ_VECTOR_SEARCH_TEST_FEATURE));
         if (isOldCluster()) {
             String mapping = """
                 {
@@ -530,7 +526,11 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
                 }
                 """;
             // create index and index 10 random floating point vectors
-            createIndex(FLAT_BBQ_INDEX_NAME, Settings.EMPTY, mapping);
+            createIndex(
+                FLAT_BBQ_INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+                mapping
+            );
             index64DimVectors(FLAT_BBQ_INDEX_NAME);
             // force merge the index
             client().performRequest(new Request("POST", "/" + FLAT_BBQ_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
@@ -559,8 +559,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         Map<String, Object> response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(7));
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
+        assertThat("hits: " + response, hits.get(0).get("_id"), equalTo("0"));
+        assertThat("hits: " + response, (double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
 
         // search with knn
         searchRequest = new Request("POST", "/" + FLAT_BBQ_INDEX_NAME + "/_search");
@@ -578,8 +578,12 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
+        assertThat("expected: 0 received" + hits.get(0).get("_id") + " hits: " + response, hits.get(0).get("_id"), equalTo("0"));
+        assertThat(
+            "expected_near: 0.99 received" + hits.get(0).get("_score") + "hits: " + response,
+            (double) hits.get(0).get("_score"),
+            closeTo(0.9934857, 0.005)
+        );
     }
 
     private void index64DimVectors(String indexName) throws Exception {
@@ -605,6 +609,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
             assertOK(client().performRequest(indexRequest));
         }
         // always refresh to ensure the data is visible
+        flush(indexName, true);
         refresh(indexName);
     }
 

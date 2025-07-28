@@ -188,8 +188,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 
 public class EsqlFunctionRegistry {
 
-    private static final Map<Class<? extends Function>, List<DataType>> DATA_TYPES_FOR_STRING_LITERAL_CONVERSIONS = new LinkedHashMap<>();
-
     private static final Map<DataType, Integer> DATA_TYPE_CASTING_PRIORITY;
 
     static {
@@ -225,6 +223,7 @@ public class EsqlFunctionRegistry {
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
     private final Map<String, String> aliases = new HashMap<>();
     private final Map<Class<? extends Function>, String> names = new HashMap<>();
+    private final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversions = new LinkedHashMap<>();
 
     private SnapshotFunctionRegistry snapshotRegistry = null;
 
@@ -434,7 +433,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 def(Kql.class, uni(Kql::new), "kql"),
                 def(Match.class, tri(Match::new), "match"),
-                def(QueryString.class, uni(QueryString::new), "qstr") } };
+                def(QueryString.class, bi(QueryString::new), "qstr") } };
 
     }
 
@@ -480,18 +479,20 @@ public class EsqlFunctionRegistry {
         protected final String[] type;
         protected final String description;
         protected final boolean optional;
+        protected final boolean variadic;
         protected final DataType targetDataType;
 
-        public ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+        public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic, DataType targetDataType) {
             this.name = name;
             this.type = type;
             this.description = description;
             this.optional = optional;
+            this.variadic = variadic;
             this.targetDataType = targetDataType;
         }
 
-        public ArgSignature(String name, String[] type, String description, boolean optional) {
-            this(name, type, description, optional, UNSUPPORTED);
+        public ArgSignature(String name, String[] type, String description, boolean optional, boolean variadic) {
+            this(name, type, description, optional, variadic, UNSUPPORTED);
         }
 
         public String name() {
@@ -543,7 +544,7 @@ public class EsqlFunctionRegistry {
         private final Map<String, MapEntryArgSignature> mapParams;
 
         public MapArgSignature(String name, String description, boolean optional, Map<String, MapEntryArgSignature> mapParams) {
-            super(name, new String[] { "map" }, description, optional);
+            super(name, new String[] { "map" }, description, optional, false);
             this.mapParams = mapParams;
         }
 
@@ -593,6 +594,13 @@ public class EsqlFunctionRegistry {
         }
 
         /**
+         * The signature of every argument.
+         */
+        public List<ArgSignature> args() {
+            return args;
+        }
+
+        /**
          * The description of every argument.
          */
         public List<String> argDescriptions() {
@@ -637,24 +645,25 @@ public class EsqlFunctionRegistry {
         boolean variadic = false;
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                variadic |= List.class.isAssignableFrom(params[i].getType());
+                boolean isList = List.class.isAssignableFrom(params[i].getType());
+                variadic |= isList;
                 MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
                 if (mapParamInfo != null) {
                     args.add(mapParam(mapParamInfo));
                 } else {
                     Param paramInfo = params[i].getAnnotation(Param.class);
-                    args.add(paramInfo != null ? param(paramInfo) : paramWithoutAnnotation(params[i].getName()));
+                    args.add(paramInfo != null ? param(paramInfo, isList) : paramWithoutAnnotation(params[i].getName()));
                 }
             }
         }
         return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, functionInfo.type());
     }
 
-    public static ArgSignature param(Param param) {
+    public static ArgSignature param(Param param, boolean variadic) {
         String[] type = removeUnderConstruction(param.type());
         String desc = param.description().replace('\n', ' ');
         DataType targetDataType = getTargetType(type);
-        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), targetDataType);
+        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), variadic, targetDataType);
     }
 
     public static ArgSignature mapParam(MapParam mapParam) {
@@ -672,7 +681,7 @@ public class EsqlFunctionRegistry {
     }
 
     public static ArgSignature paramWithoutAnnotation(String name) {
-        return new EsqlFunctionRegistry.ArgSignature(name, new String[] { "?" }, "", false, UNSUPPORTED);
+        return new EsqlFunctionRegistry.ArgSignature(name, new String[] { "?" }, "", false, false, UNSUPPORTED);
     }
 
     /**
@@ -711,20 +720,8 @@ public class EsqlFunctionRegistry {
         return constructors[0];
     }
 
-    private void buildDataTypesForStringLiteralConversion(FunctionDefinition[]... groupFunctions) {
-        for (FunctionDefinition[] group : groupFunctions) {
-            for (FunctionDefinition def : group) {
-                FunctionDescription signature = description(def);
-                DATA_TYPES_FOR_STRING_LITERAL_CONVERSIONS.put(
-                    def.clazz(),
-                    signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList())
-                );
-            }
-        }
-    }
-
     public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
-        return DATA_TYPES_FOR_STRING_LITERAL_CONVERSIONS.get(clazz);
+        return dataTypesForStringLiteralConversions.get(clazz);
     }
 
     private static class SnapshotFunctionRegistry extends EsqlFunctionRegistry {
@@ -733,6 +730,7 @@ public class EsqlFunctionRegistry {
                 throw new IllegalStateException("build snapshot function registry for non-snapshot build");
             }
             register(snapshotFunctions());
+            buildDataTypesForStringLiteralConversion(snapshotFunctions());
         }
 
     }
@@ -791,6 +789,18 @@ public class EsqlFunctionRegistry {
                         )
                 )
         );
+    }
+
+    protected void buildDataTypesForStringLiteralConversion(FunctionDefinition[]... groupFunctions) {
+        for (FunctionDefinition[] group : groupFunctions) {
+            for (FunctionDefinition def : group) {
+                FunctionDescription signature = description(def);
+                dataTypesForStringLiteralConversions.put(
+                    def.clazz(),
+                    signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList())
+                );
+            }
+        }
     }
 
     protected FunctionDefinition cloneDefinition(String name, FunctionDefinition definition) {

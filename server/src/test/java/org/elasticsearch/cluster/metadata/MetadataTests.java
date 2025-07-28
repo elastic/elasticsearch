@@ -49,7 +49,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -2307,8 +2306,6 @@ public class MetadataTests extends ESTestCase {
                 chunkCount += 4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size();
             } else if (custom instanceof DesiredNodesMetadata) {
                 chunkCount += 1;
-            } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
-                chunkCount += 2 + featureMigrationResults.getFeatureStatuses().size();
             } else if (custom instanceof IndexGraveyard indexGraveyard) {
                 chunkCount += 2 + indexGraveyard.getTombstones().size();
             } else if (custom instanceof IngestMetadata ingestMetadata) {

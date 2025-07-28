@@ -47,17 +47,11 @@ public class RLike extends org.elasticsearch.xpack.esql.core.expression.predicat
         The escape character is backslash `\\`. Since also backslash is a special character in string literals,
         it will require further escaping.
 
-        [source.merge.styled,esql]
-        ----
-        include::{esql-specs}/string.csv-spec[tag=rlikeEscapingSingleQuotes]
-        ----
+        <<load-esql-example, file=string tag=rlikeEscapingSingleQuotes>>
 
         To reduce the overhead of escaping, we suggest using triple quotes strings `\"\"\"`
 
-        [source.merge.styled,esql]
-        ----
-        include::{esql-specs}/string.csv-spec[tag=rlikeEscapingTripleQuotes]
-        ----
+        <<load-esql-example, file=string tag=rlikeEscapingTripleQuotes>>
         """, operator = "RLIKE", examples = @Example(file = "docs", tag = "rlike"))
     public RLike(
         Source source,

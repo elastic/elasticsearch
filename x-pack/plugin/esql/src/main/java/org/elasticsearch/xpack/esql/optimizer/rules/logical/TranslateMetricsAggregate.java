@@ -215,7 +215,7 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
 
     private static Aggregate toStandardAggregate(Aggregate metrics) {
         final LogicalPlan child = metrics.child().transformDown(EsRelation.class, r -> {
-            var attributes = new ArrayList<>(new AttributeSet(metrics.inputSet()));
+            var attributes = new ArrayList<>(AttributeSet.of(metrics.inputSet()));
             attributes.removeIf(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
             if (attributes.stream().noneMatch(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD))) {
                 attributes.removeIf(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD));

@@ -20,21 +20,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,6 +39,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.datastreams.DataStreamsActionUtil.getDataStreamNames;
 
@@ -134,7 +130,6 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         for (String dataStreamName : dataStreams) {
             systemDataStreamAccessValidator.accept(dataStreamName);
         }
-        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
 
         if (dataStreams.isEmpty()) {
             if (request.isWildcardExpressionsOriginallySpecified()) {
@@ -144,33 +139,11 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             }
         }
 
-        if (snapshottingDataStreams.isEmpty() == false) {
-            throw new SnapshotInProgressException(
-                "Cannot delete data streams that are being snapshotted: "
-                    + snapshottingDataStreams
-                    + ". Try again after snapshot finishes or cancel the currently running snapshot."
-            );
-        }
-
-        Set<Index> backingIndicesToRemove = new HashSet<>();
-        for (String dataStreamName : dataStreams) {
-            DataStream dataStream = currentState.metadata().dataStreams().get(dataStreamName);
-            assert dataStream != null;
-            backingIndicesToRemove.addAll(dataStream.getIndices());
-            backingIndicesToRemove.addAll(dataStream.getFailureIndices());
-        }
-
-        // first delete the data streams and then the indices:
-        // (this to avoid data stream validation from failing when deleting an index that is part of a data stream
-        // without updating the data stream)
-        // TODO: change order when delete index api also updates the data stream the index to be removed is member of
-        Metadata.Builder metadata = Metadata.builder(currentState.metadata());
-        for (String ds : dataStreams) {
-            LOGGER.info("removing data stream [{}]", ds);
-            metadata.removeDataStream(ds);
-        }
-        currentState = ClusterState.builder(currentState).metadata(metadata).build();
-        return MetadataDeleteIndexService.deleteIndices(currentState, backingIndicesToRemove, settings);
+        return MetadataDataStreamsService.deleteDataStreams(
+            currentState,
+            dataStreams.stream().map(currentState.metadata().dataStreams()::get).collect(Collectors.toSet()),
+            settings
+        );
     }
 
     @Override

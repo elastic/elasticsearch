@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -153,6 +154,17 @@ import static org.hamcrest.Matchers.notNullValue;
  * it’s creating its own Source physical operator, aggregation operator (just a tiny bit of it) and field extract operator.
  * <p>
  * To log the results logResults() should return "true".
+ * <p>
+ * This test never pushes to Lucene because there isn't a Lucene index to push to. It always runs everything in
+ * the compute engine. This yields the same results modulo a few things:
+ * <ul>
+ *     <li>Warnings for multivalued fields: See {@link SingleValueMatchQuery} for an in depth discussion, but the
+ *         short version is this class will always emit warnings on multivalued fields but tests that run against
+ *         a real index are only guaranteed to emit a warning if the document would match all filters <strong>except</strong>
+ *         it has a multivalue field.</li>
+ *     <li>Sorting: This class emits values in the order they appear in the {@code .csv} files that power it. A real
+ *         index emits documents a fair random order. Multi-shard and multi-node tests doubly so.</li>
+ * </ul>
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
@@ -278,6 +290,15 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot correctly handle the field caps change",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.capabilityName())
             );
+            assumeFalse(
+                "CSV tests cannot currently handle the _source field mapping directives",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING.capabilityName())
+            );
+            assumeFalse(
+                "CSV tests cannot currently handle scoring that depends on Lucene",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
+            );
+
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
@@ -354,7 +375,10 @@ public class CsvTests extends ESTestCase {
             .stream()
             .map(ds -> new MappingPerIndex(ds.indexName(), createMappingForIndex(ds)))
             .toList();
-        return IndexResolution.valid(new EsIndex(datasets.indexPattern(), mergeMappings(mappings), indexModes));
+        var mergedMappings = mergeMappings(mappings);
+        return IndexResolution.valid(
+            new EsIndex(datasets.indexPattern(), mergedMappings.mapping, indexModes, mergedMappings.partiallyUnmappedFields)
+        );
     }
 
     private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
@@ -375,7 +399,10 @@ public class CsvTests extends ESTestCase {
 
     record MappingPerIndex(String index, Map<String, EsField> mapping) {}
 
-    private static Map<String, EsField> mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
+    record MergedResult(Map<String, EsField> mapping, Set<String> partiallyUnmappedFields) {}
+
+    private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
+        int numberOfIndices = mappingsPerIndex.size();
         Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
@@ -385,9 +412,15 @@ public class CsvTests extends ESTestCase {
             }
         }
 
-        return columnNamesToFieldByIndices.entrySet()
+        var partiallyUnmappedFields = columnNamesToFieldByIndices.entrySet()
+            .stream()
+            .filter(e -> e.getValue().size() < numberOfIndices)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));
+        return new MergedResult(mappings, partiallyUnmappedFields);
     }
 
     private static EsField mergeFields(String index, Map<String, EsField> columnNameToField) {
@@ -493,7 +526,8 @@ public class CsvTests extends ESTestCase {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
             var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
-            indexPages.add(new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2()));
+            Set<String> mappedFields = loadMapping(dataset.mappingFileName()).keySet();
+            indexPages.add(new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2(), mappedFields));
         }
         return TestPhysicalOperationProviders.create(foldCtx, indexPages);
     }

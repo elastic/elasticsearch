@@ -9,7 +9,6 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.FloatDocValuesField;
-import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -33,11 +32,11 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
@@ -47,6 +46,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.lucene.document.NumericField;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -173,13 +173,11 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         var metricField = new NumberFieldMapper.NumberFieldType("metric", NumberFieldMapper.NumberType.LONG);
         OperatorTestCase.runDriver(
-            new Driver(
-                "test",
+            TestDriverFactory.create(
                 driverContext,
                 timeSeriesFactory.get(driverContext),
                 List.of(ValuesSourceReaderOperatorTests.factory(reader, metricField, ElementType.LONG).get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         );
         docs.sort(Comparator.comparing(Doc::host).thenComparing(Comparator.comparingLong(Doc::timestamp).reversed()));
@@ -237,7 +235,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
             }
             try (var reader = writer.getReader()) {
                 var ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
-                Query query = randomFrom(LongField.newRangeQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
+                Query query = randomFrom(NumericField.newRangeLongQuery("@timestamp", 0, t0), new MatchNoDocsQuery());
                 var timeSeriesFactory = TimeSeriesSortedSourceOperatorFactory.create(
                     Integer.MAX_VALUE,
                     randomIntBetween(1, 1024),
@@ -248,13 +246,11 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 var driverContext = driverContext();
                 List<Page> results = new ArrayList<>();
                 OperatorTestCase.runDriver(
-                    new Driver(
-                        "test",
+                    TestDriverFactory.create(
                         driverContext,
                         timeSeriesFactory.get(driverContext),
                         List.of(),
-                        new TestResultPageSinkOperator(results::add),
-                        () -> {}
+                        new TestResultPageSinkOperator(results::add)
                     )
                 );
                 assertThat(results, empty());
@@ -307,16 +303,14 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         var voltageField = new NumberFieldMapper.NumberFieldType("voltage", NumberFieldMapper.NumberType.LONG);
         var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
         OperatorTestCase.runDriver(
-            new Driver(
-                "test",
+            TestDriverFactory.create(
                 ctx,
                 timeSeriesFactory.get(ctx),
                 List.of(
                     ValuesSourceReaderOperatorTests.factory(reader, voltageField, ElementType.LONG).get(ctx),
                     ValuesSourceReaderOperatorTests.factory(reader, hostnameField, ElementType.BYTES_REF).get(ctx)
                 ),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         );
         OperatorTestCase.assertDriverContext(ctx);

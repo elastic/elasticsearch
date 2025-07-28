@@ -615,6 +615,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 .build(),
             Map.of(),
             List.of("stack"),
+            "stack",
             ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
         );
     }

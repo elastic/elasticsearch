@@ -30,7 +30,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -113,8 +112,7 @@ public class InboundHandlerTests extends ESTestCase {
             (request, channel, task) -> channelCaptor.set(channel),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
-            true,
-            Tracer.NOOP
+            true
         );
         requestHandlers.registerHandler(registry);
 
@@ -166,8 +164,7 @@ public class InboundHandlerTests extends ESTestCase {
             },
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
-            true,
-            Tracer.NOOP
+            true
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
@@ -277,7 +274,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow request",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling request*modules-network.html#modules-network-threading-model"
+                    "handling request*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 
@@ -312,7 +309,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow response",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling response*modules-network.html#modules-network-threading-model"
+                    "handling response*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 

@@ -14,7 +14,7 @@ esplugin {
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest', 'cat', 'capabilities'
+      'eql', 'data_stream', 'ingest', 'cat', 'capabilities', 'reindex'
   }
 }
 
@@ -22,6 +22,7 @@ dependencies {
   testImplementation project(path: ':test:test-clusters')
   testImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(':modules:reindex')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
@@ -35,7 +36,7 @@ if (buildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
-if (buildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
   tasks.withType(Test).configureEach {
     systemProperty 'es.failure_store_feature_flag_enabled', 'true'
   }

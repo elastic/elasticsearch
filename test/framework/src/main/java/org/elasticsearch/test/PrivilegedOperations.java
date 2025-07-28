@@ -26,7 +26,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 import java.util.Enumeration;
-import java.util.function.Supplier;
 
 import javax.tools.JavaCompiler;
 
@@ -69,15 +68,6 @@ public final class PrivilegedOperations {
             new RuntimePermission("closeClassLoader"),
             new RuntimePermission("accessSystemModules"),
             newAllFilesReadPermission()
-        );
-    }
-
-    public static <T> T supplierWithCreateClassLoader(Supplier<T> supplier) {
-        return AccessController.doPrivileged(
-            (PrivilegedAction<T>) () -> supplier.get(),
-            context,
-            new RuntimePermission("createClassLoader"),
-            new RuntimePermission("closeClassLoader")
         );
     }
 

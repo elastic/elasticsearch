@@ -253,7 +253,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
         assertFalse(dataFileSettingsService.watching());
 
         writeJSONFile(masterNode, testJSON, logger, versionCounter.incrementAndGet());
@@ -279,7 +279,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
         assertFalse(dataFileSettingsService.watching());
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
@@ -374,7 +374,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
         assertFalse(dataFileSettingsService.watching());
 
         writeJSONFile(masterNode, testErrorJSON, logger, versionCounter.incrementAndGet());
@@ -470,7 +470,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         var savedClusterState = setupClusterStateListener(masterNode);
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
 
         writeJSONFile(masterNode, testJSON, logger, versionCounter.incrementAndGet());
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");

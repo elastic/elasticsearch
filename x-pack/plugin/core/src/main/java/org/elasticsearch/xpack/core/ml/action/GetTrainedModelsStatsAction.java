@@ -90,7 +90,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
             private final int pipelineCount;
 
             private static final IngestStats EMPTY_INGEST_STATS = new IngestStats(
-                new IngestStats.Stats(0, 0, 0, 0),
+                IngestStats.Stats.IDENTITY,
                 Collections.emptyList(),
                 Collections.emptyMap()
             );

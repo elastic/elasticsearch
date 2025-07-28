@@ -70,6 +70,10 @@ public class NodeAllocationStatsAndWeightsCalculator {
         ClusterInfo clusterInfo,
         @Nullable DesiredBalance desiredBalance
     ) {
+        if (metadata.indices().isEmpty() == false) {
+            // must not use licensed features when just starting up
+            writeLoadForecaster.refreshLicense();
+        }
         var weightFunction = new WeightFunction(shardBalanceFactor, indexBalanceFactor, writeLoadBalanceFactor, diskUsageBalanceFactor);
         var avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);

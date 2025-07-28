@@ -19,11 +19,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -78,9 +80,24 @@ public class MatchTests extends AbstractMatchFullTextFunctionTests {
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense .
         if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
-            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(match).asBuilder();
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(match).toQueryBuilder();
             match.replaceQueryBuilder(queryBuilder);
         }
         return match;
+    }
+
+    /**
+     * Copy of the overridden method that doesn't check for children size, as the {@code options} child isn't serialized in Match.
+     */
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        Expression newExpression = serializeDeserialize(
+            expression,
+            PlanStreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(Expression.class),
+            testCase.getConfiguration() // The configuration query should be == to the source text of the function for this to work
+        );
+        // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
+        return newExpression.replaceChildren(expression.children());
     }
 }

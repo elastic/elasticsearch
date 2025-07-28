@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.NonDynamicFieldMapperTests;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
@@ -23,6 +25,11 @@ public class SemanticTextNonDynamicFieldMapperTests extends NonDynamicFieldMappe
     @Before
     public void setup() throws Exception {
         Utils.storeSparseModel(client());
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
     }
 
     @Override

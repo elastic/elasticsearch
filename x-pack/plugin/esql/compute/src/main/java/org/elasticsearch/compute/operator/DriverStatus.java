@@ -45,7 +45,7 @@ public class DriverStatus implements Task.Status {
     /**
      * Description of the task this driver is running.
      */
-    private final String taskDescription;
+    private final String description;
 
     /**
      * Milliseconds since epoch when this driver started.
@@ -88,7 +88,7 @@ public class DriverStatus implements Task.Status {
 
     DriverStatus(
         String sessionId,
-        String taskDescription,
+        String description,
         long started,
         long lastUpdated,
         long cpuTime,
@@ -99,7 +99,7 @@ public class DriverStatus implements Task.Status {
         DriverSleeps sleeps
     ) {
         this.sessionId = sessionId;
-        this.taskDescription = taskDescription;
+        this.description = description;
         this.started = started;
         this.lastUpdated = lastUpdated;
         this.cpuNanos = cpuTime;
@@ -112,7 +112,7 @@ public class DriverStatus implements Task.Status {
 
     public DriverStatus(StreamInput in) throws IOException {
         this.sessionId = in.readString();
-        this.taskDescription = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "";
+        this.description = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "";
         this.started = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0;
         this.lastUpdated = in.readLong();
         this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
@@ -131,7 +131,7 @@ public class DriverStatus implements Task.Status {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
-            out.writeString(taskDescription);
+            out.writeString(description);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeLong(started);
@@ -166,8 +166,8 @@ public class DriverStatus implements Task.Status {
      * short and meaningful as a grouping identifier. We use the phase of the
      * query right now: "data", "node_reduce", "final".
      */
-    public String taskDescription() {
-        return taskDescription;
+    public String description() {
+        return description;
     }
 
     /**
@@ -232,7 +232,7 @@ public class DriverStatus implements Task.Status {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("session_id", sessionId);
-        builder.field("task_description", taskDescription);
+        builder.field("description", description);
         builder.field("started", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(started));
         builder.field("last_updated", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lastUpdated));
         builder.field("cpu_nanos", cpuNanos);
@@ -261,7 +261,7 @@ public class DriverStatus implements Task.Status {
         if (o == null || getClass() != o.getClass()) return false;
         DriverStatus that = (DriverStatus) o;
         return sessionId.equals(that.sessionId)
-            && taskDescription.equals(that.taskDescription)
+            && description.equals(that.description)
             && started == that.started
             && lastUpdated == that.lastUpdated
             && cpuNanos == that.cpuNanos
@@ -276,7 +276,7 @@ public class DriverStatus implements Task.Status {
     public int hashCode() {
         return Objects.hash(
             sessionId,
-            taskDescription,
+            description,
             started,
             lastUpdated,
             cpuNanos,

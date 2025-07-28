@@ -30,6 +30,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
+import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
@@ -57,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
@@ -94,6 +96,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -169,7 +172,7 @@ public class LocalExecutionPlanner {
     /**
      * turn the given plan into a list of drivers to execute
      */
-    public LocalExecutionPlan plan(String taskDescription, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
+    public LocalExecutionPlan plan(String description, FoldContext foldCtx, PhysicalPlan localPhysicalPlan) {
         var context = new LocalExecutionPlannerContext(
             new ArrayList<>(),
             new Holder<>(DriverParallelism.SINGLE),
@@ -190,7 +193,7 @@ public class LocalExecutionPlanner {
         final TimeValue statusInterval = configuration.pragmas().statusInterval();
         context.addDriverFactory(
             new DriverFactory(
-                new DriverSupplier(taskDescription, context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
+                new DriverSupplier(description, context.bigArrays, context.blockFactory, physicalOperation, statusInterval, settings),
                 context.driverParallelism().get()
             )
         );
@@ -535,10 +538,11 @@ public class LocalExecutionPlanner {
         source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
 
         // Load the "values" from each match
+        var joinDataOutput = join.joinData().output();
         for (Attribute f : join.addedFields()) {
             Block localField = null;
-            for (int l = 0; l < join.joinData().output().size(); l++) {
-                if (join.joinData().output().get(l).name().equals(f.name())) {
+            for (int l = 0; l < joinDataOutput.size(); l++) {
+                if (joinDataOutput.get(l).name().equals(f.name())) {
                     localField = localData[l];
                 }
             }
@@ -615,10 +619,11 @@ public class LocalExecutionPlanner {
         );
     }
 
-    private record MatchConfig(String fieldName, int channel, DataType type) {
+    private record MatchConfig(FieldAttribute.FieldName fieldName, int channel, DataType type) {
         private MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
-            // Note, this handles TEXT fields with KEYWORD subfields
-            this(match.exactAttribute().name(), input.channel(), input.type());
+            // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
+            // indices, so the call to exactAttribute looks redundant now.
+            this(match.exactAttribute().fieldName(), input.channel(), input.type());
         }
     }
 
@@ -676,10 +681,29 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
-        return source.with(
+        PhysicalOperation filterOperation = source.with(
             new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts)),
             source.layout
         );
+        if (PlannerUtils.usesScoring(filter)) {
+            // Add scorer operator to add the filter expression scores to the overall scores
+            int scoreBlock = 0;
+            for (Attribute attribute : filter.output()) {
+                if (MetadataAttribute.SCORE.equals(attribute.name())) {
+                    break;
+                }
+                scoreBlock++;
+            }
+            if (scoreBlock == filter.output().size()) {
+                throw new IllegalStateException("Couldn't find _score attribute in a WHERE clause");
+            }
+
+            filterOperation = filterOperation.with(
+                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), shardContexts), scoreBlock),
+                filterOperation.layout
+            );
+        }
+        return filterOperation;
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {
@@ -831,7 +855,7 @@ public class LocalExecutionPlanner {
     }
 
     record DriverSupplier(
-        String taskDescription,
+        String description,
         BigArrays bigArrays,
         BlockFactory blockFactory,
         PhysicalOperation physicalOperation,
@@ -858,7 +882,7 @@ public class LocalExecutionPlanner {
                 success = true;
                 return new Driver(
                     sessionId,
-                    taskDescription,
+                    description,
                     System.currentTimeMillis(),
                     System.nanoTime(),
                     driverContext,

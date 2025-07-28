@@ -28,11 +28,13 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,6 +48,13 @@ import java.util.List;
  * respect to the number of layers returned and the number of features and tags in each layer.
  */
 public class VectorTileRestIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("vector-tile").apply(c -> {
+        if (Build.current().isSnapshot()) {
+            c.module("test-error-query");
+        }
+    }).setting("xpack.license.self_generated.type", "trial").build();
 
     private static final String INDEX_POINTS = "index-points";
     private static final String INDEX_POLYGON = "index-polygon";
@@ -72,6 +81,11 @@ public class VectorTileRestIT extends ESRestTestCase {
             indexCollection();
             oneTimeSetup = true;
         }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     private void indexPoints() throws IOException {

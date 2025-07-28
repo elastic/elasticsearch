@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataMigrateToDataStreamService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,7 +36,6 @@ public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMas
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         IndicesService indicesService,
         MetadataCreateIndexService metadataCreateIndexService
     ) {

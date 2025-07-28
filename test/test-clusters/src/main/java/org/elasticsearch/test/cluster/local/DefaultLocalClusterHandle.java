@@ -237,15 +237,15 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     private void configureWaitSecurity(WaitForHttpResource wait, Node node) {
         String caFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate_authorities", null);
         if (caFile != null) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(caFile).toFile());
+            wait.setCertificateAuthorities(node.getConfigDir().resolve(caFile).toFile());
         }
         String sslCertFile = node.getSpec().getSetting("xpack.security.http.ssl.certificate", null);
         if (sslCertFile != null) {
-            wait.setCertificateAuthorities(node.getWorkingDir().resolve("config").resolve(sslCertFile).toFile());
+            wait.setCertificateAuthorities(node.getConfigDir().resolve(sslCertFile).toFile());
         }
         String sslKeystoreFile = node.getSpec().getSetting("xpack.security.http.ssl.keystore.path", null);
         if (sslKeystoreFile != null && caFile == null) { // Can not set both trust stores and CA
-            wait.setTrustStoreFile(node.getWorkingDir().resolve("config").resolve(sslKeystoreFile).toFile());
+            wait.setTrustStoreFile(node.getConfigDir().resolve(sslKeystoreFile).toFile());
         }
         String keystorePassword = node.getSpec().getSetting("xpack.security.http.ssl.keystore.secure_password", null);
         if (keystorePassword != null) {
@@ -254,7 +254,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     private boolean isSecurityAutoConfigured(Node node) {
-        Path configFile = node.getWorkingDir().resolve("config").resolve("elasticsearch.yml");
+        Path configFile = node.getConfigDir().resolve("elasticsearch.yml");
         try (Stream<String> lines = Files.lines(configFile)) {
             return lines.anyMatch(l -> l.contains("BEGIN SECURITY AUTO CONFIGURATION"));
         } catch (IOException e) {
@@ -273,7 +273,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
                     LOGGER.info("Skipping writing unicast hosts file for node {}", node.getName());
                     return;
                 }
-                Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
+                Path hostsFile = node.getConfigDir().resolve("unicast_hosts.txt");
                 LOGGER.info("Writing unicast hosts file {} for node {}", hostsFile, node.getName());
                 Files.writeString(hostsFile, transportUris);
             } catch (IOException e) {

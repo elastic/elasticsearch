@@ -12,9 +12,7 @@ package org.elasticsearch.node;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionModule;
@@ -216,7 +214,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.upgrades.SystemIndexMigrationExecutor;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -230,7 +227,6 @@ import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -412,30 +408,6 @@ class NodeConstruction {
         DeprecationLogger.initialize(envSettings);
 
         JvmInfo jvmInfo = JvmInfo.jvmInfo();
-        logger.info(
-            "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-            Build.current().qualifiedVersion(),
-            jvmInfo.pid(),
-            Build.current().type().displayName(),
-            Build.current().hash(),
-            Build.current().date(),
-            Constants.OS_NAME,
-            Constants.OS_VERSION,
-            Constants.OS_ARCH,
-            Constants.JVM_VENDOR,
-            Constants.JVM_NAME,
-            System.getProperty("java.version"),
-            Runtime.version().toString()
-        );
-        logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
-        logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
-        logger.info("Default Locale [{}]", Locale.getDefault());
-        if (Build.current().isProductionRelease() == false) {
-            logger.warn(
-                "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
-                Build.current().qualifiedVersion()
-            );
-        }
         if (Environment.PATH_SHARED_DATA_SETTING.exists(envSettings)) {
             // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
             // cause ES to fail to start since logging is not yet initialized on first read of the setting
@@ -566,6 +538,14 @@ class NodeConstruction {
         additionalSettings.add(
             Setting.intSetting("thread_pool.search_worker.size", 0, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
         );
+        // Search throttled thread pool has been removed in Elasticsearch 9.0.0. These settings are deprecated and take no effect.
+        // They are here only to enable BwC for deployments that still use them
+        additionalSettings.add(
+            Setting.intSetting("thread_pool.search_throttled.queue_size", 0, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
+        );
+        additionalSettings.add(
+            Setting.intSetting("thread_pool.search_throttled.size", 0, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
+        );
     }
 
     private SearchModule createSearchModule(Settings settings, ThreadPool threadPool, TelemetryProvider telemetryProvider) {
@@ -591,8 +571,7 @@ class NodeConstruction {
                 IndicesModule.getNamedWriteables().stream(),
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.flatMap(Plugin::getNamedWriteables),
-                ClusterModule.getNamedWriteables().stream(),
-                SystemIndexMigrationExecutor.getNamedWriteables().stream()
+                ClusterModule.getNamedWriteables().stream()
             ).flatMap(Function.identity()).toList()
         );
         xContentRegistry = new NamedXContentRegistry(
@@ -602,7 +581,6 @@ class NodeConstruction {
                 searchModule.getNamedXContents().stream(),
                 pluginsService.flatMap(Plugin::getNamedXContent),
                 ClusterModule.getNamedXWriteables().stream(),
-                SystemIndexMigrationExecutor.getNamedXContentParsers().stream(),
                 HealthNodeTaskExecutor.getNamedXContentParsers().stream()
             ).flatMap(Function.identity()).toList()
         );
@@ -1146,11 +1124,8 @@ class NodeConstruction {
                 settingsModule,
                 clusterService,
                 threadPool,
-                systemIndices,
                 featureService,
-                clusterModule.getIndexNameExpressionResolver(),
-                metadataUpdateSettingsService,
-                metadataCreateIndexService
+                clusterModule.getIndexNameExpressionResolver()
             )
         );
 
@@ -1643,21 +1618,10 @@ class NodeConstruction {
         SettingsModule settingsModule,
         ClusterService clusterService,
         ThreadPool threadPool,
-        SystemIndices systemIndices,
         FeatureService featureService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        MetadataUpdateSettingsService metadataUpdateSettingsService,
-        MetadataCreateIndexService metadataCreateIndexService
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
-        SystemIndexMigrationExecutor systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
-            client,
-            clusterService,
-            systemIndices,
-            metadataUpdateSettingsService,
-            metadataCreateIndexService,
-            settingsModule.getIndexScopedSettings()
-        );
         HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
             clusterService,
             persistentTasksService,
@@ -1665,7 +1629,7 @@ class NodeConstruction {
             settingsModule.getSettings(),
             clusterService.getClusterSettings()
         );
-        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(systemIndexMigrationExecutor, healthNodeTaskExecutor);
+        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(healthNodeTaskExecutor);
 
         Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
             .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule, indexNameExpressionResolver))

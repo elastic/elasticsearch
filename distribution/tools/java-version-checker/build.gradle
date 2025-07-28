@@ -1,6 +1,6 @@
 apply plugin: 'elasticsearch.build'
 
-compileJava {
+tasks.named("compileJava").configure {
   options.release = 8
 }
 

@@ -121,8 +121,8 @@ public class ModTests extends AbstractScalarFunctionTestCase {
                     TestCaseSupplier.getSuppliersForNumericType(rhsType, 0, 0, true),
                     evaluatorToString,
                     (lhs, rhs) -> List.of(
-                        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:1: java.lang.ArithmeticException: / by zero"
                     ),
                     suppliers,
                     expected,
@@ -141,8 +141,8 @@ public class ModTests extends AbstractScalarFunctionTestCase {
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
                 TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.ZERO, true),
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: / by zero"
                 ),
                 false
             )

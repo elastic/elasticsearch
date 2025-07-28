@@ -50,7 +50,6 @@ public class GraphInfoTransportActionTests extends ESTestCase {
             null,
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            null,
             Settings.EMPTY,
             licenseState
         );
@@ -90,7 +89,6 @@ public class GraphInfoTransportActionTests extends ESTestCase {
             null,
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            null,
             settings.build(),
             licenseState
         );

@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
@@ -179,6 +180,7 @@ import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRuleAct
 import org.elasticsearch.xpack.application.rules.action.TransportPutQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.action.TransportTestQueryRulesetAction;
 import org.elasticsearch.xpack.application.rules.retriever.QueryRuleRetrieverBuilder;
+import org.elasticsearch.xpack.application.rules.retriever.RuleQueryRankDoc;
 import org.elasticsearch.xpack.application.search.SearchApplicationIndexService;
 import org.elasticsearch.xpack.application.search.action.DeleteSearchApplicationAction;
 import org.elasticsearch.xpack.application.search.action.GetSearchApplicationAction;
@@ -232,6 +234,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     public static final String FEATURE_NAME = "ent_search";
 
     private final boolean enabled;
+
+    // NOTE: Behavioral Analytics is deprecated in 9.0 but not 8.x.
+    public static final String BEHAVIORAL_ANALYTICS_DEPRECATION_MESSAGE =
+        "Behavioral Analytics is deprecated and will be removed in a future release.";
 
     public EnterpriseSearch(Settings settings) {
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
@@ -345,6 +351,11 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
         }
 
         return Collections.unmodifiableList(actionHandlers);
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(new NamedWriteableRegistry.Entry(RankDoc.class, RuleQueryRankDoc.NAME, RuleQueryRankDoc::new));
     }
 
     @Override

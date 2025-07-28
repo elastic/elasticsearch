@@ -1130,7 +1130,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 mock(SslKeyConfig.class),
                 randomFrom(SslVerificationMode.values()),
                 SslClientAuthenticationMode.NONE,
-                List.of("TLS_RSA_WITH_AES_256_GCM_SHA384"),
+                List.of(Runtime.version().feature() < 24 ? "TLS_RSA_WITH_AES_256_GCM_SHA384" : "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"),
                 List.of("TLSv1.2")
             )
         );

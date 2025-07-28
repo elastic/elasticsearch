@@ -16,7 +16,6 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -98,9 +97,9 @@ public class QueryBuilderResolver {
     }
 
     public Set<String> indexNames(LogicalPlan plan) {
-        Holder<Set<String>> indexNames = new Holder<>();
-        plan.forEachDown(EsRelation.class, esRelation -> indexNames.set(esRelation.concreteIndices()));
-        return indexNames.get();
+        Set<String> indexNames = new HashSet<>();
+        plan.forEachDown(EsRelation.class, esRelation -> indexNames.addAll(esRelation.concreteIndices()));
+        return indexNames;
     }
 
     public LogicalPlan planWithResolvedQueryBuilders(LogicalPlan plan, Map<FullTextFunction, QueryBuilder> newQueryBuilders) {
@@ -140,7 +139,7 @@ public class QueryBuilderResolver {
             this.queryBuilderMap = new HashMap<>();
 
             for (FullTextFunction func : functions) {
-                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func).asBuilder());
+                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func).toQueryBuilder());
             }
         }
 

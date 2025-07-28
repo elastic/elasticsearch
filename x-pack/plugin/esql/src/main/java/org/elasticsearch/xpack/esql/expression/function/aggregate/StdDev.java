@@ -43,7 +43,7 @@ public class StdDev extends AggregateFunction implements ToAggregator {
             @Example(file = "stats", tag = "stdev"),
             @Example(
                 description = "The expression can use inline functions. For example, to calculate the standard "
-                    + "deviation of each employee's maximum salary changes, first use `MV_MAX` on each row, "
+                    + "deviation of each employee’s maximum salary changes, first use `MV_MAX` on each row, "
                     + "and then use `STD_DEV` on the result",
                 file = "stats",
                 tag = "docsStatsStdDevNestedExpression"

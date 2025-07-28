@@ -1,6 +1,0 @@
-pr: 115779
-summary: Don't allow secure settings in YML config (109115)
-area: Infra/Settings
-type: bug
-issues:
- - 109115

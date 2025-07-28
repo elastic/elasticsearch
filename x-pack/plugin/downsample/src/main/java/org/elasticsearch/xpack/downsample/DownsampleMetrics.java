@@ -25,8 +25,6 @@ import java.util.Map;
  *  - Add a constant for its name, following the naming conventions for metrics.
  *  - Register it in method {@link #doStart}.
  *  - Add a function for recording its value.
- *  - If needed, inject {@link DownsampleMetrics} to the action containing the logic
- *    that records the metric value. For reference, see {@link TransportDownsampleIndexerAction}.
  */
 public class DownsampleMetrics extends AbstractLifecycleComponent {
 

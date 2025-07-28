@@ -58,7 +58,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
         this.uri = createUri();
     }
 
-    ElasticInferenceServiceSparseEmbeddingsModel(
+    public ElasticInferenceServiceSparseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,

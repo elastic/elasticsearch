@@ -1,0 +1,13 @@
+{
+    "dynamic": "false",
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        }
+    },
+    "_source": {
+        "excludes": [
+            "message"
+        ]
+    }
+}

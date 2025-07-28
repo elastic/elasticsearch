@@ -25,7 +25,6 @@ base {
   archivesName = 'elasticsearch-benchmarks'
 }
 
-tasks.named("test").configure { enabled = false }
 tasks.named("javadoc").configure { enabled = false }
 
 configurations {
@@ -52,8 +51,10 @@ dependencies {
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
-  runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
+  runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.2'
   runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
+
+  testImplementation(project(':test:framework'))
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes

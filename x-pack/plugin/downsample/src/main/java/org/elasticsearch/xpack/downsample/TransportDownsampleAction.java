@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -103,7 +102,7 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 /**
  * The master downsample action that coordinates
  *  -  creating the downsample index
- *  -  instantiating {@link DownsampleShardIndexer}s to index downsample documents
+ *  -  instantiating {@link org.elasticsearch.persistent.PersistentTasksExecutor} to start a persistent downsample task
  *  -  cleaning up state
  */
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
@@ -154,7 +153,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         ThreadPool threadPool,
         MetadataCreateIndexService metadataCreateIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         IndexScopedSettings indexScopedSettings,
         PersistentTasksService persistentTasksService,
         DownsampleMetrics downsampleMetrics

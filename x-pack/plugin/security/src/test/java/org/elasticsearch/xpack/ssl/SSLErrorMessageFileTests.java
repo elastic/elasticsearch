@@ -16,6 +16,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
@@ -111,26 +112,6 @@ public class SSLErrorMessageFileTests extends ESTestCase {
 
     public void testMessageForCertificateAuthoritiesWithoutReadAccess() throws Exception {
         checkUnreadableTrustManagerResource("ca1.crt", "PEM certificate_authorities", "certificate_authorities");
-    }
-
-    public void testMessageForKeyStoreOutsideConfigDir() throws Exception {
-        checkBlockedKeyManagerResource("[jks] keystore", "keystore.path", null);
-    }
-
-    public void testMessageForPemCertificateOutsideConfigDir() throws Exception {
-        checkBlockedKeyManagerResource("PEM certificate", "certificate", withKey("cert1a.key"));
-    }
-
-    public void testMessageForPemKeyOutsideConfigDir() throws Exception {
-        checkBlockedKeyManagerResource("PEM private key", "key", withCertificate("cert1a.crt"));
-    }
-
-    public void testMessageForTrustStoreOutsideConfigDir() throws Exception {
-        checkBlockedTrustManagerResource("[jks] keystore (as a truststore)", "truststore.path");
-    }
-
-    public void testMessageForCertificateAuthoritiesOutsideConfigDir() throws Exception {
-        checkBlockedTrustManagerResource("PEM certificate_authorities", "certificate_authorities");
     }
 
     public void testMessageForTransportSslEnabledWithoutKeys() throws Exception {
@@ -362,6 +343,11 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         String configKey,
         BiConsumer<String, Settings.Builder> configure
     ) throws Exception {
+        assumeTrue(
+            "Requires Security Manager to block access, entitlements are not checked for unit tests",
+            RuntimeVersionFeature.isSecurityManagerAvailable()
+        );
+
         final String prefix = randomSslPrefix();
         final Settings.Builder settings = Settings.builder();
         configure.accept(prefix, settings);

@@ -881,7 +881,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("*").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
         assertAliases(
-            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("*"),
+            indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT).setAliases("*", "-.security*"),
             "bogus_index_1",
             "bogus_alias_1",
             "bogus_alias_2"

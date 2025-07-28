@@ -18,11 +18,9 @@ import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.FilePermissionUtils;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -129,9 +127,7 @@ final class TikaImpl {
         : null;
 
     private static boolean isUsingSecurityManager() {
-        boolean entitlementsEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled"), false)
-            || RuntimeVersionFeature.isSecurityManagerAvailable() == false;
-        return entitlementsEnabled == false;
+        return false;
     }
 
     // compute some minimal permissions for parsers. they only get r/w access to the java temp directory,

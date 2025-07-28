@@ -22,10 +22,10 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -127,7 +127,7 @@ public class LuceneTopNSourceOperatorScoringTests extends LuceneTopNSourceOperat
 
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(
-            new Driver("test", ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add), () -> {})
+            TestDriverFactory.create(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add))
         );
         OperatorTestCase.assertDriverContext(ctx);
 

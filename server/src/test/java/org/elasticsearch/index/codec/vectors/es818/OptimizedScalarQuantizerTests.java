@@ -19,6 +19,62 @@ public class OptimizedScalarQuantizerTests extends ESTestCase {
 
     static final byte[] ALL_BITS = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
 
+    static float[] deQuantize(byte[] quantized, byte bits, float[] interval, float[] centroid) {
+        float[] dequantized = new float[quantized.length];
+        float a = interval[0];
+        float b = interval[1];
+        int nSteps = (1 << bits) - 1;
+        double step = (b - a) / nSteps;
+        for (int h = 0; h < quantized.length; h++) {
+            double xi = (double) (quantized[h] & 0xFF) * step + a;
+            dequantized[h] = (float) (xi + centroid[h]);
+        }
+        return dequantized;
+    }
+
+    public void testQuantizationQuality() {
+        int dims = 16;
+        int numVectors = 32;
+        float[][] vectors = new float[numVectors][];
+        float[] centroid = new float[dims];
+        for (int i = 0; i < numVectors; ++i) {
+            vectors[i] = new float[dims];
+            for (int j = 0; j < dims; ++j) {
+                vectors[i][j] = randomFloat();
+                centroid[j] += vectors[i][j];
+            }
+        }
+        for (int j = 0; j < dims; ++j) {
+            centroid[j] /= numVectors;
+        }
+        // similarity doesn't matter for this test
+        OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(VectorSimilarityFunction.DOT_PRODUCT);
+        float[] scratch = new float[dims];
+        for (byte bit : ALL_BITS) {
+            float eps = (1f / (float) (1 << (bit)));
+            byte[] destination = new byte[dims];
+            for (int i = 0; i < numVectors; ++i) {
+                System.arraycopy(vectors[i], 0, scratch, 0, dims);
+                OptimizedScalarQuantizer.QuantizationResult result = osq.scalarQuantize(scratch, destination, bit, centroid);
+                assertValidResults(result);
+                assertValidQuantizedRange(destination, bit);
+
+                float[] dequantized = deQuantize(
+                    destination,
+                    bit,
+                    new float[] { result.lowerInterval(), result.upperInterval() },
+                    centroid
+                );
+                float mae = 0;
+                for (int k = 0; k < dims; ++k) {
+                    mae += Math.abs(dequantized[k] - vectors[i][k]);
+                }
+                mae /= dims;
+                assertTrue("bits: " + bit + " mae: " + mae + " > eps: " + eps, mae <= eps);
+            }
+        }
+    }
+
     public void testAbusiveEdgeCases() {
         // large zero array
         for (VectorSimilarityFunction vectorSimilarityFunction : VectorSimilarityFunction.values()) {

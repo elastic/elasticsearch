@@ -64,7 +64,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
@@ -169,14 +169,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
         "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
     public static final RequestOptions.Builder ROLLUP_REQUESTS_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-        // Either no warning, because of bwc integration test OR
-        // the expected warning, because on current version
         if (warnings.isEmpty()) {
             return false;
-        } else if (warnings.size() == 1 && EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warnings.get(0))) {
-            return false;
         } else {
-            return true;
+            // Sometimes multiple rollup deprecation warnings. Transport actions can be invoked multiple time on different nodes.
+            for (String warning : warnings) {
+                if (EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warning) == false) {
+                    return true;
+                }
+            }
+            return false;
         }
     });
 
@@ -1181,7 +1183,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             // remove all indices except some history indices which can pop up after deleting all data streams but shouldn't interfere
             final List<String> indexPatterns = new ArrayList<>(
-                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*")
+                List.of("*", "-.ds-ilm-history-*", "-.ds-.slm-history-*", "-.ds-.watcher-history-*", "-.ds-.triggered_watches-*")
             );
             if (preserveSecurityIndices) {
                 indexPatterns.add("-.security-*");
@@ -1991,11 +1993,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Deprecation message emitted since 7.12.0 for the rest of the 7.x series. Can be removed in v9 since it is not
-     * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
-     * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
+     * Deprecation message emitted since 7.12.0 for the rest of the 7.x series. Can be removed in v10 since it is not
+     * emitted in v8 or v9 and N-2 versions are now supported.
+     * Note that this message is also permitted in certain YAML test cases, it can be removed there too.
+     * See https://github.com/elastic/elasticsearch/issues/66419 and https://github.com/elastic/elasticsearch/pull/119594 for more details.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
         + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
         + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
@@ -2019,6 +2022,20 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static boolean aliasExists(String index, String alias) throws IOException {
         Response response = client().performRequest(new Request("HEAD", "/" + index + "/_alias/" + alias));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
+    }
+
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    @SuppressWarnings("unchecked")
+    protected static List<String> getDataStreamBackingIndexNames(String dataStreamName) throws IOException {
+        Map<String, Object> response = getAsMap(client(), "/_data_stream/" + dataStreamName);
+        List<?> dataStreams = (List<?>) response.get("data_streams");
+        assertThat(dataStreams.size(), equalTo(1));
+        Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
+        assertThat(dataStream.get("name"), equalTo(dataStreamName));
+        List<?> indices = (List<?>) dataStream.get("indices");
+        return indices.stream().map(index -> ((Map<String, String>) index).get("index_name")).toList();
     }
 
     @SuppressWarnings("unchecked")

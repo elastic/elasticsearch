@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -56,9 +57,9 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old data stream with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has backing indices that were created before Elasticsearch 9.0.0",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0",
+            "https://ela.st/es-deprecation-ds-reindex",
+            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + ".0",
             false,
             ofEntries(
                 entry("reindex_required", true),
@@ -77,7 +78,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
     public void testOldIndicesCheckWithOnlyNewIndices() {
         // This tests what happens when any old indices that we have are closed. We expect no deprecation warning.
-        int newOpenIndexCount = randomIntBetween(0, 100);
+        int newOpenIndexCount = randomIntBetween(1, 100);
         int newClosedIndexCount = randomIntBetween(0, 100);
 
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
@@ -125,9 +126,9 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old data stream with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has backing indices that were created before Elasticsearch 9.0.0",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0",
+            "https://ela.st/es-deprecation-ds-reindex",
+            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + ".0",
             false,
             ofEntries(
                 entry("reindex_required", true),
@@ -284,10 +285,11 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "Old data stream with a compatibility version < 9.0 Have Been Ignored",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has read only backing indices that were created before Elasticsearch 9.0.0 and have been marked as "
-                + "OK to remain read-only after upgrade",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0 has Been Ignored",
+            "https://ela.st/es-deprecation-ds-reindex",
+            "This data stream has read only backing indices that were created before Elasticsearch "
+                + Version.CURRENT.major
+                + ".0 and have been marked as OK to remain read-only after upgrade",
             false,
             ofEntries(
                 entry("reindex_required", false),
@@ -300,6 +302,54 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
+    }
+
+    public void testOldSystemDataStreamIgnored() {
+        // We do not want system data streams coming back in the deprecation info API
+        int oldIndexCount = randomIntBetween(1, 100);
+        int newIndexCount = randomIntBetween(1, 100);
+        List<Index> allIndices = new ArrayList<>();
+        Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
+        for (int i = 0; i < oldIndexCount; i++) {
+            Settings.Builder settings = settings(IndexVersion.fromId(7170099));
+
+            String indexName = "old-data-stream-index-" + i;
+            settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+
+            IndexMetadata oldIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            allIndices.add(oldIndexMetadata.getIndex());
+            nameToIndexMetadata.put(oldIndexMetadata.getIndex().getName(), oldIndexMetadata);
+        }
+        for (int i = 0; i < newIndexCount; i++) {
+            Index newIndex = createNewIndex(i, false, nameToIndexMetadata);
+            allIndices.add(newIndex);
+        }
+        DataStream dataStream = new DataStream(
+            randomAlphaOfLength(10),
+            allIndices,
+            randomNegativeLong(),
+            Map.of(),
+            true,
+            false,
+            true,
+            randomBoolean(),
+            randomFrom(IndexMode.values()),
+            null,
+            randomFrom(DataStreamOptions.EMPTY, DataStreamOptions.FAILURE_STORE_DISABLED, DataStreamOptions.FAILURE_STORE_ENABLED, null),
+            List.of(),
+            randomBoolean(),
+            null
+        );
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        assertThat(checker.check(clusterState), equalTo(Map.of()));
     }
 
 }

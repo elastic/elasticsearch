@@ -219,7 +219,7 @@ public class MetadataUpdateSettingsService {
                         allocationService.getShardRoutingRoleStrategy(),
                         currentState.routingTable()
                     );
-                    for (Index index : openIndices) {
+                    for (Index index : new HashSet<>(openIndices)) {
                         // We only want to take on the expense of reopening all shards for an index if the setting is really changing
                         Settings existingSettings = currentState.getMetadata().index(index).getSettings();
                         boolean needToReopenIndex = false;

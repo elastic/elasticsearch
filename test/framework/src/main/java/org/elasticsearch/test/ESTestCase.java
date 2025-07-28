@@ -119,6 +119,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
@@ -229,7 +230,7 @@ import static org.hamcrest.Matchers.startsWith;
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
-@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class })
+@ThreadLeakFilters(filters = { GraalVMThreadsFilter.class, NettyGlobalThreadsFilter.class, JnaCleanerThreadsFilter.class })
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
 // assertingcodec is the winner for a codec here: it finds bugs and gives clear exceptions.
@@ -573,6 +574,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    private static org.elasticsearch.logging.Level capturedLogLevel = null;
+
+    // just capture the expected level once before the suite starts
+    @BeforeClass
+    public static void captureLoggingLevel() {
+        capturedLogLevel = LoggerFactory.provider().getRootLevel();
+    }
+
+    @AfterClass
+    public static void restoreLoggingLevel() {
+        if (capturedLogLevel != null) {
+            // log level might not have been captured if suite was skipped
+            LoggerFactory.provider().setRootLevel(capturedLogLevel);
+            capturedLogLevel = null;
+        }
+    }
+
     @Before
     public final void before() {
         LeakTracker.setContextHint(getTestName());
@@ -681,15 +699,14 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final DeprecationWarning... warnings) {
         assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
-            String warningMessage = String.format(
-                Locale.ROOT,
-                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release.",
-                setting.getKey()
+            Level level = setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN;
+            String warningMessage = Strings.format(
+                "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the %s documentation for the next major version.",
+                setting.getKey(),
+                (level == Level.WARN) ? "deprecation" : "breaking changes"
             );
-            return new DeprecationWarning(
-                setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN,
-                warningMessage
-            );
+            return new DeprecationWarning(level, warningMessage);
         }), Arrays.stream(warnings)).toArray(DeprecationWarning[]::new));
     }
 
@@ -2432,9 +2449,19 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code listener} was completed.
      */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
+        return safeAwait(listener, SAFE_AWAIT_TIMEOUT.getMillis(), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Wait for the successful completion of the given {@link SubscribableListener}, respecting the provided timeout,
+     * preserving the thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code listener} was completed.
+     */
+    public static <T> T safeAwait(SubscribableListener<T> listener, long timeout, TimeUnit unit) {
         final var future = new TestPlainActionFuture<T>();
         listener.addListener(future);
-        return safeGet(future);
+        return safeGet(future, timeout, unit);
     }
 
     /**
@@ -2464,8 +2491,18 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code future} was completed.
      */
     public static <T> T safeGet(Future<T> future) {
+        return safeGet(future, SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Wait for the successful completion of the given {@link Future}, respecting the provided timeout, preserving the
+     * thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code future} was completed.
+     */
+    public static <T> T safeGet(Future<T> future, long timeout, TimeUnit unit) {
         try {
-            return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+            return future.get(timeout, unit);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AssertionError("safeGet: interrupted waiting for SubscribableListener", e);

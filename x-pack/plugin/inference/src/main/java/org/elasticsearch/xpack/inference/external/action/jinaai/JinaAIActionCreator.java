@@ -37,10 +37,7 @@ public class JinaAIActionCreator implements JinaAIActionVisitor {
     @Override
     public ExecutableAction create(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
         var overriddenModel = JinaAIEmbeddingsModel.of(model, taskSettings, inputType);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            overriddenModel.getServiceSettings().getCommonSettings().uri(),
-            "JinaAI embeddings"
-        );
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("JinaAI embeddings");
         var requestCreator = JinaAIEmbeddingsRequestManager.of(overriddenModel, serviceComponents.threadPool());
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
@@ -48,10 +45,7 @@ public class JinaAIActionCreator implements JinaAIActionVisitor {
     @Override
     public ExecutableAction create(JinaAIRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = JinaAIRerankModel.of(model, taskSettings);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            overriddenModel.getServiceSettings().getCommonSettings().uri(),
-            "JinaAI rerank"
-        );
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("JinaAI rerank");
         var requestCreator = JinaAIRerankRequestManager.of(overriddenModel, serviceComponents.threadPool());
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }

@@ -50,7 +50,6 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -195,7 +194,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         assertFalse(thrownException.isExecutorShutdown());
     }
 
-    public void testTaskThrowsError_CallsOnFailure() {
+    public void testTaskThrowsError_CallsOnFailure() throws InterruptedException {
         var requestSender = mock(RetryingHttpSender.class);
 
         var service = createRequestExecutorService(null, requestSender);
@@ -218,6 +217,8 @@ public class RequestExecutorServiceTests extends ESTestCase {
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
         assertThat(thrownException.getMessage(), is(format("Failed to send request from inference entity id [%s]", "id")));
         assertThat(thrownException.getCause(), instanceOf(IllegalArgumentException.class));
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+
         assertTrue(service.isTerminated());
     }
 
@@ -340,7 +341,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             createRequestExecutorServiceSettingsEmpty(),
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
         );
 
@@ -354,36 +354,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         });
         service.start();
 
-        assertTrue(service.isTerminated());
-    }
-
-    public void testSleep_ThrowingInterruptedException_TerminatesService() throws Exception {
-        @SuppressWarnings("unchecked")
-        BlockingQueue<RejectableTask> queue = mock(LinkedBlockingQueue.class);
-        var sleeper = mock(RequestExecutorService.Sleeper.class);
-        doThrow(new InterruptedException("failed")).when(sleeper).sleep(any());
-
-        var service = new RequestExecutorService(
-            threadPool,
-            mockQueueCreator(queue),
-            null,
-            createRequestExecutorServiceSettingsEmpty(),
-            mock(RetryingHttpSender.class),
-            Clock.systemUTC(),
-            sleeper,
-            RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
-        );
-
-        Future<?> executorTermination = threadPool.generic().submit(() -> {
-            try {
-                service.start();
-            } catch (Exception e) {
-                fail(Strings.format("Failed to shutdown executor: %s", e));
-            }
-        });
-
-        executorTermination.get(TIMEOUT.millis(), TimeUnit.MILLISECONDS);
-
+        service.awaitTermination(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
         assertTrue(service.isTerminated());
     }
 
@@ -550,7 +521,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
             rateLimiterCreator
         );
         var requestManager = RequestManagerTests.createMock(requestSender);
@@ -583,7 +553,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
             rateLimiterCreator
         );
         var requestManager = RequestManagerTests.createMock(requestSender);
@@ -595,11 +564,15 @@ public class RequestExecutorServiceTests extends ESTestCase {
 
         doAnswer(invocation -> {
             service.shutdown();
+            ActionListener<InferenceServiceResults> passedListener = invocation.getArgument(4);
+            passedListener.onResponse(null);
+
             return Void.TYPE;
         }).when(requestSender).send(any(), any(), any(), any(), any());
 
         service.start();
 
+        listener.actionGet(TIMEOUT);
         verify(requestSender, times(1)).send(any(), any(), any(), any(), any());
     }
 
@@ -617,7 +590,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             clock,
-            RequestExecutorService.DEFAULT_SLEEPER,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
         );
         var requestManager = RequestManagerTests.createMock(requestSender, "id1");
@@ -651,7 +623,6 @@ public class RequestExecutorServiceTests extends ESTestCase {
             settings,
             requestSender,
             Clock.systemUTC(),
-            RequestExecutorService.DEFAULT_SLEEPER,
             RequestExecutorService.DEFAULT_RATE_LIMIT_CREATOR
         );
 

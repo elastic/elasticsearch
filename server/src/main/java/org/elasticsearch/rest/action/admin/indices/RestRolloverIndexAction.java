@@ -44,9 +44,9 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Override
     public Set<String> supportedCapabilities() {
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            return Set.of("lazy-rollover-failure-store", "index-expression-selectors");
+            return Set.of("return-404-on-missing-target", "lazy-rollover-failure-store", "index-expression-selectors");
         } else {
-            return Set.of();
+            return Set.of("return-404-on-missing-target");
         }
     }
 

@@ -279,6 +279,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 composableIndexTemplate,
                 Map.of(),
                 ALLOWED_PRODUCTS,
+                FLEET_ORIGIN,
                 ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
             );
         } catch (IOException e) {

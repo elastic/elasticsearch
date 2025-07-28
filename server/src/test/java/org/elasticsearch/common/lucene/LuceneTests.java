@@ -60,6 +60,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.HalfFloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.ShardDocSortField;
@@ -627,7 +628,7 @@ public class LuceneTests extends ESTestCase {
         IndexFieldData.XFieldComparatorSource comparatorSource;
         boolean reverse = randomBoolean();
         Object missingValue = null;
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0 -> comparatorSource = new LongValuesComparatorSource(
                 null,
                 randomBoolean() ? randomLong() : null,
@@ -647,7 +648,13 @@ public class LuceneTests extends ESTestCase {
                 randomFrom(MultiValueMode.values()),
                 null
             );
-            case 3 -> {
+            case 3 -> comparatorSource = new HalfFloatValuesComparatorSource(
+                null,
+                randomBoolean() ? randomFloat() : null,
+                randomFrom(MultiValueMode.values()),
+                null
+            );
+            case 4 -> {
                 comparatorSource = new BytesRefFieldComparatorSource(
                     null,
                     randomBoolean() ? "_first" : "_last",

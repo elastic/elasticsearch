@@ -32,7 +32,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
      * short and meaningful as a grouping identifier. We use the phase of the
      * query right now: "data", "node_reduce", "final".
      */
-    private final String taskDescription;
+    private final String description;
 
     /**
      * Millis since epoch when the driver started.
@@ -69,7 +69,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     private final DriverSleeps sleeps;
 
     public DriverProfile(
-        String taskDescription,
+        String description,
         long startMillis,
         long stopMillis,
         long tookNanos,
@@ -78,7 +78,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
         List<DriverStatus.OperatorStatus> operators,
         DriverSleeps sleeps
     ) {
-        this.taskDescription = taskDescription;
+        this.description = description;
         this.startMillis = startMillis;
         this.stopMillis = stopMillis;
         this.tookNanos = tookNanos;
@@ -89,7 +89,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     }
 
     public DriverProfile(StreamInput in) throws IOException {
-        this.taskDescription = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "";
+        this.description = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "";
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             this.startMillis = in.readVLong();
             this.stopMillis = in.readVLong();
@@ -113,7 +113,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
-            out.writeString(taskDescription);
+            out.writeString(description);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeVLong(startMillis);
@@ -131,8 +131,8 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     /**
      * Description of the task this driver is running.
      */
-    public String taskDescription() {
-        return taskDescription;
+    public String description() {
+        return description;
     }
 
     /**
@@ -189,7 +189,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
-            b.field("task_description", taskDescription);
+            b.field("description", description);
             b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
             b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
             b.field("took_nanos", tookNanos);
@@ -218,7 +218,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
             return false;
         }
         DriverProfile that = (DriverProfile) o;
-        return taskDescription.equals(that.taskDescription)
+        return description.equals(that.description)
             && startMillis == that.startMillis
             && stopMillis == that.stopMillis
             && tookNanos == that.tookNanos
@@ -230,7 +230,7 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskDescription, startMillis, stopMillis, tookNanos, cpuNanos, iterations, operators, sleeps);
+        return Objects.hash(description, startMillis, stopMillis, tookNanos, cpuNanos, iterations, operators, sleeps);
     }
 
     @Override

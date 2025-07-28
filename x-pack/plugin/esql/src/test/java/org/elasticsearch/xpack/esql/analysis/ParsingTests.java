@@ -79,7 +79,11 @@ public class ParsingTests extends ESTestCase {
      */
     public void testInlineCast() throws IOException {
         EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
-        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve("kibana");
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
+            .resolve("query-languages")
+            .resolve("esql")
+            .resolve("kibana")
+            .resolve("definition");
         Files.createDirectories(dir);
         Path file = dir.resolve("inline_cast.json");
         try (XContentBuilder report = new XContentBuilder(JsonXContent.jsonXContent, Files.newOutputStream(file))) {

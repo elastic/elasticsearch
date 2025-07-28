@@ -107,8 +107,10 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
 
         assertCriticalWarnings(
-            "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
-            "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
+            "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version.",
+            "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version.",
             S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING
         );
     }
@@ -193,8 +195,10 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
         if (hasInsecureSettings) {
             assertCriticalWarnings(
-                "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
-                "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
+                "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the breaking changes documentation for the next major version.",
+                "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the breaking changes documentation for the next major version.",
                 S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING
             );
         }

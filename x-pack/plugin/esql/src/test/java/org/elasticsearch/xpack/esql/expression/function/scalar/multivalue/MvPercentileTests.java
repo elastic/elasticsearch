@@ -324,9 +324,11 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                                 evaluatorString(fieldType, percentileType),
                                 fieldType,
                                 nullValue()
-                            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                            ).withWarning(
+                                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                            )
                                 .withWarning(
-                                    "Line -1:-1: java.lang.IllegalArgumentException: Percentile parameter must be "
+                                    "Line 1:1: java.lang.IllegalArgumentException: Percentile parameter must be "
                                         + "a number between 0 and 100, found ["
                                         + percentile.doubleValue()
                                         + "]"
@@ -352,13 +354,12 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
             (nullPosition, nullValueDataType, original) -> nullValueDataType == DataType.NULL && nullPosition == 0
                 ? DataType.NULL
                 : original.expectedType(),
             (nullPosition, nullData, original) -> original,
-            cases,
-            (v, p) -> "numeric except unsigned_long"
+            cases
         );
     }
 

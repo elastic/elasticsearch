@@ -36,6 +36,7 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -415,8 +416,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
         List<Page> intermediateOutput = new ArrayList<>();
 
-        Driver driver = new Driver(
-            "test",
+        Driver driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
@@ -431,13 +431,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     analysisRegistry
                 ).get(driverContext)
             ),
-            new PageConsumerOperator(intermediateOutput::add),
-            () -> {}
+            new PageConsumerOperator(intermediateOutput::add)
         );
         runDriver(driver);
 
-        driver = new Driver(
-            "test",
+        driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
@@ -452,15 +450,13 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     analysisRegistry
                 ).get(driverContext)
             ),
-            new PageConsumerOperator(intermediateOutput::add),
-            () -> {}
+            new PageConsumerOperator(intermediateOutput::add)
         );
         runDriver(driver);
 
         List<Page> finalOutput = new ArrayList<>();
 
-        driver = new Driver(
-            "test",
+        driver = TestDriverFactory.create(
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
@@ -475,8 +471,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     analysisRegistry
                 ).get(driverContext)
             ),
-            new PageConsumerOperator(finalOutput::add),
-            () -> {}
+            new PageConsumerOperator(finalOutput::add)
         );
         runDriver(driver);
 

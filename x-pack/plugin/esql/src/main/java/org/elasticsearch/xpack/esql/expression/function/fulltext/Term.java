@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -48,6 +50,7 @@ public class Term extends FullTextFunction implements PostOptimizationVerificati
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = "Performs a Term query on the specified field. Returns true if the provided term matches the row.",
         examples = { @Example(file = "term-function", tag = "term-with-field") }
     )
@@ -134,7 +137,8 @@ public class Term extends FullTextFunction implements PostOptimizationVerificati
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject());
+        // Uses a term query that contributes to scoring
+        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject(), false, true);
     }
 
     @Override

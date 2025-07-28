@@ -279,6 +279,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
             propertyValue,
             scriptService
         );
+        assertThat(result, instanceOf(ConfigurationUtils.ConstantTemplateScriptFactory.class));
         assertThat(result.newInstance(null).execute(), equalTo(propertyValue));
         verify(scriptService, times(0)).compile(any(), any());
     }

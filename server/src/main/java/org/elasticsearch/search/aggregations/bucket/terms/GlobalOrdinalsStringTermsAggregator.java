@@ -1089,7 +1089,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         SignificantStringTerms buildNoValuesResult(long owningBucketOrdinal) {
-            return buildEmptySignificantTermsAggregation(subsetSizes.get(owningBucketOrdinal), supersetSize, significanceHeuristic);
+            return buildEmptySignificantTermsAggregation(subsetSize(owningBucketOrdinal), supersetSize, significanceHeuristic);
         }
 
         @Override

@@ -297,7 +297,6 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
     void checkDatabases(ProjectState projectState) {
         ProjectId projectId = projectState.projectId();
         ProjectMetadata projectMetadata = projectState.metadata();
-        ClusterState clusterState = projectState.cluster();
         PersistentTasksCustomMetadata persistentTasks = projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks == null) {
             logger.trace("Not checking databases for project [{}] because persistent tasks are null", projectId);
@@ -311,7 +310,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         } else {
             // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
             Index databasesIndex = databasesAbstraction.getWriteIndex();
-            IndexRoutingTable databasesIndexRT = clusterState.routingTable(projectId).index(databasesIndex);
+            IndexRoutingTable databasesIndexRT = projectState.routingTable().index(databasesIndex);
             if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
                 logger.trace(
                     "Not checking databases because geoip databases index does not have all active primary shards for" + " project [{}]",
@@ -335,7 +334,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 taskState.getDatabases()
                     .entrySet()
                     .stream()
-                    .filter(e -> e.getValue().isNewEnough(clusterState.getMetadata().settings()))
+                    .filter(e -> e.getValue().isNewEnough(projectState.settings()))
                     .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
                     .toList()
             );
@@ -343,7 +342,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
 
         // process the geoip task state for the enterprise geoip downloader
         {
-            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(clusterState);
+            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(projectState.cluster());
             if (taskState == null) {
                 // Note: an empty state will purge stale entries in databases map
                 taskState = EnterpriseGeoIpTaskState.EMPTY;
@@ -352,7 +351,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
                 taskState.getDatabases()
                     .entrySet()
                     .stream()
-                    .filter(e -> e.getValue().isNewEnough(clusterState.getMetadata().settings()))
+                    .filter(e -> e.getValue().isNewEnough(projectState.settings()))
                     .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
                     .toList()
             );

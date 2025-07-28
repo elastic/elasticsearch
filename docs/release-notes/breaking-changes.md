@@ -97,7 +97,7 @@ Snapshot/Restore:
 The `repository-s3` plugin now uses AWS SDK v2 instead of v1, as AWS will deprecate SDK v1 before the end of Elasticsearch 8.19’s support period. The two SDKs differ in behavior, which may require updates to your configuration.
 
 **Impact:**
-Existing `repository-s3` configurations may no longer be compatible. Notable differences in AWS SDK v2 include but not limited to:
+Existing `repository-s3` configurations may no longer be compatible. Notable differences in AWS SDK v2 include, but may not be limited to:
 - AWS SDK v2 requires users to specify the region to use for signing requests, or else to run in an environment in which it can determine the correct region automatically. The older SDK would try to determine the region based on the endpoint URL as specified with the `s3.client.${CLIENT_NAME}.endpoint` setting, together with other data drawn from the operating environment, and would ultimately fall back to `us-east-1` if no better value could be found.
 - AWS SDK v2 does not support the EC2 IMDSv1 protocol.
 - AWS SDK v2 does not support the `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.

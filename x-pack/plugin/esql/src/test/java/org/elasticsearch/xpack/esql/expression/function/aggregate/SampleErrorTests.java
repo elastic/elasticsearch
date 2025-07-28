@@ -19,25 +19,29 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class SampleErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(ValuesTests.parameters());
+        return paramsToSuppliers(SampleTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Values(source, args.get(0));
+        return new Sample(source, args.get(0), args.get(1));
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        assert false : "All checked types must work";
-        return null;
-    }
-
-    @Override
-    protected void assertNumberOfCheckedSignatures(int checked) {
-        assertThat(checked, equalTo(0));
+        if (signature.get(1).equals(DataType.NULL)) {
+            return equalTo("second argument of [" + sourceForSignature(signature) + "] cannot be null, received []");
+        }
+        return equalTo(
+            typeErrorMessage(
+                true,
+                validPerPosition,
+                signature,
+                (v, p) -> p == 1 ? "integer" : "boolean, date, ip, string, version, aggregate_metric_double or numeric except counter types"
+            )
+        );
     }
 }

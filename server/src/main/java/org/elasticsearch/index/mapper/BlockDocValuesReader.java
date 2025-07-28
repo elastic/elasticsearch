@@ -18,7 +18,9 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
@@ -358,11 +360,47 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
     /**
      * Convert from the stored {@link long} into the {@link double} to load.
-     * Sadly, this will go megamorphic pretty quickly and slow us down,
-     * but it gets the job done for now.
      */
-    public interface ToDouble {
+    public sealed interface ToDouble permits SortableLongToDouble, SortableIntToFloat, SortableShortToHalfFloat, LongToScaledFloat {
         double convert(long v);
+
+        ToDouble LONG_TO_DOUBLE = new SortableLongToDouble();
+        ToDouble INT_TO_FLOAT = new SortableIntToFloat();
+        ToDouble SHORT_TO_HALF_FLOAT = new SortableShortToHalfFloat();
+    }
+
+    static final class SortableLongToDouble implements ToDouble {
+        @Override
+        public double convert(long v) {
+            return NumericUtils.sortableLongToDouble(v);
+        }
+    }
+
+    static final class SortableIntToFloat implements ToDouble {
+        @Override
+        public double convert(long v) {
+            return NumericUtils.sortableIntToFloat((int) v);
+        }
+    }
+
+    static final class SortableShortToHalfFloat implements ToDouble {
+        @Override
+        public double convert(long v) {
+            return HalfFloatPoint.sortableShortToHalfFloat((short) v);
+        }
+    }
+
+    public static final class LongToScaledFloat implements ToDouble {
+        private final double scalingFactor;
+
+        public LongToScaledFloat(double scalingFactor) {
+            this.scalingFactor = scalingFactor;
+        }
+
+        @Override
+        public double convert(long v) {
+            return v / scalingFactor;
+        }
     }
 
     public static class DoublesBlockLoader extends DocValuesBlockLoader {
@@ -397,10 +435,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class SingletonDoubles extends BlockDocValuesReader {
-        private final NumericDocValues docValues;
+    public static class SingletonDoubles extends BlockDocValuesReader {
+        protected final NumericDocValues docValues;
         private final ToDouble toDouble;
-        private int docID = -1;
 
         SingletonDoubles(NumericDocValues docValues, ToDouble toDouble) {
             this.docValues = docValues;
@@ -410,19 +447,13 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
             try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
-                int lastDoc = -1;
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (doc < lastDoc) {
-                        throw new IllegalStateException("docs within same block must be in order");
-                    }
                     if (docValues.advanceExact(doc)) {
                         builder.appendDouble(toDouble.convert(docValues.longValue()));
                     } else {
                         builder.appendNull();
                     }
-                    lastDoc = doc;
-                    this.docID = doc;
                 }
                 return builder.build();
             }
@@ -430,9 +461,8 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
-            this.docID = docId;
             DoubleBuilder blockBuilder = (DoubleBuilder) builder;
-            if (docValues.advanceExact(this.docID)) {
+            if (docValues.advanceExact(docId)) {
                 blockBuilder.appendDouble(toDouble.convert(docValues.longValue()));
             } else {
                 blockBuilder.appendNull();
@@ -441,7 +471,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public int docId() {
-            return docID;
+            return docValues.docID();
         }
 
         @Override

@@ -437,14 +437,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void ensureStructureSource() {
         if (useStructuredSource == false) {
             this.useStructuredSource = true;
-            createdStructuredSource();
+            createStructuredSource();
         }
     }
 
-    private void createdStructuredSource() {
+    private void createStructuredSource() {
         ESONSource.Builder builder = new ESONSource.Builder((int) (source.length() * 0.70));
-        try {
-            XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, contentType);
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, contentType)) {
             structuredSource = builder.parse(parser);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -585,7 +584,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.source = Objects.requireNonNull(source);
         this.contentType = Objects.requireNonNull(xContentType);
         if (useStructuredSource) {
-            createdStructuredSource();
+            createStructuredSource();
         }
         return this;
     }

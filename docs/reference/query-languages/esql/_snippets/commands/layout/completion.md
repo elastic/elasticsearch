@@ -49,7 +49,7 @@ To use this command, you must deploy your LLM model in Elasticsearch as
 an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
 task type `completion`.
 
-**Timeouts**
+**Handling timeouts**
 
 `COMPLETION` commands may time out when processing large datasets or complex prompts. To increase timeout limits for these operations, the configuration methods vary by deployment type:
 
@@ -75,7 +75,7 @@ Requires a manual override from Elastic Support as users cannot modify timeout s
 
 * Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
 * Split complex operations into multiple simpler queries 
-* Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/configuration-reference/networking-settings.md#_http_client_configuration)
+* Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/configuration-reference/networking-settings.md#_http_client_configuration)
 
 **Examples**
 

@@ -19,7 +19,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -158,8 +157,8 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         return response;
     }
 
-    private InferenceRunnerConfig randomBulkExecutionConfig() {
-        return new InferenceRunnerConfig(between(1, 100), between(1, 100));
+    private BulkInferenceRunnerConfig randomBulkExecutionConfig() {
+        return new BulkInferenceRunnerConfig(between(1, 100), between(1, 100));
     }
 
     private BulkInferenceRequestIterator requestIterator(List<InferenceAction.Request> requests) {

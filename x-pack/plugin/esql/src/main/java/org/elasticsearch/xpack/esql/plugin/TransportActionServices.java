@@ -15,8 +15,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.esql.inference.InferenceResolver;
-import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
 public class TransportActionServices {
     private final TransportService transportService;
@@ -103,16 +103,16 @@ public class TransportActionServices {
      * @return A configured inference runner capable of executing inference requests
      */
     public BulkInferenceRunner bulkInferenceRunner() {
-        return bulkInferenceRunner(InferenceRunnerConfig.DEFAULT);
+        return bulkInferenceRunner(BulkInferenceRunnerConfig.DEFAULT);
     }
 
     /**
      * Creates an inference runner with the specified execution configuration.
      *
-     * @param inferenceRunnerConfig Configuration specifying concurrency limits and execution parameters
+     * @param bulkInferenceRunnerConfig Configuration specifying concurrency limits and execution parameters
      * @return A configured inference runner capable of executing inference requests
      */
-    public BulkInferenceRunner bulkInferenceRunner(InferenceRunnerConfig inferenceRunnerConfig) {
-        return inferenceRunnerFactory.create(inferenceRunnerConfig);
+    public BulkInferenceRunner bulkInferenceRunner(BulkInferenceRunnerConfig bulkInferenceRunnerConfig) {
+        return inferenceRunnerFactory.create(bulkInferenceRunnerConfig);
     }
 }

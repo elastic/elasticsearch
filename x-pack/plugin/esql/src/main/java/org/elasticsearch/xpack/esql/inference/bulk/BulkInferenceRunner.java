@@ -12,7 +12,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -384,9 +383,9 @@ public class BulkInferenceRunner {
         /**
          * Creates a new inference runner with the specified execution configuration.
          *
-         * @param inferenceRunnerConfig Configuration defining concurrency limits and execution parameters
+         * @param bulkInferenceRunnerConfig Configuration defining concurrency limits and execution parameters
          * @return A configured inference runner implementation
          */
-        BulkInferenceRunner create(InferenceRunnerConfig inferenceRunnerConfig);
+        BulkInferenceRunner create(BulkInferenceRunnerConfig bulkInferenceRunnerConfig);
     }
 }

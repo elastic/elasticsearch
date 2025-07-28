@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.inference;
+package org.elasticsearch.xpack.esql.inference.bulk;
 
 /**
  * Configuration record for inference execution parameters.
@@ -18,7 +18,7 @@ package org.elasticsearch.xpack.esql.inference;
  * @param maxOutstandingBulkRequests The maximum number of concurrent bulk inference requests allowed
  * @param maxOutstandingRequests     The maximum number of concurrent inference requests allowed
  */
-public record InferenceRunnerConfig(int maxOutstandingRequests, int maxOutstandingBulkRequests) {
+public record BulkInferenceRunnerConfig(int maxOutstandingRequests, int maxOutstandingBulkRequests) {
 
     /**
      * Default number of worker threads for inference execution.
@@ -31,12 +31,12 @@ public record InferenceRunnerConfig(int maxOutstandingRequests, int maxOutstandi
     /**
      * Default configuration instance using standard values for most use cases.
      */
-    public static final InferenceRunnerConfig DEFAULT = new InferenceRunnerConfig(
+    public static final BulkInferenceRunnerConfig DEFAULT = new BulkInferenceRunnerConfig(
         DEFAULT_MAX_OUTSTANDING_REQUESTS,
         DEFAULT_MAX_OUTSTANDING_BULK_REQUESTS
     );
 
-    public InferenceRunnerConfig {
+    public BulkInferenceRunnerConfig {
         if (maxOutstandingRequests <= 0) throw new IllegalArgumentException("maxOutstandingRequests must be positive");
         if (maxOutstandingBulkRequests <= 0) throw new IllegalArgumentException("maxOutstandingBulkRequests must be positive");
 

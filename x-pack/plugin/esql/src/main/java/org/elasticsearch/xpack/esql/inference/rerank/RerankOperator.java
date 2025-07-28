@@ -15,8 +15,8 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
-import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
 /**
  * {@link RerankOperator} is an inference operator that compute scores for rows using a reranking model.
@@ -97,12 +97,12 @@ public class RerankOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new RerankOperator(
                 driverContext,
-                inferenceRunnerFactory.create(InferenceRunnerConfig.DEFAULT),
+                inferenceRunnerFactory.create(BulkInferenceRunnerConfig.DEFAULT),
                 inferenceId,
                 queryText,
                 rowEncoderFactory.get(driverContext),
                 scoreChannel,
-                InferenceRunnerConfig.DEFAULT.maxOutstandingRequests()
+                BulkInferenceRunnerConfig.DEFAULT.maxOutstandingRequests()
             );
         }
     }

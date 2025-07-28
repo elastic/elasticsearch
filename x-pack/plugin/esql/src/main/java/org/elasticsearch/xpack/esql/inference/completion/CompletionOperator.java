@@ -14,9 +14,9 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
-import org.elasticsearch.xpack.esql.inference.InferenceRunnerConfig;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
 /**
  * {@link CompletionOperator} is an {@link InferenceOperator} that performs inference using prompt-based model (e.g., text completion).
@@ -85,10 +85,10 @@ public class CompletionOperator extends InferenceOperator {
         public Operator get(DriverContext driverContext) {
             return new CompletionOperator(
                 driverContext,
-                inferenceRunnerFactory.create(InferenceRunnerConfig.DEFAULT),
+                inferenceRunnerFactory.create(BulkInferenceRunnerConfig.DEFAULT),
                 inferenceId,
                 promptEvaluatorFactory.get(driverContext),
-                InferenceRunnerConfig.DEFAULT.maxOutstandingBulkRequests()
+                BulkInferenceRunnerConfig.DEFAULT.maxOutstandingBulkRequests()
             );
         }
     }

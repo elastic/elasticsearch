@@ -265,7 +265,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                 );
             }
 
-            List<RetrieverBuilder> fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
+            List<RetrieverSource> fieldsInnerRetrievers = MultiFieldsInnerRetrieverUtils.generateInnerRetrievers(
                 fields,
                 query,
                 localIndicesMetadata.values(),
@@ -286,20 +286,13 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
                         );
                     }
                 }
-            );
+            ).stream().map(RetrieverSource::from).toList();
 
             if (fieldsInnerRetrievers.isEmpty() == false) {
                 // TODO: This is a incomplete solution as it does not address other incomplete copy issues
                 // (such as dropping the retriever name and min score)
-                int size = fieldsInnerRetrievers.size();
-                List<RetrieverSource> sources = new ArrayList<>(size);
-                float[] weights = new float[size];
-                Arrays.fill(weights, RRFRetrieverComponent.DEFAULT_WEIGHT);
-                for (int i = 0; i < size; i++) {
-                    sources.add(RetrieverSource.from(fieldsInnerRetrievers.get(i)));
-                    weights[i] = RRFRetrieverComponent.DEFAULT_WEIGHT;
-                }
-                rewritten = new RRFRetrieverBuilder(sources, null, null, rankWindowSize, rankConstant, weights);
+                float[] weights = createDefaultWeights(fieldsInnerRetrievers);
+                rewritten = new RRFRetrieverBuilder(fieldsInnerRetrievers, null, null, rankWindowSize, rankConstant, weights);
                 rewritten.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
             } else {
                 // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices

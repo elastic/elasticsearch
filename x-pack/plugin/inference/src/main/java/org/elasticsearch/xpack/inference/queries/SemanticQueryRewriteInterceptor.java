@@ -82,7 +82,11 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
      * @param fieldBoost per field boost value
      * @return {@link QueryBuilder}
      */
-    protected abstract QueryBuilder buildInferenceQuery(QueryBuilder queryBuilder, InferenceIndexInformationForField indexInformation, Float fieldBoost);
+    protected abstract QueryBuilder buildInferenceQuery(
+        QueryBuilder queryBuilder,
+        InferenceIndexInformationForField indexInformation,
+        Float fieldBoost
+    );
 
     /**
      * Builds a combined inference and non-inference query,

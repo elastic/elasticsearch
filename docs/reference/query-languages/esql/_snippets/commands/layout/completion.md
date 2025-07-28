@@ -51,7 +51,7 @@ task type `completion`.
 
 **Timeouts**
 
-`COMPLETION` commands may time out when processing large datasets or complex prompts.
+`COMPLETION` commands may time out when processing large datasets or complex prompts. To increase timeout limits for these operations, the configuration methods vary by deployment type:
 
 ::::{tab-set}
 :::{tab-item} {{ess}}
@@ -67,16 +67,15 @@ task type `completion`.
 :::
 
 :::{tab-item} {{serverless-full}}
-* Requires a manual override from Elastic Support as users cannot modify timeout settings directly
+Requires a manual override from Elastic Support as users cannot modify timeout settings directly.
 :::
 ::::
 
-**Workarounds:**
+**Alternative workarounds:**
 
 * Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
 * Split complex operations into multiple simpler queries 
 * Configure your application to handle streaming responses where supported
-* Contact Elastic Support to request timeout configuration adjustments in Serverless environments
 
 **Examples**
 

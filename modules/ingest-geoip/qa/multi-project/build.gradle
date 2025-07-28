@@ -16,6 +16,7 @@ dependencies {
   javaRestTestImplementation project(':test:external-modules:test-multi-project')
   javaRestTestImplementation project(':test:fixtures:geoip-fixture')
 
+  yamlRestTestImplementation(testArtifact(project(":modules:ingest-geoip"), "yamlRestTest"))  // includes yaml test code from ingest-geoip
   yamlRestTestImplementation project(':modules:ingest-geoip')
   yamlRestTestImplementation project(':test:external-modules:test-multi-project')
   yamlRestTestImplementation project(':test:fixtures:geoip-fixture')

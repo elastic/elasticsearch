@@ -57,13 +57,12 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
 
         int retrieverCount = randomIntBetween(2, 50);
         List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = new ArrayList<>(retrieverCount);
+        float[] weights = new float[retrieverCount];
+        int i = 0;
         while (retrieverCount > 0) {
             innerRetrievers.add(CompoundRetrieverBuilder.RetrieverSource.from(TestRetrieverBuilder.createRandomTestRetrieverBuilder()));
+            weights[i++] = randomFloat();
             --retrieverCount;
-        }
-        float[] weights = new float[innerRetrievers.size()];
-        for (int i = 0; i < innerRetrievers.size(); i++) {
-            weights[i] = randomFloat();
         }
 
         return new RRFRetrieverBuilder(innerRetrievers, fields, query, rankWindowSize, rankConstant, weights);
@@ -336,7 +335,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             }
             """;
 
-        expectParsingException(negativeWeightContent, "weight] must be non-negative");
+        expectParsingException(negativeWeightContent, "[weight] must be non-negative");
     }
 
     private void expectParsingException(String restContent, String expectedMessageFragment) throws IOException {

@@ -56,26 +56,6 @@ public class RRFRetrieverComponent implements ToXContentObject {
         return builder;
     }
 
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<RRFRetrieverComponent, RetrieverParserContext> PARSER = new ConstructingObjectParser<>(
-        "rrf_component",
-        false,
-        (args, context) -> {
-            RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[0];
-            Float weight = (Float) args[1];
-            return new RRFRetrieverComponent(retrieverBuilder, weight);
-        }
-    );
-
-    static {
-        PARSER.declareNamedObject(constructorArg(), (p, c, n) -> {
-            RetrieverBuilder innerRetriever = p.namedObject(RetrieverBuilder.class, n, c);
-            c.trackRetrieverUsage(innerRetriever.getName());
-            return innerRetriever;
-        }, RETRIEVER_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), WEIGHT_FIELD);
-    }
-
     public static RRFRetrieverComponent fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(), "expected object but found [{}]", parser.currentToken());

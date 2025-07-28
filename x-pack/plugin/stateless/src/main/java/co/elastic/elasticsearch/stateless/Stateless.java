@@ -82,10 +82,8 @@ import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
-import co.elastic.elasticsearch.stateless.engine.HollowIndexEngineDeletionPolicy;
 import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.IndexEngineDeletionPolicy;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottlingService;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
@@ -199,7 +197,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecProvider;
-import org.elasticsearch.index.engine.CombinedDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineCreationFailureException;
@@ -1298,6 +1295,7 @@ public class Stateless extends Plugin
                     localTranslogReplicator.unregister(shardId);
                 }
             });
+            indexModule.setIndexCommitListener(createIndexCommitListener());
             indexModule.setDirectoryWrapper((in, shardRouting) -> {
                 if (shardRouting.isPromotableToPrimary()) {
                     Lucene.cleanLuceneIndex(in);
@@ -1404,32 +1402,6 @@ public class Stateless extends Plugin
                 } else {
                     internalRefreshListeners = CollectionUtils.appendToCopy(internalRefreshListeners, collectorRefreshListener);
                 }
-
-                final var localCommitsRefs = getCommitService().getLocalCommitsRefsForShard(config.getShardId());
-                assert localCommitsRefs != null : config.getShardId();
-
-                // TODO commitsListener and the two consumers below could be included in LocalCommitsRefs/ShardCommitState
-                final var commitsListener = createIndexCommitListener();
-                final var indexEngineDeletionPolicyCommitsListener = new IndexEngineDeletionPolicy.CommitsListener() {
-                    @Override
-                    public void onNewCommit(Engine.IndexCommitRef indexCommitRef, Set<String> additionalFiles) {
-                        var store = config.getStore();
-                        store.incRef();
-                        commitsListener.onNewCommit(
-                            config.getShardId(),
-                            config.getStore(),
-                            config.getPrimaryTermSupplier().getAsLong(),
-                            new Engine.IndexCommitRef(indexCommitRef.getIndexCommit(), () -> IOUtils.close(indexCommitRef, store::decRef)),
-                            additionalFiles
-                        );
-                    }
-
-                    @Override
-                    public void onCommitDeleted(IndexCommit indexCommit) {
-                        commitsListener.onIndexCommitDelete(config.getShardId(), indexCommit);
-                    }
-                };
-
                 EngineConfig newConfig = new EngineConfig(
                     config.getShardId(),
                     config.getThreadPool(),
@@ -1461,22 +1433,7 @@ public class Stateless extends Plugin
                     config.getMapperService(),
                     config.getEngineResetLock(),
                     config.getMergeMetrics(),
-                    // Here we pass an index deletion policy wrapper to the engine. This is the only way we have to pass the
-                    // LocalCommitsRefs and the listener to the IndexWriter's policy, because the IndexWriter is created during
-                    // InternalEngine construction, before IndexEngine class attributes are set.
-                    policy -> {
-                        // If there is no default policy, we assume it is an hollow index engine
-                        if (policy instanceof CombinedDeletionPolicy combinedDeletionPolicy) {
-                            return new IndexEngineDeletionPolicy(
-                                localCommitsRefs,
-                                combinedDeletionPolicy,
-                                indexEngineDeletionPolicyCommitsListener
-                            );
-                        } else {
-                            assert policy == null : "Only expect CombinedDeletionPolicy or null policy";
-                            return new HollowIndexEngineDeletionPolicy(localCommitsRefs);
-                        }
-                    }
+                    Function.identity()
                 );
                 SegmentInfos segmentCommitInfos;
                 try {
@@ -1497,7 +1454,7 @@ public class Stateless extends Plugin
                         config.getShardId(),
                         segmentCommitInfos.getGeneration()
                     );
-                    return new HollowIndexEngine(newConfig, getCommitService(), hollowShardsService.get(), newConfig.getMapperService());
+                    return new HollowIndexEngine(config, getCommitService(), hollowShardsService.get(), config.getMapperService());
                 }
                 return newIndexEngine(
                     newConfig,

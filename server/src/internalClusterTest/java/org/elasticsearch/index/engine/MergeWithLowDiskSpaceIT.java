@@ -254,7 +254,10 @@ public class MergeWithLowDiskSpaceIT extends DiskUsageIntegTestCase {
         ensureStableCluster(1);
         setTotalSpace(node1, Long.MAX_VALUE);
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        prepareCreate(indexName, indexSettings(1, 0)).get();
+        createIndex(
+            indexName,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build()
+        );
         // get current disk space usage (for all indices on the node)
         IndicesStatsResponse stats = indicesAdmin().prepareStats().clear().setStore(true).get();
         long usedDiskSpaceAfterIndexing = stats.getTotal().getStore().sizeInBytes();

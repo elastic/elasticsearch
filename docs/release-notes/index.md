@@ -54,8 +54,7 @@ Users can enable redirection of ingest failures to the failure store on
 new data streams by specifying it in the new `data_stream_options` field
 inside of a component or index template:
 
-[source,yaml]
-----
+```yaml
 PUT _index_template/my-template
 {
   "index_patterns": ["logs-test-*"],
@@ -67,21 +66,20 @@ PUT _index_template/my-template
       }
     }
   }
-}'
-----
+}
+```
 
 Existing data streams can be configured with the new data stream
 `_options` endpoint:
 
-[source,yaml]
-----
+```yaml
 PUT _data_stream/logs-test-apache/_options
 {
   "failure_store": {
     "enabled": "true"
   }
 }
-----
+```
 
 When redirection is enabled, any ingestion related failures will be
 captured in the failure store if the cluster is able to, along with the
@@ -93,18 +91,16 @@ default as they are stored in different indices than the normal data
 stream data. In order to retrieve the failures, we use the `_search` API
 along with a new bit of index pattern syntax, the `::` selector.
 
-[source,yaml]
-----
+```yaml
 POST logs-test-apache::failures/_search
-----
+```
 
 This index syntax informs the search operation to target the indices in
 its failure store instead of its backing indices. It can be mixed in a
 number of ways with other index patterns to include their failure store
 indices in the search operation:
 
-[source,yaml]
-----
+```yaml
 POST logs-*::failures/_search
 POST logs-*,logs-*::failures/_search
 POST *::failures/_search
@@ -112,7 +108,7 @@ POST _query
 {
   "query": "FROM my_data_stream*::failures"
 }
-----
+```
 ::::
 
 ::::{dropdown} Mark Token Pruning for Sparse Vector as GA
@@ -135,24 +131,23 @@ Conceptually, fork is:
 
 Example:
 
-[source,yaml]
-----------------------------
+```yaml
 FROM test
 | FORK
 ( WHERE content:"fox" )
 ( WHERE content:"dog" )
 | SORT _fork
-----------------------------
+```
 
 The FORK command add a discriminator column called `_fork`:
 
-[source,yaml]
-----------------------------
+```yaml
 | id  | content   | _fork |
 |-----|-----------|-------|
 | 3   | brown fox | fork1 |
 | 4   | white dog | fork2 |
-----------------------------
+```
+
 ::::
 
 ::::{dropdown} ES|QL cross-cluster querying is now generally available

@@ -39,6 +39,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.hamcrest.Matchers.instanceOf;
@@ -86,6 +87,17 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
     }
 
     public void testRRFRetrieverParsingSyntax() throws IOException {
+        BiConsumer<String, float[]> testCase = (json, expectedWeights) -> {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
+                SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
+                assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
+                RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
+                assertArrayEquals(expectedWeights, rrf.weights(), 0.001f);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+
         String legacyJson = """
             {
               "retriever": {
@@ -98,12 +110,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
               }
             }
             """;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, legacyJson)) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
-            assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
-            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
-            assertArrayEquals(new float[] { 1.0f, 1.0f }, rrf.weights(), 0.001f);
-        }
+        testCase.accept(legacyJson, new float[] { 1.0f, 1.0f });
 
         String weightedJson = """
             {
@@ -117,12 +124,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
               }
             }
             """;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, weightedJson)) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
-            assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
-            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
-            assertArrayEquals(new float[] { 2.5f, 0.5f }, rrf.weights(), 0.001f);
-        }
+        testCase.accept(weightedJson, new float[] { 2.5f, 0.5f });
 
         String mixedJson = """
             {
@@ -136,12 +138,7 @@ public class RRFRetrieverBuilderTests extends ESTestCase {
               }
             }
             """;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, mixedJson)) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder().parseXContent(parser, true, nf -> true);
-            assertThat(ssb.retriever(), instanceOf(RRFRetrieverBuilder.class));
-            RRFRetrieverBuilder rrf = (RRFRetrieverBuilder) ssb.retriever();
-            assertArrayEquals(new float[] { 1.0f, 0.6f }, rrf.weights(), 0.001f);
-        }
+        testCase.accept(mixedJson, new float[] { 1.0f, 0.6f });
     }
 
     public void testMultiFieldsParamsRewrite() {

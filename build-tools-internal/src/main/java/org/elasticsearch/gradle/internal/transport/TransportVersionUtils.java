@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
+
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.attributes.Attribute;
@@ -34,8 +35,7 @@ class TransportVersionUtils {
     private static final String LATEST_DIR = "latest";
     private static final String DEFINED_DIR = "defined";
 
-    record TransportVersionDefinition(String name, List<Integer> ids) {
-    }
+    record TransportVersionDefinition(String name, List<Integer> ids) {}
 
     record TransportVersionReference(String name, String location) {
         @Override
@@ -71,11 +71,7 @@ class TransportVersionUtils {
         validateNameFormat(name);
         var path = dataDir.resolve(LATEST_DIR).resolve(majorMinor + ".csv");
         assert Files.isRegularFile(path) : "\"Latest\" file was not found at" + path + ", but is required: ";
-        Files.writeString(
-            path,
-            name + "," + id + "\n",
-            StandardCharsets.UTF_8
-        );
+        Files.writeString(path, name + "," + id + "\n", StandardCharsets.UTF_8);
     }
 
     static void validateNameFormat(String name) {

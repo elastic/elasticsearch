@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Streams;
+
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.RegularFileProperty;
@@ -77,10 +78,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
         // Create the new version
         final var mainReleaseVersion = VersionProperties.getElasticsearchVersion();
         final var areWeOnMain = forMinorVersion.equals(mainReleaseVersion);
-        int newVersion = bumpVersionNumber(
-            latestTV.ids().getFirst(),
-            areWeOnMain ? PartToBump.SERVER : PartToBump.PATCH
-        );
+        int newVersion = bumpVersionNumber(latestTV.ids().getFirst(), areWeOnMain ? PartToBump.SERVER : PartToBump.PATCH);
 
         // Load the tvSetData for the specified name, if it exists
         final var tvSetDataFromFile = TransportVersionUtils.getDefinedFile(tvDataDir, tvName);
@@ -103,10 +101,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
     }
 
     // TODO Do I need to remove the patch when updating the server portion? NO, but probably need some additional checks
-    private static int bumpVersionNumber(
-        int tvIDToBump,
-        PartToBump partToBump
-    ) {
+    private static int bumpVersionNumber(int tvIDToBump, PartToBump partToBump) {
 
         /* The TV format:
          *
@@ -121,24 +116,27 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
             case SERVER -> {
                 var newId = tvIDToBump + 1000;
                 if ((newId / 1000) % 100 == 0) {
-                    throw new IllegalStateException("Insufficient server version section in TransportVersion: " + tvIDToBump
-                        + ", Cannot bump.");
+                    throw new IllegalStateException(
+                        "Insufficient server version section in TransportVersion: " + tvIDToBump + ", Cannot bump."
+                    );
                 }
                 yield tvIDToBump + 1000;
             }
             case SUBSIDIARY -> {
                 var newId = tvIDToBump + 100;
                 if ((newId / 100) == 0) {
-                    throw new IllegalStateException("Insufficient subsidiary version section in TransportVersion: " + tvIDToBump
-                        + ", Cannot bump.");
+                    throw new IllegalStateException(
+                        "Insufficient subsidiary version section in TransportVersion: " + tvIDToBump + ", Cannot bump."
+                    );
                 }
                 yield newId;
             }
             case PATCH -> {
                 var newId = tvIDToBump + 1;
                 if (newId % 10 == 0) {
-                    throw new IllegalStateException("Insufficient patch version section in TransportVersion: " + tvIDToBump
-                        + ", Cannot bump.");
+                    throw new IllegalStateException(
+                        "Insufficient patch version section in TransportVersion: " + tvIDToBump + ", Cannot bump."
+                    );
                 }
                 yield newId;
             }

@@ -1,5 +1,5 @@
 pr: 132048
-summary: Retry when failing to start indexer
+summary: Fix stuck in STOPPING by retrying the startup task indefinitely until it succeeds
 area: Transform
 type: bug
 issues:

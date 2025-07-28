@@ -98,6 +98,11 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_UNSIGNED_LONG,
 
         /**
+         * Accept unsigned longs on VALUES and SAMPLE aggregations.
+         */
+        AGG_VALUES_SAMPLE_UNSIGNED_LONG,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,
@@ -947,7 +952,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V8(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V9(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results

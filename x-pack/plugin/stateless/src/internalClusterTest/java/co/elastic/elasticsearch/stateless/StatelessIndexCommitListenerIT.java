@@ -251,10 +251,19 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
         assertCommitsGenerations("New retained commit 4 after flush and commit 3 not yet released", List.of(3L, 4L), List.of());
 
         releaseCommit(3L);
-        assertCommitsGenerations("Commit 3 was released and deleted by Lucene and commit 4 is still retained", List.of(4L), List.of(3L));
+        assertCommitsGenerations(
+            "Commit 3 was released and it will be deleted by Lucene during the next flush and commit 4 is still retained",
+            List.of(4L),
+            List.of()
+        );
 
         releaseCommit(4L);
-        assertCommitsGenerations("No more commits retained and commit 4 not deleted because it is the last commit", List.of(), List.of(3L));
+        assertCommitsGenerations(
+            "No more commits retained and commit 4 not deleted because it is the last commit "
+                + "and commit 3 is still not deleted because there has not been any flushes",
+            List.of(),
+            List.of()
+        );
 
         indexDocs(indexName, scaledRandomIntBetween(10, 1_000));
         flush(indexName);
@@ -266,29 +275,46 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
 
     public void testCommitsWithUnorderedReleases() {
         final int nbGenerations = randomIntBetween(2, 20);
+        final long initialGeneration = 3L;
         for (long i = 1L; i <= nbGenerations; i++) {
             indexDocs(indexName, scaledRandomIntBetween(10, 100));
             flush(indexName);
-            assertCommitsGenerations("New commit " + i, LongStream.rangeClosed(3L, 3L + i).boxed().toList(), List.of());
+            assertCommitsGenerations(
+                "New commit " + i,
+                LongStream.rangeClosed(initialGeneration, initialGeneration + i).boxed().toList(),
+                List.of()
+            );
         }
 
-        final List<Long> unreleasedGens = LongStream.rangeClosed(3L, 3L + nbGenerations).boxed().collect(toCollection(ArrayList::new));
+        final List<Long> unreleasedGens = LongStream.rangeClosed(initialGeneration, initialGeneration + nbGenerations)
+            .boxed()
+            .collect(toCollection(ArrayList::new));
         Randomness.shuffle(unreleasedGens);
 
         final List<Long> deletedGens = new ArrayList<>();
         while (unreleasedGens.isEmpty() == false) {
             long releasedGen = unreleasedGens.remove(0);
             releaseCommit(releasedGen);
-            if (releasedGen != nbGenerations + 3L) {
+            if (releasedGen != nbGenerations + initialGeneration) {
                 deletedGens.add(releasedGen);
             }
             assertCommitsGenerations(
                 "Releasing commits",
                 unreleasedGens.stream().sorted().toList(),
-                deletedGens.stream().sorted().toList()
+                // The deletion policy is not revisited until there's a flush
+                List.of()
             );
         }
-        assertCommitsGenerations("End of test", List.of(), LongStream.range(3L, 3L + nbGenerations).boxed().sorted().toList());
+        // Force a flush so the deletion policy is revisited and the released commits are marked as deleted
+        indicesAdmin().prepareFlush(indexName).setForce(true).get();
+        // Release the newly created commit immediately
+        releaseCommit(initialGeneration + nbGenerations + 1);
+        assertCommitsGenerations(
+            "End of test",
+            List.of(),
+            // Notice that the newly created commit won't be marked as deleted until the next flush
+            LongStream.rangeClosed(initialGeneration, initialGeneration + nbGenerations).boxed().sorted().toList()
+        );
     }
 
     public void testMerges() throws Exception {
@@ -332,28 +358,36 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessIntegTestCa
             plugin.release(shardId, generation);
 
             var commitFiles = Set.copyOf(commitRef.getIndexCommit().getFileNames());
-            if (generation != lastCommitRef.getIndexCommit().getGeneration()) {
-                for (String commitFile : commitFiles) {
-                    Set<Long> fileGenerations = allFilesWithGenerations.get(commitFile);
-                    assertThat(fileGenerations.remove(generation), equalTo(true));
-                    assertThat(
-                        "File " + commitFile + " of commit generation " + generation,
-                        Files.notExists(indexShard.shardPath().resolveIndex().resolve(commitFile)),
-                        equalTo(fileGenerations.isEmpty())
-                    );
-                }
+            for (String commitFile : commitFiles) {
+                Set<Long> fileGenerations = allFilesWithGenerations.get(commitFile);
+                assertThat(fileGenerations.remove(generation), equalTo(true));
+                // The policy is not revisited until there's a flush, so the files must be retained on disk even if the commit is released
+                assertThat(
+                    "File " + commitFile + " of commit generation " + generation,
+                    Files.exists(indexShard.shardPath().resolveIndex().resolve(commitFile)),
+                    equalTo(true)
+                );
             }
         }
 
+        // Force a flush so the deletion policy is revisited
+        indicesAdmin().prepareFlush(indexName).setForce(true).get();
+
+        var lastFlushGeneration = plugin.listRetainedCommits(shardId).getLast();
+        final var lastFlushCommitRef = plugin.getIndexCommitRef(shardId, lastFlushGeneration);
+        final var lastFlushCommitFiles = new HashSet<>(lastFlushCommitRef.getIndexCommit().getFileNames());
+
+        // At this point all the original files that are not referenced by lastFlushCommit must be deleted locally
         for (var entry : allFilesWithGenerations.entrySet()) {
-            if (lastCommitFiles.contains(entry.getKey())) {
+            if (lastFlushCommitFiles.contains(entry.getKey())) {
                 assertThat(Files.exists(indexShard.shardPath().resolveIndex().resolve(entry.getKey())), equalTo(true));
-                assertThat(entry.getValue(), equalTo(Set.of(lastCommitRef.getIndexCommit().getGeneration())));
             } else {
                 assertThat(Files.exists(indexShard.shardPath().resolveIndex().resolve(entry.getKey())), equalTo(false));
-                assertThat(entry.getValue(), emptyIterable());
             }
+            assertThat(entry.getValue(), emptyIterable());
         }
+
+        releaseCommit(lastFlushGeneration);
     }
 
     private TestStateless getStatelessPluginInstance() {

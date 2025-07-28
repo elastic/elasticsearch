@@ -1092,6 +1092,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // The order must be reversed when reading a BCC based on its generation, i.e. we must first check `currentVirtualBcc`,
         // then `pendingUploadBccGenerations` and lastly `latestUploadedBcc`, to have full coverage _without_ using synchronization.
 
+        /**
+         * References on the Lucene commits acquired on the engines and maintained across engine resets.
+         */
+        private final LocalCommitsRefs localCommitsRefs;
+
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
         private List<Consumer<UploadedBccInfo>> uploadedBccConsumers = null;
         private volatile long recoveredGeneration = -1;
@@ -1140,6 +1145,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
             this.addGlobalCheckpointListenerFunction = addGlobalCheckpointListenerFunction;
             this.triggerTranslogReplicator = triggerTranslogReplicator;
+            this.localCommitsRefs = new LocalCommitsRefs();
         }
 
         /**
@@ -1158,6 +1164,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private boolean isRelocating() {
             return state == State.RELOCATING;
+        }
+
+        public LocalCommitsRefs getLocalCommitsRefs() {
+            return localCommitsRefs;
         }
 
         /**
@@ -3086,6 +3096,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public CommitBCCResolver getCommitBCCResolverForShard(ShardId shardId) {
         return getSafe(shardsCommitsStates, shardId);
+    }
+
+    public LocalCommitsRefs getLocalCommitsRefsForShard(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId).getLocalCommitsRefs();
     }
 
     private void waitForClusterStateProcessed(long clusterStateVersion, Runnable whenDone) {

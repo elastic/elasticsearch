@@ -1200,7 +1200,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
 
                     for (StreamType streamType : StreamType.values()) {
-                        if (StreamType.streamTypeIsEnabled(streamType, project)) {
+                        if (streamType.streamTypeIsEnabled(project)) {
                             if (newIndex.startsWith(streamType.getStreamName() + ".")
                                 && ingestDocument.getIndexHistory().stream().noneMatch(s -> s.equals(streamType.getStreamName()))) {
                                 exceptionHandler.accept(

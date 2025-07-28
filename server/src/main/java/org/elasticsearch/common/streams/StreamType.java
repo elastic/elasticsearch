@@ -26,9 +26,9 @@ public enum StreamType {
         return streamName;
     }
 
-    public static boolean streamTypeIsEnabled(StreamType streamType, ProjectMetadata projectMetadata) {
+    public boolean streamTypeIsEnabled(ProjectMetadata projectMetadata) {
         StreamsMetadata metadata = projectMetadata.custom(StreamsMetadata.TYPE, StreamsMetadata.EMPTY);
-        return switch (streamType) {
+        return switch (this) {
             case LOGS -> metadata.isLogsEnabled();
         };
     }

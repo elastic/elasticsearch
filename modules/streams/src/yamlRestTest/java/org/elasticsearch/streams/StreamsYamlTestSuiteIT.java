@@ -32,6 +32,7 @@ public class StreamsYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("streams")
         .module("ingest-common")
+        .module("reindex")
         .feature(FeatureFlag.LOGS_STREAM)
         .build();
 

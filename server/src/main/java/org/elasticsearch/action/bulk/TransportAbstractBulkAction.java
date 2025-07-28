@@ -405,7 +405,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         // Validate child stream writes before processing pipelines
         ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
         Set<StreamType> enabledStreamTypes = Arrays.stream(StreamType.values())
-            .filter(t -> StreamType.streamTypeIsEnabled(t, projectMetadata))
+            .filter(t -> t.streamTypeIsEnabled(projectMetadata))
             .collect(Collectors.toCollection(() -> EnumSet.noneOf(StreamType.class)));
 
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(bulkRequest);

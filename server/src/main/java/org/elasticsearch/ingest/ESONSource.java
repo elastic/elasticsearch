@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.AbstractCollection;
 import java.util.AbstractList;
 import java.util.AbstractMap;
@@ -143,8 +144,12 @@ public class ESONSource {
                             bytes.writeDouble(parser.doubleValue());
                             yield new FixedValue((int) position, ValueType.DOUBLE);
                         }
-                        // TODO: BIG_INTEGER, BIG_DECIMAL
-                        default -> throw new IllegalArgumentException("Unexpected number type: " + numberType);
+                        case BIG_INTEGER, BIG_DECIMAL -> {
+                            String numberString = parser.text();
+                            byte[] numberBytes = numberString.getBytes(StandardCharsets.UTF_8);
+                            bytes.write(numberBytes);
+                            yield new VariableValue((int) position, numberBytes.length, ValueType.STRING);
+                        }
                     };
                 }
                 case VALUE_BOOLEAN -> {

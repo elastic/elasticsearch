@@ -68,14 +68,11 @@ sample unsigned_long
 required_capability: agg_values_sample_unsigned_long
 
 FROM ul_logs
-| STATS v = MV_SLICE(MV_SORT(SAMPLE(bytes_in, 99)), 3, 5)
-| MV_EXPAND v
+| STATS v = MV_SLICE(MV_SORT(SAMPLE(bytes_in, 200)), 3, 5)
 ;
 
 v:ul
-0
-74330435873664882
-154551962150890561
+[0, 74330435873664882, 154551962150890561]
 ;
 
 

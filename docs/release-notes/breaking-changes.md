@@ -33,7 +33,7 @@ Test the upgrade in a non-production environment. Adapt your configuration to th
 - If you use IMDS to determine the availability zone of a node or to obtain credentials for accessing the EC2 API, ensure that it supports the IMDSv2 protocol.
 - If applicable, discontinue use of the `aws.secretKey` and `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
 - If applicable, specify that you wish to use the insecure HTTP protocol to access the EC2 API by setting `discovery.ec2.endpoint` to a URL which starts with `http://`.
-- Either supply both an access key and a secret key using the keystore settings `discovery.ec2.access_key` and `discovery.ec2.secret_key`, or configure neither of these settings.
+- Either supply both an access key and a secret key using the `discovery.ec2.access_key` and `discovery.ec2.secret_key` keystore settings, or configure neither of these settings.
 
 For more information, view [#122062](https://github.com/elastic/elasticsearch/pull/122062).
 :::

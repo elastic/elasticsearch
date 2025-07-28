@@ -1846,7 +1846,7 @@ public class RBACEngineTests extends ESTestCase {
                                 IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
                                 IndicesPrivileges.builder()
                                     .indices("*")
-                                    .privileges("monitor", "read", "read_cross_cluster", "view_index_metadata")
+                                    .privileges("monitor", "read", "view_index_metadata")
                                     .allowRestrictedIndices(true)
                                     .build() },
                             null,
@@ -1887,12 +1887,12 @@ public class RBACEngineTests extends ESTestCase {
                                 .filter(s -> s.equals(ClusterPrivilegeResolver.MONITOR_STATS.name()))
                                 .toArray(String[]::new),
                             new IndicesPrivileges[] {
-                                IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
-                                IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
-                                IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "read_cross_cluster").build(),
-                                IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read", "read_cross_cluster").build(),
-                                IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
-                                IndicesPrivileges.builder().indices("traces-apm.*").privileges("read", "read_cross_cluster").build() },
+                                IndicesPrivileges.builder().indices(".monitoring-*").privileges("read").build(),
+                                IndicesPrivileges.builder().indices("apm-*").privileges("read").build(),
+                                IndicesPrivileges.builder().indices("logs-apm.*").privileges("read").build(),
+                                IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read").build(),
+                                IndicesPrivileges.builder().indices("traces-apm-*").privileges("read").build(),
+                                IndicesPrivileges.builder().indices("traces-apm.*").privileges("read").build() },
                             null,
                             null,
                             null,
@@ -1928,12 +1928,12 @@ public class RBACEngineTests extends ESTestCase {
                             Role.REMOTE_USER_ROLE_NAME,
                             null,
                             new IndicesPrivileges[] {
-                                IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder().indices(".monitoring-*").privileges("read").build(),
                                 IndicesPrivileges.builder()
                                     .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
-                                    .privileges("read", "read_cross_cluster")
+                                    .privileges("read")
                                     .build(),
-                                IndicesPrivileges.builder().indices("metricbeat-*").privileges("read", "read_cross_cluster").build() },
+                                IndicesPrivileges.builder().indices("metricbeat-*").privileges("read").build() },
                             null,
                             null,
                             null,

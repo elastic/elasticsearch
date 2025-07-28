@@ -283,7 +283,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
                             "logs"
                           ],
                           "privileges": [
-                            "read", "read_cross_cluster", "view_index_metadata"
+                            "read", "view_index_metadata"
                           ],
                           "allow_restricted_indices": false
                         },

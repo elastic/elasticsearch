@@ -406,7 +406,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees*"],
@@ -445,7 +445,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees*"],
@@ -479,7 +479,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // add DLS to the remote indices in the role to restrict access to only emp_id = 21
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees*"],
@@ -515,7 +515,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // add FLS to the remote indices in the role to restrict access to only access department
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees*"],
@@ -636,7 +636,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["employees"],
@@ -658,7 +658,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // without the remote index priv
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "remote_indices": [
                 {
                   "names": ["idontexist"],
@@ -822,7 +822,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         // ideally, remote only enrichment wouldn't need this local privilege, however remote only enrichment is not currently supported
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": [""], "privileges": ["read"]}],
               "cluster": ["cross_cluster_search"],
               "remote_indices": [
                 {
@@ -955,7 +955,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 },
                 {
                   "names": ["employees3"],
-                  "privileges": ["view_index_metadata", "read_cross_cluster"],
+                  "privileges": ["view_index_metadata", "read"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]
@@ -1033,7 +1033,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
-                  "indices": [{"names": ["employees*"], "privileges": ["read","read_cross_cluster"]}],
+                  "indices": [{"names": ["employees*"], "privileges": ["read"]}],
                   "cluster": [ "manage_own_api_key" ],
                   "remote_indices": [
                     {

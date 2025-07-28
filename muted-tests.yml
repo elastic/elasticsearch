@@ -485,21 +485,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
   method: testReader
   issue: https://github.com/elastic/elasticsearch/issues/131573
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testSearchShardsOnIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131662
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testSearchIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131693
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testOpenPITOnIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131695
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testLookupJoinAliasesSkipOld
   issue: https://github.com/elastic/elasticsearch/issues/131697
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testMultiSearchIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131698
 - class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
   method: testTimeoutSetting
   issue: https://github.com/elastic/elasticsearch/issues/131656

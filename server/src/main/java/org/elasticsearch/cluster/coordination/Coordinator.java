@@ -672,28 +672,32 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(
-                    () -> format(
-                        "received join request from [%s] but could not connect back to the joining node",
-                        joinRequest.getSourceNode()
-                    ),
-                    e
-                );
-
-                joinListener.onFailure(
-                    // NodeDisconnectedException mainly to suppress uninteresting stack trace
-                    new NodeDisconnectedException(
-                        joinRequest.getSourceNode(),
-                        String.format(
-                            Locale.ROOT,
-                            "failure when opening connection back from [%s] to [%s]",
-                            getLocalNode().descriptionWithoutAttributes(),
-                            joinRequest.getSourceNode().descriptionWithoutAttributes()
+                // The failure of the first node-join publication does not imply that the join failed,
+                // because it may be retried and eventually succeed
+                if (!applierState.nodes().nodeExists(joinRequest.getSourceNode())) {
+                    logger.warn(
+                        () -> format(
+                            "received join request from [%s] but could not connect back to the joining node",
+                            joinRequest.getSourceNode()
                         ),
-                        JoinHelper.JOIN_ACTION_NAME,
                         e
-                    )
-                );
+                    );
+
+                    joinListener.onFailure(
+                        // NodeDisconnectedException mainly to suppress uninteresting stack trace
+                        new NodeDisconnectedException(
+                            joinRequest.getSourceNode(),
+                            String.format(
+                                Locale.ROOT,
+                                "failure when opening connection back from [%s] to [%s]",
+                                getLocalNode().descriptionWithoutAttributes(),
+                                joinRequest.getSourceNode().descriptionWithoutAttributes()
+                            ),
+                            JoinHelper.JOIN_ACTION_NAME,
+                            e
+                        )
+                    );
+                }
             }
         });
     }

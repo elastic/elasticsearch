@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.common.settings.Setting;
@@ -119,10 +120,14 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
             var failure = failures.getFirst();
             assertThat(failure.getIndices().length, Matchers.is(1));
             assertThat(failure.getIndices()[0], Matchers.equalTo("cluster-a:*"));
+            // Outer wrapper that gets unwrapped in ExceptionsHelper.isRemoteUnavailableException().
             assertThat(
                 failure.getException().toString(),
-                Matchers.containsString("org.elasticsearch.ElasticsearchTimeoutException: timed out after [1s/1000ms]")
+                Matchers.containsString("java.lang.IllegalStateException: Unable to open any connections")
             );
+
+            // The actual error that is thrown by the subscribable listener when a remote could not be talked to.
+            assertThat(failure.getException().getCause(), Matchers.instanceOf(ElasticsearchTimeoutException.class));
 
             latch.countDown();
             result.decRef();

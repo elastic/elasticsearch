@@ -405,7 +405,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                  * Under no circumstances are we to pass timeout errors originating from SubscribableListener as top-level errors.
                  * Instead, they should always be passed through the response object, as part of "failures".
                  */
-                if (failures.stream().anyMatch(failure -> failure.getException() instanceof ElasticsearchTimeoutException)) {
+                if (failures.stream()
+                    .anyMatch(
+                        failure -> failure.getException() instanceof IllegalStateException ise
+                            && ise.getCause() instanceof ElasticsearchTimeoutException
+                    )) {
                     listener.onResponse(new FieldCapabilitiesResponse(Collections.emptyList(), failures));
                 } else {
                     // throw back the first exception
@@ -618,15 +622,24 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             for (Map.Entry<String, Exception> failure : failuresByIndex.entrySet()) {
                 String index = failure.getKey();
                 Exception e = failure.getValue();
+                /*
+                 * The listener we use to briefly try, and connect to a remote can throw an ElasticsearchTimeoutException
+                 * error if a remote cannot be reached. To make sure we correctly recognise this scenario via
+                 * ExceptionsHelper.isRemoteUnavailableException(), we wrap this error appropriately.
+                 */
+                if (e instanceof ElasticsearchTimeoutException ete) {
+                    e = new IllegalStateException("Unable to open any connections", ete);
+                }
 
                 if (successfulIndices.contains(index) == false) {
                     // we deduplicate exceptions on the underlying causes message and classname
                     // we unwrap the cause to e.g. group RemoteTransportExceptions coming from different nodes if the cause is the same
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
                     Tuple<String, String> groupingKey = new Tuple<>(cause.getMessage(), cause.getClass().getName());
+                    Exception ex = e;
                     indexFailures.compute(
                         groupingKey,
-                        (k, v) -> v == null ? new FieldCapabilitiesFailure(new String[] { index }, e) : v.addIndex(index)
+                        (k, v) -> v == null ? new FieldCapabilitiesFailure(new String[] { index }, ex) : v.addIndex(index)
                     );
                 }
             }

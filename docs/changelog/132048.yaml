@@ -1,0 +1,6 @@
+pr: 132048
+summary: Retry when failing to start indexer
+area: Transform
+type: bug
+issues:
+ - 128221

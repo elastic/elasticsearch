@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -101,22 +102,33 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
         }
     }
 
+    ActionListener<BulkResponse> wrapActionListenerIfNeeded(ActionListener<BulkResponse> actionListener) {
+        return doWrapActionListenerIfNeeded(BulkResponse::getIngestTookInMillis, actionListener);
+    }
+
+    ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
+        return doWrapActionListenerIfNeeded(ignoredResponse -> ingestTookInMillis, actionListener);
+    }
+
     /**
      * If documents were dropped or failed in ingest, this method wraps the action listener that will be notified when the
      * updated bulk operation is completed. The wrapped listener combines the dropped and failed document results from the ingest
      * service with the results returned from running the remaining write operations.
      *
-     * @param ingestTookInMillis Time elapsed for ingestion to be passed to final result.
+     * @param ingestTimeProviderFunction A function to provide the ingest time taken for this response
      * @param actionListener The action listener that expects the final bulk response.
      * @return An action listener that combines ingest failure results with the results from writing the remaining documents.
      */
-    ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
+    private ActionListener<BulkResponse> doWrapActionListenerIfNeeded(
+        Function<BulkResponse, Long> ingestTimeProviderFunction,
+        ActionListener<BulkResponse> actionListener
+    ) {
         if (itemResponses.isEmpty()) {
             return actionListener.map(
                 response -> new BulkResponse(
                     response.getItems(),
-                    response.getTook().getMillis(),
-                    ingestTookInMillis,
+                    response.getTookInMillis(),
+                    ingestTimeProviderFunction.apply(response),
                     response.getIncrementalState()
                 )
             );
@@ -142,6 +154,8 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                 if (Assertions.ENABLED) {
                     assertResponsesAreCorrect(bulkResponses, allResponses);
                 }
+
+                var ingestTookInMillis = ingestTimeProviderFunction.apply(response);
 
                 return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis, response.getIncrementalState());
             });

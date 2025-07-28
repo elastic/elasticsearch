@@ -384,7 +384,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    private SemanticTextIndexOptions getDefaultIndexOptionsForMapper(MapperService mapperService) {
+    private SemanticTextIndexOptions getDefaultSparseVectorIndexOptionsForMapper(MapperService mapperService) {
         var mapperIndexVersion = mapperService.getIndexSettings().getIndexVersionCreated();
         var defaultSparseVectorIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(mapperIndexVersion);
         return defaultSparseVectorIndexOptions == null
@@ -453,7 +453,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.endObject();
                 b.endObject();
             }), useLegacyFormat);
-            var expectedIndexOptions = getDefaultIndexOptionsForMapper(mapperService);
+            var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
             assertSemanticTextField(mapperService, "field", true, null, expectedIndexOptions);
 
             mapperService = createMapperService(fieldMapping(b -> {
@@ -472,8 +472,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 b.endObject();
                 b.endObject();
             }), useLegacyFormat);
-            assertSemanticTextField(mapperService, "field", true, null, null);
-            assertSemanticTextField(mapperService, "field.semantic", true, null, null);
+            expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
+            assertSemanticTextField(mapperService, "field", true, null, expectedIndexOptions);
+            assertSemanticTextField(mapperService, "field.semantic", true, null, expectedIndexOptions);
 
             Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
                 b.field("type", "semantic_text");
@@ -571,14 +572,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                             .endObject()
                     )
                 );
-                assertSemanticTextField(mapperService, fieldName, true, null, null);
+                var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
+                assertSemanticTextField(mapperService, fieldName, true, null, expectedIndexOptions);
             }
             {
                 merge(
                     mapperService,
                     mapping(b -> b.startObject(fieldName).field("type", "semantic_text").field("inference_id", "test_model").endObject())
                 );
-                assertSemanticTextField(mapperService, fieldName, true, null, null);
+                var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
+                assertSemanticTextField(mapperService, fieldName, true, null, expectedIndexOptions);
             }
             {
                 Exception exc = expectThrows(
@@ -790,7 +793,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 inferenceId,
                 new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
-            var expectedIndexOptions = getDefaultIndexOptionsForMapper(mapperService);
+            var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
             assertSemanticTextField(mapperService, fieldName, true, null, expectedIndexOptions);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
 
@@ -807,11 +810,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
         }
     }
-
-    private static void assertSemanticTextField(MapperService mapperService, String fieldName, boolean expectedModelSettings) {
-        assertSemanticTextField(mapperService, fieldName, expectedModelSettings, null, null);
-    }
-
+    
     private static void assertSemanticTextField(
         MapperService mapperService,
         String fieldName,

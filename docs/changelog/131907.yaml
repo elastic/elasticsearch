@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Enable `exclude_source_vectors` by default for new indices
-  area: Vector Search
+  area: Search
   details: |-
     The `exclude_source_vectors` setting is now enabled by default for newly created indices.
     This means that vector fields (e.g., `dense_vector`) are no longer stored in the `_source` field

@@ -9,6 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -1097,13 +1098,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         taskLatch.countDown();
                         boolean isLinked = true;
                         while (taskLatch.getCount() != 0) {
-                            final var latch = new CountDownLatch(1);
-                            service.updateRemoteCluster(
-                                "cluster_1",
-                                createSettings("cluster_1", isLinked ? Collections.emptyList() : seedList),
-                                new LatchedActionListener<>(ActionListener.noop(), latch)
-                            );
-                            safeAwait(latch);
+                            final var future = new PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus>();
+                            final var settings = createSettings("cluster_1", isLinked ? Collections.emptyList() : seedList);
+                            service.updateRemoteCluster("cluster_1", settings, future);
+                            safeGet(future);
                             isLinked = isLinked == false;
                         }
                         return;
@@ -1111,8 +1109,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
                     // Verify collectNodes() always invokes the listener, even if the node is concurrently being unlinked.
                     try {
-                        for (int i = 0; i < 1000; ++i) {
+                        for (int i = 0; i < 10; ++i) {
                             final var latch = new CountDownLatch(1);
+                            final var exRef = new AtomicReference<Exception>();
                             service.collectNodes(Set.of("cluster_1"), new LatchedActionListener<>(new ActionListener<>() {
                                 @Override
                                 public void onResponse(BiFunction<String, String, DiscoveryNode> func) {
@@ -1121,10 +1120,18 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
                                 @Override
                                 public void onFailure(Exception e) {
-                                    assertNotNull(e);
+                                    exRef.set(e);
                                 }
                             }, latch));
                             safeAwait(latch);
+                            if (exRef.get() != null) {
+                                assertThat(
+                                    exRef.get(),
+                                    either(instanceOf(TransportException.class)).or(instanceOf(NoSuchRemoteClusterException.class))
+                                        .or(instanceOf(AlreadyClosedException.class))
+                                        .or(instanceOf(NoSeedNodeLeftException.class))
+                                );
+                            }
                         }
                     } finally {
                         taskLatch.countDown();

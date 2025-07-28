@@ -49,7 +49,17 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
 
             @Override
             public String generateFieldName() {
-                return randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
+                while (true) {
+                    String fieldName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
+                    if (fieldName.isBlank()) {
+                        continue;
+                    }
+                    if (fieldName.indexOf('.') != -1) {
+                        continue;
+                    }
+
+                    return fieldName;
+                }
             }
         };
     }

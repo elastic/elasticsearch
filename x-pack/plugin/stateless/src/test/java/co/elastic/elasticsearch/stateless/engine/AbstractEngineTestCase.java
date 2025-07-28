@@ -112,6 +112,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
@@ -370,7 +371,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             true,
             mapperService,
             new EngineResetLock(),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            Function.identity()
         );
     }
 
@@ -466,7 +468,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             false,
             null,
             new EngineResetLock(),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            Function.identity()
         );
         return new SearchEngine(
             searchConfig,
@@ -562,7 +565,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             false,
             null,
             new EngineResetLock(),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            Function.identity()
         );
     }
 

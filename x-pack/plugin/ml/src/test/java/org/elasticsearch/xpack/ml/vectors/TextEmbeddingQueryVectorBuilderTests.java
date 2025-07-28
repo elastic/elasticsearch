@@ -41,7 +41,7 @@ public class TextEmbeddingQueryVectorBuilderTests extends AbstractQueryVectorBui
         assertThat(inferRequest.getInputs(), hasSize(1));
         assertEquals(builder.getModelText(), inferRequest.getInputs().get(0));
         assertEquals(builder.getModelId(), inferRequest.getModelId());
-        assertEquals(InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API, inferRequest.getInferenceTimeout());
+        assertNull(inferRequest.getInferenceTimeout());
         assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, inferRequest.getPrefixType());
         assertEquals(CoordinatedInferenceAction.Request.RequestModelType.NLP_MODEL, inferRequest.getRequestModelType());
     }

@@ -28,7 +28,7 @@ COMPLETION [column =] prompt WITH inference_id
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
-## Description
+### Description
 
 The `COMPLETION` command provides a general-purpose interface for
 text generation tasks using a Large Language Model (LLM) in ES|QL.
@@ -43,13 +43,13 @@ including:
 - Content rewriting
 - Creative generation
 
-## Requirements
+### Requirements
 
 To use this command, you must deploy your LLM model in Elasticsearch as
 an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
 task type `completion`.
 
-### Handling timeouts
+#### Handling timeouts
 
 `COMPLETION` commands may time out when processing large datasets or complex prompts. To increase timeout limits for these operations, the configuration methods vary by deployment type:
 

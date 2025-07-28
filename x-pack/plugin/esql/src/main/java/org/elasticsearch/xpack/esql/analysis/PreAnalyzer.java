@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.inference.InferenceResolver;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -27,19 +26,12 @@ import static java.util.Collections.emptyList;
  */
 public class PreAnalyzer {
 
-    private final InferenceResolver inferenceResolver;;
-
-    public PreAnalyzer(InferenceResolver inferenceResolver) {
-        this.inferenceResolver = inferenceResolver;
-    }
-
     public static class PreAnalysis {
         public static final PreAnalysis EMPTY = new PreAnalysis(null, emptyList(), emptyList(), emptyList(), emptyList());
 
         public final IndexMode indexMode;
         public final List<IndexPattern> indices;
         public final List<Enrich> enriches;
-        public final List<String> inferenceIds;
         public final List<IndexPattern> lookupIndices;
 
         public PreAnalysis(
@@ -52,7 +44,6 @@ public class PreAnalyzer {
             this.indexMode = indexMode;
             this.indices = indices;
             this.enriches = enriches;
-            this.inferenceIds = inferenceIds;
             this.lookupIndices = lookupIndices;
         }
     }
@@ -85,9 +76,6 @@ public class PreAnalyzer {
         });
 
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
-
-        // Collect inference IDs use in the plan
-        inferenceResolver.collectInferenceIds(plan, inferenceIds::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);

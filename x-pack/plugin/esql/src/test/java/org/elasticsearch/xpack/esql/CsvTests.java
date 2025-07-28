@@ -67,7 +67,6 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceResolver;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
@@ -524,7 +523,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
-        var preAnalysis = new PreAnalyzer(mock(InferenceResolver.class)).preAnalyze(parsed);
+        var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         var indices = preAnalysis.indices;
         if (indices.isEmpty()) {
             /*

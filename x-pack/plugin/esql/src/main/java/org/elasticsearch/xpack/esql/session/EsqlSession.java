@@ -400,7 +400,7 @@ public class EsqlSession {
             l -> enrichPolicyResolver.resolvePolicies(unresolvedPolicies, executionInfo, l)
         )
             .<PreAnalysisResult>andThenApply(enrichResolution -> FieldNameUtils.resolveFieldNames(parsed, enrichResolution))
-            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(preAnalysis.inferenceIds, preAnalysisResult, l));
+            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> resolveInferences(parsed, preAnalysisResult, l));
         // first resolve the lookup indices, then the main indices
         for (var index : preAnalysis.lookupIndices) {
             listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
@@ -753,8 +753,8 @@ public class EsqlSession {
         logicalPlanListener.onResponse(plan);
     }
 
-    private void resolveInferences(List<String> inferenceIds, PreAnalysisResult preAnalysisResult, ActionListener<PreAnalysisResult> l) {
-        inferenceResolver.resolveInferenceIds(inferenceIds, l.map(preAnalysisResult::withInferenceResolution));
+    private void resolveInferences(LogicalPlan plan, PreAnalysisResult preAnalysisResult, ActionListener<PreAnalysisResult> l) {
+        inferenceResolver.resolveInferenceIds(plan, l.map(preAnalysisResult::withInferenceResolution));
     }
 
     private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {

@@ -15,6 +15,7 @@ import fixture.gcs.GoogleCloudStorageHttpHandler;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -256,6 +257,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         );
         googleCloudStorageService.refreshAndClearCache(Map.of(clientName, clientSettings));
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore(
+            ProjectId.DEFAULT,
             BUCKET,
             clientName,
             repositoryName,

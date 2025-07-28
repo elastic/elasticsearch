@@ -78,7 +78,9 @@ public class GoogleCloudStorageService {
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
      * {@code GoogleCloudStorageService#client} will return new clients constructed
-     * using the parameter settings.
+     * using the parameter settings. Note this method is for clients in non-MP setup
+     * or cluster clients in MP setup. Project clients in MP setup are refreshed differently
+     * via cluster applier, see {@link GoogleCloudStorageClientsManager#applyClusterState}.
      *
      * @param clientsSettings the new settings used for building clients for subsequent requests
      */
@@ -93,31 +95,14 @@ public class GoogleCloudStorageService {
      * use, the (possibly updated) instance should be requested by calling this
      * method.
      *
-     * @param clientName name of the client settings used to create the client
-     * @param repositoryName name of the repository that would use the client
-     * @return a cached client storage instance that can be used to manage objects
-     *         (blobs)
-     */
-    @Deprecated(forRemoval = true)
-    public MeteredStorage client(final String clientName, final String repositoryName, final GcsRepositoryStatsCollector statsCollector)
-        throws IOException {
-        return clientsManager.client(clientName, repositoryName, statsCollector);
-    }
-
-    /**
-     * Attempts to retrieve a client from the cache. If the client does not exist it
-     * will be created from the latest settings and will populate the cache. The
-     * returned instance should not be cached by the calling code. Instead, for each
-     * use, the (possibly updated) instance should be requested by calling this
-     * method.
-     *
+     * @param projectId project for this repository. It is null if the repository is at cluster level in MP setup.
      * @param clientName name of the client settings used to create the client
      * @param repositoryName name of the repository that would use the client
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
     public MeteredStorage client(
-        final ProjectId projectId,
+        @Nullable final ProjectId projectId,
         final String clientName,
         final String repositoryName,
         final GcsRepositoryStatsCollector statsCollector
@@ -125,12 +110,13 @@ public class GoogleCloudStorageService {
         return clientsManager.client(projectId, clientName, repositoryName, statsCollector);
     }
 
-    @Deprecated(forRemoval = true)
-    void closeRepositoryClients(String repositoryName) {
-        clientsManager.closeRepositoryClients(repositoryName);
-    }
-
-    void closeRepositoryClients(final ProjectId projectId, String repositoryName) {
+    /**
+     * Close the repository client associated with the given project and repository.
+     *
+     * @param projectId project for the repository. It is null if the repository is at cluster level in MP setup.
+     * @param repositoryName name of the repository for which the client is closed
+     */
+    void closeRepositoryClients(@Nullable final ProjectId projectId, String repositoryName) {
         clientsManager.closeRepositoryClients(projectId, repositoryName);
     }
 

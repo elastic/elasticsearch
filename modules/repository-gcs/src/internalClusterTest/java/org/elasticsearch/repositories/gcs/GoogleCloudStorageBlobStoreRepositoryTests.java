@@ -290,6 +290,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
+                            getProjectId(),
                             metadata.settings().get("bucket"),
                             "test",
                             metadata.name(),

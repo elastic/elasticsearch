@@ -126,16 +126,6 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         }
     }
 
-    @Deprecated(forRemoval = true)
-    MeteredStorage client(String clientName, String repositoryName, GcsRepositoryStatsCollector statsCollector) throws IOException {
-        return client(ProjectId.DEFAULT, clientName, repositoryName, statsCollector);
-    }
-
-    @Deprecated(forRemoval = true)
-    void closeRepositoryClients(String repositoryName) {
-        closeRepositoryClients(ProjectId.DEFAULT, repositoryName);
-    }
-
     void refreshAndClearCacheForClusterClients(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
         clusterClientsHolder.refreshAndClearCache(clientsSettings);
     }

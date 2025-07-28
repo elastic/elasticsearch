@@ -247,16 +247,16 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {
-        return groupIndices(getRemoteClusterNames(), indicesOptions, indices, returnLocalAll);
+        return groupIndices(getRegisteredRemoteClusterNames(), indicesOptions, indices, returnLocalAll);
     }
 
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
-        return groupIndices(getRemoteClusterNames(), indicesOptions, indices, true);
+        return groupIndices(getRegisteredRemoteClusterNames(), indicesOptions, indices, true);
     }
 
     @Override
     public Set<String> getConfiguredClusters() {
-        return getRemoteClusterNames();
+        return getRegisteredRemoteClusterNames();
     }
 
     /**
@@ -270,7 +270,6 @@ public final class RemoteClusterService extends RemoteClusterAware
      * Returns the registered remote cluster names.
      */
     public Set<String> getRegisteredRemoteClusterNames() {
-        // remoteClusters is unmodifiable so its key set will be unmodifiable too
         return remoteClusters.keySet();
     }
 
@@ -353,10 +352,6 @@ public final class RemoteClusterService extends RemoteClusterAware
             throw new NoSuchRemoteClusterException(cluster);
         }
         return connection;
-    }
-
-    Set<String> getRemoteClusterNames() {
-        return this.remoteClusters.keySet();
     }
 
     @Override
@@ -648,7 +643,7 @@ public final class RemoteClusterService extends RemoteClusterAware
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
             );
         }
-        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
+        if (transportService.getRemoteClusterService().getRegisteredRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
         return new RemoteClusterAwareClient(transportService, clusterAlias, responseExecutor, switch (disconnectedStrategy) {

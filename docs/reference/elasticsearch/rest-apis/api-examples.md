@@ -1,6 +1,7 @@
 ---
 applies_to:
   stack: all
+  serverless:
 navigation_title: Guides and examples
 ---
 # Elasticsearch API guides and examples

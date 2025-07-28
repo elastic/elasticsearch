@@ -1492,18 +1492,13 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             logger.info("--> removed [{}] but adding to master's cluster state", partitionedNode);
             final ClusterNode leader = cluster.getAnyLeader();
-            leader.submitUpdateTask("updating cluster state",
-                cs -> {
-                    ClusterState cs2 = ClusterState.builder(cs)
-                        .nodes(DiscoveryNodes.builder(cs.nodes())
-                            .add(partitionedNode.getLocalNode())
-                            .build())
-                        .build();
-                    // Insert breakpoint here
-                    return cs2;
-                },
-                (e) -> {}
-            );
+            leader.submitUpdateTask("updating cluster state", cs -> {
+                ClusterState cs2 = ClusterState.builder(cs)
+                    .nodes(DiscoveryNodes.builder(cs.nodes()).add(partitionedNode.getLocalNode()).build())
+                    .build();
+                // Insert breakpoint here
+                return cs2;
+            }, (e) -> {});
 
             logger.info("--> healing [{}] but blocking handshakes", partitionedNode);
             partitionedNode.heal();

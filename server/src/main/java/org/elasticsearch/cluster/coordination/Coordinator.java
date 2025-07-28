@@ -674,7 +674,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             public void onFailure(Exception e) {
                 // The failure of the first node-join publication does not imply that the join failed,
                 // because it may be retried and eventually succeed
-                if (!applierState.nodes().nodeExists(joinRequest.getSourceNode())) {
+                if (applierState.nodes().nodeExists(joinRequest.getSourceNode()) == false) {
                     logger.warn(
                         () -> format(
                             "received join request from [%s] but could not connect back to the joining node",

@@ -27,7 +27,7 @@ import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readReferencesFile;
 
 /**
- * Validates that each defined transport version constant is referenced by at least one project.
+ * Validates that each defined transport version definition file is referenced by at least one project.
  */
 public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTask {
 
@@ -47,8 +47,8 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         }
 
         try (var definitionsStream = Files.list(definitionsDir)) {
-            for (var constantsFile : definitionsStream.toList()) {
-                var tv = readDefinitionFile(constantsFile, false);
+            for (var definitionFile : definitionsStream.toList()) {
+                var tv = readDefinitionFile(definitionFile, false);
                 if (allTvNames.contains(tv.name()) == false) {
                     throw new IllegalStateException("Transport version constant " + tv.name() + " is not referenced");
                 }

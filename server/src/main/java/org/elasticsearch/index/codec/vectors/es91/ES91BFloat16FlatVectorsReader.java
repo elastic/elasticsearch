@@ -19,12 +19,6 @@
  */
 package org.elasticsearch.index.codec.vectors.es91;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
-import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Map;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
@@ -51,7 +45,13 @@ import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.elasticsearch.index.codec.vectors.es91.ES91BFloat16FlatVectorsFormat;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Map;
+
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
 
 /**
  * Reads vectors from the index segments.
@@ -60,29 +60,26 @@ import org.elasticsearch.index.codec.vectors.es91.ES91BFloat16FlatVectorsFormat;
  */
 public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
 
-    private static final long SHALLOW_SIZE =
-        RamUsageEstimator.shallowSizeOfInstance(ES91BFloat16FlatVectorsFormat.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES91BFloat16FlatVectorsFormat.class);
 
     private final IntObjectHashMap<FieldEntry> fields = new IntObjectHashMap<>();
     private final IndexInput vectorData;
     private final FieldInfos fieldInfos;
 
-    public ES91BFloat16FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer)
-        throws IOException {
+    public ES91BFloat16FlatVectorsReader(SegmentReadState state, FlatVectorsScorer scorer) throws IOException {
         super(scorer);
         int versionMeta = readMetadata(state);
         this.fieldInfos = state.fieldInfos;
         try {
-            vectorData =
-                openDataInput(
-                    state,
-                    versionMeta,
-                    ES91BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION,
-                    ES91BFloat16FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
-                    // Flat formats are used to randomly access vectors from their node ID that is stored
-                    // in the HNSW graph.
-                    state.context.withHints(
-                        FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM));
+            vectorData = openDataInput(
+                state,
+                versionMeta,
+                ES91BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION,
+                ES91BFloat16FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
+                // Flat formats are used to randomly access vectors from their node ID that is stored
+                // in the HNSW graph.
+                state.context.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM)
+            );
         } catch (Throwable t) {
             IOUtils.closeWhileSuppressingExceptions(t, this);
             throw t;
@@ -90,21 +87,23 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
     }
 
     private int readMetadata(SegmentReadState state) throws IOException {
-        String metaFileName =
-            IndexFileNames.segmentFileName(
-                state.segmentInfo.name, state.segmentSuffix, ES91BFloat16FlatVectorsFormat.META_EXTENSION);
+        String metaFileName = IndexFileNames.segmentFileName(
+            state.segmentInfo.name,
+            state.segmentSuffix,
+            ES91BFloat16FlatVectorsFormat.META_EXTENSION
+        );
         int versionMeta = -1;
         try (ChecksumIndexInput meta = state.directory.openChecksumInput(metaFileName)) {
             Throwable priorE = null;
             try {
-                versionMeta =
-                    CodecUtil.checkIndexHeader(
-                        meta,
-                        ES91BFloat16FlatVectorsFormat.META_CODEC_NAME,
-                        ES91BFloat16FlatVectorsFormat.VERSION_START,
-                        ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
-                        state.segmentInfo.getId(),
-                        state.segmentSuffix);
+                versionMeta = CodecUtil.checkIndexHeader(
+                    meta,
+                    ES91BFloat16FlatVectorsFormat.META_CODEC_NAME,
+                    ES91BFloat16FlatVectorsFormat.VERSION_START,
+                    ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
+                    state.segmentInfo.getId(),
+                    state.segmentSuffix
+                );
                 readFields(meta, state.fieldInfos);
             } catch (Throwable exception) {
                 priorE = exception;
@@ -120,29 +119,24 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
         int versionMeta,
         String fileExtension,
         String codecName,
-        IOContext context)
-        throws IOException {
-        String fileName =
-            IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
+        IOContext context
+    ) throws IOException {
+        String fileName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, fileExtension);
         IndexInput in = state.directory.openInput(fileName, context);
         try {
-            int versionVectorData =
-                CodecUtil.checkIndexHeader(
-                    in,
-                    codecName,
-                    ES91BFloat16FlatVectorsFormat.VERSION_START,
-                    ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
-                    state.segmentInfo.getId(),
-                    state.segmentSuffix);
+            int versionVectorData = CodecUtil.checkIndexHeader(
+                in,
+                codecName,
+                ES91BFloat16FlatVectorsFormat.VERSION_START,
+                ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
+                state.segmentInfo.getId(),
+                state.segmentSuffix
+            );
             if (versionMeta != versionVectorData) {
                 throw new CorruptIndexException(
-                    "Format versions mismatch: meta="
-                        + versionMeta
-                        + ", "
-                        + codecName
-                        + "="
-                        + versionVectorData,
-                    in);
+                    "Format versions mismatch: meta=" + versionMeta + ", " + codecName + "=" + versionVectorData,
+                    in
+                );
             }
             CodecUtil.retrieveChecksum(in);
             return in;
@@ -203,12 +197,8 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
         final FieldEntry fieldEntry = getFieldEntryOrThrow(field);
         if (fieldEntry.vectorEncoding != expectedEncoding) {
             throw new IllegalArgumentException(
-                "field=\""
-                    + field
-                    + "\" is encoded as: "
-                    + fieldEntry.vectorEncoding
-                    + " expected: "
-                    + expectedEncoding);
+                "field=\"" + field + "\" is encoded as: " + fieldEntry.vectorEncoding + " expected: " + expectedEncoding
+            );
         }
         return fieldEntry;
     }
@@ -222,15 +212,17 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
             fieldEntry.ordToDoc,
             fieldEntry.vectorEncoding,
             fieldEntry.dimension,
+            fieldEntry.size,
             fieldEntry.vectorDataOffset,
             fieldEntry.vectorDataLength,
-            vectorData);
+            vectorData
+        );
     }
 
     @Override
     public ByteVectorValues getByteVectorValues(String field) throws IOException {
         final FieldEntry fieldEntry = getFieldEntry(field, VectorEncoding.BYTE);
-        return OffHeapBFloat16VectorValues.load(
+        return OffHeapByteVectorValues.load(
             fieldEntry.similarityFunction,
             vectorScorer,
             fieldEntry.ordToDoc,
@@ -238,7 +230,8 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
             fieldEntry.dimension,
             fieldEntry.vectorDataOffset,
             fieldEntry.vectorDataLength,
-            vectorData);
+            vectorData
+        );
     }
 
     @Override
@@ -254,8 +247,10 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
                 fieldEntry.dimension,
                 fieldEntry.vectorDataOffset,
                 fieldEntry.vectorDataLength,
-                vectorData),
-            target);
+                vectorData
+            ),
+            target
+        );
     }
 
     @Override
@@ -271,8 +266,10 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
                 fieldEntry.dimension,
                 fieldEntry.vectorDataOffset,
                 fieldEntry.vectorDataLength,
-                vectorData),
-            target);
+                vectorData
+            ),
+            target
+        );
     }
 
     @Override
@@ -295,7 +292,8 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
         int dimension,
         int size,
         OrdToDocDISIReaderConfiguration ordToDoc,
-        FieldInfo info) {
+        FieldInfo info
+    ) {
 
         FieldEntry {
             if (similarityFunction != info.getVectorSimilarityFunction()) {
@@ -305,24 +303,20 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
                         + "\"; "
                         + similarityFunction
                         + " != "
-                        + info.getVectorSimilarityFunction());
+                        + info.getVectorSimilarityFunction()
+                );
             }
             int infoVectorDimension = info.getVectorDimension();
             if (infoVectorDimension != dimension) {
                 throw new IllegalStateException(
-                    "Inconsistent vector dimension for field=\""
-                        + info.name
-                        + "\"; "
-                        + infoVectorDimension
-                        + " != "
-                        + dimension);
+                    "Inconsistent vector dimension for field=\"" + info.name + "\"; " + infoVectorDimension + " != " + dimension
+                );
             }
 
-            int byteSize =
-                switch (info.getVectorEncoding()) {
-                    case BYTE -> Byte.BYTES;
-                    case FLOAT32 -> BFloat16.BYTES;
-                };
+            int byteSize = switch (info.getVectorEncoding()) {
+                case BYTE -> Byte.BYTES;
+                case FLOAT32 -> BFloat16.BYTES;
+            };
             long vectorBytes = Math.multiplyExact((long) infoVectorDimension, byteSize);
             long numBytes = Math.multiplyExact(vectorBytes, size);
             if (numBytes != vectorDataLength) {
@@ -336,7 +330,8 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
                         + " * byteSize="
                         + byteSize
                         + " = "
-                        + numBytes);
+                        + numBytes
+                );
             }
         }
 
@@ -348,15 +343,7 @@ public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
             final var dimension = input.readVInt();
             final var size = input.readInt();
             final var ordToDoc = OrdToDocDISIReaderConfiguration.fromStoredMeta(input, size);
-            return new FieldEntry(
-                similarityFunction,
-                vectorEncoding,
-                vectorDataOffset,
-                vectorDataLength,
-                dimension,
-                size,
-                ordToDoc,
-                info);
+            return new FieldEntry(similarityFunction, vectorEncoding, vectorDataOffset, vectorDataLength, dimension, size, ordToDoc, info);
         }
     }
 }

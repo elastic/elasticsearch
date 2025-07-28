@@ -22,8 +22,8 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.es91.ES91BFloat16FlatVectorsFormat;
 
 import java.io.IOException;
 
@@ -32,7 +32,7 @@ import java.io.IOException;
  */
 public class ES816BinaryQuantizedRWVectorsFormat extends ES816BinaryQuantizedVectorsFormat {
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(
+    private static final FlatVectorsFormat rawVectorFormat = new ES91BFloat16FlatVectorsFormat(
         FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
     );
 

@@ -19,15 +19,6 @@
  */
 package org.elasticsearch.index.codec.vectors.es91;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.ArrayList;
-import java.util.List;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.KnnVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
@@ -59,6 +50,16 @@ import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+
 /**
  * Writes vector values to index segments.
  *
@@ -66,8 +67,7 @@ import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
  */
 public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
-    private static final long SHALLOW_RAM_BYTES_USED =
-        RamUsageEstimator.shallowSizeOfInstance(ES91BFloat16FlatVectorsWriter.class);
+    private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES91BFloat16FlatVectorsWriter.class);
 
     private final SegmentWriteState segmentWriteState;
     private final IndexOutput meta, vectorData;
@@ -75,19 +75,20 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     private final List<FieldWriter<?>> fields = new ArrayList<>();
     private boolean finished;
 
-    public ES91BFloat16FlatVectorsWriter(SegmentWriteState state, FlatVectorsScorer scorer)
-        throws IOException {
+    public ES91BFloat16FlatVectorsWriter(SegmentWriteState state, FlatVectorsScorer scorer) throws IOException {
         super(scorer);
         segmentWriteState = state;
-        String metaFileName =
-            IndexFileNames.segmentFileName(
-                state.segmentInfo.name, state.segmentSuffix, ES91BFloat16FlatVectorsFormat.META_EXTENSION);
+        String metaFileName = IndexFileNames.segmentFileName(
+            state.segmentInfo.name,
+            state.segmentSuffix,
+            ES91BFloat16FlatVectorsFormat.META_EXTENSION
+        );
 
-        String vectorDataFileName =
-            IndexFileNames.segmentFileName(
-                state.segmentInfo.name,
-                state.segmentSuffix,
-                ES91BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION);
+        String vectorDataFileName = IndexFileNames.segmentFileName(
+            state.segmentInfo.name,
+            state.segmentSuffix,
+            ES91BFloat16FlatVectorsFormat.VECTOR_DATA_EXTENSION
+        );
 
         try {
             meta = state.directory.createOutput(metaFileName, state.context);
@@ -98,13 +99,15 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
                 ES91BFloat16FlatVectorsFormat.META_CODEC_NAME,
                 ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
-                state.segmentSuffix);
+                state.segmentSuffix
+            );
             CodecUtil.writeIndexHeader(
                 vectorData,
                 ES91BFloat16FlatVectorsFormat.VECTOR_DATA_CODEC_NAME,
                 ES91BFloat16FlatVectorsFormat.VERSION_CURRENT,
                 state.segmentInfo.getId(),
-                state.segmentSuffix);
+                state.segmentSuffix
+            );
         } catch (Throwable t) {
             IOUtils.closeWhileSuppressingExceptions(t, this);
             throw t;
@@ -164,13 +167,11 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         }
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
-        writeMeta(
-            fieldData.fieldInfo, maxDoc, vectorDataOffset, vectorDataLength, fieldData.docsWithField);
+        writeMeta(fieldData.fieldInfo, maxDoc, vectorDataOffset, vectorDataLength, fieldData.docsWithField);
     }
 
     private void writeBFloat16Vectors(FieldWriter<?> fieldData) throws IOException {
-        final ByteBuffer buffer =
-            ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        final ByteBuffer buffer = ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (Object v : fieldData.vectors) {
             short[] data = BFloat16.floatToBFloat16((float[]) v);
             buffer.asShortBuffer().put(data);
@@ -185,29 +186,25 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         }
     }
 
-    private void writeSortingField(FieldWriter<?> fieldData, int maxDoc, Sorter.DocMap sortMap)
-        throws IOException {
+    private void writeSortingField(FieldWriter<?> fieldData, int maxDoc, Sorter.DocMap sortMap) throws IOException {
         final int[] ordMap = new int[fieldData.docsWithField.cardinality()]; // new ord to old ord
 
         DocsWithFieldSet newDocsWithField = new DocsWithFieldSet();
         mapOldOrdToNewOrd(fieldData.docsWithField, sortMap, null, ordMap, newDocsWithField);
 
         // write vector values
-        long vectorDataOffset =
-            switch (fieldData.fieldInfo.getVectorEncoding()) {
-                case BYTE -> writeSortedByteVectors(fieldData, ordMap);
-                case FLOAT32 -> writeSortedBFloat16Vectors(fieldData, ordMap);
-            };
+        long vectorDataOffset = switch (fieldData.fieldInfo.getVectorEncoding()) {
+            case BYTE -> writeSortedByteVectors(fieldData, ordMap);
+            case FLOAT32 -> writeSortedBFloat16Vectors(fieldData, ordMap);
+        };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
 
         writeMeta(fieldData.fieldInfo, maxDoc, vectorDataOffset, vectorDataLength, newDocsWithField);
     }
 
-    private long writeSortedBFloat16Vectors(FieldWriter<?> fieldData, int[] ordMap)
-        throws IOException {
+    private long writeSortedBFloat16Vectors(FieldWriter<?> fieldData, int[] ordMap) throws IOException {
         long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
-        final ByteBuffer buffer =
-            ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+        final ByteBuffer buffer = ByteBuffer.allocate(fieldData.dim * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (int ordinal : ordMap) {
             float[] vector = (float[]) fieldData.vectors.get(ordinal);
             short[] data = BFloat16.floatToBFloat16(vector);
@@ -232,119 +229,86 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         // the vectors directly to the new segment.
         long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
         // No need to use temporary file as we don't have to re-open for reading
-        DocsWithFieldSet docsWithField =
-            switch (fieldInfo.getVectorEncoding()) {
-                case BYTE ->
-                    writeByteVectorData(
-                        vectorData,
-                        KnnVectorsWriter.MergedVectorValues.mergeByteVectorValues(fieldInfo, mergeState));
-                case FLOAT32 ->
-                    writeVectorData(
-                        vectorData,
-                        KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(
-                            fieldInfo, mergeState));
-            };
+        DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
+            case BYTE -> writeByteVectorData(vectorData, KnnVectorsWriter.MergedVectorValues.mergeByteVectorValues(fieldInfo, mergeState));
+            case FLOAT32 -> writeVectorData(vectorData, KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState));
+        };
         long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
-        writeMeta(
-            fieldInfo,
-            segmentWriteState.segmentInfo.maxDoc(),
-            vectorDataOffset,
-            vectorDataLength,
-            docsWithField);
+        writeMeta(fieldInfo, segmentWriteState.segmentInfo.maxDoc(), vectorDataOffset, vectorDataLength, docsWithField);
     }
 
     @Override
-    public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(
-        FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+    public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
         long vectorDataOffset = vectorData.alignFilePointer(Float.BYTES);
-        IndexOutput tempVectorData =
-            segmentWriteState.directory.createTempOutput(
-                vectorData.getName(), "temp", segmentWriteState.context);
+        IndexOutput tempVectorData = segmentWriteState.directory.createTempOutput(vectorData.getName(), "temp", segmentWriteState.context);
         IndexInput vectorDataInput = null;
         try {
             // write the vector data to a temporary file
-            DocsWithFieldSet docsWithField =
-                switch (fieldInfo.getVectorEncoding()) {
-                    case BYTE ->
-                        writeByteVectorData(
-                            tempVectorData,
-                            KnnVectorsWriter.MergedVectorValues.mergeByteVectorValues(
-                                fieldInfo, mergeState));
-                    case FLOAT32 ->
-                        writeVectorData(
-                            tempVectorData,
-                            KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(
-                                fieldInfo, mergeState));
-                };
+            DocsWithFieldSet docsWithField = switch (fieldInfo.getVectorEncoding()) {
+                case BYTE -> writeByteVectorData(
+                    tempVectorData,
+                    KnnVectorsWriter.MergedVectorValues.mergeByteVectorValues(fieldInfo, mergeState)
+                );
+                case FLOAT32 -> writeVectorData(
+                    tempVectorData,
+                    KnnVectorsWriter.MergedVectorValues.mergeFloatVectorValues(fieldInfo, mergeState)
+                );
+            };
             CodecUtil.writeFooter(tempVectorData);
             IOUtils.close(tempVectorData);
 
             // This temp file will be accessed in a random-access fashion to construct the HNSW graph.
             // Note: don't use the context from the state, which is a flush/merge context, not expecting
             // to perform random reads.
-            vectorDataInput =
-                segmentWriteState.directory.openInput(
-                    tempVectorData.getName(),
-                    IOContext.DEFAULT.withHints(
-                        FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM));
+            vectorDataInput = segmentWriteState.directory.openInput(
+                tempVectorData.getName(),
+                IOContext.DEFAULT.withHints(FileTypeHint.DATA, FileDataHint.KNN_VECTORS, DataAccessHint.RANDOM)
+            );
             // copy the temporary file vectors to the actual data file
             vectorData.copyBytes(vectorDataInput, vectorDataInput.length() - CodecUtil.footerLength());
             CodecUtil.retrieveChecksum(vectorDataInput);
             long vectorDataLength = vectorData.getFilePointer() - vectorDataOffset;
-            writeMeta(
-                fieldInfo,
-                segmentWriteState.segmentInfo.maxDoc(),
-                vectorDataOffset,
-                vectorDataLength,
-                docsWithField);
+            writeMeta(fieldInfo, segmentWriteState.segmentInfo.maxDoc(), vectorDataOffset, vectorDataLength, docsWithField);
 
             final IndexInput finalVectorDataInput = vectorDataInput;
             vectorDataInput = null;
 
-            final RandomVectorScorerSupplier randomVectorScorerSupplier =
-                switch (fieldInfo.getVectorEncoding()) {
-                    case BYTE ->
-                        vectorsScorer.getRandomVectorScorerSupplier(
-                            fieldInfo.getVectorSimilarityFunction(),
-                            new OffHeapByteVectorValues.DenseOffHeapVectorValues(
-                                fieldInfo.getVectorDimension(),
-                                docsWithField.cardinality(),
-                                finalVectorDataInput,
-                                fieldInfo.getVectorDimension() * Byte.BYTES,
-                                vectorsScorer,
-                                fieldInfo.getVectorSimilarityFunction()));
-                    case FLOAT32 ->
-                        vectorsScorer.getRandomVectorScorerSupplier(
-                            fieldInfo.getVectorSimilarityFunction(),
-                            new OffHeapFloatVectorValues.DenseOffHeapVectorValues(
-                                fieldInfo.getVectorDimension(),
-                                docsWithField.cardinality(),
-                                finalVectorDataInput,
-                                fieldInfo.getVectorDimension() * Float.BYTES,
-                                vectorsScorer,
-                                fieldInfo.getVectorSimilarityFunction()));
-                };
-            return new FlatCloseableRandomVectorScorerSupplier(
-                () -> {
-                    IOUtils.close(finalVectorDataInput);
-                    segmentWriteState.directory.deleteFile(tempVectorData.getName());
-                },
-                docsWithField.cardinality(),
-                randomVectorScorerSupplier);
+            final RandomVectorScorerSupplier randomVectorScorerSupplier = switch (fieldInfo.getVectorEncoding()) {
+                case BYTE -> vectorsScorer.getRandomVectorScorerSupplier(
+                    fieldInfo.getVectorSimilarityFunction(),
+                    new OffHeapByteVectorValues.DenseOffHeapVectorValues(
+                        fieldInfo.getVectorDimension(),
+                        docsWithField.cardinality(),
+                        finalVectorDataInput,
+                        fieldInfo.getVectorDimension() * Byte.BYTES,
+                        vectorsScorer,
+                        fieldInfo.getVectorSimilarityFunction()
+                    )
+                );
+                case FLOAT32 -> vectorsScorer.getRandomVectorScorerSupplier(
+                    fieldInfo.getVectorSimilarityFunction(),
+                    new OffHeapFloatVectorValues.DenseOffHeapVectorValues(
+                        fieldInfo.getVectorDimension(),
+                        docsWithField.cardinality(),
+                        finalVectorDataInput,
+                        fieldInfo.getVectorDimension() * Float.BYTES,
+                        vectorsScorer,
+                        fieldInfo.getVectorSimilarityFunction()
+                    )
+                );
+            };
+            return new FlatCloseableRandomVectorScorerSupplier(() -> {
+                IOUtils.close(finalVectorDataInput);
+                segmentWriteState.directory.deleteFile(tempVectorData.getName());
+            }, docsWithField.cardinality(), randomVectorScorerSupplier);
         } catch (Throwable t) {
             IOUtils.closeWhileSuppressingExceptions(t, vectorDataInput, tempVectorData);
-            IOUtils.deleteFilesSuppressingExceptions(
-                t, segmentWriteState.directory, tempVectorData.getName());
+            IOUtils.deleteFilesSuppressingExceptions(t, segmentWriteState.directory, tempVectorData.getName());
             throw t;
         }
     }
 
-    private void writeMeta(
-        FieldInfo field,
-        int maxDoc,
-        long vectorDataOffset,
-        long vectorDataLength,
-        DocsWithFieldSet docsWithField)
+    private void writeMeta(FieldInfo field, int maxDoc, long vectorDataOffset, long vectorDataLength, DocsWithFieldSet docsWithField)
         throws IOException {
         meta.writeInt(field.number);
         meta.writeInt(field.getVectorEncoding().ordinal());
@@ -356,16 +320,14 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         // write docIDs
         int count = docsWithField.cardinality();
         meta.writeInt(count);
-        OrdToDocDISIReaderConfiguration.writeStoredMeta(
-            DIRECT_MONOTONIC_BLOCK_SHIFT, meta, vectorData, count, maxDoc, docsWithField);
+        OrdToDocDISIReaderConfiguration.writeStoredMeta(DIRECT_MONOTONIC_BLOCK_SHIFT, meta, vectorData, count, maxDoc, docsWithField);
     }
 
     /**
      * Writes the byte vector values to the output and returns a set of documents that contains
      * vectors.
      */
-    private static DocsWithFieldSet writeByteVectorData(
-        IndexOutput output, ByteVectorValues byteVectorValues) throws IOException {
+    private static DocsWithFieldSet writeByteVectorData(IndexOutput output, ByteVectorValues byteVectorValues) throws IOException {
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
         KnnVectorValues.DocIndexIterator iter = byteVectorValues.iterator();
         for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
@@ -381,12 +343,9 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     /**
      * Writes the vector values to the output and returns a set of documents that contains vectors.
      */
-    private static DocsWithFieldSet writeVectorData(
-        IndexOutput output, FloatVectorValues floatVectorValues) throws IOException {
+    private static DocsWithFieldSet writeVectorData(IndexOutput output, FloatVectorValues floatVectorValues) throws IOException {
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
-        ByteBuffer buffer =
-            ByteBuffer.allocate(floatVectorValues.dimension() * BFloat16.BYTES)
-                .order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer buffer = ByteBuffer.allocate(floatVectorValues.dimension() * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         KnnVectorValues.DocIndexIterator iter = floatVectorValues.iterator();
         for (int docV = iter.nextDoc(); docV != NO_MORE_DOCS; docV = iter.nextDoc()) {
             // write vector
@@ -405,8 +364,7 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
     }
 
     private abstract static class FieldWriter<T> extends FlatFieldVectorsWriter<T> {
-        private static final long SHALLOW_RAM_BYTES_USED =
-            RamUsageEstimator.shallowSizeOfInstance(FieldWriter.class);
+        private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(FieldWriter.class);
         private final FieldInfo fieldInfo;
         private final int dim;
         private final DocsWithFieldSet docsWithField;
@@ -418,20 +376,18 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         static FieldWriter<?> create(FieldInfo fieldInfo) {
             int dim = fieldInfo.getVectorDimension();
             return switch (fieldInfo.getVectorEncoding()) {
-                case BYTE ->
-                    new FieldWriter<byte[]>(fieldInfo) {
-                        @Override
-                        public byte[] copyValue(byte[] value) {
-                            return ArrayUtil.copyOfSubArray(value, 0, dim);
-                        }
-                    };
-                case FLOAT32 ->
-                    new FieldWriter<float[]>(fieldInfo) {
-                        @Override
-                        public float[] copyValue(float[] value) {
-                            return ArrayUtil.copyOfSubArray(value, 0, dim);
-                        }
-                    };
+                case BYTE -> new FieldWriter<byte[]>(fieldInfo) {
+                    @Override
+                    public byte[] copyValue(byte[] value) {
+                        return ArrayUtil.copyOfSubArray(value, 0, dim);
+                    }
+                };
+                case FLOAT32 -> new FieldWriter<float[]>(fieldInfo) {
+                    @Override
+                    public float[] copyValue(float[] value) {
+                        return ArrayUtil.copyOfSubArray(value, 0, dim);
+                    }
+                };
             };
         }
 
@@ -452,7 +408,8 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
                 throw new IllegalArgumentException(
                     "VectorValuesField \""
                         + fieldInfo.name
-                        + "\" appears more than once in this document (only one value is allowed per field)");
+                        + "\" appears more than once in this document (only one value is allowed per field)"
+                );
             }
             assert docID > lastDocID;
             T copy = copyValue(vectorValue);
@@ -465,13 +422,9 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         public long ramBytesUsed() {
             long size = SHALLOW_RAM_BYTES_USED;
             if (vectors.size() == 0) return size;
-            return size
-                + docsWithField.ramBytesUsed()
-                + (long) vectors.size()
-                * (RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER)
-                + (long) vectors.size()
-                * fieldInfo.getVectorDimension()
-                * fieldInfo.getVectorEncoding().byteSize;
+            return size + docsWithField.ramBytesUsed() + (long) vectors.size() * (RamUsageEstimator.NUM_BYTES_OBJECT_REF
+                + RamUsageEstimator.NUM_BYTES_ARRAY_HEADER) + (long) vectors.size() * fieldInfo.getVectorDimension() * fieldInfo
+                    .getVectorEncoding().byteSize;
         }
 
         @Override
@@ -498,15 +451,13 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         }
     }
 
-    static final class FlatCloseableRandomVectorScorerSupplier
-        implements CloseableRandomVectorScorerSupplier {
+    static final class FlatCloseableRandomVectorScorerSupplier implements CloseableRandomVectorScorerSupplier {
 
         private final RandomVectorScorerSupplier supplier;
         private final Closeable onClose;
         private final int numVectors;
 
-        FlatCloseableRandomVectorScorerSupplier(
-            Closeable onClose, int numVectors, RandomVectorScorerSupplier supplier) {
+        FlatCloseableRandomVectorScorerSupplier(Closeable onClose, int numVectors, RandomVectorScorerSupplier supplier) {
             this.onClose = onClose;
             this.supplier = supplier;
             this.numVectors = numVectors;

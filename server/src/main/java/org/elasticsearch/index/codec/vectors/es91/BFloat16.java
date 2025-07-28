@@ -9,13 +9,20 @@
 
 package org.elasticsearch.index.codec.vectors.es91;
 
+import org.apache.lucene.util.BitUtil;
+
 class BFloat16 {
 
     public static final int BYTES = Short.BYTES;
 
     public static short floatToBFloat16(float f) {
-        // TODO: maintain NaN if all NaN set bits are in removed section
-        return (short)(Float.floatToIntBits(f) >>> 16);
+        // this does round towards 0
+        // zero - zero exp, zero fraction
+        // denormal - zero exp, non-zero fraction
+        // infinity - all-1 exp, zero fraction
+        // NaN - all-1 exp, non-zero fraction
+        // the Float.NaN constant is 0x7fc0_0000, so this won't turn the most common NaN values into infinities
+        return (short) (Float.floatToIntBits(f) >>> 16);
     }
 
     public static float bFloat16ToFloat(short bf) {
@@ -24,7 +31,7 @@ class BFloat16 {
 
     public static short[] floatToBFloat16(float[] f) {
         short[] bf = new short[f.length];
-        for (int i=0; i<f.length; i++) {
+        for (int i = 0; i < f.length; i++) {
             bf[i] = floatToBFloat16(f[i]);
         }
         return bf;
@@ -32,9 +39,16 @@ class BFloat16 {
 
     public static float[] bFloat16ToFloat(short[] bf) {
         float[] f = new float[bf.length];
-        for (int i=0; i<bf.length; i++) {
+        for (int i = 0; i < bf.length; i++) {
             f[i] = bFloat16ToFloat(bf[i]);
         }
         return f;
+    }
+
+    public static void bFloat16ToFloat(byte[] bfBytes, float[] floats) {
+        assert floats.length * 2 == bfBytes.length;
+        for (int i = 0; i < floats.length; i++) {
+            floats[i] = bFloat16ToFloat((short) BitUtil.VH_LE_SHORT.get(bfBytes, i * 2));
+        }
     }
 }

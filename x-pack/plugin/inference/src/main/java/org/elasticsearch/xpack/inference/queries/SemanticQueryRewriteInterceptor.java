@@ -33,7 +33,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
-        String fieldName = getFieldName(queryBuilder);
+        Map<String, Float> fieldsWithBoosts = getFieldNamesWithBoosts(queryBuilder);
         ResolvedIndices resolvedIndices = context.getResolvedIndices();
 
         if (resolvedIndices == null) {
@@ -41,6 +41,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
+        String fieldName = fieldsWithBoosts.keySet().stream().findFirst().get();
         InferenceIndexInformationForField indexInformation = resolveIndicesForField(fieldName, resolvedIndices);
         if (indexInformation.getInferenceIndices().isEmpty()) {
             // No inference fields were identified, so return the original query.
@@ -58,10 +59,12 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
     }
 
     /**
-     * @param queryBuilder {@link QueryBuilder}
-     * @return The singular field name requested by the provided query builder.
+     * Extracts field names and their associated boost values from the query builder.
+     *
+     * @param queryBuilder the query builder to extract field information from
+     * @return a map where keys are field names and values are their boost multipliers
      */
-    protected abstract String getFieldName(QueryBuilder queryBuilder);
+    protected abstract Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder);
 
     /**
      * @param queryBuilder {@link QueryBuilder}

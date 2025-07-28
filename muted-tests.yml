@@ -510,3 +510,27 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveTests
   method: test61EsJavaHomeOverride
   issue: https://github.com/elastic/elasticsearch/issues/131839
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test070BindMountCustomPathConfAndJvmOptions
+  issue: https://github.com/elastic/elasticsearch/issues/131366
+- class: org.elasticsearch.packaging.test.PackageUpgradeTests
+  method: test21CheckUpgradedVersion
+  issue: https://github.com/elastic/elasticsearch/issues/123380
+- class: org.elasticsearch.packaging.test.PackageTests
+  method: test42BundledJdkRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/131890
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test63BundledJdkRemoved
+  issue: https://github.com/elastic/elasticsearch/issues/131891
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test071BindMountCustomPathWithDifferentUID
+  issue: https://github.com/elastic/elasticsearch/issues/120917
+- class: org.elasticsearch.packaging.test.ArchiveTests
+  method: test64JavaHomeWithSpecialCharacters
+  issue: https://github.com/elastic/elasticsearch/issues/131932
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test072RunEsAsDifferentUserAndGroup
+  issue: https://github.com/elastic/elasticsearch/issues/131412
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test130JavaHasCorrectOwnership
+  issue: https://github.com/elastic/elasticsearch/issues/131369

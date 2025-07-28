@@ -145,6 +145,8 @@ import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -177,6 +179,13 @@ public class InferencePlugin extends Plugin
     public static final Setting<Boolean> SKIP_VALIDATE_AND_START = Setting.boolSetting(
         "xpack.inference.skip_validate_and_start",
         false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<TimeValue> INFERENCE_QUERY_TIMEOUT = Setting.timeSetting(
+        "xpack.inference.query_timeout",
+        TimeValue.timeValueSeconds(10),
+        TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -490,7 +499,11 @@ public class InferencePlugin extends Plugin
 
     @Override
     public List<Setting<?>> getSettings() {
-        ArrayList<Setting<?>> settings = new ArrayList<>();
+        return List.copyOf(getInferenceSettings());
+    }
+
+    public static Set<Setting<?>> getInferenceSettings() {
+        Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(HttpSettings.getSettingsDefinitions());
         settings.addAll(HttpClientManager.getSettingsDefinitions());
         settings.addAll(ThrottlerManager.getSettingsDefinitions());
@@ -499,9 +512,9 @@ public class InferencePlugin extends Plugin
         settings.addAll(RequestExecutorServiceSettings.getSettingsDefinitions());
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
+        settings.add(INFERENCE_QUERY_TIMEOUT);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
-
-        return settings;
+        return Collections.unmodifiableSet(settings);
     }
 
     @Override

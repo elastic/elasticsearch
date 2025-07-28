@@ -816,11 +816,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         return p -> {
             checkForRemoteClusters(p, source, "COMPLETION");
-            return visitCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
+            return applyCompletionOptions(new Completion(source, p, prompt, targetField), ctx.commandNamedParameters());
         };
     }
 
-    private Completion visitCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {
+    private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {
         Completion.Builder completionBuilder = new Completion.Builder(completion);
         Map<String, Expression> optionsMap = visitCommandNamedParameters(ctx).keyFoldedMap();
 

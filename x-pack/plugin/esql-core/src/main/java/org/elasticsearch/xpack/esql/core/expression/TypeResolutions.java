@@ -151,36 +151,6 @@ public final class TypeResolutions {
         return TypeResolution.TYPE_RESOLVED;
     }
 
-    /**
-     * Is this {@link Expression#foldable()} and not {@code null}.
-     *
-     * @deprecated instead of calling this, check for a {@link Literal} containing
-     *             {@code null}. Foldable expressions will be folded by other rules,
-     *             eventually, to a {@link Literal}.
-     */
-    @Deprecated
-    public static TypeResolution isNotNullAndFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        TypeResolution resolution = isFoldable(e, operationName, paramOrd);
-
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        if (e.dataType() == DataType.NULL || e.fold(FoldContext.small()) == null) {
-            resolution = new TypeResolution(
-                format(
-                    null,
-                    "{}argument of [{}] cannot be null, received [{}]",
-                    paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
-                    operationName,
-                    Expressions.name(e)
-                )
-            );
-        }
-
-        return resolution;
-    }
-
     public static TypeResolution isNotNull(Expression e, String operationName, ParamOrdinal paramOrd) {
         if (e.dataType() == DataType.NULL) {
             return new TypeResolution(

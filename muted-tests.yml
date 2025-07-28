@@ -274,9 +274,6 @@ tests:
 - class: org.elasticsearch.cli.keystore.AddStringKeyStoreCommandTests
   method: testStdinWithMultipleValues
   issue: https://github.com/elastic/elasticsearch/issues/126882
-- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
-  method: testEsqlEnrichWithSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/127368
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header}
   issue: https://github.com/elastic/elasticsearch/issues/127625
@@ -518,6 +515,21 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
   method: testUpdates
   issue: https://github.com/elastic/elasticsearch/issues/131795
+- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
+  method: testDifferentDimensions {functionName=v_dot_product similarityFunction=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/131845
+- class: org.elasticsearch.compute.aggregation.ValuesBytesRefGroupingAggregatorFunctionTests
+  method: testSomeFiltered
+  issue: https://github.com/elastic/elasticsearch/issues/131878
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/131964
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
+  method: testEsqlEnrichWithSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/131965
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/600_flattened_ignore_above/flattened ignore_above multi-value field}
+  issue: https://github.com/elastic/elasticsearch/issues/131967
 
 # Examples:
 #

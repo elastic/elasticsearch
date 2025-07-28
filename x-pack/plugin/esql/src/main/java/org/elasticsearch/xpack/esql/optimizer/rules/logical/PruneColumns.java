@@ -50,7 +50,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         Holder<Boolean> forkPresent = new Holder<>(false);
 
         // while going top-to-bottom (upstream)
-        var pl = plan.transformDown(p -> {
+        return plan.transformDown(p -> {
             // Note: It is NOT required to do anything special for binary plans like JOINs, except INLINESTATS. It is perfectly fine that
             // transformDown descends first into the left side, adding all kinds of attributes to the `used` set, and then descends into
             // the right side - even though the `used` set will contain stuff only used in the left hand side. That's because any attribute
@@ -78,11 +78,11 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             do {
                 recheck.set(false);
                 p = switch (p) {
-                    case Aggregate agg -> pruneColumns(agg, used, inlineJoin);
-                    case InlineJoin inj -> pruneColumns(inj, used, recheck);
-                    case Eval eval -> pruneColumns(eval, used, recheck);
-                    case Project project -> inlineJoin ? pruneColumns(project, used) : p;
-                    case EsRelation esr -> pruneColumns(esr, used);
+                    case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
+                    case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
+                    case Eval eval -> pruneColumnsInEval(eval, used, recheck);
+                    case Project project -> inlineJoin ? pruneColumnsInProject(project, used) : p;
+                    case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     default -> p;
                 };
             } while (recheck.get());
@@ -92,61 +92,63 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
             // preserve the state before going to the next node
             return p;
         });
-
-        return pl;
     }
 
-    private static LogicalPlan pruneColumns(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {
+    private static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {
         LogicalPlan p = aggregate;
 
         var remaining = pruneUnusedAndAddReferences(aggregate.aggregates(), used);
 
-        if (remaining != null) {
-            if (remaining.isEmpty()) {
-                if (inlineJoin) {
-                    p = emptyLocalRelation(aggregate);
-                } else if (aggregate.groupings().isEmpty()) {
-                    // We still need to have a plan that produces 1 row per group.
-                    p = new LocalRelation(
-                        aggregate.source(),
-                        List.of(Expressions.attribute(aggregate.aggregates().getFirst())),
-                        LocalSupplier.of(new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) })
-                    );
-                } else {
-                    // Aggs cannot produce pages with 0 columns, so retain one grouping.
-                    Attribute attribute = Expressions.attribute(aggregate.groupings().getFirst());
-                    NamedExpression firstAggregate = aggregate.aggregates().getFirst();
-                    remaining = List.of(new Alias(firstAggregate.source(), firstAggregate.name(), attribute, firstAggregate.id()));
-                    p = aggregate.with(aggregate.groupings(), remaining);
-                }
-            } else {
-                if (inlineJoin && aggregate.groupings().containsAll(remaining)) { // not expecting high groups cardinality
-                    // It's an INLINEJOIN and all remaining attributes are groupings, which are already part of the IJ output (from the
-                    // left-hand side).
-                    if (aggregate.child() instanceof StubRelation stub) {
-                        var message = "Aggregate groups references ["
-                            + remaining
-                            + "] not in child's (StubRelation) output: ["
-                            + stub.outputSet()
-                            + "]";
-                        assert stub.outputSet().containsAll(Expressions.asAttributes(remaining)) : message;
+        if (remaining == null) {
+            return p;
+        }
 
-                        p = emptyLocalRelation(aggregate);
-                    } else {
-                        // There are no aggregates to compute, just output the groupings; these are already in the IJ output, so only
-                        // restrict the output to what remained.
-                        p = new Project(aggregate.source(), aggregate.child(), remaining);
-                    }
-                } else { // not an INLINEJOIN or there are actually aggregates to compute
-                    p = aggregate.with(aggregate.groupings(), remaining);
+        if (remaining.isEmpty()) {
+            if (inlineJoin) {
+                p = emptyLocalRelation(aggregate);
+            } else if (aggregate.groupings().isEmpty()) {
+                // We still need to have a plan that produces 1 row per group.
+                p = new LocalRelation(
+                    aggregate.source(),
+                    List.of(Expressions.attribute(aggregate.aggregates().getFirst())),
+                    LocalSupplier.of(new Block[] { BlockUtils.constantBlock(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, null, 1) })
+                );
+            } else {
+                // Aggs cannot produce pages with 0 columns, so retain one grouping.
+                Attribute attribute = Expressions.attribute(aggregate.groupings().getFirst());
+                NamedExpression firstAggregate = aggregate.aggregates().getFirst();
+                remaining = List.of(new Alias(firstAggregate.source(), firstAggregate.name(), attribute, firstAggregate.id()));
+                p = aggregate.with(aggregate.groupings(), remaining);
+            }
+        } else {
+            // not expecting high groups cardinality, nested loops in lists should be fine, no need for a HashSet
+            if (inlineJoin && aggregate.groupings().containsAll(remaining)) {
+                // It's an INLINEJOIN and all remaining attributes are groupings, which are already part of the IJ output (from the
+                // left-hand side).
+                // TODO: INLINESTATS: revisit condition when adding support for INLINESTATS filters
+                if (aggregate.child() instanceof StubRelation stub) {
+                    var message = "Aggregate groups references ["
+                        + remaining
+                        + "] not in child's (StubRelation) output: ["
+                        + stub.outputSet()
+                        + "]";
+                    assert stub.outputSet().containsAll(Expressions.asAttributes(remaining)) : message;
+
+                    p = emptyLocalRelation(aggregate);
+                } else {
+                    // There are no aggregates to compute, just output the groupings; these are already in the IJ output, so only
+                    // restrict the output to what remained.
+                    p = new Project(aggregate.source(), aggregate.child(), remaining);
                 }
+            } else { // not an INLINEJOIN or there are actually aggregates to compute
+                p = aggregate.with(aggregate.groupings(), remaining);
             }
         }
 
         return p;
     }
 
-    private static LogicalPlan pruneColumns(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
+    private static LogicalPlan pruneColumnsInInlineJoin(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = ij;
 
         used.addAll(ij.references());
@@ -162,7 +164,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumns(Eval eval, AttributeSet.Builder used, Holder<Boolean> recheck) {
+    private static LogicalPlan pruneColumnsInEval(Eval eval, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = eval;
 
         var remaining = pruneUnusedAndAddReferences(eval.fields(), used);
@@ -179,7 +181,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    private static LogicalPlan pruneColumns(Project project, AttributeSet.Builder used) {
+    private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used) {
         LogicalPlan p = project;
 
         var remaining = pruneUnusedAndAddReferences(project.projections(), used);
@@ -188,13 +190,15 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 ? emptyLocalRelation(project)
                 : new Project(project.source(), project.child(), remaining);
         } else if (project.output().stream().allMatch(FieldAttribute.class::isInstance)) {
+            // Use empty relation as a marker for a subsequent pass, in case the project is only outputting field attributes (which are
+            // already part of the INLINEJOIN left-hand side output).
             p = emptyLocalRelation(project);
         }
 
         return p;
     }
 
-    private static LogicalPlan pruneColumns(EsRelation esr, AttributeSet.Builder used) {
+    private static LogicalPlan pruneColumnsInEsRelation(EsRelation esr, AttributeSet.Builder used) {
         LogicalPlan p = esr;
 
         if (esr.indexMode() == IndexMode.LOOKUP) {

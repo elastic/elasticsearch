@@ -1386,3 +1386,94 @@ total_duration:long |       day:date         |                     days:date
 17016205            |2023-10-23T13:00:00.000Z|[2023-10-23T12:00:00.000Z, 2023-10-23T13:00:00.000Z]
 ;
 
+
+evalBeforeInlinestatsAndKeepAfter1
+required_capability: inlinestats_v8
+
+FROM employees
+| WHERE still_hired == false
+| EVAL sal = salary/1000
+| INLINESTATS totalK = SUM(sal), count=COUNT(*) BY gender
+| KEEP emp_no, still_hired, totalK, count
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer |still_hired:boolean|totalK:long|count:long
+10003          |false              |1567       |32
+10006          |false              |810        |16
+10009          |false              |810        |16
+10010          |false              |378        |7
+10012          |false              |378        |7
+;
+
+evalBeforeInlinestatsAndKeepAfter2
+required_capability: inlinestats_v8
+
+FROM employees
+| EVAL salaryK = salary/1000
+| INLINESTATS total = SUM(salaryK), count=COUNT(*) BY gender
+| KEEP emp_no, still_hired, total, count
+| WHERE still_hired == false
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer |still_hired:boolean|total:long|count:long
+10003          |false              |2644      |57
+10006          |false              |1648      |33
+10009          |false              |1648      |33
+10010          |false              |482       |10
+10012          |false              |482       |10
+;
+
+evalBeforeInlinestatsAndKeepAfter3
+required_capability: inlinestats_v8
+
+FROM employees
+| EVAL salaryK = salary/1000
+| INLINESTATS total = SUM(salaryK) BY gender
+| KEEP emp_no, still_hired, total
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer |still_hired:boolean|total:long
+10001          |true               |2644
+10002          |true               |1648
+10003          |false              |2644
+10004          |true               |2644
+10005          |true               |2644
+;
+
+evalBeforeInlinestatsAndKeepAfter4
+required_capability: inlinestats_v8
+
+FROM employees
+| EVAL salaryK = salary/1000
+| INLINESTATS count = COUNT(*) BY salaryK
+| KEEP emp_no, still_hired, count
+| SORT emp_no
+| LIMIT 5
+;
+
+emp_no:integer |still_hired:boolean|count:long
+10001          |true               |1
+10002          |true               |3
+10003          |false              |2
+10004          |true               |2
+10005          |true               |1
+;
+
+evalBeforeInlinestatsAndKeepAfter5
+required_capability: inlinestats_v8
+
+ROW salary = 12300, emp_no = 5, gender = "F"
+| EVAL salaryK = salary/1000
+| INLINESTATS sum = SUM(salaryK) BY gender
+| KEEP emp_no
+;
+
+emp_no:integer
+5
+;

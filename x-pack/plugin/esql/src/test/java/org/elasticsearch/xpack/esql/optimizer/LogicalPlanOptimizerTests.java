@@ -5981,6 +5981,38 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var stub = as(agg.child(), StubRelation.class);
     }
 
+    /*
+     * EsqlProject[[emp_no{r}#5]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_LocalRelation[[salary{r}#3, emp_no{r}#5, gender{r}#7],
+     *      org.elasticsearch.xpack.esql.plan.logical.local.CopyingLocalSupplier@9d5b596d]
+     */
+    public void testInlinestatsWithRow() {
+        var query = """
+            ROW salary = 12300, emp_no = 5, gender = "F"
+            | EVAL salaryK = salary/1000
+            | INLINESTATS sum = SUM(salaryK) BY gender
+            | KEEP emp_no
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var esqlProject = as(plan, EsqlProject.class);
+        assertThat(Expressions.names(esqlProject.projections()), is(List.of("emp_no")));
+        var limit = asLimit(esqlProject.child(), 1000, false);
+        var localRelation = as(limit.child(), LocalRelation.class);
+        assertThat(
+            localRelation.output(),
+            contains(
+                new ReferenceAttribute(EMPTY, "salary", INTEGER),
+                new ReferenceAttribute(EMPTY, "emp_no", INTEGER),
+                new ReferenceAttribute(EMPTY, "gender", KEYWORD)
+            )
+        );
+    }
+
     /**
      * Expects
      *

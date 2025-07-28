@@ -359,9 +359,8 @@ public final class RemoteClusterService extends RemoteClusterAware
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
             );
         }
-        @FixForMultiProject(description = "Refactor method parameters to supply the project ID.")
-        final var projectId = projectResolver.getProjectId();
-        RemoteClusterConnection connection = getConnectionsMapForProject(projectId).get(cluster);
+        @FixForMultiProject(description = "Verify all callers will have the proper context set for resolving the origin project ID.")
+        RemoteClusterConnection connection = getConnectionsMapForCurrentProject().get(cluster);
         if (connection == null) {
             throw new NoSuchRemoteClusterException(cluster);
         }
@@ -381,7 +380,7 @@ public final class RemoteClusterService extends RemoteClusterAware
         }
     }
 
-    @FixForMultiProject(description = "Refactor to provide the project ID that the settings are associated with.")
+    @FixForMultiProject(description = "Refactor as needed to support project specific changes to linked remotes.")
     public synchronized void updateRemoteClusterCredentials(Supplier<Settings> settingsSupplier, ActionListener<Void> listener) {
         final var projectId = projectResolver.getProjectId();
         final Settings settings = settingsSupplier.get();
@@ -454,7 +453,7 @@ public final class RemoteClusterService extends RemoteClusterAware
 
     @Override
     protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-        @FixForMultiProject(description = "ES-12270: Add a parameter for the project ID associated with the linked alias and settings.")
+        @FixForMultiProject(description = "ES-12270: Refactor as needed to support project specific changes to linked remotes.")
         final var projectId = projectResolver.getProjectId();
         CountDownLatch latch = new CountDownLatch(1);
         updateRemoteCluster(projectId, clusterAlias, settings, false, ActionListener.runAfter(new ActionListener<>() {

@@ -127,7 +127,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
             return actionListener.map(
                 response -> new BulkResponse(
                     response.getItems(),
-                    response.getTook().getMillis(),
+                    response.getTookInMillis(),
                     ingestTimeProviderFunction.apply(response),
                     response.getIncrementalState()
                 )

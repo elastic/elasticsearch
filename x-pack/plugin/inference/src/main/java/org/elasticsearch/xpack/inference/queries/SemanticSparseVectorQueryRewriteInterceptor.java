@@ -27,10 +27,10 @@ public class SemanticSparseVectorQueryRewriteInterceptor extends SemanticQueryRe
     public SemanticSparseVectorQueryRewriteInterceptor() {}
 
     @Override
-    protected String getFieldName(QueryBuilder queryBuilder) {
+    protected Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof SparseVectorQueryBuilder);
         SparseVectorQueryBuilder sparseVectorQueryBuilder = (SparseVectorQueryBuilder) queryBuilder;
-        return sparseVectorQueryBuilder.getFieldName();
+        return Map.of(sparseVectorQueryBuilder.getFieldName(), 1.0f);
     }
 
     @Override

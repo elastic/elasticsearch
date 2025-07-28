@@ -33,10 +33,10 @@ public class SemanticKnnVectorQueryRewriteInterceptor extends SemanticQueryRewri
     public SemanticKnnVectorQueryRewriteInterceptor() {}
 
     @Override
-    protected String getFieldName(QueryBuilder queryBuilder) {
+    protected Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof KnnVectorQueryBuilder);
         KnnVectorQueryBuilder knnVectorQueryBuilder = (KnnVectorQueryBuilder) queryBuilder;
-        return knnVectorQueryBuilder.getFieldName();
+        return Map.of(knnVectorQueryBuilder.getFieldName(), 1.0f);
     }
 
     @Override

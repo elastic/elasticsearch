@@ -12,6 +12,8 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 
+import java.util.Map;
+
 public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteInterceptor {
 
     public static final NodeFeature SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED = new NodeFeature(
@@ -21,10 +23,10 @@ public class SemanticMatchQueryRewriteInterceptor extends SemanticQueryRewriteIn
     public SemanticMatchQueryRewriteInterceptor() {}
 
     @Override
-    protected String getFieldName(QueryBuilder queryBuilder) {
+    protected Map<String, Float> getFieldNamesWithBoosts(QueryBuilder queryBuilder) {
         assert (queryBuilder instanceof MatchQueryBuilder);
         MatchQueryBuilder matchQueryBuilder = (MatchQueryBuilder) queryBuilder;
-        return matchQueryBuilder.fieldName();
+        return Map.of(matchQueryBuilder.fieldName(), 1.0f);
     }
 
     @Override

@@ -159,7 +159,7 @@ public final class EnrichQuerySourceOperator extends SourceOperator {
         return page;
     }
 
-    private Query nextQuery() {
+    private Query nextQuery() throws IOException {
         ++queryPosition;
         while (isFinished() == false) {
             Query query = queryList.getQuery(queryPosition);

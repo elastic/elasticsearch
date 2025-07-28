@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -46,7 +47,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndexPattern,
         String lookupIndex,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        QueryBuilder preJoinFilter
     ) implements OperatorFactory {
         @Override
         public String describe() {
@@ -60,6 +62,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                     .append(" inputChannel=")
                     .append(matchField.channel());
             }
+            stringBuilder.append(" pre_join_filter=").append(preJoinFilter);
             stringBuilder.append("]");
             return stringBuilder.toString();
         }
@@ -76,7 +79,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 lookupIndexPattern,
                 lookupIndex,
                 loadFields,
-                source
+                source,
+                preJoinFilter
             );
         }
     }
@@ -90,6 +94,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     private final Source source;
     private long totalRows = 0L;
     private List<MatchConfig> matchFields;
+    private QueryBuilder preJoinFilter;
     /**
      * Total number of pages emitted by this {@link Operator}.
      */
@@ -109,7 +114,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         String lookupIndexPattern,
         String lookupIndex,
         List<NamedExpression> loadFields,
-        Source source
+        Source source,
+        QueryBuilder preJoinFilter
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.matchFields = matchFields;
@@ -120,6 +126,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         this.lookupIndex = lookupIndex;
         this.loadFields = loadFields;
         this.source = source;
+        this.preJoinFilter = preJoinFilter;
     }
 
     @Override
@@ -146,7 +153,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             newMatchFields,
             new Page(inputBlockArray),
             loadFields,
-            source
+            source,
+            preJoinFilter
         );
         lookupService.lookupAsync(
             request,
@@ -203,6 +211,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 .append(" inputChannel=")
                 .append(matchField.channel());
         }
+        stringBuilder.append(" pre_join_filter=").append(preJoinFilter);
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

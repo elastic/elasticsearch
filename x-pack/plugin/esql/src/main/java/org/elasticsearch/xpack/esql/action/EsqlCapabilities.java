@@ -98,6 +98,11 @@ public class EsqlCapabilities {
         AGG_MAX_MIN_UNSIGNED_LONG,
 
         /**
+         * Accept unsigned longs on VALUES and SAMPLE aggregations.
+         */
+        AGG_VALUES_SAMPLE_UNSIGNED_LONG,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,
@@ -919,6 +924,17 @@ public class EsqlCapabilities {
          * Support for implicit casting of aggregate metric double when run in aggregations
          */
         AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Fixes bug when aggregate metric double is encoded as a single nul value but decoded as
+         * AggregateMetricDoubleBlock (expecting 4 values) in TopN.
+         */
+        AGGREGATE_METRIC_DOUBLE_SORTING_FIXED(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Stop erroring out when trying to apply MV_EXPAND on aggregate metric double.
+         */
+        AGGREGATE_METRIC_DOUBLE_MV_EXPAND(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
          * Support change point detection "CHANGE_POINT".

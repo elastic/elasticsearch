@@ -2357,6 +2357,14 @@ public class VerifierTests extends ESTestCase {
             | ENRICH _remote:languages ON language_code
             """, analyzer);
         assertThat(err, containsString("7:3: ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
+
+        err = error("""
+            FROM test
+            | FORK (WHERE languages == 1) (WHERE languages == 2)
+            | EVAL language_code = languages
+            | ENRICH _remote:languages ON language_code
+            """, analyzer);
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after FORK"));
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

@@ -51,8 +51,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.inference.InferenceResolver;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -167,8 +166,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             projectResolver,
             indexNameExpressionResolver,
             usageService,
-            InferenceResolver.factory(client),
-            BulkInferenceRunner.factory(client)
+            new InferenceService(client)
         );
 
         this.computeService = new ComputeService(

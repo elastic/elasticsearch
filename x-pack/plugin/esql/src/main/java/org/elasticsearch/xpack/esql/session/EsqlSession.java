@@ -56,8 +56,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceResolver;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
@@ -121,8 +120,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
-    private final BulkInferenceRunner.Factory inferenceRunnerFactory;
-    private final InferenceResolver inferenceResolver;
+    private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
 
     private boolean explainMode;
@@ -157,8 +155,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.inferenceRunnerFactory = services.bulkInferenceRunnerFactory();
-        this.inferenceResolver = services.inferenceResolver();
+        this.inferenceService = services.inferenceService();
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
     }
@@ -754,7 +751,7 @@ public class EsqlSession {
     }
 
     private void resolveInferences(LogicalPlan plan, PreAnalysisResult preAnalysisResult, ActionListener<PreAnalysisResult> l) {
-        inferenceResolver.resolveInferenceIds(plan, l.map(preAnalysisResult::withInferenceResolution));
+        inferenceService.inferenceResolver().resolveInferenceIds(plan, l.map(preAnalysisResult::withInferenceResolution));
     }
 
     private PhysicalPlan logicalPlanToPhysicalPlan(LogicalPlan optimizedPlan, EsqlQueryRequest request) {

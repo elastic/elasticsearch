@@ -12,6 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -75,8 +76,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceResolver;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -420,8 +420,7 @@ public final class EsqlTestUtils {
         mock(ProjectResolver.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        mock(InferenceResolver.Factory.class),
-        mock(BulkInferenceRunner.Factory.class)
+        new InferenceService(mock(Client.class))
     );
 
     private EsqlTestUtils() {}

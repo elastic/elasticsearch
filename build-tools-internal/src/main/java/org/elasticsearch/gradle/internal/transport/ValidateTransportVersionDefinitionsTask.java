@@ -9,6 +9,7 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
+import com.google.common.collect.Comparators;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionReference;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -20,9 +21,11 @@ import org.gradle.api.tasks.TaskAction;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.DEFINED_DIR;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readDefinitionFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readReferencesFile;
 
@@ -32,27 +35,51 @@ import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.
 public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTask {
 
     @InputDirectory
-    public abstract DirectoryProperty getDefinitionsDirectory();
+    public abstract DirectoryProperty getTVDataDirectory();
 
     @InputFiles
     public abstract ConfigurableFileCollection getReferencesFiles();
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
+        Path dataDir = getTVDataDirectory().getAsFile().get().toPath();
+        Path definitionsDir = dataDir.resolve(DEFINED_DIR);
 
         Set<String> allTvNames = new HashSet<>();
         for (var tvReferencesFile : getReferencesFiles()) {
             readReferencesFile(tvReferencesFile.toPath()).stream().map(TransportVersionReference::name).forEach(allTvNames::add);
         }
 
+        // TODO validate that all files:
+        //  - have only have a single ID per release version
+        //  - have TVs in order
+        //  - have the correct name
+        //  - have the correct data format
+        //  - Don't have duplicate IDs across any files
+        //  - no duplicate names? Should be impossible due to filename conflicts
+
+
         try (var definitionsStream = Files.list(definitionsDir)) {
             for (var definitionFile : definitionsStream.toList()) {
+                // Validate that all definitions are referenced in the code.
                 var tv = readDefinitionFile(definitionFile, false);
                 if (allTvNames.contains(tv.name()) == false) {
-                    throw new IllegalStateException("Transport version constant " + tv.name() + " is not referenced");
+                    throw new IllegalStateException("Transport version definition " + tv.name()
+                        + " in file " + definitionFile + "is not referenced in the code.");
                 }
+
+                // Validate that all Ids are in decending order:
+                if (Comparators.isInOrder(tv.ids(), Comparator.reverseOrder()) == false) {
+                    throw new IllegalStateException("Transport version definition file " + definitionFile
+                        + " does not have ordered ids");
+                }
+
+
+
+
             }
         }
     }
+
+
 }

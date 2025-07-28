@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
-
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.attributes.Attribute;
@@ -32,8 +31,8 @@ import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE
 class TransportVersionUtils {
     static final Attribute<Boolean> TRANSPORT_VERSION_REFERENCES_ATTRIBUTE = Attribute.of("transport-version-references", Boolean.class);
 
-    private static final String LATEST_DIR = "latest";
-    private static final String DEFINED_DIR = "defined";
+    static final String LATEST_DIR = "latest";
+    static final String DEFINED_DIR = "defined";
 
     record TransportVersionDefinition(String name, List<Integer> ids) {}
 
@@ -122,5 +121,41 @@ class TransportVersionUtils {
     static void addTransportVersionReferencesAttribute(AttributeContainer attributes) {
         attributes.attribute(ARTIFACT_TYPE_ATTRIBUTE, "txt");
         attributes.attribute(TransportVersionUtils.TRANSPORT_VERSION_REFERENCES_ATTRIBUTE, true);
+    }
+
+    /**
+     * Specifies which part of the TransportVersion id to bump. The TV format:
+     * <p>
+     * MM_NNN_S_PP
+     * <p>
+     * M - The major version of Elasticsearch
+     * NNN - The server version part
+     * S - The subsidiary version part. It should always be 0 here, it is only used in subsidiary repositories.
+     * PP - The patch version part
+     */
+    public enum IdIncrement {
+        MAJOR(1_000_0_00, 2),
+        SERVER(1_0_00, 3),
+        SUBSIDIARY(1_00, 1),
+        PATCH(1, 2);
+
+        private final int value;
+        private final int max;
+
+        IdIncrement(int value, int numDigits) {
+            this.value = value;
+            this.max = (int) Math.pow(10, numDigits);
+        }
+
+        public int bumpVersionNumber(int tvIDToBump) {
+            int zeroesCleared = (tvIDToBump / value) * value;
+            int newId = zeroesCleared + value;
+            if ((newId / value) % max == 0) {
+                throw new IllegalStateException(
+                    "Insufficient" + name() + " version section in TransportVersion: " + tvIDToBump + ", Cannot bump."
+                );
+            }
+            return newId;
+        }
     }
 }

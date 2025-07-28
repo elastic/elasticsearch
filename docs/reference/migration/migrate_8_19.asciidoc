@@ -61,7 +61,7 @@ Adapt your configuration to the new SDK functionality. This includes, but may no
   configure neither of these settings.
 ====
 
-[[upgrade_repository_s3_to_aws_sdk_v2]]
+[[upgrade_repository_s3_to_aws_sdk]]
 .Upgrade `repository-s3` to AWS SDK v2
 [%collapsible]
 ====
@@ -134,10 +134,6 @@ In earlier versions of {es}, ES|QL would fail the entire query if it encountered
 *Impact* +
 Callers should check the `is_partial` flag returned in the response to determine if the result is partial or complete. If returning partial results is not desired, this option can be overridden per request via an `allow_partial_results` parameter in the query URL or globally via the cluster setting `esql.query.allow_partial_results`.
 ====
-
-[discrete]
-[[breaking_819_es_ql_changes]]
-==== ES|QL changes
 
 [[cluster_setting_skip_unavailable_catches_all_runtime_errors]]
 .Cluster setting "skip_unavailable" catches all runtime errors

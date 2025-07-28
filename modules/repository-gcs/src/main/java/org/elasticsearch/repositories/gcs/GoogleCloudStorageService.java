@@ -82,7 +82,7 @@ public class GoogleCloudStorageService {
      * @param clientsSettings the new settings used for building clients for subsequent requests
      */
     public void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-        clientsManager.refreshAndClearCache(clientsSettings);
+        clientsManager.refreshAndClearCacheForClusterClients(clientsSettings);
     }
 
     /**

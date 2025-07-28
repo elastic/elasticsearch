@@ -18,13 +18,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -41,7 +41,8 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         GcsRepositoryStatsCollector,
         MeteredStorage,
         IOException> clientBuilder;
-    private final Map<ProjectId, ClientsHolder> clientHolders;
+    private final ClusterClientsHolder clusterClientsHolder = new ClusterClientsHolder();
+    private final Map<ProjectId, ClientsHolder> projectClientHolders;
 
     public GoogleCloudStorageClientsManager(
         Settings nodeSettings,
@@ -54,16 +55,15 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
             .build();
         this.clientBuilder = clientBuilder;
         if (supportsMultipleProjects) {
-            // If multiple projects are supported, we need to track per-project clients
-            this.clientHolders = new ConcurrentHashMap<>(Map.of(ProjectId.DEFAULT, new ClientsHolder()));
+            this.projectClientHolders = ConcurrentCollections.newConcurrentMap();
         } else {
-            // If only a single project is supported, we use a single holder for the default project
-            this.clientHolders = Map.of(ProjectId.DEFAULT, new ClientsHolder());
+            this.projectClientHolders = null;
         }
     }
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
+        assert projectClientHolders != null;
         final Map<ProjectId, ProjectMetadata> currentProjects = event.state().metadata().projects();
 
         final var updatedPerProjectClients = new HashMap<ProjectId, ClientsHolder>();
@@ -77,7 +77,7 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
             // Project secrets can be null when node restarts. It may not have any s3 credentials if s3 is not in use.
             if (projectSecrets == null || projectSecrets.getSettingNames().stream().noneMatch(key -> key.startsWith(GCS_SETTING_PREFIX))) {
                 // Most likely there won't be any existing client, but attempt to remove it anyway just in case
-                clientHolders.remove(project.id());
+                projectClientHolders.remove(project.id());
                 continue;
             }
 
@@ -106,20 +106,20 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
             // TODO: If performance is an issue, we may consider comparing just the relevant project secrets for new or updated clients
             // and avoid building the clientSettings
             if (newOrUpdated(project.id(), clientSettings)) {
-                updatedPerProjectClients.put(project.id(), new ClientsHolder());
+                updatedPerProjectClients.put(project.id(), new PerProjectClientsHolder(clientSettings));
             }
         }
 
         // Updated projects
         for (var projectId : updatedPerProjectClients.keySet()) {
             assert ProjectId.DEFAULT.equals(projectId) == false;
-            clientHolders.put(projectId, updatedPerProjectClients.get(projectId));
+            projectClientHolders.put(projectId, updatedPerProjectClients.get(projectId));
         }
         // Removed projects
-        for (var projectId : clientHolders.keySet()) {
+        for (var projectId : projectClientHolders.keySet()) {
             if (currentProjects.containsKey(projectId) == false) {
                 assert ProjectId.DEFAULT.equals(projectId) == false;
-                clientHolders.remove(projectId);
+                projectClientHolders.remove(projectId);
             }
         }
     }
@@ -130,13 +130,12 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
     }
 
     @Deprecated(forRemoval = true)
-    void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-        refreshAndClearCache(ProjectId.DEFAULT, clientsSettings);
-    }
-
-    @Deprecated(forRemoval = true)
     void closeRepositoryClients(String repositoryName) {
         closeRepositoryClients(ProjectId.DEFAULT, repositoryName);
+    }
+
+    void refreshAndClearCacheForClusterClients(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
+        clusterClientsHolder.refreshAndClearCache(clientsSettings);
     }
 
     MeteredStorage client(ProjectId projectId, String clientName, String repositoryName, GcsRepositoryStatsCollector statsCollector)
@@ -144,24 +143,20 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         return getClientsHolderSafe(projectId).client(clientName, repositoryName, statsCollector);
     }
 
-    void refreshAndClearCache(ProjectId projectId, Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-        getClientsHolderSafe(projectId).refreshAndClearCache(clientsSettings);
-    }
-
     void closeRepositoryClients(ProjectId projectId, String repositoryName) {
         getClientsHolderSafe(projectId).closeRepositoryClients(repositoryName);
     }
 
     private boolean newOrUpdated(ProjectId projectId, Map<String, GoogleCloudStorageClientSettings> currentClientSettings) {
-        final var old = clientHolders.get(projectId);
+        final var old = projectClientHolders.get(projectId);
         if (old == null) {
             return true;
         }
-        return currentClientSettings.equals(old.clientSettings) == false;
+        return currentClientSettings.equals(old.getClientSettings()) == false;
     }
 
     private ClientsHolder getClientsHolderSafe(ProjectId projectId) {
-        final var clientsHolder = clientHolders.get(projectId);
+        final var clientsHolder = projectClientHolders.get(projectId);
         if (clientsHolder == null) {
             assert ProjectId.DEFAULT.equals(projectId) == false;
             throw new IllegalArgumentException("No GCS client is configured for project [" + projectId + "]");
@@ -169,14 +164,18 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
         return clientsHolder;
     }
 
-    class ClientsHolder {
+    abstract class ClientsHolder {
 
-        private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
         /**
          * Dictionary of client instances. Client instances are built lazily from the
          * latest settings. Clients are cached by a composite repositoryName key.
          */
-        private volatile Map<String, MeteredStorage> clientCache = emptyMap();
+        protected volatile Map<String, MeteredStorage> clientCache = emptyMap();
+
+        /**
+         * Get the current client settings for all clients in this holder.
+         */
+        protected abstract Map<String, GoogleCloudStorageClientSettings> getClientSettings();
 
         /**
          * Attempts to retrieve a client from the cache. If the client does not exist it
@@ -205,14 +204,14 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
                     return existing;
                 }
 
-                final GoogleCloudStorageClientSettings settings = clientSettings.get(clientName);
+                final GoogleCloudStorageClientSettings settings = getClientSettings().get(clientName);
 
                 if (settings == null) {
                     throw new IllegalArgumentException(
                         "Unknown client name ["
                             + clientName
                             + "]. Existing client configs: "
-                            + Strings.collectionToDelimitedString(clientSettings.keySet(), ",")
+                            + Strings.collectionToDelimitedString(getClientSettings().keySet(), ",")
                     );
                 }
 
@@ -221,6 +220,23 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
                 clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
                 return storage;
             }
+        }
+
+        synchronized void closeRepositoryClients(String repositoryName) {
+            clientCache = clientCache.entrySet()
+                .stream()
+                .filter(entry -> entry.getKey().equals(repositoryName) == false)
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, java.util.Map.Entry::getValue));
+        }
+    }
+
+    final class ClusterClientsHolder extends ClientsHolder {
+
+        private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
+
+        @Override
+        protected Map<String, GoogleCloudStorageClientSettings> getClientSettings() {
+            return clientSettings;
         }
 
         /**
@@ -234,12 +250,19 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
             this.clientCache = emptyMap();
             this.clientSettings = Maps.ofEntries(clientsSettings.entrySet());
         }
+    }
 
-        synchronized void closeRepositoryClients(String repositoryName) {
-            clientCache = clientCache.entrySet()
-                .stream()
-                .filter(entry -> entry.getKey().equals(repositoryName) == false)
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    final class PerProjectClientsHolder extends ClientsHolder {
+
+        private final Map<String, GoogleCloudStorageClientSettings> clientSettings;
+
+        PerProjectClientsHolder(Map<String, GoogleCloudStorageClientSettings> clientSettings) {
+            this.clientSettings = clientSettings;
+        }
+
+        @Override
+        protected Map<String, GoogleCloudStorageClientSettings> getClientSettings() {
+            return clientSettings;
         }
     }
 }

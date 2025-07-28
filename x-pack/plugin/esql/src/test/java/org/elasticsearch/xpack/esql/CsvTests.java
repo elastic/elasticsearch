@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
-import org.elasticsearch.xpack.esql.analysis.PreAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -525,7 +524,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static CsvTestsDataLoader.MultiIndexTestDataset testDatasets(LogicalPlan parsed) {
-        var preAnalysis = new PreAnalyzer().preAnalyze(parsed, new PreAnalyzerContext(mock(InferenceResolver.class)));
+        var preAnalysis = new PreAnalyzer(mock(InferenceResolver.class)).preAnalyze(parsed);
         var indices = preAnalysis.indices;
         if (indices.isEmpty()) {
             /*

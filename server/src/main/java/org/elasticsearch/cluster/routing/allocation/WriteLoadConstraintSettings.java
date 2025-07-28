@@ -102,10 +102,16 @@ public class WriteLoadConstraintSettings {
 
     WriteLoadDeciderStatus writeLoadDeciderStatus;
     TimeValue writeLoadDeciderRerouteIntervalSetting;
+    double writeThreadPoolHighUtilizationThresholdSetting;
 
-    WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
+    public WriteLoadConstraintSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_ENABLED_SETTING, this::setWriteLoadConstraintEnabled);
         clusterSettings.initializeAndWatch(WRITE_LOAD_DECIDER_REROUTE_INTERVAL_SETTING, this::setWriteLoadDeciderRerouteIntervalSetting);
+        clusterSettings.initializeAndWatch(
+            WRITE_LOAD_DECIDER_HIGH_UTILIZATION_THRESHOLD_SETTING,
+            this::setWriteThreadPoolHighUtilizationThresholdSetting
+        );
+
     };
 
     private void setWriteLoadConstraintEnabled(WriteLoadDeciderStatus status) {
@@ -120,7 +126,15 @@ public class WriteLoadConstraintSettings {
         return this.writeLoadDeciderRerouteIntervalSetting;
     }
 
+    public double getWriteThreadPoolHighUtilizationThresholdSetting() {
+        return this.writeThreadPoolHighUtilizationThresholdSetting;
+    }
+
     private void setWriteLoadDeciderRerouteIntervalSetting(TimeValue timeValue) {
         this.writeLoadDeciderRerouteIntervalSetting = timeValue;
+    }
+
+    private void setWriteThreadPoolHighUtilizationThresholdSetting(RatioValue percent) {
+        this.writeThreadPoolHighUtilizationThresholdSetting = percent.getAsRatio();
     }
 }

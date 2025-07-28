@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli;
@@ -18,6 +19,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -42,14 +44,14 @@ public interface CliToolProvider {
     /**
      * Loads a tool provider from the Elasticsearch distribution.
      *
+     * @param sysprops the system properties of the CLI process
      * @param toolname the name of the tool to load
      * @param libs the library directories to load, relative to the Elasticsearch homedir
      * @return the instance of the loaded tool
      * @throws AssertionError if the given toolname cannot be found or there are more than one tools found with the same name
      */
-    static CliToolProvider load(String toolname, String libs) {
-        // the ES homedir is always our working dir
-        Path homeDir = Paths.get("").toAbsolutePath();
+    static CliToolProvider load(Map<String, String> sysprops, String toolname, String libs) {
+        Path homeDir = Paths.get(sysprops.get("es.path.home")).toAbsolutePath();
         final ClassLoader cliLoader;
         if (libs.isBlank()) {
             cliLoader = ClassLoader.getSystemClassLoader();

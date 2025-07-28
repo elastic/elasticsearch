@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,7 +64,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         entry(Rounding.DateTimeUnit.MONTH_OF_YEAR, "month"),
         entry(Rounding.DateTimeUnit.DAY_OF_MONTH, "day"),
         entry(Rounding.DateTimeUnit.HOUR_OF_DAY, "hour"),
-        entry(Rounding.DateTimeUnit.MINUTES_OF_HOUR, "minute"),
+        entry(Rounding.DateTimeUnit.MINUTE_OF_HOUR, "minute"),
         entry(Rounding.DateTimeUnit.SECOND_OF_MINUTE, "second")
     );
 
@@ -82,7 +84,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
 
         RoundingInfo[] roundings = new RoundingInfo[6];
         roundings[0] = new RoundingInfo(Rounding.DateTimeUnit.SECOND_OF_MINUTE, timeZone, 1000L, "s", 1, 5, 10, 30);
-        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTES_OF_HOUR, timeZone, 60 * 1000L, "m", 1, 5, 10, 30);
+        roundings[1] = new RoundingInfo(Rounding.DateTimeUnit.MINUTE_OF_HOUR, timeZone, 60 * 1000L, "m", 1, 5, 10, 30);
         roundings[2] = new RoundingInfo(Rounding.DateTimeUnit.HOUR_OF_DAY, timeZone, 60 * 60 * 1000L, "h", 1, 3, 12);
         roundings[3] = new RoundingInfo(Rounding.DateTimeUnit.DAY_OF_MONTH, timeZone, 24 * 60 * 60 * 1000L, "d", 1, 7);
         roundings[4] = new RoundingInfo(Rounding.DateTimeUnit.MONTH_OF_YEAR, timeZone, 30 * 24 * 60 * 60 * 1000L, "M", 1, 3);
@@ -122,17 +124,13 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     public AutoDateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         numBuckets = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            minimumIntervalExpression = in.readOptionalString();
-        }
+        minimumIntervalExpression = in.readOptionalString();
     }
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(numBuckets);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalString(minimumIntervalExpression);
-        }
+        out.writeOptionalString(minimumIntervalExpression);
     }
 
     protected AutoDateHistogramAggregationBuilder(
@@ -165,11 +163,6 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     public String getMinimumIntervalExpression() {
         return minimumIntervalExpression;
     }
@@ -177,7 +170,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     public AutoDateHistogramAggregationBuilder setMinimumIntervalExpression(String minimumIntervalExpression) {
         if (minimumIntervalExpression != null && ALLOWED_INTERVALS.containsValue(minimumIntervalExpression) == false) {
             throw new IllegalArgumentException(
-                MINIMUM_INTERVAL_FIELD.getPreferredName() + " must be one of [" + ALLOWED_INTERVALS.values().toString() + "]"
+                MINIMUM_INTERVAL_FIELD.getPreferredName() + " must be one of [" + ALLOWED_INTERVALS.values() + "]"
             );
         }
         this.minimumIntervalExpression = minimumIntervalExpression;
@@ -190,10 +183,6 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         }
         this.numBuckets = numBuckets;
         return this;
-    }
-
-    public int getNumBuckets() {
-        return numBuckets;
     }
 
     @Override
@@ -214,9 +203,8 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         int maxRoundingInterval = Arrays.stream(roundings, 0, roundings.length - 1)
             .map(rounding -> rounding.innerIntervals)
             .flatMapToInt(Arrays::stream)
-            .boxed()
             .reduce(Integer::max)
-            .get();
+            .getAsInt();
         Settings settings = context.getIndexSettings().getNodeSettings();
         int maxBuckets = MultiBucketConsumerService.MAX_BUCKET_SETTING.get(settings);
         int bucketCeiling = maxBuckets / maxRoundingInterval;
@@ -241,8 +229,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
         if (timeZone != null) {
             tzRoundingBuilder.timeZone(timeZone);
         }
-        Rounding rounding = tzRoundingBuilder.build();
-        return rounding;
+        return tzRoundingBuilder.build();
     }
 
     @Override
@@ -267,8 +254,8 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     public static class RoundingInfo implements Writeable {
@@ -291,7 +278,7 @@ public class AutoDateHistogramAggregationBuilder extends ValuesSourceAggregation
             this.innerIntervals = innerIntervals;
             Objects.requireNonNull(dateTimeUnit, "dateTimeUnit cannot be null");
             if (ALLOWED_INTERVALS.containsKey(dateTimeUnit) == false) {
-                throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet().toString());
+                throw new IllegalArgumentException("dateTimeUnit must be one of " + ALLOWED_INTERVALS.keySet());
             }
             this.dateTimeUnit = ALLOWED_INTERVALS.get(dateTimeUnit);
         }

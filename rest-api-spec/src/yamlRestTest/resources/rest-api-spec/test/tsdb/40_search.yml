@@ -1,7 +1,13 @@
+---
 setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: "_tsid hashing introduced in 8.13"
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.13.0"
+      reason: "_tsid hashing introduced in 8.13"
 
   - do:
       indices.create:
@@ -62,8 +68,8 @@ setup:
 
 ---
 query a dimension:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -78,8 +84,8 @@ query a dimension:
 
 ---
 query a metric:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -95,8 +101,8 @@ query a metric:
 
 ---
 "query tsid fails":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -110,8 +116,8 @@ query a metric:
 
 ---
 fetch a dimension:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -129,8 +135,8 @@ fetch a dimension:
 
 ---
 fetch a metric:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -149,8 +155,8 @@ fetch a metric:
 
 ---
 fetch a tag:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -169,9 +175,9 @@ fetch a tag:
 
 ---
 "fetch the tsid":
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -184,12 +190,12 @@ fetch a tag:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
+  - match: {hits.hits.0.fields._tsid: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
 
 ---
 aggregate a dimension:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -210,8 +216,8 @@ aggregate a dimension:
 
 ---
 aggregate a metric:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -238,8 +244,8 @@ aggregate a metric:
 
 ---
 aggregate a tag:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -264,9 +270,9 @@ aggregate a tag:
 
 ---
 "aggregate the tsid":
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -281,15 +287,15 @@ aggregate a tag:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
+  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
 "aggregate filter the tsid fails":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -307,18 +313,41 @@ aggregate a tag:
 
 ---
 sort by tsid:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
         index: test
         body:
+          fields: [ "_tsid" ]
           sort:   [ "_tsid", "@timestamp" ]
 
   - match: {hits.total.value: 8}
-  - match: {hits.hits.0.sort: [{ "k8s.pod.uid" : "947e4ced-1786-4e53-9e0c-5c447e959507", "metricset" : "pod"}, 1619635804467]}
-  - match: {hits.hits.1.sort: [{ "k8s.pod.uid" : "947e4ced-1786-4e53-9e0c-5c447e959507", "metricset" : "pod"}, 1619635824467]}
-  - match: {hits.hits.4.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635803142]}
-  - match: {hits.hits.7.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635863142]}
+
+  - match: {hits.hits.0.sort: ["KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ", 1619635803142]}
+  - match: {hits.hits.0.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"]}
+
+  - match: {hits.hits.1.sort: ["KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ", 1619635823142]}
+  - match: {hits.hits.1.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"]}
+
+  - match: {hits.hits.4.sort: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o", 1619635804467]}
+  - match: {hits.hits.4.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
+
+  - match: {hits.hits.7.sort: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o", 1619635864467]}
+  - match: {hits.hits.7.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
+
+---
+aggs by index_mode:
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            modes:
+              terms:
+                field: "_index_mode"
+  - match: {aggregations.modes.buckets.0.key: "time_series"}
+  - match: {aggregations.modes.buckets.0.doc_count: 8}
+

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.spi;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -47,11 +47,10 @@ public final class Whitelist {
         List<WhitelistClassBinding> whitelistClassBindings,
         List<WhitelistInstanceBinding> whitelistInstanceBindings
     ) {
-
         this.classLoader = Objects.requireNonNull(classLoader);
-        this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));
-        this.whitelistImportedMethods = Collections.unmodifiableList(Objects.requireNonNull(whitelistImportedMethods));
-        this.whitelistClassBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistClassBindings));
-        this.whitelistInstanceBindings = Collections.unmodifiableList(Objects.requireNonNull(whitelistInstanceBindings));
+        this.whitelistClasses = List.copyOf(whitelistClasses);
+        this.whitelistImportedMethods = List.copyOf(whitelistImportedMethods);
+        this.whitelistClassBindings = List.copyOf(whitelistClassBindings);
+        this.whitelistInstanceBindings = List.copyOf(whitelistInstanceBindings);
     }
 }

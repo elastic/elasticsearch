@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -104,6 +105,21 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
         assertTrue(keys.contains("message"));
         assertTrue(keys.contains("loglevel"));
         assertTrue(keys.contains("@timestamp"));
+    }
+
+    public void testCreateFromMessages() throws Exception {
+        List<String> messages = List.of(TEXT_SAMPLE.split("\n"));
+        assertTrue(factory.canCreateFromMessages(explanation, messages, 0.0));
+
+        TextStructureFinder structureFinder = factory.createFromMessages(
+            explanation,
+            messages,
+            TextStructureOverrides.EMPTY_OVERRIDES,
+            NOOP_TIMEOUT_CHECKER
+        );
+
+        TextStructure structure = structureFinder.getStructure();
+        assertEquals("\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} \\]\\[.*", structure.getGrokPattern());
     }
 
     public void testCreateConfigsGivenElasticsearchLogWithNoTimestamps() throws Exception {

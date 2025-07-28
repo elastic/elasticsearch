@@ -1,0 +1,309 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ transform_rank_rrf_to_retriever ]
+      test_runner_features: capabilities
+      reason: "Support for transforming deprecated rank_rrf queries to the corresponding rrf retriever is required"
+  - skip:
+      features: "warnings"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 5
+            number_of_replicas: 0
+          mappings:
+            properties:
+              text:
+                type: text
+              keyword:
+                type: keyword
+              vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          text: "term term"
+          keyword: "other"
+          vector: [ 0.0 ]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          text: "other"
+          keyword: "other"
+          vector: [ 1.0 ]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          text: "term"
+          keyword: "keyword"
+          vector: [ 2.0 ]
+
+  - do:
+      indices.refresh: { }
+
+---
+"Simple rank with bm25 search and kNN search":
+
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          fields: [ "text", "keyword" ]
+          knn:
+            field: vector
+            query_vector: [ 0.0 ]
+            k: 3
+            num_candidates: 3
+          query:
+            term:
+              text: term
+          rank:
+            rrf:
+              rank_window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.text.0: "term term" }
+  - match: { hits.hits.0.fields.keyword.0: "other" }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.text.0: "term" }
+  - match: { hits.hits.1.fields.keyword.0: "keyword" }
+
+  - match: { hits.hits.2._id: "2" }
+  - match: { hits.hits.2.fields.text.0: "other" }
+  - match: { hits.hits.2.fields.keyword.0: "other" }
+
+---
+"Simple rank with multiple bm25 sub searches":
+
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": "term"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "keyword"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.text.0: "term" }
+  - match: { hits.hits.0.fields.keyword.0: "keyword" }
+
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1.fields.text.0: "term term" }
+  - match: { hits.hits.1.fields.keyword.0: "other" }
+
+---
+"Simple rank with multiple bm25 sub_searches and a knn search":
+
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "deprecation added in 8.16"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Deprecated field [rank] used, replaced by [retriever]"
+        - Deprecated field [sub_searches] used, replaced by [retriever]
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          knn:
+            field: vector
+            query_vector: [ 0.0 ]
+            k: 3
+            num_candidates: 3
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": "term"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "keyword"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 100
+              rank_constant: 1
+          size: 10
+
+  - match: { hits.total.value: 3 }
+
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.0.fields.text.0: "term" }
+  - match: { hits.hits.0.fields.keyword.0: "keyword" }
+
+  - match: { hits.hits.1._id: "1" }
+  - match: { hits.hits.1.fields.text.0: "term term" }
+  - match: { hits.hits.1.fields.keyword.0: "other" }
+
+  - match: { hits.hits.2._id: "2" }
+  - match: { hits.hits.2.fields.text.0: "other" }
+  - match: { hits.hits.2.fields.keyword.0: "other" }
+
+
+---
+"RRF rank should fail if size > rank_window_size":
+
+  - do:
+      catch: "/\\[rrf\\] requires \\[rank_window_size: 2\\] be greater than or equal to \\[size: 10\\]/"
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          knn:
+            field: vector
+            query_vector: [ 0.0 ]
+            k: 3
+            num_candidates: 3
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": "term"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "keyword"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 2
+              rank_constant: 1
+          size: 10
+
+---
+"RRF rank should fail if rank_constant < 1":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'validation fixed in 8.16.0'
+
+  - do:
+      catch: "/\\[rank_constant\\] must be greater or equal to \\[1\\] for \\[rrf\\]/"
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          knn:
+            field: vector
+            query_vector: [ 0.0 ]
+            k: 3
+            num_candidates: 3
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": "term"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "keyword"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 0.3
+          size: 10
+
+---
+"RRF rank should fail if we specify both rank and retriever":
+  - do:
+      catch: "/Cannot specify both \\[rank\\] and \\[retriever\\]./"
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          retriever:
+            standard:
+              query:
+                match_all: {}
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 10
+          size: 10

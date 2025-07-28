@@ -6,20 +6,13 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.io.stream.StreamInput;
-
-import java.io.IOException;
+import org.elasticsearch.action.LegacyActionRequest;
 
 /**
  * Request to retrieve built-in (cluster/index) privileges.
  */
-public final class GetBuiltinPrivilegesRequest extends ActionRequest {
-
-    public GetBuiltinPrivilegesRequest(StreamInput in) throws IOException {
-        super(in);
-    }
+public final class GetBuiltinPrivilegesRequest extends LegacyActionRequest {
 
     public GetBuiltinPrivilegesRequest() {}
 

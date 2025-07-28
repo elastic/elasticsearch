@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc.support;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -28,29 +27,22 @@ public class ApiKeyUserRoleDescriptorResolver {
     }
 
     public void resolveUserRoleDescriptors(final Authentication authentication, final ActionListener<Set<RoleDescriptor>> listener) {
-        final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(roleDescriptors -> {
-            for (RoleDescriptor rd : roleDescriptors) {
-                try {
-                    DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
-                } catch (ElasticsearchException | IllegalArgumentException e) {
-                    listener.onFailure(e);
-                    return;
-                }
-            }
-            listener.onResponse(roleDescriptors);
-        }, listener::onFailure);
 
         final Subject effectiveSubject = authentication.getEffectiveSubject();
 
         // Retain current behaviour that User of an API key authentication has no roles
         if (effectiveSubject.getType() == Subject.Type.API_KEY) {
-            roleDescriptorsListener.onResponse(Set.of());
+            listener.onResponse(Set.of());
             return;
         }
 
-        rolesStore.getRoleDescriptorsList(effectiveSubject, ActionListener.wrap(roleDescriptorsList -> {
-            assert roleDescriptorsList.size() == 1;
-            roleDescriptorsListener.onResponse(roleDescriptorsList.iterator().next());
-        }, roleDescriptorsListener::onFailure));
+        rolesStore.getRoleDescriptors(effectiveSubject, listener.delegateFailureAndWrap(this::handleRoleDescriptors));
+    }
+
+    private void handleRoleDescriptors(ActionListener<Set<RoleDescriptor>> listener, Set<RoleDescriptor> roleDescriptors) {
+        for (RoleDescriptor rd : roleDescriptors) {
+            DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
+        }
+        listener.onResponse(roleDescriptors);
     }
 }

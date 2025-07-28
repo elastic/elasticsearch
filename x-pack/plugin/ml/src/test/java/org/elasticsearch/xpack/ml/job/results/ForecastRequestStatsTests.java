@@ -28,6 +28,11 @@ public class ForecastRequestStatsTests extends AbstractXContentSerializingTestCa
         return createTestInstance("ForecastRequestStatsTest", randomAlphaOfLength(20));
     }
 
+    @Override
+    protected ForecastRequestStats mutateInstance(ForecastRequestStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public ForecastRequestStats createTestInstance(String jobId, String forecastId) {
         ForecastRequestStats forecastRequestStats = new ForecastRequestStats(jobId, forecastId);
 

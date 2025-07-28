@@ -1,7 +1,16 @@
-ecs style:
+---
+setup:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+
+---
+ecs style:
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
+      reason: index.mode and routing_path introduced in 8.1.0
 
   - do:
       indices.create:
@@ -55,8 +64,8 @@ ecs style:
 
 ---
 top level wildcard dim object:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: routing_path object type check improve in 8.2.0
 
   - do:
@@ -113,12 +122,12 @@ top level wildcard dim object:
 
 ---
 exact match object type:
-  - skip:
-      version: " - 8.1.99"
-      reason: routing_path object type check improve in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: routing_path error message updated in 8.14.0
 
   - do:
-      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[dim\] was \[object\]./'
+      catch: '/All fields that match routing_path must be .*flattened fields.* \[dim\] was \[object\]./'
       indices.create:
         index: tsdb_index
         body:
@@ -146,12 +155,12 @@ exact match object type:
 
 ---
 non keyword matches routing_path:
-  - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: routing_path error message updated in 8.14.0
 
   - do:
-      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[@timestamp\] was \[date\]./'
+      catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[@timestamp\] was not a dimension./'
       indices.create:
           index: test_index
           body:
@@ -191,8 +200,8 @@ non keyword matches routing_path:
 
 ---
 runtime field matching routing path:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -233,9 +242,9 @@ runtime field matching routing path:
 
 ---
 "dynamic: runtime matches routing_path":
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: routing_path error message updated in 8.8.0 and has_dynamic_mapping condition fixed in 8.14.0
 
   - do:
       indices.create:
@@ -265,13 +274,14 @@ runtime field matching routing path:
         index: test
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}}'
-  - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}, "extra_field": 100}'
+  - match: {items.0.index.error.reason: "All fields that match routing_path must be configured with [time_series_dimension: true] or flattened fields with a list of dimensions in [time_series_dimensions] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
 
 ---
 "dynamic: false matches routing_path":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      test_runner_features: contains
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -302,13 +312,13 @@ runtime field matching routing path:
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": "a"}}'
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"bar": "a"}}}'
-  - match: {items.0.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
-  - match: {items.1.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
+  - contains: {items.0.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
+  - contains: {items.1.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
 
 ---
 nested dimensions:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: message changed in 8.2.0
 
   - do:
@@ -335,40 +345,9 @@ nested dimensions:
                         time_series_dimension: true
 
 ---
-nested fields:
-  - skip:
-      version: " - 8.1.99"
-      reason: message changed in 8.2.0
-
-  - do:
-      catch: /cannot have nested fields when index is in \[index.mode=time_series\]/
-      indices.create:
-        index: test
-        body:
-          settings:
-            index:
-              mode: time_series
-              routing_path: [dim]
-              time_series:
-                start_time: 2021-04-28T00:00:00Z
-                end_time: 2021-04-29T00:00:00Z
-          mappings:
-            properties:
-              "@timestamp":
-                type: date
-              dim:
-                type: keyword
-                time_series_dimension: true
-              nested:
-                type: nested
-                properties:
-                  foo:
-                    type: keyword
-
----
 "Unable to define a metric type for a runtime field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsample introduced in 8.5.0"
 
   - do:
@@ -413,3 +392,214 @@ nested fields:
                           rx:
                             type: long
                             time_series_metric: gauge
+
+---
+"Synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: tsdb-synthetic
+        body:
+          settings:
+            number_of_replicas: 0
+            mode: time_series
+            routing_path: [field1]
+            time_series:
+              start_time: 2000-01-01T00:00:00Z
+              end_time: 2099-12-31T23:59:59Z
+          mappings:
+            properties:
+              field1:
+                type: keyword
+                time_series_dimension: true
+              field2:
+                type: long
+                time_series_metric: gauge
+
+---
+stored source is supported:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: tsdb_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+              mapping:
+                source.mode: stored
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+
+---
+disabled source is not supported:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: tsdb_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+              mapping:
+                source.mode: disabled
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: tsdb_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            _source:
+              enabled: false
+            properties:
+              "@timestamp":
+                type: date
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: _source can not be disabled in index using [time_series] index mode" }
+
+---
+source include/exclude:
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
+      reason: synthetic source
+
+  - do:
+      catch: '/filtering the stored _source is incompatible with synthetic source/'
+      indices.create:
+        index: tsdb_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            _source:
+              includes: [a]
+            properties:
+              "@timestamp":
+                type: date
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+
+  - do:
+      catch: '/filtering the stored _source is incompatible with synthetic source/'
+      indices.create:
+        index: tsdb_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            _source:
+              excludes: [b]
+            properties:
+              "@timestamp":
+                type: date
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+
+---
+Supported metric type position:
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
+      reason: "position introduced in 8.8.0"
+
+  - do:
+      indices.create:
+        index: test_position
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              location:
+                type: geo_point
+                time_series_metric: position

@@ -45,7 +45,7 @@ public class ConstantProcessorTests extends AbstractWireSerializingTestCase<Cons
     }
 
     @Override
-    protected ConstantProcessor mutateInstance(ConstantProcessor instance) throws IOException {
+    protected ConstantProcessor mutateInstance(ConstantProcessor instance) {
         return new ConstantProcessor(randomValueOtherThan(instance.process(null), () -> randomLong()));
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -16,11 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
@@ -34,6 +35,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -62,7 +64,7 @@ public class NoOpEngineTests extends EngineTestCase {
     public void testNoopAfterRegularEngine() throws IOException {
         int docs = randomIntBetween(1, 10);
         ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
-        ShardRouting routing = TestShardRouting.newShardRouting(shardId, "node", null, true, ShardRoutingState.STARTED, allocationId);
+        ShardRouting routing = shardRoutingBuilder(shardId, "node", true, ShardRoutingState.STARTED).withAllocationId(allocationId).build();
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
@@ -106,7 +108,7 @@ public class NoOpEngineTests extends EngineTestCase {
             int deletions = 0;
             try (InternalEngine engine = createEngine(config)) {
                 for (int i = 0; i < numDocs; i++) {
-                    engine.index(indexForDoc(createParsedDoc(Integer.toString(i), idFieldType, null)));
+                    engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
                     if (rarely()) {
                         engine.flush();
                     }
@@ -117,7 +119,7 @@ public class NoOpEngineTests extends EngineTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
-                        Engine.DeleteResult result = engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
+                        Engine.DeleteResult result = engine.delete(new Engine.Delete(delId, Uid.encodeId(delId), primaryTerm.get()));
                         assertTrue(result.isFound());
                         engine.syncTranslog(); // advance persisted local checkpoint
                         globalCheckpoint.set(engine.getPersistedLocalCheckpoint());
@@ -157,7 +159,7 @@ public class NoOpEngineTests extends EngineTestCase {
 
     public void testTrimUnreferencedTranslogFiles() throws Exception {
         final ReplicationTracker tracker = (ReplicationTracker) engine.config().getGlobalCheckpointSupplier();
-        ShardRouting routing = TestShardRouting.newShardRouting(shardId, "node", null, true, ShardRoutingState.STARTED, allocationId);
+        ShardRouting routing = shardRoutingBuilder(shardId, "node", true, ShardRoutingState.STARTED).withAllocationId(allocationId).build();
         IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(shardId).addShard(routing).build();
         tracker.updateFromMaster(1L, Collections.singleton(allocationId.getId()), table);
         tracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
@@ -166,7 +168,7 @@ public class NoOpEngineTests extends EngineTestCase {
         int totalTranslogOps = 0;
         for (int i = 0; i < numDocs; i++) {
             totalTranslogOps++;
-            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), idFieldType, null)));
+            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
             tracker.updateLocalCheckpoint(allocationId.getId(), i);
             if (rarely()) {
                 totalTranslogOps = 0;

@@ -60,11 +60,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
     public void testRestCancellation() throws Exception {
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("test")
-                .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
-                .get()
+            indicesAdmin().prepareCreate("test").setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date")
         );
         createIndex("idx_unmapped");
 
@@ -75,14 +71,13 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(
-                client().prepareIndex("test")
-                    .setSource(
-                        jsonBuilder().startObject()
-                            .field("val", fieldValue)
-                            .field("event_type", "my_event")
-                            .field("@timestamp", "2020-04-09T12:35:48Z")
-                            .endObject()
-                    )
+                prepareIndex("test").setSource(
+                    jsonBuilder().startObject()
+                        .field("val", fieldValue)
+                        .field("event_type", "my_event")
+                        .field("@timestamp", "2020-04-09T12:35:48Z")
+                        .endObject()
+                )
             );
         }
 
@@ -105,7 +100,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
-        final PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Response> future = new PlainActionFuture<>();
         Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         logger.trace("Waiting for block to be established");
@@ -143,8 +138,4 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         expectThrows(CancellationException.class, future::actionGet);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
 }

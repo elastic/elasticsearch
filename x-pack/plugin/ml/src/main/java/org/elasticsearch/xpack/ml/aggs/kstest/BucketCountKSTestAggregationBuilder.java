@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -184,7 +185,7 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_14_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

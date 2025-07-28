@@ -1,26 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.apache.lucene.search.QueryVisitor;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * A Span Query that matches documents containing a term.
@@ -69,16 +75,37 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     }
 
     @Override
-    protected SpanQuery doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType mapper = context.getFieldType(fieldName);
-        Term term;
         if (mapper == null) {
-            term = new Term(fieldName, BytesRefs.toBytesRef(value));
-        } else {
-            Query termQuery = mapper.termQuery(value, context);
-            term = MappedFieldType.extractTerm(termQuery);
+            return new SpanMatchNoDocsQuery(fieldName, "unmapped field: " + fieldName);
         }
-        return new SpanTermQuery(term);
+        if (mapper.getTextSearchInfo().hasPositions() == false) {
+            throw new IllegalArgumentException(
+                "Span term query requires position data, but field " + fieldName + " was indexed without position data"
+            );
+        }
+        Query termQuery = mapper.termQuery(value, context);
+        List<Term> termsList = new ArrayList<>();
+        termQuery.visit(new QueryVisitor() {
+            @Override
+            public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                if (occur == BooleanClause.Occur.MUST || occur == BooleanClause.Occur.FILTER) {
+                    return this;
+                }
+                return EMPTY_VISITOR;
+            }
+
+            @Override
+            public void consumeTerms(Query query, Term... terms) {
+                termsList.addAll(Arrays.asList(terms));
+            }
+        });
+        if (termsList.size() != 1) {
+            // This is for safety, but we have called mapper.termQuery above: we really should get one and only one term from the query?
+            throw new IllegalArgumentException("Cannot extract a term from a query of type " + termQuery.getClass() + ": " + termQuery);
+        }
+        return new SpanTermQuery(termsList.get(0));
     }
 
     public static SpanTermQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
@@ -132,7 +159,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

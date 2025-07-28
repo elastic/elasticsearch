@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -14,6 +15,7 @@ import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -72,24 +74,22 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
     }
 
     @Override
-    protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(4, fields.length);
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[76 61 6c 75 65 31]>", fields[0].toString());
-        assertEquals("docValuesType=SORTED_SET<field:[76 61 6c 75 65 31]>", fields[1].toString());
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[76 61 6c 75 65 32]>", fields[2].toString());
-        assertEquals("docValuesType=SORTED_SET<field:[76 61 6c 75 65 32]>", fields[3].toString());
+    protected void assertMultipleValues(List<IndexableField> fields) {
+        assertEquals(2, fields.size());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS,docValuesType=SORTED_SET<field:[76 61 6c 75 65 31]>", fields.get(0).toString());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS,docValuesType=SORTED_SET<field:[76 61 6c 75 65 32]>", fields.get(1).toString());
     }
 
     @Override
-    protected void assertDocValuesDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[76 61 6c 75 65]>", fields[0].toString());
+    protected void assertDocValuesDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("indexed,omitNorms,indexOptions=DOCS<field:[76 61 6c 75 65]>", fields.get(0).toString());
     }
 
     @Override
-    protected void assertIndexDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("docValuesType=SORTED_SET<field:[76 61 6c 75 65]>", fields[0].toString());
+    protected void assertIndexDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("docValuesType=SORTED_SET<field:[76 61 6c 75 65]>", fields.get(0).toString());
     }
 
     @Override
@@ -117,7 +117,7 @@ public class KeywordScriptMapperTests extends MapperScriptTestCase<StringFieldSc
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> {}));
-        IndexableField[] letterFields = doc.rootDoc().getFields("letters");
-        assertEquals(16, letterFields.length);
+        List<IndexableField> letterFields = doc.rootDoc().getFields("letters");
+        assertEquals(8, letterFields.size());
     }
 }

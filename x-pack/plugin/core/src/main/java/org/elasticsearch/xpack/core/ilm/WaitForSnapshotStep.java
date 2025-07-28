@@ -8,23 +8,29 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
 import java.util.Date;
-import java.util.Locale;
 import java.util.Objects;
 
 /***
- * A step that waits for snapshot to be taken by SLM to ensure we have backup before we delete the index.
- * It will signal error if it can't get data needed to do the check (action time from ILM and SLM metadata)
- * and will only return success if execution of SLM policy took place after index entered the wait for snapshot action.
+ * A step that waits for snapshot to be taken by SLM that includes the index in question to ensure we have backup
+ * before we delete the index. It will signal error if it can't get data needed to do the check (action time from ILM
+ * and SLM metadata) and will only return success if execution of SLM policy took place after index entered the wait
+ * for snapshot action and the latest successful snapshot includes the index.
  */
-public class WaitForSnapshotStep extends ClusterStateWaitStep {
+public class WaitForSnapshotStep extends AsyncWaitStep {
 
     static final String NAME = "wait-for-snapshot";
     private static final Logger logger = LogManager.getLogger(WaitForSnapshotStep.class);
@@ -32,32 +38,40 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
     private static final String MESSAGE_FIELD = "message";
     private static final String POLICY_NOT_EXECUTED_MESSAGE = "waiting for policy '%s' to be executed since %s";
     private static final String POLICY_NOT_FOUND_MESSAGE = "configured policy '%s' not found";
+    private static final String INDEX_NOT_INCLUDED_IN_SNAPSHOT_MESSAGE =
+        "the last successful snapshot of policy '%s' does not include index '%s'";
+
+    private static final String UNEXPECTED_SNAPSHOT_STATE_MESSAGE =
+        "unexpected number of snapshots retrieved for repository '%s' and snapshot '%s' (expected 1, found %d)";
     private static final String NO_INDEX_METADATA_MESSAGE = "no index metadata found for index '%s'";
     private static final String NO_ACTION_TIME_MESSAGE = "no information about ILM action start in index metadata for index '%s'";
 
     private final String policy;
 
-    WaitForSnapshotStep(StepKey key, StepKey nextStepKey, String policy) {
-        super(key, nextStepKey);
+    WaitForSnapshotStep(StepKey key, StepKey nextStepKey, Client client, String policy) {
+        super(key, nextStepKey, client);
         this.policy = policy;
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
+        IndexMetadata indexMetadata = state.metadata().index(index);
         if (indexMetadata == null) {
-            throw error(NO_INDEX_METADATA_MESSAGE, index.getName());
+            listener.onFailure(error(NO_INDEX_METADATA_MESSAGE, index.getName()));
+            return;
         }
 
         Long actionTime = indexMetadata.getLifecycleExecutionState().actionTime();
 
         if (actionTime == null) {
-            throw error(NO_ACTION_TIME_MESSAGE, index.getName());
+            listener.onFailure(error(NO_ACTION_TIME_MESSAGE, index.getName()));
+            return;
         }
 
-        SnapshotLifecycleMetadata snapMeta = clusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null || snapMeta.getSnapshotConfigurations().containsKey(policy) == false) {
-            throw error(POLICY_NOT_FOUND_MESSAGE, policy);
+            listener.onFailure(error(POLICY_NOT_FOUND_MESSAGE, policy));
+            return;
         }
         SnapshotLifecyclePolicyMetadata snapPolicyMeta = snapMeta.getSnapshotConfigurations().get(policy);
         if (snapPolicyMeta.getLastSuccess() == null
@@ -73,13 +87,14 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
                 logger.debug("skipping ILM policy execution because no last snapshot start date, action time: {}", actionTime);
             } else {
                 logger.debug(
-                    "skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp " + "is {}",
+                    "skipping ILM policy execution because snapshot start time {} is before action time {}, snapshot timestamp is {}",
                     snapPolicyMeta.getLastSuccess().getSnapshotStartTimestamp(),
                     actionTime,
                     snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp()
                 );
             }
-            return new Result(false, notExecutedMessage(actionTime));
+            listener.onResponse(false, notExecutedMessage(actionTime));
+            return;
         }
         logger.debug(
             "executing policy because snapshot start time {} is after action time {}, snapshot timestamp is {}",
@@ -87,7 +102,24 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
             actionTime,
             snapPolicyMeta.getLastSuccess().getSnapshotFinishTimestamp()
         );
-        return new Result(true, null);
+        String snapshotName = snapPolicyMeta.getLastSuccess().getSnapshotName();
+        String repositoryName = snapPolicyMeta.getPolicy().getRepository();
+        GetSnapshotsRequest request = new GetSnapshotsRequest(TimeValue.MAX_VALUE).repositories(repositoryName)
+            .snapshots(new String[] { snapshotName })
+            .includeIndexNames(true)
+            .verbose(false);
+        getClient(state.projectId()).admin().cluster().getSnapshots(request, ActionListener.wrap(response -> {
+            if (response.getSnapshots().size() != 1) {
+                listener.onFailure(error(UNEXPECTED_SNAPSHOT_STATE_MESSAGE, repositoryName, snapshotName, response.getSnapshots().size()));
+            } else {
+                if (response.getSnapshots().get(0).indices().contains(index.getName())) {
+                    listener.onResponse(true, EmptyInfo.INSTANCE);
+                } else {
+                    listener.onFailure(error(INDEX_NOT_INCLUDED_IN_SNAPSHOT_MESSAGE, policy, index.getName()));
+                }
+            }
+        }, listener::onFailure));
+
     }
 
     public String getPolicy() {
@@ -102,14 +134,14 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
     private ToXContentObject notExecutedMessage(long time) {
         return (builder, params) -> {
             builder.startObject();
-            builder.field(MESSAGE_FIELD, String.format(Locale.ROOT, POLICY_NOT_EXECUTED_MESSAGE, policy, new Date(time)));
+            builder.field(MESSAGE_FIELD, Strings.format(POLICY_NOT_EXECUTED_MESSAGE, policy, new Date(time)));
             builder.endObject();
             return builder;
         };
     }
 
     private static IllegalStateException error(String message, Object... args) {
-        return new IllegalStateException(String.format(Locale.ROOT, message, args));
+        return new IllegalStateException(Strings.format(message, args));
     }
 
     @Override

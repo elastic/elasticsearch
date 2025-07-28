@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -16,18 +15,19 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 
 import java.io.IOException;
 
 public class GeoTileGroupSourceTests extends AbstractXContentSerializingTestCase<GeoTileGroupSource> {
 
     public static GeoTileGroupSource randomGeoTileGroupSource() {
-        return randomGeoTileGroupSource(Version.CURRENT);
+        return randomGeoTileGroupSource(TransformConfigVersion.CURRENT);
     }
 
-    public static GeoTileGroupSource randomGeoTileGroupSource(Version version) {
+    public static GeoTileGroupSource randomGeoTileGroupSource(TransformConfigVersion version) {
         Rectangle rectangle = GeometryTestUtils.randomRectangle();
-        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
+        boolean missingBucket = version.onOrAfter(TransformConfigVersion.V_7_10_0) ? randomBoolean() : false;
         return new GeoTileGroupSource(
             randomAlphaOfLength(10),
             missingBucket,
@@ -49,6 +49,11 @@ public class GeoTileGroupSourceTests extends AbstractXContentSerializingTestCase
     @Override
     protected GeoTileGroupSource createTestInstance() {
         return randomGeoTileGroupSource();
+    }
+
+    @Override
+    protected GeoTileGroupSource mutateInstance(GeoTileGroupSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

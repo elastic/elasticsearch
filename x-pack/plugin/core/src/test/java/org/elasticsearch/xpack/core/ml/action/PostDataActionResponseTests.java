@@ -20,6 +20,11 @@ public class PostDataActionResponseTests extends AbstractWireSerializingTestCase
     }
 
     @Override
+    protected PostDataAction.Response mutateInstance(PostDataAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<PostDataAction.Response> instanceReader() {
         return PostDataAction.Response::new;
     }

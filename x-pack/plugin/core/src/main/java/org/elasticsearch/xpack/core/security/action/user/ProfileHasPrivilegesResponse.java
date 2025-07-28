@@ -21,13 +21,12 @@ import java.util.Set;
 
 public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
-    private Set<String> hasPrivilegeUids;
+    private final Set<String> hasPrivilegeUids;
     private final Map<String, Exception> errors;
 
     public ProfileHasPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
-        this.hasPrivilegeUids = in.readSet(StreamInput::readString);
-        this.errors = in.readMap(StreamInput::readString, StreamInput::readException);
+        this.hasPrivilegeUids = in.readCollectionAsSet(StreamInput::readString);
+        this.errors = in.readMap(StreamInput::readException);
     }
 
     public ProfileHasPrivilegesResponse(Set<String> hasPrivilegeUids, Map<String, Exception> errors) {
@@ -69,7 +68,7 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringCollection(hasPrivilegeUids);
-        out.writeMap(errors, StreamOutput::writeString, StreamOutput::writeException);
+        out.writeMap(errors, StreamOutput::writeException);
     }
 
     @Override

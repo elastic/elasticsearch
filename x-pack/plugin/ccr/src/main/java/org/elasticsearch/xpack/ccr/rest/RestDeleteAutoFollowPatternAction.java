@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -15,6 +16,7 @@ import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Req
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.INSTANCE;
 
 public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
@@ -31,7 +33,7 @@ public class RestDeleteAutoFollowPatternAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        Request request = new Request(restRequest.param("name"));
+        final var request = new Request(getMasterNodeTimeout(restRequest), TimeValue.THIRTY_SECONDS, restRequest.param("name"));
         return channel -> client.execute(INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

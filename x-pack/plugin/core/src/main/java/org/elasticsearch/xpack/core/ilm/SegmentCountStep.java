@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -56,45 +56,44 @@ public class SegmentCountStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        getClient().admin().indices().segments(new IndicesSegmentsRequest(index.getName()), ActionListener.wrap(response -> {
-            IndexSegments idxSegments = response.getIndices().get(index.getName());
-            if (idxSegments == null || (response.getShardFailures() != null && response.getShardFailures().length > 0)) {
-                final DefaultShardOperationFailedException[] failures = response.getShardFailures();
-                logger.info(
-                    "[{}] retrieval of segment counts after force merge did not succeed, " + "there were {} shard failures. failures: {}",
-                    index.getName(),
-                    response.getFailedShards(),
-                    failures == null
-                        ? "n/a"
-                        : Strings.collectionToDelimitedString(
-                            Arrays.stream(failures).map(Strings::toString).collect(Collectors.toList()),
-                            ","
-                        )
-                );
-                listener.onResponse(true, new Info(-1));
-            } else {
-                List<ShardSegments> unmergedShards = idxSegments.getShards()
-                    .values()
-                    .stream()
-                    .flatMap(iss -> Arrays.stream(iss.shards()))
-                    .filter(shardSegments -> shardSegments.getSegments().size() > maxNumSegments)
-                    .collect(Collectors.toList());
-                if (unmergedShards.size() > 0) {
-                    Map<ShardRouting, Integer> unmergedShardCounts = unmergedShards.stream()
-                        .collect(Collectors.toMap(ShardSegments::getShardRouting, ss -> ss.getSegments().size()));
+    public void evaluateCondition(ProjectState state, Index index, Listener listener, TimeValue masterTimeout) {
+        getClient(state.projectId()).admin()
+            .indices()
+            .segments(new IndicesSegmentsRequest(index.getName()), ActionListener.wrap(response -> {
+                IndexSegments idxSegments = response.getIndices().get(index.getName());
+                if (idxSegments == null || (response.getShardFailures() != null && response.getShardFailures().length > 0)) {
+                    final DefaultShardOperationFailedException[] failures = response.getShardFailures();
                     logger.info(
-                        "[{}] best effort force merge to [{}] segments did not succeed for {} shards: {}",
+                        "[{}] retrieval of segment counts after force merge did not succeed, there were {} shard failures. failures: {}",
                         index.getName(),
-                        maxNumSegments,
-                        unmergedShards.size(),
-                        unmergedShardCounts
+                        response.getFailedShards(),
+                        failures == null
+                            ? "n/a"
+                            : Strings.collectionToDelimitedString(Arrays.stream(failures).map(Strings::toString).toList(), ",")
                     );
+                    listener.onResponse(true, new Info(-1));
+                } else {
+                    List<ShardSegments> unmergedShards = idxSegments.getShards()
+                        .values()
+                        .stream()
+                        .flatMap(iss -> Arrays.stream(iss.shards()))
+                        .filter(shardSegments -> shardSegments.getSegments().size() > maxNumSegments)
+                        .toList();
+                    if (unmergedShards.size() > 0) {
+                        Map<ShardRouting, Integer> unmergedShardCounts = unmergedShards.stream()
+                            .collect(Collectors.toMap(ShardSegments::getShardRouting, ss -> ss.getSegments().size()));
+                        logger.info(
+                            "[{}] best effort force merge to [{}] segments did not succeed for {} shards: {}",
+                            index.getName(),
+                            maxNumSegments,
+                            unmergedShards.size(),
+                            unmergedShardCounts
+                        );
+                    }
+                    // Force merging is best effort, so always return true that the condition has been met.
+                    listener.onResponse(true, new Info(unmergedShards.size()));
                 }
-                // Force merging is best effort, so always return true that the condition has been met.
-                listener.onResponse(true, new Info(unmergedShards.size()));
-            }
-        }, listener::onFailure));
+            }, listener::onFailure));
     }
 
     @Override
@@ -114,9 +113,7 @@ public class SegmentCountStep extends AsyncWaitStep {
         return super.equals(obj) && Objects.equals(maxNumSegments, other.maxNumSegments);
     }
 
-    public static class Info implements ToXContentObject {
-
-        private final long numberShardsLeftToMerge;
+    public record Info(long numberShardsLeftToMerge) implements ToXContentObject {
 
         static final ParseField SHARDS_TO_MERGE = new ParseField("shards_left_to_merge");
         static final ParseField MESSAGE = new ParseField("message");
@@ -124,17 +121,10 @@ public class SegmentCountStep extends AsyncWaitStep {
             "segment_count_step_info",
             a -> new Info((long) a[0])
         );
+
         static {
             PARSER.declareLong(ConstructingObjectParser.constructorArg(), SHARDS_TO_MERGE);
             PARSER.declareString((i, s) -> {}, MESSAGE);
-        }
-
-        public Info(long numberShardsLeftToMerge) {
-            this.numberShardsLeftToMerge = numberShardsLeftToMerge;
-        }
-
-        public long getNumberShardsLeftToMerge() {
-            return numberShardsLeftToMerge;
         }
 
         @Override
@@ -148,23 +138,6 @@ public class SegmentCountStep extends AsyncWaitStep {
             builder.field(SHARDS_TO_MERGE.getPreferredName(), numberShardsLeftToMerge);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(numberShardsLeftToMerge);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Info other = (Info) obj;
-            return Objects.equals(numberShardsLeftToMerge, other.numberShardsLeftToMerge);
         }
 
         @Override

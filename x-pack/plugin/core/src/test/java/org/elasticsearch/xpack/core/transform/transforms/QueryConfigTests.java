@@ -80,6 +80,11 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
     }
 
     @Override
+    protected QueryConfig mutateInstance(QueryConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<QueryConfig> instanceReader() {
         return QueryConfig::new;
     }

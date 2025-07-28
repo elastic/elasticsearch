@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -130,7 +131,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
      * @return this
      */
     public GeoShapeQueryBuilder strategy(SpatialStrategy strategy) {
-        if (strategy != null && strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
+        if (strategy == SpatialStrategy.TERM && relation != ShapeRelation.INTERSECTS) {
             throw new IllegalArgumentException(
                 "strategy ["
                     + strategy.getStrategyName()
@@ -215,11 +216,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
             } else if (STRATEGY_FIELD.match(parser.currentName(), parser.getDeprecationHandler())) {
                 String strategyName = parser.text();
                 strategy = SpatialStrategy.fromString(strategyName);
-                if (strategy == null) {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown strategy [" + strategyName + " ]");
-                } else {
-                    this.strategy = strategy;
-                }
+                this.strategy = strategy;
                 return true;
             }
             return false;
@@ -270,7 +267,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

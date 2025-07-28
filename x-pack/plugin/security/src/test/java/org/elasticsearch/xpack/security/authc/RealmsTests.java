@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -26,8 +25,10 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -43,13 +44,16 @@ import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSetting
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -70,7 +74,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.hamcrest.Matchers.aMapWithSize;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -155,6 +159,260 @@ public class RealmsTests extends ESTestCase {
         licenseStateListeners.forEach(LicenseStateListener::licenseStateChanged);
     }
 
+    public void testReservedRealmCannotBePartOfDomain() {
+        Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+        String domainName = randomAlphaOfLength(7);
+        String nativeRealmName = randomFrom("n" + randomAlphaOfLength(8), NativeRealmSettings.DEFAULT_NAME);
+        builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".enabled", randomBoolean());
+        builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".order", 4);
+        String fileRealmName = randomFrom("f" + randomAlphaOfLength(8), FileRealmSettings.DEFAULT_NAME);
+        builder.put("xpack.security.authc.realms.file." + fileRealmName + ".enabled", randomBoolean());
+        builder.put("xpack.security.authc.realms.file." + fileRealmName + ".order", 5);
+        builder.put(
+            "xpack.security.authc.domains." + domainName + ".realms",
+            randomFrom(nativeRealmName + "," + ReservedRealm.NAME, ReservedRealm.NAME + "," + fileRealmName)
+        );
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm)
+        );
+        assertThat(e.getMessage(), containsString("Undefined realms [reserved] cannot be assigned to domains"));
+    }
+
+    public void testReservedRealmRef() throws Exception {
+        Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+        String nativeRealmName = randomFrom("n" + randomAlphaOfLength(8), NativeRealmSettings.DEFAULT_NAME);
+        builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".enabled", randomBoolean());
+        builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".order", 4);
+        String fileRealmName = randomFrom("f" + randomAlphaOfLength(8), FileRealmSettings.DEFAULT_NAME);
+        builder.put("xpack.security.authc.realms.file." + fileRealmName + ".enabled", randomBoolean());
+        builder.put("xpack.security.authc.realms.file." + fileRealmName + ".order", 5);
+        builder.put("xpack.security.authc.reserved_realm.enabled", randomBoolean());
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        Authentication.RealmRef reservedRealmRef = randomFrom(
+            realms.getReservedRealmRef(),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(ReservedRealm.TYPE, ReservedRealm.NAME)),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(ReservedRealm.TYPE, randomAlphaOfLength(4)))
+        );
+        assertThat(reservedRealmRef.getName(), is(ReservedRealm.NAME));
+        assertThat(reservedRealmRef.getType(), is(ReservedRealm.TYPE));
+        assertThat(reservedRealmRef.getIdentifier(), is(new RealmConfig.RealmIdentifier(ReservedRealm.TYPE, ReservedRealm.NAME)));
+        // no domain
+        assertThat(reservedRealmRef.getDomain(), nullValue());
+    }
+
+    public void testRealmRefForDisabledNativeRealm() throws Exception {
+        Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+        String nativeRealmName = randomFrom(randomAlphaOfLength(8), NativeRealmSettings.DEFAULT_NAME);
+        builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".enabled", false);
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        assertThat(realms.getRealmRefsCount(), is(3)); // reserved, native, file
+        // there is still a realm ref for the disabled native realm
+        Authentication.RealmRef nativeRealmRef = randomFrom(
+            realms.getNativeRealmRef(),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, nativeRealmName)),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, randomAlphaOfLength(4)))
+        );
+        assertThat(nativeRealmRef.getName(), is(nativeRealmName));
+        assertThat(nativeRealmRef.getType(), is(NativeRealmSettings.TYPE));
+        assertThat(nativeRealmRef.getIdentifier(), is(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, nativeRealmName)));
+        // no domain
+        assertThat(nativeRealmRef.getDomain(), nullValue());
+    }
+
+    public void testRealmRefForDisabledFileRealm() throws Exception {
+        Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+        String fileRealmName = randomFrom(randomAlphaOfLength(8), FileRealmSettings.DEFAULT_NAME);
+        builder.put("xpack.security.authc.realms.file." + fileRealmName + ".enabled", false);
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        assertThat(realms.getRealmRefsCount(), is(3)); // reserved, native, file
+        // there is still a realm ref for the disabled native realm
+        Authentication.RealmRef fileRealmRef = randomFrom(
+            realms.getFileRealmRef(),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, fileRealmName)),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, randomAlphaOfLength(4)))
+        );
+        assertThat(fileRealmRef.getName(), is(fileRealmName));
+        assertThat(fileRealmRef.getType(), is(FileRealmSettings.TYPE));
+        assertThat(fileRealmRef.getIdentifier(), is(new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, fileRealmName)));
+        // no domain
+        assertThat(fileRealmRef.getDomain(), nullValue());
+    }
+
+    public void testRealmRefForDisabledNativeRealmAssignedToDomain() throws Exception {
+        String domainName = randomAlphaOfLength(7);
+        Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+        String nativeRealmName = randomFrom(randomAlphaOfLength(8), NativeRealmSettings.TYPE);
+        builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".enabled", false);
+        if (randomBoolean()) {
+            builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".order", 5);
+        }
+        builder.put("xpack.security.authc.realms.type_0.other.order", 4);
+        builder.put(
+            "xpack.security.authc.domains." + domainName + ".realms",
+            randomFrom(nativeRealmName + ",other", "other," + nativeRealmName)
+        );
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        assertThat(realms.getRealmRefsCount(), is(4)); // reserved, native, file, + other
+        // the realm ref for the disabled native realm contains the domain
+        Authentication.RealmRef nativeRealmRef = randomFrom(
+            realms.getNativeRealmRef(),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, nativeRealmName)),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, randomAlphaOfLength(4)))
+        );
+        assertThat(nativeRealmRef.getName(), is(nativeRealmName));
+        assertThat(nativeRealmRef.getType(), is(NativeRealmSettings.TYPE));
+        assertThat(nativeRealmRef.getIdentifier(), is(new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, nativeRealmName)));
+        assertThat(nativeRealmRef.getDomain().name(), is(domainName));
+        assertThat(
+            nativeRealmRef.getDomain().realms(),
+            containsInAnyOrder(
+                new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, nativeRealmName),
+                new RealmConfig.RealmIdentifier("type_0", "other")
+            )
+        );
+        // the realm ref for the other realm also contains the domain with the native realm ref
+        Authentication.RealmRef otherRealmRef = realms.getRealmRef(new RealmConfig.RealmIdentifier("type_0", "other"));
+        assertThat(otherRealmRef.getName(), is("other"));
+        assertThat(otherRealmRef.getType(), is("type_0"));
+        assertThat(otherRealmRef.getIdentifier(), is(new RealmConfig.RealmIdentifier("type_0", "other")));
+        assertThat(otherRealmRef.getDomain().name(), is(domainName));
+        assertThat(
+            otherRealmRef.getDomain().realms(),
+            containsInAnyOrder(
+                new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, nativeRealmName),
+                new RealmConfig.RealmIdentifier("type_0", "other")
+            )
+        );
+    }
+
+    public void testRealmRefForDisabledFileRealmAssignedToDomain() throws Exception {
+        String domainName = randomAlphaOfLength(7);
+        Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+        String fileRealmName = randomFrom(randomAlphaOfLength(8), FileRealmSettings.TYPE);
+        builder.put("xpack.security.authc.realms.file." + fileRealmName + ".enabled", false);
+        if (randomBoolean()) {
+            builder.put("xpack.security.authc.realms.file." + fileRealmName + ".order", 5);
+        }
+        builder.put("xpack.security.authc.realms.type_0.other.order", 4);
+        builder.put(
+            "xpack.security.authc.domains." + domainName + ".realms",
+            randomFrom(fileRealmName + ",other", "other," + fileRealmName)
+        );
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        assertThat(realms.getRealmRefsCount(), is(4)); // reserved, native, file, + other
+        // the realm ref for the disabled file realm contains the domain
+        Authentication.RealmRef fileRealmRef = randomFrom(
+            realms.getFileRealmRef(),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, fileRealmName)),
+            realms.getRealmRef(new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, randomAlphaOfLength(4)))
+        );
+        assertThat(fileRealmRef.getName(), is(fileRealmName));
+        assertThat(fileRealmRef.getType(), is(FileRealmSettings.TYPE));
+        assertThat(fileRealmRef.getIdentifier(), is(new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, fileRealmName)));
+        assertThat(fileRealmRef.getDomain().name(), is(domainName));
+        assertThat(
+            fileRealmRef.getDomain().realms(),
+            containsInAnyOrder(
+                new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, fileRealmName),
+                new RealmConfig.RealmIdentifier("type_0", "other")
+            )
+        );
+        // the realm ref for the other realm also contains the domain with the native realm ref
+        Authentication.RealmRef otherRealmRef = realms.getRealmRef(new RealmConfig.RealmIdentifier("type_0", "other"));
+        assertThat(otherRealmRef.getName(), is("other"));
+        assertThat(otherRealmRef.getType(), is("type_0"));
+        assertThat(otherRealmRef.getIdentifier(), is(new RealmConfig.RealmIdentifier("type_0", "other")));
+        assertThat(otherRealmRef.getDomain().name(), is(domainName));
+        assertThat(
+            otherRealmRef.getDomain().realms(),
+            containsInAnyOrder(
+                new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, fileRealmName),
+                new RealmConfig.RealmIdentifier("type_0", "other")
+            )
+        );
+    }
+
+    public void testMultipleNativeRealmsFails() {
+        Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+        if (randomBoolean()) {
+            builder.put("xpack.security.authc.realms.native.n1.enabled", randomBoolean());
+            builder.put("xpack.security.authc.realms.native.n1.order", 10);
+        } else {
+            builder.put("xpack.security.authc.realms.native." + NativeRealmSettings.DEFAULT_NAME + ".enabled", randomBoolean());
+            builder.put("xpack.security.authc.realms.native." + NativeRealmSettings.DEFAULT_NAME + ".order", 10);
+        }
+        builder.put("xpack.security.authc.realms.native.n2.enabled", randomBoolean());
+        builder.put("xpack.security.authc.realms.native.n2.order", 100);
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "multiple [native] realms are configured. [native] is an internal realm"
+                    + " and therefore there can only be one such realm configured"
+            )
+        );
+    }
+
+    public void testMultipleFileRealmsFails() {
+        Settings.Builder builder = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(Node.NODE_NAME_SETTING.getKey(), randomAlphaOfLengthBetween(3, 8));
+        if (randomBoolean()) {
+            builder.put("xpack.security.authc.realms.file.f1.enabled", randomBoolean());
+            builder.put("xpack.security.authc.realms.file.f1.order", 10);
+        } else {
+            builder.put("xpack.security.authc.realms.file." + FileRealmSettings.DEFAULT_NAME + ".enabled", randomBoolean());
+            builder.put("xpack.security.authc.realms.file." + FileRealmSettings.DEFAULT_NAME + ".order", 10);
+        }
+        builder.put("xpack.security.authc.realms.file.f2.enabled", randomBoolean());
+        builder.put("xpack.security.authc.realms.file.f2.order", 100);
+        Settings settings = builder.build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm)
+        );
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "multiple [file] realms are configured. [file] is an internal realm"
+                    + " and therefore there can only be one such realm configured"
+            )
+        );
+    }
+
     public void testRealmTypeAvailable() {
         final Set<String> basicRealmTypes = Sets.newHashSet("file", "native", "reserved");
         final Set<String> goldRealmTypes = Sets.newHashSet("ldap", "active_directory", "pki");
@@ -236,35 +494,31 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
         // realmRefs contains all implicitly and explicitly configured realm (disabled or not)
-        final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs = realms.getRealmRefs();
         realms.forEach(
             activeRealm -> assertThat(
                 activeRealm.realmRef(),
-                equalTo(realmRefs.get(new RealmConfig.RealmIdentifier(activeRealm.type(), activeRealm.name())))
+                is(realms.getRealmRef(new RealmConfig.RealmIdentifier(activeRealm.type(), activeRealm.name())))
             )
         );
         // reserved, file, native and custom realms
-        assertThat(realmRefs, aMapWithSize(3 + randomRealmTypesCount));
+        assertThat(realms.getRealmRefsCount(), is(3 + randomRealmTypesCount));
         assertThat(
-            realmRefs,
-            hasEntry(new RealmConfig.RealmIdentifier("reserved", "reserved"), buildRealmRef("reserved", "reserved", nodeName))
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("reserved", "reserved")),
+            is(buildRealmRef("reserved", "reserved", nodeName))
         );
         assertThat(
-            realmRefs,
-            hasEntry(new RealmConfig.RealmIdentifier("file", "default_file"), buildRealmRef("default_file", "file", nodeName))
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("file", "default_file")),
+            is(buildRealmRef("default_file", "file", nodeName))
         );
         assertThat(
-            realmRefs,
-            hasEntry(new RealmConfig.RealmIdentifier("native", "default_native"), buildRealmRef("default_native", "native", nodeName))
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("native", "default_native")),
+            is(buildRealmRef("default_native", "native", nodeName))
         );
         IntStream.range(0, randomRealmTypesCount)
             .forEach(
                 index -> assertThat(
-                    realmRefs,
-                    hasEntry(
-                        new RealmConfig.RealmIdentifier("type_" + index, "realm_" + index),
-                        buildRealmRef("realm_" + index, "type_" + index, nodeName)
-                    )
+                    realms.getRealmRef(new RealmConfig.RealmIdentifier("type_" + index, "realm_" + index)),
+                    is(buildRealmRef("realm_" + index, "type_" + index, nodeName))
                 )
             );
     }
@@ -399,45 +653,31 @@ public class RealmsTests extends ESTestCase {
         });
 
         // realmRefs contains all implicitly and explicitly configured realm (disabled or not)
-        final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs = realms.getRealmRefs();
-
         // reserved, file, native and custom realms
-        assertThat(realmRefs, aMapWithSize(3 + randomRealmTypesCount));
+        assertThat(realms.getRealmRefsCount(), is(3 + randomRealmTypesCount));
         realms.forEach(
             activeRealm -> assertThat(
                 activeRealm.realmRef(),
-                equalTo(realmRefs.get(new RealmConfig.RealmIdentifier(activeRealm.type(), activeRealm.name())))
+                is(realms.getRealmRef(new RealmConfig.RealmIdentifier(activeRealm.type(), activeRealm.name())))
             )
         );
         assertThat(
-            realmRefs,
-            hasEntry(
-                new RealmConfig.RealmIdentifier("reserved", "reserved"),
-                buildRealmRef("reserved", "reserved", nodeName, realmsForDomain)
-            )
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("reserved", "reserved")),
+            is(buildRealmRef("reserved", "reserved", nodeName, realmsForDomain))
         );
         assertThat(
-            realmRefs,
-            hasEntry(
-                new RealmConfig.RealmIdentifier("file", "default_file"),
-                buildRealmRef("default_file", "file", nodeName, realmsForDomain)
-            )
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("file", "default_file")),
+            is(buildRealmRef("default_file", "file", nodeName, realmsForDomain))
         );
         assertThat(
-            realmRefs,
-            hasEntry(
-                new RealmConfig.RealmIdentifier("native", "default_native"),
-                buildRealmRef("default_native", "native", nodeName, realmsForDomain)
-            )
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("native", "default_native")),
+            is(buildRealmRef("default_native", "native", nodeName, realmsForDomain))
         );
         IntStream.range(0, randomRealmTypesCount)
             .forEach(
                 index -> assertThat(
-                    realmRefs,
-                    hasEntry(
-                        new RealmConfig.RealmIdentifier("type_" + index, "realm_" + index),
-                        buildRealmRef("realm_" + index, "type_" + index, nodeName, realmsForDomain)
-                    )
+                    realms.getRealmRef(new RealmConfig.RealmIdentifier("type_" + index, "realm_" + index)),
+                    is(buildRealmRef("realm_" + index, "type_" + index, nodeName, realmsForDomain))
                 )
             );
     }
@@ -542,10 +782,9 @@ public class RealmsTests extends ESTestCase {
         }
         Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new Realms(settings, env, factories, licenseState, threadContext, reservedRealm); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        });
         assertThat(e.getMessage(), containsString("Found multiple realms configured with the same order"));
     }
 
@@ -572,10 +811,9 @@ public class RealmsTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new Realms(settings, env, factories, licenseState, threadContext, reservedRealm); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        });
         assertThat(e.getMessage(), containsString("Found multiple realms configured with the same name"));
     }
 
@@ -609,20 +847,25 @@ public class RealmsTests extends ESTestCase {
         assertThat(realms.getUnlicensedRealms(), sameInstance(realms.getUnlicensedRealms()));
 
         // realmRefs contains all implicitly and explicitly configured realm (disabled or not)
-        final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs = realms.getRealmRefs();
         realms.forEach(
             activeRealm -> assertThat(
                 activeRealm.realmRef(),
-                equalTo(realmRefs.get(new RealmConfig.RealmIdentifier(activeRealm.type(), activeRealm.name())))
+                is(realms.getRealmRef(new RealmConfig.RealmIdentifier(activeRealm.type(), activeRealm.name())))
             )
         );
         // reserved, file, native
-        assertThat(realmRefs.size(), equalTo(3));
-        assertThat(realmRefs, hasEntry(new RealmConfig.RealmIdentifier("reserved", "reserved"), buildRealmRef("reserved", "reserved", "")));
-        assertThat(realmRefs, hasEntry(new RealmConfig.RealmIdentifier("file", "default_file"), buildRealmRef("default_file", "file", "")));
+        assertThat(realms.getRealmRefsCount(), is(3));
         assertThat(
-            realmRefs,
-            hasEntry(new RealmConfig.RealmIdentifier("native", "default_native"), buildRealmRef("default_native", "native", ""))
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("reserved", "reserved")),
+            is(buildRealmRef("reserved", "reserved", ""))
+        );
+        assertThat(
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("file", "default_file")),
+            is(buildRealmRef("default_file", "file", ""))
+        );
+        assertThat(
+            realms.getRealmRef(new RealmConfig.RealmIdentifier("native", "default_native")),
+            is(buildRealmRef("default_native", "native", ""))
         );
     }
 
@@ -677,8 +920,12 @@ public class RealmsTests extends ESTestCase {
         final Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
         assertThat(realms.getUnlicensedRealms(), empty());
         assertThat(realms.getActiveRealms(), hasSize(9)); // 0..7 configured + reserved
-        final Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefs = Map.copyOf(realms.getRealmRefs());
-        assertThat(realmRefs, aMapWithSize(9));
+        Map<RealmConfig.RealmIdentifier, Authentication.RealmRef> beforeRealmRefs = realms.getActiveRealms()
+            .stream()
+            .map(r -> new RealmConfig.RealmIdentifier(r.type(), r.name()))
+            .collect(Collectors.toMap(Function.identity(), realms::getRealmRef));
+        assertThat(realms.getRealmRefsCount(), is(9));
+        assertThat(beforeRealmRefs.size(), is(9));
 
         verify(licenseState).enableUsageTracking(Security.KERBEROS_REALM_FEATURE, "kerberos_realm");
         verify(licenseState).enableUsageTracking(Security.LDAP_REALM_FEATURE, "ldap_realm_1");
@@ -688,15 +935,12 @@ public class RealmsTests extends ESTestCase {
         verify(licenseState).enableUsageTracking(Security.CUSTOM_REALMS_FEATURE, "custom_realm_2");
 
         final Logger realmsLogger = LogManager.getLogger(Realms.class);
-        final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(realmsLogger, appender);
-        appender.start();
 
         when(licenseState.statusDescription()).thenReturn("mock license");
-        try {
+        try (var mockLog = MockLog.capture(Realms.class)) {
             for (String realmId : List.of("kerberos.kerberos_realm", "type_0.custom_realm_1", "type_1.custom_realm_2")) {
-                appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "Realm [" + realmId + "] disabled",
                         realmsLogger.getName(),
                         Level.WARN,
@@ -705,17 +949,15 @@ public class RealmsTests extends ESTestCase {
                 );
             }
             allowOnlyStandardRealms();
-            appender.assertAllExpectationsMatched();
-        } finally {
-            appender.stop();
-            Loggers.removeAppender(realmsLogger, appender);
+            mockLog.assertAllExpectationsMatched();
         }
 
         final List<String> unlicensedRealmNames = realms.getUnlicensedRealms().stream().map(r -> r.name()).collect(Collectors.toList());
         assertThat(unlicensedRealmNames, containsInAnyOrder("kerberos_realm", "custom_realm_1", "custom_realm_2"));
         assertThat(realms.getActiveRealms(), hasSize(6)); // 9 - 3
         // no change to realm refs
-        assertThat(realms.getRealmRefs(), equalTo(realmRefs));
+        assertThat(realms.getRealmRefsCount(), is(beforeRealmRefs.size()));
+        beforeRealmRefs.forEach((ri, rr) -> assertThat(realms.getRealmRef(ri), is(rr)));
 
         verify(licenseState).disableUsageTracking(Security.KERBEROS_REALM_FEATURE, "kerberos_realm");
         verify(licenseState).disableUsageTracking(Security.CUSTOM_REALMS_FEATURE, "custom_realm_1");
@@ -923,7 +1165,7 @@ public class RealmsTests extends ESTestCase {
 
     public void testUnlicensedWithNonStandardRealms() throws Exception {
         final List<String> platinumRealms = CollectionUtils.arrayAsArrayList(
-            SamlRealmSettings.TYPE,
+            SingleSpSamlRealmSettings.TYPE,
             KerberosRealmSettings.TYPE,
             OpenIdConnectRealmSettings.TYPE,
             JwtRealmSettings.TYPE
@@ -1031,6 +1273,59 @@ public class RealmsTests extends ESTestCase {
         // check that disabled realms are not included in unlicensed realms
         allowOnlyNativeRealms();
         assertThat(realms.getUnlicensedRealms(), hasSize(orderToIndex.size()));
+    }
+
+    public void testNativeRealmNotAddedWhenNativeUsersDisabled() throws Exception {
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(NativeRealmSettings.NATIVE_USERS_ENABLED, false)
+            .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+        Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
+        Iterator<Realm> iterator = realms.iterator();
+        Realm realm = iterator.next();
+        assertThat(realm, is(reservedRealm));
+        assertImplicitlyAddedBasicRealms(iterator, false, true);
+
+        if (iterator.hasNext()) {
+            fail("Expected no more realms, but found [" + iterator.next() + "]");
+        }
+
+        final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier(
+            NativeRealmSettings.TYPE,
+            NativeRealmSettings.DEFAULT_NAME
+        );
+
+        // We still want a ref to the native realm so that transport actions can reference it (but the realm is disabled)
+        assertThat(realms.getRealmRef(realmId), notNullValue());
+    }
+
+    public void testNativeRealmNotAvailableWhenNativeUsersDisabled() throws Exception {
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(NativeRealmSettings.NATIVE_USERS_ENABLED, false)
+            .put("xpack.security.authc.realms.native.my_native.order", 1)
+            .build();
+        final ThreadPool threadPool = new TestThreadPool(getTestName(), settings);
+        try {
+            final Map<String, Realm.Factory> realFactories = InternalRealms.getFactories(
+                threadPool,
+                settings,
+                mock(ResourceWatcherService.class),
+                mock(SSLService.class),
+                mock(NativeUsersStore.class),
+                mock(NativeRoleMappingStore.class),
+                mock(SecurityIndexManager.class)
+            );
+            Environment env = TestEnvironment.newEnvironment(settings);
+            final IllegalArgumentException exception = expectThrows(
+                IllegalArgumentException.class,
+                () -> new Realms(settings, env, realFactories, licenseState, threadContext, reservedRealm)
+            );
+            assertThat(exception, throwableWithMessage(containsString(NativeRealmSettings.NATIVE_USERS_ENABLED)));
+        } finally {
+            threadPool.shutdown();
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.IntStream;
@@ -34,7 +35,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
     @Override
     protected FieldCapabilities doParseInstance(XContentParser parser) throws IOException {
-        return FieldCapabilities.fromXContent(FIELD_NAME, parser);
+        return FieldCapsUtils.parseFieldCaps(FIELD_NAME, parser);
     }
 
     @Override
@@ -80,7 +81,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
 
         builder = new FieldCapabilities.Builder("field", "type");
         builder.add(new String[] { "index1" }, false, false, true, true, null, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, false, false, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, false, false, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
         builder.add(new String[] { "index3" }, false, false, false, false, null, Collections.emptyMap());
         {
             FieldCapabilities cap1 = builder.build(false);
@@ -108,15 +109,15 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
             assertThat(cap1.isAggregatable(), equalTo(true));
             assertThat(cap1.isDimension(), equalTo(true));
-            assertThat(cap1.getMetricType(), equalTo(TimeSeriesParams.MetricType.counter));
+            assertThat(cap1.getMetricType(), equalTo(TimeSeriesParams.MetricType.COUNTER));
             assertNull(cap1.indices());
             assertNull(cap1.nonSearchableIndices());
             assertNull(cap1.nonAggregatableIndices());
@@ -127,7 +128,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
             assertThat(cap2.isSearchable(), equalTo(true));
             assertThat(cap2.isAggregatable(), equalTo(true));
             assertThat(cap2.isDimension(), equalTo(true));
-            assertThat(cap2.getMetricType(), equalTo(TimeSeriesParams.MetricType.counter));
+            assertThat(cap2.getMetricType(), equalTo(TimeSeriesParams.MetricType.COUNTER));
             assertThat(cap2.indices().length, equalTo(3));
             assertThat(cap2.indices(), equalTo(new String[] { "index1", "index2", "index3" }));
             assertNull(cap2.nonSearchableIndices());
@@ -137,9 +138,9 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
         }
 
         builder = new FieldCapabilities.Builder("field", "type");
-        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Collections.emptyMap());
-        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.gauge, Map.of("foo", "bar"));
-        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.counter, Map.of("foo", "quux"));
+        builder.add(new String[] { "index1" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Collections.emptyMap());
+        builder.add(new String[] { "index2" }, false, true, true, true, TimeSeriesParams.MetricType.GAUGE, Map.of("foo", "bar"));
+        builder.add(new String[] { "index3" }, false, true, true, true, TimeSeriesParams.MetricType.COUNTER, Map.of("foo", "quux"));
         {
             FieldCapabilities cap1 = builder.build(false);
             assertThat(cap1.isSearchable(), equalTo(true));
@@ -167,9 +168,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testRandomBuilder() {
-        String[] indices = IntStream.range(0, randomIntBetween(1, 50))
-            .mapToObj(n -> String.format(Locale.ROOT, "index_%2d", n))
-            .toArray(String[]::new);
+        String[] indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> Strings.format("index_%2d", n)).toArray(String[]::new);
 
         List<String> nonSearchableIndices = new ArrayList<>();
         List<String> nonAggregatableIndices = new ArrayList<>();
@@ -238,7 +237,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testBuilderSingleMetricType() {
-        List<String> indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> formatted("index_%2d", n)).toList();
+        List<String> indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> Strings.format("index_%2d", n)).toList();
         TimeSeriesParams.MetricType metric = randomBoolean() ? null : randomFrom(TimeSeriesParams.MetricType.values());
         FieldCapabilities.Builder builder = new FieldCapabilities.Builder("field", "type");
         for (String index : indices) {
@@ -250,7 +249,7 @@ public class FieldCapabilitiesTests extends AbstractXContentSerializingTestCase<
     }
 
     public void testBuilderMixedMetricType() {
-        List<String> indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> formatted("index_%2d", n)).toList();
+        List<String> indices = IntStream.range(0, randomIntBetween(1, 50)).mapToObj(n -> Strings.format("index_%2d", n)).toList();
         Map<String, TimeSeriesParams.MetricType> metricTypes = new HashMap<>();
         for (String index : indices) {
             if (randomBoolean()) {

@@ -56,12 +56,14 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
 
     @Override
     protected UnpairedTTestState getState(long bucket) {
-        return new UnpairedTTestState(a.get(bucket), b.get(bucket), homoscedastic, tails);
+        final TTestStats aTTestStats = a.getSize() > bucket ? a.get(bucket) : TTestStats.EMPTY;
+        final TTestStats bTTestStats = b.getSize() > bucket ? b.get(bucket) : TTestStats.EMPTY;
+        return new UnpairedTTestState(aTTestStats, bTTestStats, homoscedastic, tails);
     }
 
     @Override
     protected UnpairedTTestState getEmptyState() {
-        return new UnpairedTTestState(new TTestStats(0, 0, 0), new TTestStats(0, 0, 0), homoscedastic, tails);
+        return new UnpairedTTestState(TTestStats.EMPTY, TTestStats.EMPTY, homoscedastic, tails);
     }
 
     @Override
@@ -95,6 +97,7 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
                 TTestStatsBuilder builder
             ) throws IOException {
                 if (docValues.advanceExact(doc)) {
+                    builder.grow(bigArrays(), bucket + 1);
                     final int numValues = docValues.docValueCount();
                     for (int i = 0; i < numValues; i++) {
                         builder.addValue(compSum, compSumOfSqr, bucket, docValues.nextValue());
@@ -105,18 +108,16 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (bitsA == null || bitsA.get(doc)) {
-                    a.grow(bigArrays(), bucket + 1);
                     processValues(doc, bucket, docAValues, compSumA, compSumOfSqrA, a);
                 }
                 if (bitsB == null || bitsB.get(doc)) {
                     processValues(doc, bucket, docBValues, compSumB, compSumOfSqrB, b);
-                    b.grow(bigArrays(), bucket + 1);
                 }
             }
         };
     }
 
-    private Bits getBits(LeafReaderContext ctx, Weight weight) throws IOException {
+    private static Bits getBits(LeafReaderContext ctx, Weight weight) throws IOException {
         if (weight == null) {
             return null;
         }

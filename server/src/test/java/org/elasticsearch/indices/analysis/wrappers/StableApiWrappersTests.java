@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis.wrappers;
@@ -14,8 +15,12 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.plugin.analysis.api.AnalysisMode;
-import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.plugin.NamedComponent;
+import org.elasticsearch.plugin.analysis.AnalysisMode;
+import org.elasticsearch.plugin.analysis.AnalyzerFactory;
+import org.elasticsearch.plugin.analysis.CharFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenizerFactory;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -36,9 +41,8 @@ public class StableApiWrappersTests extends ESTestCase {
 
     public void testUnknownClass() throws IOException {
         StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
-        Mockito.when(
-            registry.getPluginInfosForExtensible(eq(org.elasticsearch.plugin.analysis.api.AnalyzerFactory.class.getCanonicalName()))
-        ).thenReturn(List.of(new PluginInfo("namedComponentName1", "someRandomName", getClass().getClassLoader())));
+        Mockito.when(registry.getPluginInfosForExtensible(eq(AnalyzerFactory.class.getCanonicalName())))
+            .thenReturn(List.of(new PluginInfo("namedComponentName1", "someRandomName", getClass().getClassLoader())));
 
         Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.AnalyzerProvider<?>>> analysisProviderMap =
             StableApiWrappers.oldApiForAnalyzerFactory(registry);
@@ -56,9 +60,7 @@ public class StableApiWrappersTests extends ESTestCase {
 
     public void testStablePluginHasNoArgConstructor() throws IOException {
         StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
-        Mockito.when(
-            registry.getPluginInfosForExtensible(eq(org.elasticsearch.plugin.analysis.api.AnalyzerFactory.class.getCanonicalName()))
-        )
+        Mockito.when(registry.getPluginInfosForExtensible(eq(AnalyzerFactory.class.getCanonicalName())))
             .thenReturn(
                 List.of(new PluginInfo("namedComponentName1", DefaultConstrAnalyzerFactory.class.getName(), getClass().getClassLoader()))
             );
@@ -74,14 +76,16 @@ public class StableApiWrappersTests extends ESTestCase {
             IllegalStateException.class,
             () -> oldTokenFilter.get(null, mock(Environment.class), null, null)
         );
-        assertThat(illegalStateException.getMessage(), equalTo("Missing @Inject annotation for constructor with settings."));
+        assertThat(
+            illegalStateException.getMessage(),
+            equalTo("Missing @org.elasticsearch.plugin.Inject annotation for constructor with settings.")
+        );
     }
 
     public void testAnalyzerFactoryDelegation() throws IOException {
         StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
-        Mockito.when(
-            registry.getPluginInfosForExtensible(eq(org.elasticsearch.plugin.analysis.api.AnalyzerFactory.class.getCanonicalName()))
-        ).thenReturn(List.of(new PluginInfo("namedComponentName1", TestAnalyzerFactory.class.getName(), getClass().getClassLoader())));
+        Mockito.when(registry.getPluginInfosForExtensible(eq(AnalyzerFactory.class.getCanonicalName())))
+            .thenReturn(List.of(new PluginInfo("namedComponentName1", TestAnalyzerFactory.class.getName(), getClass().getClassLoader())));
 
         Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.AnalyzerProvider<?>>> analysisProviderMap =
             StableApiWrappers.oldApiForAnalyzerFactory(registry);
@@ -107,9 +111,8 @@ public class StableApiWrappersTests extends ESTestCase {
 
     public void testTokenizerFactoryDelegation() throws IOException {
         StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
-        Mockito.when(
-            registry.getPluginInfosForExtensible(eq(org.elasticsearch.plugin.analysis.api.TokenizerFactory.class.getCanonicalName()))
-        ).thenReturn(List.of(new PluginInfo("namedComponentName1", TestTokenizerFactory.class.getName(), getClass().getClassLoader())));
+        Mockito.when(registry.getPluginInfosForExtensible(eq(TokenizerFactory.class.getCanonicalName())))
+            .thenReturn(List.of(new PluginInfo("namedComponentName1", TestTokenizerFactory.class.getName(), getClass().getClassLoader())));
 
         Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenizerFactory>> analysisProviderMap =
             StableApiWrappers.oldApiForTokenizerFactory(registry);
@@ -130,9 +133,10 @@ public class StableApiWrappersTests extends ESTestCase {
 
     public void testTokenFilterFactoryDelegation() throws IOException {
         StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
-        Mockito.when(
-            registry.getPluginInfosForExtensible(eq(org.elasticsearch.plugin.analysis.api.TokenFilterFactory.class.getCanonicalName()))
-        ).thenReturn(List.of(new PluginInfo("namedComponentName1", TestTokenFilterFactory.class.getName(), getClass().getClassLoader())));
+        Mockito.when(registry.getPluginInfosForExtensible(eq(TokenFilterFactory.class.getCanonicalName())))
+            .thenReturn(
+                List.of(new PluginInfo("namedComponentName1", TestTokenFilterFactory.class.getName(), getClass().getClassLoader()))
+            );
 
         Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenFilterFactory>> analysisProviderMap =
             StableApiWrappers.oldApiForTokenFilterFactory(registry);
@@ -168,9 +172,8 @@ public class StableApiWrappersTests extends ESTestCase {
 
     public void testCharFilterFactoryDelegation() throws IOException {
         StablePluginsRegistry registry = Mockito.mock(StablePluginsRegistry.class);
-        Mockito.when(
-            registry.getPluginInfosForExtensible(eq(org.elasticsearch.plugin.analysis.api.CharFilterFactory.class.getCanonicalName()))
-        ).thenReturn(List.of(new PluginInfo("namedComponentName1", TestCharFilterFactory.class.getName(), getClass().getClassLoader())));
+        Mockito.when(registry.getPluginInfosForExtensible(eq(CharFilterFactory.class.getCanonicalName())))
+            .thenReturn(List.of(new PluginInfo("namedComponentName1", TestCharFilterFactory.class.getName(), getClass().getClassLoader())));
 
         Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.CharFilterFactory>> analysisProviderMap =
             StableApiWrappers.oldApiForStableCharFilterFactory(registry);
@@ -198,7 +201,7 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent("DefaultConstrAnalyzerFactory")
-    public static class DefaultConstrAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+    public static class DefaultConstrAnalyzerFactory implements AnalyzerFactory {
 
         public DefaultConstrAnalyzerFactory(int x) {}
 
@@ -210,7 +213,7 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent("TestAnalyzerFactory")
-    public static class TestAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+    public static class TestAnalyzerFactory implements AnalyzerFactory {
 
         @Override
         public Analyzer create() {
@@ -220,7 +223,7 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent("TestTokenizerFactory")
-    public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
+    public static class TestTokenizerFactory implements TokenizerFactory {
 
         @Override
         public Tokenizer create() {
@@ -229,7 +232,7 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent("TestTokenFilterFactory")
-    public static class TestTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
+    public static class TestTokenFilterFactory implements TokenFilterFactory {
 
         @Override
         public TokenStream create(TokenStream tokenStream) {
@@ -254,7 +257,7 @@ public class StableApiWrappersTests extends ESTestCase {
     }
 
     @NamedComponent("TestCharFilterFactory")
-    public static class TestCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
+    public static class TestCharFilterFactory implements CharFilterFactory {
 
         @Override
         public Reader create(Reader reader) {

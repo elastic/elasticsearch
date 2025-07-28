@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,10 +24,10 @@ public class DeleteModelSnapshotAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/delete";
 
     private DeleteModelSnapshotAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private String jobId;
         private String snapshotId;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -17,7 +18,6 @@ import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
@@ -27,7 +27,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -166,8 +167,8 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.V_EMPTY;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ZERO;
         }
     }
 
@@ -218,7 +219,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             assertThat(prefixQuery.getPrefix().text(), equalTo("f"));
             assertThat(wrapper.getRewriteMethod(), instanceOf(SpanBooleanQueryRewriteWithMaxClause.class));
             SpanBooleanQueryRewriteWithMaxClause rewrite = (SpanBooleanQueryRewriteWithMaxClause) wrapper.getRewriteMethod();
-            assertThat(rewrite.getMaxExpansions(), equalTo(BooleanQuery.getMaxClauseCount()));
+            assertThat(rewrite.getMaxExpansions(), equalTo(IndexSearcher.getMaxClauseCount()));
             assertTrue(rewrite.isHardLimit());
         }
     }
@@ -263,15 +264,16 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                     iw.addDocument(singleton(new TextField("body", "foo bar" + Integer.toString(i), Field.Store.NO)));
                 }
                 try (IndexReader reader = iw.getReader()) {
-                    int origBoolMaxClauseCount = BooleanQuery.getMaxClauseCount();
-                    BooleanQuery.setMaxClauseCount(1);
+                    int origBoolMaxClauseCount = IndexSearcher.getMaxClauseCount();
+                    IndexSearcher.setMaxClauseCount(1);
                     try {
                         QueryBuilder queryBuilder = new SpanMultiTermQueryBuilder(QueryBuilders.prefixQuery("body", "bar"));
-                        Query query = queryBuilder.toQuery(createSearchExecutionContext(new IndexSearcher(reader)));
-                        RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(reader));
+                        IndexSearcher searcher = newSearcher(reader);
+                        Query query = queryBuilder.toQuery(createSearchExecutionContext(searcher));
+                        RuntimeException exc = expectThrows(RuntimeException.class, () -> query.rewrite(searcher));
                         assertThat(exc.getMessage(), containsString("maxClauseCount"));
                     } finally {
-                        BooleanQuery.setMaxClauseCount(origBoolMaxClauseCount);
+                        IndexSearcher.setMaxClauseCount(origBoolMaxClauseCount);
                     }
                 }
             }

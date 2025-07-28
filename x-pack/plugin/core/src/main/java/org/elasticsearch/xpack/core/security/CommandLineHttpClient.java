@@ -277,7 +277,7 @@ public class CommandLineHttpClient {
                 checkClusterHealthWithRetriesWaitingForCluster(username, password, retries);
                 return;
             } else {
-                throw new IllegalStateException("Failed to determine the health of the cluster. ", e);
+                throw new IllegalStateException("Failed to determine the health of the cluster.", e);
             }
         }
         final int responseStatus = response.getHttpStatus();
@@ -318,7 +318,7 @@ public class CommandLineHttpClient {
     }
 
     public static URL createURL(URL url, String path, String query) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + path).replaceAll("/+", "/") + query);
+        return new URL(url, (url.toURI().getPath() + path).replaceAll("//+", "/") + query);
     }
 
     public static String apiKeyHeaderValue(SecureString apiKey) {

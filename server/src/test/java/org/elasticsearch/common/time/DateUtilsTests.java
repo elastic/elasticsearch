@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -19,16 +20,57 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoField;
 
+import static org.elasticsearch.common.time.DateUtils.MAX_MILLIS_BEFORE_MINUS_9999;
+import static org.elasticsearch.common.time.DateUtils.MAX_NANOSECOND_INSTANT;
+import static org.elasticsearch.common.time.DateUtils.MAX_NANOSECOND_IN_MILLIS;
 import static org.elasticsearch.common.time.DateUtils.clampToNanosRange;
+import static org.elasticsearch.common.time.DateUtils.compareNanosToMillis;
 import static org.elasticsearch.common.time.DateUtils.toInstant;
 import static org.elasticsearch.common.time.DateUtils.toLong;
+import static org.elasticsearch.common.time.DateUtils.toLongMillis;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.common.time.DateUtils.toNanoSeconds;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DateUtilsTests extends ESTestCase {
+
+    public void testCompareNanosToMillis() {
+        assertThat(MAX_NANOSECOND_IN_MILLIS * 1_000_000, lessThan(Long.MAX_VALUE));
+
+        assertThat(compareNanosToMillis(toLong(Instant.EPOCH), Instant.EPOCH.toEpochMilli()), is(0));
+
+        // This should be 1, because the millisecond version should truncate a bit
+        assertThat(compareNanosToMillis(toLong(MAX_NANOSECOND_INSTANT), MAX_NANOSECOND_INSTANT.toEpochMilli()), is(1));
+
+        assertThat(compareNanosToMillis(toLong(MAX_NANOSECOND_INSTANT), -1000), is(1));
+        // millis before epoch
+        assertCompareInstants(
+            randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT),
+            randomInstantBetween(Instant.ofEpochMilli(MAX_MILLIS_BEFORE_MINUS_9999), Instant.ofEpochMilli(-1L))
+        );
+
+        // millis after nanos range
+        assertCompareInstants(
+            randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT),
+            randomInstantBetween(MAX_NANOSECOND_INSTANT.plusMillis(1), Instant.ofEpochMilli(Long.MAX_VALUE))
+        );
+
+        // both in range
+        Instant nanos = randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT);
+        Instant millis = randomInstantBetween(Instant.EPOCH, MAX_NANOSECOND_INSTANT);
+
+        assertCompareInstants(nanos, millis);
+    }
+
+    /**
+     *  check that compareNanosToMillis is consistent with Instant#compare.
+     */
+    private void assertCompareInstants(Instant nanos, Instant millis) {
+        assertThat(compareNanosToMillis(toLong(nanos), millis.toEpochMilli()), equalTo(nanos.compareTo(millis)));
+    }
 
     public void testInstantToLong() {
         assertThat(toLong(Instant.EPOCH), is(0L));
@@ -50,6 +92,44 @@ public class DateUtilsTests extends ESTestCase {
         Instant tooLateInstant = ZonedDateTime.parse("2262-04-11T23:47:16.854775808Z").toInstant();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLong(tooLateInstant));
         assertThat(e.getMessage(), containsString("is after"));
+    }
+
+    public void testInstantToLongMillis() {
+        assertThat(toLongMillis(Instant.EPOCH), is(0L));
+
+        Instant instant = createRandomInstant();
+        long timeSinceEpochInMillis = instant.toEpochMilli();
+        assertThat(toLongMillis(instant), is(timeSinceEpochInMillis));
+
+        Instant maxInstant = Instant.ofEpochSecond(Long.MAX_VALUE / 1000);
+        long maxInstantMillis = maxInstant.toEpochMilli();
+        assertThat(toLongMillis(maxInstant), is(maxInstantMillis));
+
+        Instant minInstant = Instant.ofEpochSecond(Long.MIN_VALUE / 1000);
+        long minInstantMillis = minInstant.toEpochMilli();
+        assertThat(toLongMillis(minInstant), is(minInstantMillis));
+    }
+
+    public void testInstantToLongMillisMin() {
+        /* negative millisecond value of this instant exceeds the maximum value a java long variable can store */
+        Instant tooEarlyInstant = Instant.MIN;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooEarlyInstant));
+        assertThat(e.getMessage(), containsString("too far in the past"));
+
+        Instant tooEarlyInstant2 = Instant.ofEpochSecond(Long.MIN_VALUE / 1000 - 1);
+        e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooEarlyInstant2));
+        assertThat(e.getMessage(), containsString("too far in the past"));
+    }
+
+    public void testInstantToLongMillisMax() {
+        /* millisecond value of this instant exceeds the maximum value a java long variable can store */
+        Instant tooLateInstant = Instant.MAX;
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooLateInstant));
+        assertThat(e.getMessage(), containsString("too far in the future"));
+
+        Instant tooLateInstant2 = Instant.ofEpochSecond(Long.MAX_VALUE / 1000 + 1);
+        e = expectThrows(IllegalArgumentException.class, () -> toLongMillis(tooLateInstant2));
+        assertThat(e.getMessage(), containsString("too far in the future"));
     }
 
     public void testLongToInstant() {
@@ -187,6 +267,17 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundMonthOfYear(1), is(0L));
         long dec1969 = LocalDate.of(1969, 12, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundMonthOfYear(-1), is(dec1969));
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundIntervalMonthOfYear(0, -1));
+        assertThat(exc.getMessage(), is("month interval must be strictly positive, got [-1]"));
+        long epochMilli = LocalDate.of(1969, 10, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(1, 5), is(epochMilli));
+        epochMilli = LocalDate.of(1969, 6, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(-1, 13), is(epochMilli));
+        epochMilli = LocalDate.of(2024, 8, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(1737378896000L, 7), is(epochMilli));
+        epochMilli = LocalDate.of(-2026, 4, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(-126068400000000L, 11), is(epochMilli));
     }
 
     public void testRoundYear() {
@@ -196,9 +287,33 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundYear(-1), is(startOf1969));
         long endOf1970 = ZonedDateTime.of(1970, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC).toInstant().toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1970), is(0L));
-        // test with some leapyear
+        // test with some leap year
         long endOf1996 = ZonedDateTime.of(1996, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC).toInstant().toEpochMilli();
         long startOf1996 = Year.of(1996).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1996), is(startOf1996));
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundYearInterval(0, -1));
+        assertThat(exc.getMessage(), is("year interval must be strictly positive, got [-1]"));
+        assertThat(DateUtils.roundYearInterval(0, 2), is(startOf1969));
+        long startOf1968 = Year.of(1968).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(0, 7), is(startOf1968));
+        long startOf1966 = Year.of(1966).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(1, 5), is(startOf1966));
+        long startOf1961 = Year.of(1961).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(-1, 10), is(startOf1961));
+        long startOf1992 = Year.of(1992).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(endOf1996, 11), is(startOf1992));
+        long epochMilli = Year.of(-2034).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(-126068400000000L, 11), is(epochMilli));
+    }
+
+    public void testRoundWeek() {
+        long epochMilli = Year.of(1969).atMonth(12).atDay(29).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundWeekOfWeekYear(0), is(epochMilli));
+        assertThat(DateUtils.roundWeekOfWeekYear(1), is(epochMilli));
+        assertThat(DateUtils.roundWeekOfWeekYear(-1), is(epochMilli));
+
+        epochMilli = Year.of(2025).atMonth(1).atDay(20).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundWeekOfWeekYear(1737378896000L), is(epochMilli));
     }
 }

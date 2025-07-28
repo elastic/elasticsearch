@@ -1,0 +1,187 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.13.0"
+      reason: '[k] and [num_candidates] were made optional for kNN query in 8.13.0'
+  - do:
+      indices.create:
+        index: knn_query_test_index
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+                  vector:
+                    type: dense_vector
+                    dims: 3
+                    index: true
+                    similarity: l2_norm
+                    index_options:
+                      type: hnsw
+                      ef_construction: 100
+                      m: 16
+                  category:
+                    type: keyword
+                  nested:
+                    type: nested
+                    properties:
+                      paragraph_id:
+                        type: keyword
+                      vector:
+                        type: dense_vector
+                        dims: 5
+                        index: true
+                        similarity: l2_norm
+                        index_options:
+                          type: hnsw
+                          ef_construction: 100
+                          m: 16
+
+  - do:
+      index:
+        index: knn_query_test_index
+        id: "1"
+        body:
+          vector: [1.0, 1.0, 0.0]
+          category: A
+          nested:
+            - paragraph_id: 0
+              vector: [ 230.0, 300.33, -34.8988, 15.555, -200.0 ]
+            - paragraph_id: 1
+              vector: [ 240.0, 300, -3, 1, -20 ]
+
+  - do:
+      index:
+        index: knn_query_test_index
+        id: "2"
+        body:
+          vector: [1.0, 0.5, 1.0]
+          category: A
+          nested:
+            - paragraph_id: 2
+              vector: [ 0, 100.0, 0, 14.8, -156.0 ]
+
+  - do:
+      index:
+        index: knn_query_test_index
+        id: "3"
+        body:
+          vector: [-1, -1, -1]
+          category: B
+          nested:
+            - paragraph_id: 0
+              vector: [ 100, 200.0, 300, 14.8, -156.0 ]
+
+  - do:
+      indices.refresh: {}
+
+---
+"kNN query with missing num_candidates param - default size":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: knn_query_test_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: [0, 0, 0]
+
+  - match: { hits.total: 3 }
+
+---
+"kNN query with missing num_candidates param - size provided":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: knn_query_test_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: [1, 1, 1]
+              k: 2
+          size: 1
+  - match: { hits.total: 2 }  # k defaults to size
+  - length: { hits.hits: 1 }  # one result is only returned though
+
+---
+"kNN query with num_candidates less than size":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: knn_query_test_index
+        body:
+          query:
+            knn:
+              field: vector
+              query_vector: [-1, -1, -1]
+              num_candidates: 1
+              k: 1
+          size: 10
+
+  - match: { hits.total: 1 }
+
+
+---
+"kNN query in a bool clause - missing num_candidates":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: knn_query_test_index
+        body:
+          query:
+            bool:
+              must:
+                - term:
+                    category: A
+                - knn:
+                    field: vector
+                    query_vector: [ 1, 1, 0]
+                    k: 1
+          size: 1
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits: 1 }
+
+---
+"kNN search in a dis_max query - missing num_candidates":
+  - do:
+      search:
+        index: knn_query_test_index
+        body:
+          query:
+            dis_max:
+              queries:
+                - knn:
+                    field: vector
+                    query_vector: [1, 1, 0]
+                    k: 2
+                - match:
+                    category: B
+              tie_breaker: 0.8
+          size: 1
+
+  - match: { hits.total.value: 3 } # 2 knn result + 1 extra from match query
+  - length: { hits.hits: 1 }
+
+---
+"kNN search used in nested field - missing num_candidates":
+  - do:
+      search:
+        index: knn_query_test_index
+        body:
+          query:
+            nested:
+              path: nested
+              query:
+                knn:
+                  field: nested.vector
+                  query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  k: 2
+              inner_hits: { size: 1, "fields": [ "nested.paragraph_id" ], _source: false }
+          size: 1
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 1 }

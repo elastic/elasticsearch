@@ -13,8 +13,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.ActionConfigStats;
 
-import java.io.IOException;
-
 public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<ActionConfigStats> {
 
     @Override
@@ -31,7 +29,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
             builder.setForceMergeMaxNumberOfSegments(randomIntBetween(0, 10000));
         }
         if (randomBoolean()) {
-            TimeValue randomAge = TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests");
+            TimeValue randomAge = randomTimeValue();
             builder.setRolloverMaxAge(randomAge);
         }
         if (randomBoolean()) {
@@ -47,8 +45,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
             builder.setRolloverMaxSize(randomByteSize());
         }
         if (randomBoolean()) {
-            TimeValue randomAge = TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests");
-            builder.setRolloverMinAge(randomAge);
+            builder.setRolloverMinAge(randomTimeValue());
         }
         if (randomBoolean()) {
             builder.setRolloverMinDocs(randomLongBetween(0, Long.MAX_VALUE));
@@ -80,7 +77,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
     }
 
     @Override
-    protected ActionConfigStats mutateInstance(ActionConfigStats instance) throws IOException {
+    protected ActionConfigStats mutateInstance(ActionConfigStats instance) {
         ActionConfigStats.Builder builder = ActionConfigStats.builder(instance);
         switch (between(0, 14)) {
             case 0 -> {
@@ -92,10 +89,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
                 builder.setForceMergeMaxNumberOfSegments(numberOfSegments);
             }
             case 2 -> {
-                TimeValue randomAge = randomValueOtherThan(
-                    instance.getRolloverMaxAge(),
-                    () -> TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests")
-                );
+                TimeValue randomAge = randomValueOtherThan(instance.getRolloverMaxAge(), () -> randomTimeValue());
                 builder.setRolloverMaxAge(randomAge);
             }
             case 3 -> builder.setRolloverMaxDocs(randomLongBetween(0, Long.MAX_VALUE));
@@ -107,10 +101,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
                 builder.setRolloverMaxSize(randomByteSize());
             }
             case 7 -> {
-                TimeValue randomAge = randomValueOtherThan(
-                    instance.getRolloverMinAge(),
-                    () -> TimeValue.parseTimeValue(randomTimeValue(), "action_config_stats_tests")
-                );
+                TimeValue randomAge = randomValueOtherThan(instance.getRolloverMinAge(), () -> randomTimeValue());
                 builder.setRolloverMinAge(randomAge);
             }
             case 8 -> builder.setRolloverMinDocs(randomLongBetween(0, Long.MAX_VALUE));

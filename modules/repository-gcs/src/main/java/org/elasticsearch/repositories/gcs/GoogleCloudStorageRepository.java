@@ -1,30 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Map;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
@@ -40,7 +43,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
      * Maximum allowed object size in GCS.
      * @see <a href="https://cloud.google.com/storage/quotas#objects">GCS documentation</a> for details.
      */
-    static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(5, ByteSizeUnit.TB);
+    static final ByteSizeValue MAX_CHUNK_SIZE = ByteSizeValue.of(5, ByteSizeUnit.TB);
 
     static final String TYPE = "gcs";
 
@@ -54,22 +57,49 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         Property.NodeScope,
         Property.Dynamic
     );
-    static final Setting<String> CLIENT_NAME = new Setting<>("client", "default", Function.identity());
+    static final Setting<String> CLIENT_NAME = Setting.simpleString("client", "default");
+
+    /**
+     * We will retry CASes that fail due to throttling. We use an {@link BackoffPolicy#linearBackoff(TimeValue, int, TimeValue)}
+     * with the following parameters
+     */
+    static final Setting<TimeValue> RETRY_THROTTLED_CAS_DELAY_INCREMENT = Setting.timeSetting(
+        "throttled_cas_retry.delay_increment",
+        TimeValue.timeValueMillis(100),
+        TimeValue.ZERO
+    );
+    static final Setting<Integer> RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES = Setting.intSetting(
+        "throttled_cas_retry.maximum_number_of_retries",
+        2,
+        0
+    );
+    static final Setting<TimeValue> RETRY_THROTTLED_CAS_MAXIMUM_DELAY = Setting.timeSetting(
+        "throttled_cas_retry.maximum_delay",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.ZERO
+    );
 
     private final GoogleCloudStorageService storageService;
     private final ByteSizeValue chunkSize;
     private final String bucket;
     private final String clientName;
+    private final TimeValue retryThrottledCasDelayIncrement;
+    private final int retryThrottledCasMaxNumberOfRetries;
+    private final TimeValue retryThrottledCasMaxDelay;
+    private final GcsRepositoryStatsCollector statsCollector;
 
     GoogleCloudStorageRepository(
+        final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings
+        final RecoverySettings recoverySettings,
+        final GcsRepositoryStatsCollector statsCollector
     ) {
         super(
+            projectId,
             metadata,
             namedXContentRegistry,
             clusterService,
@@ -79,10 +109,13 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             buildLocation(metadata)
         );
         this.storageService = storageService;
-
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());
+        this.retryThrottledCasDelayIncrement = RETRY_THROTTLED_CAS_DELAY_INCREMENT.get(metadata.settings());
+        this.retryThrottledCasMaxNumberOfRetries = RETRY_THROTTLED_CAS_MAX_NUMBER_OF_RETRIES.get(metadata.settings());
+        this.retryThrottledCasMaxDelay = RETRY_THROTTLED_CAS_MAXIMUM_DELAY.get(metadata.settings());
+        this.statsCollector = statsCollector;
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}]", bucket, basePath(), chunkSize, isCompress());
     }
 
@@ -105,12 +138,25 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
-        return new GoogleCloudStorageBlobStore(bucket, clientName, metadata.name(), storageService, bigArrays, bufferSize);
+        return new GoogleCloudStorageBlobStore(
+            bucket,
+            clientName,
+            metadata.name(),
+            storageService,
+            bigArrays,
+            bufferSize,
+            BackoffPolicy.linearBackoff(retryThrottledCasDelayIncrement, retryThrottledCasMaxNumberOfRetries, retryThrottledCasMaxDelay),
+            statsCollector
+        );
     }
 
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    GcsRepositoryStatsCollector statsCollector() {
+        return statsCollector;
     }
 
     /**

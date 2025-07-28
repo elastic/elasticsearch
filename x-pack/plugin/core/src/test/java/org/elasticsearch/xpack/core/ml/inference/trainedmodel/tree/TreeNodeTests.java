@@ -44,6 +44,11 @@ public class TreeNodeTests extends AbstractXContentSerializingTestCase<TreeNode>
             .build();
     }
 
+    @Override
+    protected TreeNode mutateInstance(TreeNode instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static TreeNode createRandomLeafNode(double internalValue) {
         return TreeNode.builder(randomInt(100))
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())

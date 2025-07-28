@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -41,17 +42,8 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
         Set<BytesRef> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
             BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAlphaOfLength(10)));
-            SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(
-                term,
-                subsetDfs[i],
-                subsetSize,
-                supersetDfs[i],
-                supersetSize,
-                aggs,
-                format,
-                0
-            );
-            bucket.updateScore(significanceHeuristic);
+            SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(term, subsetDfs[i], supersetDfs[i], aggs, format, 0);
+            bucket.updateScore(significanceHeuristic, subsetSize, supersetSize);
             buckets.add(bucket);
         }
         return new SignificantStringTerms(
@@ -65,11 +57,6 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
             significanceHeuristic,
             buckets
         );
-    }
-
-    @Override
-    protected Class<ParsedSignificantStringTerms> implementationClass() {
-        return ParsedSignificantStringTerms.class;
     }
 
     @Override
@@ -95,8 +82,6 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
                     buckets.add(
                         new SignificantStringTerms.Bucket(
                             new BytesRef(randomAlphaOfLengthBetween(1, 10)),
-                            randomNonNegativeLong(),
-                            randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             InternalAggregations.EMPTY,

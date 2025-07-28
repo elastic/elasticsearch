@@ -6,8 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -26,7 +25,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
     public static final String DELETION_TASK_DESCRIPTION_PREFIX = "delete-job-";
 
     private DeleteJobAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -45,6 +44,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         private boolean deleteUserAnnotations;
 
         public Request(String jobId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
@@ -52,7 +52,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             super(in);
             jobId = in.readString();
             force = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 deleteUserAnnotations = in.readBoolean();
             } else {
                 deleteUserAnnotations = false;
@@ -96,11 +96,6 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public String getDescription() {
             return DELETION_TASK_DESCRIPTION_PREFIX + jobId;
         }
@@ -110,7 +105,7 @@ public class DeleteJobAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(jobId);
             out.writeBoolean(force);
-            if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
                 out.writeBoolean(deleteUserAnnotations);
             }
         }

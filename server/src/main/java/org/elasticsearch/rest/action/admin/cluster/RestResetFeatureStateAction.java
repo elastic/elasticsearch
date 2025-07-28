@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -15,12 +16,16 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 /** Rest handler for feature state reset requests */
+@ServerlessScope(Scope.INTERNAL)
 public class RestResetFeatureStateAction extends BaseRestHandler {
 
     @Override
@@ -40,22 +45,18 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
-
-        return restChannel -> client.execute(ResetFeatureStateAction.INSTANCE, req, new RestToXContentListener<>(restChannel) {
-            @Override
-            protected RestStatus getStatus(ResetFeatureStateResponse response) {
-                long failures = response.getFeatureStateResetStatuses()
+        final var req = new ResetFeatureStateRequest(RestUtils.getMasterNodeTimeout(request));
+        return restChannel -> client.execute(
+            ResetFeatureStateAction.INSTANCE,
+            req,
+            new RestToXContentListener<>(
+                restChannel,
+                r -> r.getFeatureStateResetStatuses()
                     .stream()
-                    .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
-                    .count();
-                if (failures == 0) {
-                    return RestStatus.OK;
-                } else if (failures == response.getFeatureStateResetStatuses().size()) {
-                    return RestStatus.INTERNAL_SERVER_ERROR;
-                }
-                return RestStatus.MULTI_STATUS;
-            }
-        });
+                    .anyMatch(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+                        ? RestStatus.INTERNAL_SERVER_ERROR
+                        : RestStatus.OK
+            )
+        );
     }
 }

@@ -3,8 +3,6 @@ setup:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               ipv4:
@@ -44,8 +42,8 @@ setup:
 
 ---
 "IPv4 prefix":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -78,8 +76,8 @@ setup:
 # high 24 bits of a field which is an IPv4 address encoded on 16 bytes. As a result the
 # network part will just 0s.
 "IPv4 prefix with incorrect is_ipv6":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -103,8 +101,8 @@ setup:
 
 ---
 "IPv4 short prefix":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -140,8 +138,8 @@ setup:
 
 ---
 "IPv6 prefix":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -174,8 +172,8 @@ setup:
 # it will be the 2 bytes whose value is set to 12 hexadecimal) which results to 18 decimal,
 # with everything else being 0s.
 "IPv6 prefix with incorrect is_ipv6":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -200,8 +198,8 @@ setup:
 
 ---
 "Invalid IPv4 prefix":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       catch: /\[prefix_length\] must be in range \[0, 32\] while value is \[44\]/
@@ -218,8 +216,8 @@ setup:
 
 ---
 "Invalid IPv6 prefix":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       catch: /\[prefix_length] must be in range \[0, 128\] while value is \[170]/
@@ -235,8 +233,8 @@ setup:
 
 ---
 "IPv4 prefix sub aggregation":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -277,8 +275,8 @@ setup:
 
 ---
 "IPv6 prefix sub aggregation":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -318,8 +316,8 @@ setup:
 
 ---
 "IPv6 prefix metric sub aggregation":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -355,8 +353,8 @@ setup:
 
 ---
 "IPv4 prefix appended":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -387,8 +385,8 @@ setup:
 
 ---
 "IPv6 prefix appended":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -419,8 +417,8 @@ setup:
 
 ---
 "Mixed IPv4 and IPv6 with is_ipv6 false":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:
@@ -450,8 +448,8 @@ setup:
 
 ---
 "Mixed IPv4 and IPv6 with is_ipv6 true":
-  - skip:
-      version: " - 8.2.0"
+  - requires:
+      cluster_features: ["gte_v8.2.1"]
       reason: "Temporarily skipping preparing to backport to 8.1"
   - do:
       search:

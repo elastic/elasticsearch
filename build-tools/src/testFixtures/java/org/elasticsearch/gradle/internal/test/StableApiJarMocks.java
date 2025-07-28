@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test;
@@ -11,8 +12,8 @@ package org.elasticsearch.gradle.internal.test;
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.DynamicType;
 
-import org.elasticsearch.plugin.api.Extensible;
-import org.elasticsearch.plugin.api.NamedComponent;
+import org.elasticsearch.plugin.Extensible;
+import org.elasticsearch.plugin.NamedComponent;
 import org.elasticsearch.plugin.scanner.test_classes.ExtensibleClass;
 import org.elasticsearch.plugin.scanner.test_classes.ExtensibleInterface;
 

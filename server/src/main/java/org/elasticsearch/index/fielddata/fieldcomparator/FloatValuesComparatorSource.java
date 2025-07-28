@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
@@ -12,6 +13,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.FloatComparator;
@@ -35,7 +37,7 @@ import java.io.IOException;
  */
 public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
+    final IndexNumericFieldData indexFieldData;
 
     public FloatValuesComparatorSource(
         IndexNumericFieldData indexFieldData,
@@ -52,7 +54,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         return SortField.Type.FLOAT;
     }
 
-    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, float missingValue) throws IOException {
+    NumericDoubleValues getNumericDocValues(LeafReaderContext context, double missingValue) throws IOException {
         final SortedNumericDoubleValues values = indexFieldData.load(context).getDoubleValues();
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
@@ -60,18 +62,18 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
             final BitSet rootDocs = nested.rootDocs(context);
             final DocIdSetIterator innerDocs = nested.innerDocs(context);
             final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-            return sortMode.select(values, missingValue, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
+            return sortMode.select(values, missingValue, rootDocs, innerDocs, maxChildren);
         }
     }
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new FloatComparator(numHits, null, null, reversed, false) {
+        return new FloatComparator(numHits, null, null, reversed, Pruning.NONE) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new FloatLeafComparator(context) {

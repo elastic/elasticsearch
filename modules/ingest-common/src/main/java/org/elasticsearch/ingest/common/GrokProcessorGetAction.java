@@ -1,27 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.grok.Grok;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.grok.PatternBank;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -33,18 +38,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
+public class GrokProcessorGetAction {
 
-    static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
-    static final String NAME = "cluster:admin/ingest/processor/grok/get";
+    static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
 
-    private GrokProcessorGetAction() {
-        super(NAME, Response::new);
-    }
+    private GrokProcessorGetAction() {/* no instances */}
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final boolean sorted;
         private final String ecsCompatibility;
@@ -57,7 +60,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         Request(StreamInput in) throws IOException {
             super(in);
             this.sorted = in.readBoolean();
-            this.ecsCompatibility = in.getVersion().onOrAfter(Version.V_8_0_0)
+            this.ecsCompatibility = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
                 ? in.readString()
                 : GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE;
         }
@@ -71,7 +74,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(sorted);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                 out.writeString(ecsCompatibility);
             }
         }
@@ -93,8 +96,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
-            grokPatterns = in.readMap(StreamInput::readString, StreamInput::readString);
+            grokPatterns = in.readMap(StreamInput::readString);
         }
 
         public Map<String, String> getGrokPatterns() {
@@ -112,7 +114,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(grokPatterns, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(grokPatterns, StreamOutput::writeString);
         }
     }
 
@@ -125,40 +127,38 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            this(transportService, actionFilters, Grok.getBuiltinPatterns(false), Grok.getBuiltinPatterns(true));
+            this(transportService, actionFilters, GrokBuiltinPatterns.legacyPatterns(), GrokBuiltinPatterns.ecsV1Patterns());
         }
 
         // visible for testing
         TransportAction(
             TransportService transportService,
             ActionFilters actionFilters,
-            Map<String, String> legacyGrokPatterns,
-            Map<String, String> ecsV1GrokPatterns
+            PatternBank legacyGrokPatterns,
+            PatternBank ecsV1GrokPatterns
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
-            this.legacyGrokPatterns = legacyGrokPatterns;
+            super(INSTANCE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            this.legacyGrokPatterns = legacyGrokPatterns.bank();
             this.sortedLegacyGrokPatterns = new TreeMap<>(this.legacyGrokPatterns);
-            this.ecsV1GrokPatterns = ecsV1GrokPatterns;
+            this.ecsV1GrokPatterns = ecsV1GrokPatterns.bank();
             this.sortedEcsV1GrokPatterns = new TreeMap<>(this.ecsV1GrokPatterns);
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            try {
-                listener.onResponse(
-                    new Response(
-                        request.getEcsCompatibility().equals(Grok.ECS_COMPATIBILITY_MODES[0])
-                            ? request.sorted() ? sortedLegacyGrokPatterns : legacyGrokPatterns
-                            : request.sorted() ? sortedEcsV1GrokPatterns
-                            : ecsV1GrokPatterns
-                    )
-                );
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            ActionListener.completeWith(
+                listener,
+                () -> new Response(
+                    request.getEcsCompatibility().equals(ECS_COMPATIBILITY_DISABLED)
+                        ? request.sorted() ? sortedLegacyGrokPatterns : legacyGrokPatterns
+                        : request.sorted() ? sortedEcsV1GrokPatterns
+                        : ecsV1GrokPatterns
+                )
+            );
         }
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
 
         @Override
@@ -175,7 +175,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
             boolean sorted = request.paramAsBoolean("s", false);
             String ecsCompatibility = request.param("ecs_compatibility", GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE);
-            if (Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+            if (GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                 throw new IllegalArgumentException("unsupported ECS compatibility mode [" + ecsCompatibility + "]");
             }
             Request grokPatternsRequest = new Request(sorted, ecsCompatibility);

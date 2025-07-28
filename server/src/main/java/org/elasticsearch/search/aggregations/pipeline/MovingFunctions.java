@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -99,7 +100,7 @@ public class MovingFunctions {
      */
     public static double linearWeightedAvg(double[] values) {
         double avg = 0;
-        long totalWeight = 1;
+        long totalWeight = 0;
         long current = 1;
 
         for (double v : values) {
@@ -109,7 +110,7 @@ public class MovingFunctions {
                 current += 1;
             }
         }
-        return totalWeight == 1 ? Double.NaN : avg / totalWeight;
+        return totalWeight == 0 ? Double.NaN : avg / totalWeight;
     }
 
     /**
@@ -174,7 +175,7 @@ public class MovingFunctions {
 
         int counter = 0;
 
-        Double last;
+        double last;
         for (double v : values) {
             if (Double.isNaN(v) == false) {
                 last = v;

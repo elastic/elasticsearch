@@ -7,19 +7,22 @@
 
 package org.elasticsearch.xpack.core.datastreams;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsage.LifecycleStats;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
-public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
+public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
     private final DataStreamStats streamStats;
 
     public DataStreamFeatureSetUsage(StreamInput input) throws IOException {
@@ -39,8 +42,12 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_9_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
+    }
+
+    public DataStreamStats getStats() {
+        return streamStats;
     }
 
     @Override
@@ -48,6 +55,41 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         super.innerXContent(builder, params);
         builder.field("data_streams", streamStats.totalDataStreamCount);
         builder.field("indices_count", streamStats.indicesBehindDataStream);
+        builder.startObject("failure_store");
+        builder.field("explicitly_enabled_count", streamStats.failureStoreExplicitlyEnabledDataStreamCount);
+        builder.field("effectively_enabled_count", streamStats.failureStoreEffectivelyEnabledDataStreamCount);
+        builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
+
+        // Failures lifecycle
+        builder.startObject("lifecycle");
+        builder.field("explicitly_enabled_count", streamStats.failuresLifecycleExplicitlyEnabledCount);
+        builder.field("effectively_enabled_count", streamStats.failuresLifecycleEffectivelyEnabledCount);
+
+        // Retention
+        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+            builder,
+            streamStats.failuresLifecycleDataRetentionStats,
+            false
+        );
+        DataStreamLifecycleFeatureSetUsage.RetentionStats.toXContentFragment(
+            builder,
+            streamStats.failuresLifecycleEffectiveRetentionStats,
+            true
+        );
+        builder.startObject("global_retention");
+        DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
+            builder,
+            LifecycleStats.DEFAULT_RETENTION_FIELD_NAME,
+            streamStats.globalRetentionStats.get(LifecycleStats.DEFAULT_RETENTION_FIELD_NAME)
+        );
+        DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats.toXContentFragment(
+            builder,
+            LifecycleStats.MAX_RETENTION_FIELD_NAME,
+            streamStats.globalRetentionStats.get(LifecycleStats.MAX_RETENTION_FIELD_NAME)
+        );
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
     }
 
     @Override
@@ -72,39 +114,68 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         return Objects.equals(streamStats, other.streamStats);
     }
 
-    public static class DataStreamStats implements Writeable {
-
-        private final long totalDataStreamCount;
-        private final long indicesBehindDataStream;
-
-        public DataStreamStats(long totalDataStreamCount, long indicesBehindDataStream) {
-            this.totalDataStreamCount = totalDataStreamCount;
-            this.indicesBehindDataStream = indicesBehindDataStream;
-        }
+    public record DataStreamStats(
+        long totalDataStreamCount,
+        long indicesBehindDataStream,
+        long failureStoreExplicitlyEnabledDataStreamCount,
+        long failureStoreEffectivelyEnabledDataStreamCount,
+        long failureStoreIndicesCount,
+        long failuresLifecycleExplicitlyEnabledCount,
+        long failuresLifecycleEffectivelyEnabledCount,
+        DataStreamLifecycleFeatureSetUsage.RetentionStats failuresLifecycleDataRetentionStats,
+        DataStreamLifecycleFeatureSetUsage.RetentionStats failuresLifecycleEffectiveRetentionStats,
+        Map<String, DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats> globalRetentionStats
+    ) implements Writeable {
 
         public DataStreamStats(StreamInput in) throws IOException {
-            this.totalDataStreamCount = in.readVLong();
-            this.indicesBehindDataStream = in.readVLong();
+            this(
+                in.readVLong(),
+                in.readVLong(),
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING) ? in.readVLong() : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? in.readVLong()
+                        : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? in.readVLong()
+                        : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
+                        : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? DataStreamLifecycleFeatureSetUsage.RetentionStats.read(in)
+                        : DataStreamLifecycleFeatureSetUsage.RetentionStats.NO_DATA,
+                in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)
+                        ? in.readMap(DataStreamLifecycleFeatureSetUsage.GlobalRetentionStats::new)
+                        : Map.of()
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(this.totalDataStreamCount);
             out.writeVLong(this.indicesBehindDataStream);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(totalDataStreamCount, indicesBehindDataStream);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj.getClass() != getClass()) {
-                return false;
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+                out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
+                    out.writeVLong(failureStoreEffectivelyEnabledDataStreamCount);
+                }
+                out.writeVLong(this.failureStoreIndicesCount);
             }
-            DataStreamStats other = (DataStreamStats) obj;
-            return totalDataStreamCount == other.totalDataStreamCount && indicesBehindDataStream == other.indicesBehindDataStream;
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_FAILURES_LIFECYCLE_BACKPORT_8_19)) {
+                out.writeVLong(failuresLifecycleExplicitlyEnabledCount);
+                out.writeVLong(failuresLifecycleEffectivelyEnabledCount);
+                failuresLifecycleDataRetentionStats.writeTo(out);
+                failuresLifecycleEffectiveRetentionStats.writeTo(out);
+                out.writeMap(globalRetentionStats, (o, v) -> v.writeTo(o));
+            }
         }
     }
 }

@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
+
+import org.elasticsearch.core.Strings;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -72,14 +75,14 @@ public class StringTests extends ScriptTestCase {
         StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
         StringBuilder result = new StringBuilder("cat");
         for (int i = 1; i < count; i++) {
-            final String s = formatted("%03d", i);
+            final String s = Strings.format("%03d", i);
             script.append(" + '").append(s).append("'.toString()");
             result.append(s);
         }
         final String s = script.toString();
         assertTrue(
             "every string part should be separately pushed to stack.",
-            Debugger.toString(s).contains(formatted("LDC \"%03d\"", count / 2))
+            Debugger.toString(s).contains(Strings.format("LDC \"%03d\"", count / 2))
         );
         assertEquals(result.toString(), exec(s));
     }
@@ -155,11 +158,9 @@ public class StringTests extends ScriptTestCase {
         assertEquals('c', exec("String s = \"c\"; (char)s"));
         assertEquals('c', exec("String s = 'c'; (char)s"));
 
-        ClassCastException expected = expectScriptThrows(
-            ClassCastException.class,
-            false,
-            () -> { assertEquals("cc", exec("return (String)(char)\"cc\"")); }
-        );
+        ClassCastException expected = expectScriptThrows(ClassCastException.class, false, () -> {
+            assertEquals("cc", exec("return (String)(char)\"cc\""));
+        });
         assertTrue(expected.getMessage().contains("cannot cast java.lang.String with length not equal to one to char"));
 
         expected = expectScriptThrows(ClassCastException.class, false, () -> { assertEquals("cc", exec("return (String)(char)'cc'")); });

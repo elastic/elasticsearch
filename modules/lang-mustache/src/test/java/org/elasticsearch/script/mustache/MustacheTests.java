@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.TemplateScript;
@@ -23,7 +26,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -38,7 +40,7 @@ import static org.hamcrest.Matchers.not;
 
 public class MustacheTests extends ESTestCase {
 
-    private ScriptEngine engine = new MustacheScriptEngine();
+    private ScriptEngine engine = new MustacheScriptEngine(Settings.EMPTY);
 
     public void testBasics() {
         String template = """
@@ -139,6 +141,26 @@ public class MustacheTests extends ESTestCase {
         assertThat(output, both(containsString("foo")).and(containsString("bar")));
     }
 
+    public void testMapInArrayBadAccess() throws Exception {
+        String template = "{{data.0.key}} {{data.2.key}}";
+        TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("data", new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") });
+        // assertThat(factory.newInstance(vars).execute(), equalTo("foo "));
+
+        vars.put("data", Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
+        factory.newInstance(vars);
+        assertThat(factory.newInstance(vars).execute(), equalTo("foo "));
+
+        // HashSet iteration order isn't fixed
+        Set<Object> setData = new HashSet<>();
+        setData.add(singletonMap("key", "foo"));
+        setData.add(singletonMap("key", "bar"));
+        vars.put("data", setData);
+        String output = factory.newInstance(vars).execute();
+        assertThat(output, both(containsString("foo")).and(not(containsString("bar"))));
+    }
+
     public void testSizeAccessForCollectionsAndArrays() throws Exception {
         String[] randomArrayValues = generateRandomStringArray(10, 20, false);
         List<String> randomList = Arrays.asList(generateRandomStringArray(10, 20, false));
@@ -150,7 +172,7 @@ public class MustacheTests extends ESTestCase {
         data.put("list", randomList);
         Map<String, Object> vars = new HashMap<>();
         vars.put("data", data);
-        String expectedString = String.format(Locale.ROOT, "%s %s", randomArrayValues.length, randomList.size());
+        String expectedString = Strings.format("%s %s", randomArrayValues.length, randomList.size());
         assertThat(factory.newInstance(vars).execute(), equalTo(expectedString));
     }
 
@@ -423,7 +445,7 @@ public class MustacheTests extends ESTestCase {
         assertScript(
             "{{#url}}prefix_{{s}}{{/url}}",
             singletonMap("s", random),
-            equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8.name()))
+            equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8))
         );
     }
 

@@ -1,34 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -38,8 +41,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -55,6 +56,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -70,7 +72,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
     @Before
     public void createConnectionManager() {
         Settings settings = Settings.builder().put("node.name", ClusterConnectionManagerTests.class.getSimpleName()).build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         transport = mock(Transport.class);
         connectionManager = new ClusterConnectionManager(settings, transport, threadPool.getThreadContext());
         TimeValue oneSecond = new TimeValue(1000);
@@ -100,13 +102,15 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
 
-        DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         Transport.Connection connection = new TestConnect(node);
+        PlainActionFuture<Void> closeListener = new PlainActionFuture<>();
+        connection.addCloseListener(closeListener);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
@@ -116,15 +120,16 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         assertFalse(connectionManager.nodeConnected(node));
 
-        AtomicReference<Transport.Connection> connectionRef = new AtomicReference<>();
+        final var validatedConnectionRef = new AtomicReference<Transport.Connection>();
         ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
-            connectionRef.set(c);
+            validatedConnectionRef.set(c);
             l.onResponse(null);
         };
-        PlainActionFuture.get(fut -> connectionManager.connectToNode(node, connectionProfile, validator, fut.map(x -> null)));
+        safeAwait(listener -> connectionManager.connectToNode(node, connectionProfile, validator, listener.map(x -> null)));
 
         assertFalse(connection.isClosed());
         assertTrue(connectionManager.nodeConnected(node));
+        assertSame(connection, validatedConnectionRef.get());
         assertSame(connection, connectionManager.getConnection(node));
         assertEquals(1, connectionManager.size());
         assertEquals(1, nodeConnectedCount.get());
@@ -136,6 +141,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connection.close();
         }
         assertTrue(connection.isClosed());
+        assertThat(closeListener.actionGet(), nullValue());
         assertEquals(0, connectionManager.size());
         assertEquals(1, nodeConnectedCount.get());
         assertEquals(1, nodeDisconnectedCount.get());
@@ -145,13 +151,12 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         reason = "testing log messages emitted on disconnect",
         value = "org.elasticsearch.transport.ClusterConnectionManager:TRACE"
     )
-    public void testDisconnectLogging() throws IllegalAccessException {
-        final Supplier<DiscoveryNode> nodeFactory = () -> new DiscoveryNode(
+    public void testDisconnectLogging() {
+        final Supplier<DiscoveryNode> nodeFactory = () -> DiscoveryNodeUtils.create(
             randomAlphaOfLength(10),
             new TransportAddress(InetAddress.getLoopbackAddress(), 0),
             Collections.singletonMap("attr", "val"),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
+            DiscoveryNodeRole.roles()
         );
         final DiscoveryNode remoteClose = nodeFactory.get();
         final DiscoveryNode localClose = nodeFactory.get();
@@ -168,39 +173,37 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> l.onResponse(null);
         final AtomicReference<Releasable> toClose = new AtomicReference<>();
 
-        PlainActionFuture.get(f -> connectionManager.connectToNode(remoteClose, connectionProfile, validator, f.map(x -> null)));
-        PlainActionFuture.get(f -> connectionManager.connectToNode(shutdownClose, connectionProfile, validator, f.map(x -> null)));
-        PlainActionFuture.get(f -> connectionManager.connectToNode(localClose, connectionProfile, validator, f.map(toClose::getAndSet)));
+        safeAwait(l -> connectionManager.connectToNode(remoteClose, connectionProfile, validator, l.map(x -> null)));
+        safeAwait(l -> connectionManager.connectToNode(shutdownClose, connectionProfile, validator, l.map(x -> null)));
+        safeAwait(l -> connectionManager.connectToNode(localClose, connectionProfile, validator, l.map(toClose::getAndSet)));
 
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
 
-        final String loggerName = "org.elasticsearch.transport.ClusterConnectionManager";
-        final Logger logger = LogManager.getLogger(loggerName);
-        final MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(logger, appender);
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ClusterConnectionManager.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "locally-triggered close message",
-                    loggerName,
+                    ClusterConnectionManager.class.getCanonicalName(),
                     Level.DEBUG,
                     "closing unused transport connection to [" + localClose + "]"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "remotely-triggered close message",
-                    loggerName,
+                    ClusterConnectionManager.class.getCanonicalName(),
                     Level.INFO,
-                    "transport connection to [" + remoteClose.descriptionWithoutAttributes() + "] closed by remote"
+                    "transport connection to ["
+                        + remoteClose.descriptionWithoutAttributes()
+                        + "] closed by remote; "
+                        + "if unexpected, see [https://www.elastic.co/docs/*] for troubleshooting guidance"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "shutdown-triggered close message",
-                    loggerName,
+                    ClusterConnectionManager.class.getCanonicalName(),
                     Level.TRACE,
                     "connection manager shut down, closing transport connection to [" + shutdownClose + "]"
                 )
@@ -210,17 +213,14 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connectionManager.disconnectFromNode(remoteClose);
             connectionManager.close();
 
-            appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     public void testConcurrentConnects() throws Exception {
-        Set<Transport.Connection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Set<Transport.Connection> connections = ConcurrentCollections.newConcurrentSet();
 
-        DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
@@ -271,11 +271,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         for (int i = 0; i < threadCount; i++) {
             final int threadIndex = i;
             Thread thread = new Thread(() -> {
-                try {
-                    barrier.await();
-                } catch (InterruptedException | BrokenBarrierException e) {
-                    throw new RuntimeException(e);
-                }
+                safeAwait(barrier);
                 CountDownLatch latch = new CountDownLatch(1);
                 try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
                     final String contextValue = randomAlphaOfLength(10);
@@ -285,7 +281,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                         assertThat(threadContext.getHeader(contextHeader), equalTo(contextValue));
 
                         assertTrue(pendingCloses.tryAcquire());
-                        connectionManager.getConnection(node).addRemovedListener(ActionListener.wrap(pendingCloses::release));
+                        connectionManager.getConnection(node).addRemovedListener(ActionListener.running(pendingCloses::release));
 
                         if (randomBoolean()) {
                             releasables[threadIndex] = c;
@@ -304,17 +300,13 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                         latch.countDown();
                     }));
                 }
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    throw new IllegalStateException(e);
-                }
+                safeAwait(latch);
             });
             threads.add(thread);
             thread.start();
         }
 
-        barrier.await();
+        safeAwait(barrier);
         threads.forEach(t -> {
             try {
                 t.join();
@@ -327,7 +319,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         if (nodeConnectedCount.get() == 0) {
             // Any successful connections were closed
-            assertTrue(pendingCloses.tryAcquire(threadCount, 10, TimeUnit.SECONDS));
+            safeAcquire(threadCount, pendingCloses);
             pendingCloses.release(threadCount);
             assertTrue(connections.stream().allMatch(Transport.Connection::isClosed));
             assertEquals(0, connectionManager.size());
@@ -338,7 +330,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         if (randomBoolean()) {
             Releasables.close(releasables);
-            assertTrue(pendingCloses.tryAcquire(threadCount, 10, TimeUnit.SECONDS));
+            safeAcquire(threadCount, pendingCloses);
             pendingCloses.release(threadCount);
             assertEquals(0, connectionManager.size());
             assertTrue(connections.stream().allMatch(Transport.Connection::isClosed));
@@ -395,7 +387,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
             @Override
             protected void doRun() throws Exception {
-                final var discoveryNode = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+                final var discoveryNode = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
                 final var listener = new ActionListener<Releasable>() {
                     @Override
                     public void onResponse(Releasable releasable) {
@@ -449,15 +441,13 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         assertTrue(pendingConnectionPermits.tryAcquire(10, TimeUnit.SECONDS));
         // ... and then send a connection attempt through the system to ensure that the lagging has started
         Releasables.closeExpectNoException(
-            PlainActionFuture.<Releasable, RuntimeException>get(
-                fut -> connectionManager.connectToNode(
-                    new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT),
+            safeAwait(
+                (ActionListener<Releasable> listener) -> connectionManager.connectToNode(
+                    DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0)),
                     connectionProfile,
                     validator,
-                    fut
-                ),
-                30,
-                TimeUnit.SECONDS
+                    listener
+                )
             )
         );
 
@@ -474,7 +464,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
     }
 
     public void testConcurrentConnectsAndDisconnects() throws Exception {
-        final DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        final DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
@@ -486,7 +476,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             assertTrue(validatorPermits.tryAcquire());
-            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+            randomExecutor(threadPool).execute(() -> {
                 try {
                     l.onResponse(null);
                 } finally {
@@ -495,14 +485,17 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             });
         };
 
-        final Semaphore pendingConnections = new Semaphore(between(1, 1000));
+        final int connectionCount = between(1, 1000);
+        final int disconnectionCount = randomFrom(connectionCount, connectionCount - 1, between(0, connectionCount - 1));
+        final var connectionPermits = new Semaphore(connectionCount);
+        final var disconnectionPermits = new Semaphore(disconnectionCount);
         final int threadCount = between(1, 10);
-        final CountDownLatch countDownLatch = new CountDownLatch(threadCount);
+        final var countDownLatch = new CountDownLatch(threadCount);
 
         final Runnable action = new Runnable() {
             @Override
             public void run() {
-                if (pendingConnections.tryAcquire()) {
+                if (connectionPermits.tryAcquire()) {
                     connectionManager.connectToNode(node, null, validator, new ActionListener<>() {
                         @Override
                         public void onResponse(Releasable releasable) {
@@ -510,19 +503,25 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                                 final String description = releasable.toString();
                                 fail(description);
                             }
-                            Releasables.close(releasable);
-                            threadPool.generic().execute(() -> run());
+                            if (disconnectionPermits.tryAcquire()) {
+                                Releasables.close(releasable);
+                            }
+                            runAgain();
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             if (e instanceof ConnectTransportException
                                 && e.getMessage().contains("concurrently connecting and disconnecting")) {
-                                pendingConnections.release();
-                                threadPool.generic().execute(() -> run());
+                                connectionPermits.release();
+                                runAgain();
                             } else {
-                                throw new AssertionError("unexpected", e);
+                                fail(e);
                             }
+                        }
+
+                        private void runAgain() {
+                            threadPool.generic().execute(() -> run());
                         }
                     });
                 } else {
@@ -537,7 +536,116 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         assertTrue("threads did not all complete", countDownLatch.await(10, TimeUnit.SECONDS));
         assertTrue("validatorPermits not all released", validatorPermits.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
-        assertFalse("node still connected", connectionManager.nodeConnected(node));
+        assertEquals("node still connected", disconnectionCount < connectionCount, connectionManager.nodeConnected(node));
+        connectionManager.close();
+    }
+
+    @TestLogging(reason = "ignore copious 'closed by remote' messages", value = "org.elasticsearch.transport.ClusterConnectionManager:WARN")
+    public void testConcurrentConnectsAndCloses() throws Exception {
+        final DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
+            listener.onResponse(new TestConnect(node));
+            return null;
+        }).when(transport).openConnection(eq(node), any(), anyActionListener());
+
+        final Semaphore validatorPermits = new Semaphore(Integer.MAX_VALUE);
+
+        final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
+            assertTrue(validatorPermits.tryAcquire());
+            randomExecutor(threadPool).execute(() -> {
+                try {
+                    l.onResponse(null);
+                } finally {
+                    validatorPermits.release();
+                }
+            });
+        };
+
+        final var closePermits = new Semaphore(between(1, 1000));
+        final int connectThreadCount = between(1, 3);
+        final int closeThreadCount = between(1, 3);
+        final var countDownLatch = new CountDownLatch(connectThreadCount + closeThreadCount);
+
+        final var cleanlyOpenedConnectionFuture = new PlainActionFuture<Boolean>();
+        final var closingRefs = AbstractRefCounted.of(
+            () -> connectionManager.connectToNode(
+                node,
+                null,
+                validator,
+                cleanlyOpenedConnectionFuture.map(r -> connectionManager.nodeConnected(node))
+            )
+        );
+
+        final Runnable connectAction = new Runnable() {
+            private void runAgain() {
+                threadPool.generic().execute(this);
+            }
+
+            @Override
+            public void run() {
+                if (cleanlyOpenedConnectionFuture.isDone() == false) {
+                    connectionManager.connectToNode(node, null, validator, new ActionListener<>() {
+                        @Override
+                        public void onResponse(Releasable releasable) {
+                            runAgain();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (e instanceof ConnectTransportException
+                                && e.getMessage().contains("concurrently connecting and disconnecting")) {
+                                runAgain();
+                            } else {
+                                fail(e);
+                            }
+                        }
+
+                    });
+                } else {
+                    countDownLatch.countDown();
+                }
+            }
+        };
+
+        final Runnable closeAction = new Runnable() {
+            private void runAgain() {
+                threadPool.generic().execute(this);
+            }
+
+            @Override
+            public void run() {
+                closingRefs.decRef();
+                if (closePermits.tryAcquire() && closingRefs.tryIncRef()) {
+                    try {
+                        var connection = connectionManager.getConnection(node);
+                        connection.addRemovedListener(ActionListener.running(this::runAgain));
+                        connection.close();
+                    } catch (NodeNotConnectedException e) {
+                        closePermits.release();
+                        runAgain();
+                    }
+                } else {
+                    countDownLatch.countDown();
+                }
+            }
+        };
+
+        for (int i = 0; i < connectThreadCount; i++) {
+            connectAction.run();
+        }
+        for (int i = 0; i < closeThreadCount; i++) {
+            closingRefs.incRef();
+            closeAction.run();
+        }
+        closingRefs.decRef();
+
+        assertTrue("threads did not all complete", countDownLatch.await(10, TimeUnit.SECONDS));
+        assertFalse(closingRefs.hasReferences());
+        assertTrue(cleanlyOpenedConnectionFuture.result());
+
+        assertTrue("validatorPermits not all released", validatorPermits.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
         connectionManager.close();
     }
 
@@ -551,12 +659,12 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
 
-        DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         Transport.Connection connection = new TestConnect(node);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
@@ -591,12 +699,12 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             }
 
             @Override
-            public void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {
+            public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
                 nodeDisconnectedCount.incrementAndGet();
             }
         });
 
-        DiscoveryNode node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<Transport.Connection> listener = (ActionListener<Transport.Connection>) invocationOnMock.getArguments()[2];
@@ -621,7 +729,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
     public void testConnectAfterClose() {
         connectionManager.close();
-        final var node = new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 0), Version.CURRENT);
+        final var node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
 
         final var openConnectionFuture = new PlainActionFuture<Transport.Connection>();
         connectionManager.openConnection(node, connectionProfile, openConnectionFuture);
@@ -654,8 +762,8 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         }
 
         @Override
-        public Version getVersion() {
-            return node.getVersion();
+        public TransportVersion getTransportVersion() {
+            return TransportVersion.current();
         }
 
         @Override

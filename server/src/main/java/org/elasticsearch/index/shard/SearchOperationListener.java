@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -65,6 +66,28 @@ public interface SearchOperationListener {
     default void onFetchPhase(SearchContext searchContext, long tookInNanos) {}
 
     /**
+     * Executed before the DFS phase is executed
+     * @param searchContext the current search context
+     */
+    default void onPreDfsPhase(SearchContext searchContext) {}
+
+    /**
+     * Executed after the query DFS successfully finished.
+     * Note: this is not invoked if the DFS phase execution failed.
+     * @param searchContext the current search context
+     * @param tookInNanos the number of nanoseconds the query execution took
+     *
+     * @see #onFailedQueryPhase(SearchContext)
+     */
+    default void onDfsPhase(SearchContext searchContext, long tookInNanos) {}
+
+    /**
+     * Executed if a dfs phased failed.
+     * @param searchContext the current search context
+     */
+    default void onFailedDfsPhase(SearchContext searchContext) {}
+
+    /**
      * Executed when a new reader context was created
      * @param readerContext the created context
      */
@@ -107,11 +130,11 @@ public interface SearchOperationListener {
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
     final class CompositeListener implements SearchOperationListener {
-        private final List<SearchOperationListener> listeners;
+        private final SearchOperationListener[] listeners;
         private final Logger logger;
 
         CompositeListener(List<SearchOperationListener> listeners, Logger logger) {
-            this.listeners = listeners;
+            this.listeners = listeners.toArray(new SearchOperationListener[0]);
             this.logger = logger;
         }
 
@@ -177,6 +200,39 @@ public interface SearchOperationListener {
                     listener.onFetchPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
                     logger.warn(() -> "onFetchPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onPreDfsPhase(SearchContext searchContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onPreDfsPhase(searchContext);
+                } catch (Exception e) {
+                    logger.warn(() -> "onPreDfsPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onFailedDfsPhase(SearchContext searchContext) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onFailedDfsPhase(searchContext);
+                } catch (Exception e) {
+                    logger.warn(() -> "onFailedDfsPhase listener [" + listener + "] failed", e);
+                }
+            }
+        }
+
+        @Override
+        public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
+            for (SearchOperationListener listener : listeners) {
+                try {
+                    listener.onDfsPhase(searchContext, tookInNanos);
+                } catch (Exception e) {
+                    logger.warn(() -> "onDfsPhase listener [" + listener + "] failed", e);
                 }
             }
         }

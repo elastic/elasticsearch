@@ -29,14 +29,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -78,7 +74,7 @@ public class MockClientBuilder {
         PlainActionFuture<ClusterHealthResponse> actionFuture = mock(PlainActionFuture.class);
         ClusterHealthRequestBuilder clusterHealthRequestBuilder = mock(ClusterHealthRequestBuilder.class);
 
-        when(clusterAdminClient.prepareHealth()).thenReturn(clusterHealthRequestBuilder);
+        when(clusterAdminClient.prepareHealth(any())).thenReturn(clusterHealthRequestBuilder);
         when(clusterHealthRequestBuilder.setWaitForYellowStatus()).thenReturn(clusterHealthRequestBuilder);
         when(clusterHealthRequestBuilder.execute()).thenReturn(actionFuture);
         when(actionFuture.actionGet()).thenReturn(mock(ClusterHealthResponse.class));
@@ -106,22 +102,6 @@ public class MockClientBuilder {
         when(createIndexRequestBuilder.setMapping(any(XContentBuilder.class))).thenReturn(createIndexRequestBuilder);
         when(createIndexRequestBuilder.get()).thenReturn(response);
         when(indicesAdminClient.prepareCreate(eq(index))).thenReturn(createIndexRequestBuilder);
-        return this;
-    }
-
-    public MockClientBuilder prepareSearch(String index, int from, int size, SearchResponse response, ArgumentCaptor<QueryBuilder> filter) {
-        SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
-        when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
-        when(builder.setQuery(filter.capture())).thenReturn(builder);
-        when(builder.setPostFilter(filter.capture())).thenReturn(builder);
-        when(builder.setFrom(eq(from))).thenReturn(builder);
-        when(builder.setSize(eq(size))).thenReturn(builder);
-        when(builder.setFetchSource(eq(true))).thenReturn(builder);
-        when(builder.addDocValueField(any(String.class))).thenReturn(builder);
-        when(builder.addDocValueField(any(String.class), any(String.class))).thenReturn(builder);
-        when(builder.addSort(any(String.class), any(SortOrder.class))).thenReturn(builder);
-        when(builder.get()).thenReturn(response);
-        when(client.prepareSearch(eq(index))).thenReturn(builder);
         return this;
     }
 
@@ -157,7 +137,8 @@ public class MockClientBuilder {
 
         SearchResponse response = mock(SearchResponse.class);
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
-        when(response.getHits()).thenReturn(searchHits);
+        when(response.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
 
         doAnswer(new Answer<Void>() {
             @Override
@@ -196,7 +177,8 @@ public class MockClientBuilder {
 
         SearchResponse response = mock(SearchResponse.class);
         SearchHits searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0.0f);
-        when(response.getHits()).thenReturn(searchHits);
+        when(response.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
 
         doAnswer(new Answer<Void>() {
             @Override

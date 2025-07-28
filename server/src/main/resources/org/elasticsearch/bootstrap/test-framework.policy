@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 //// additional test framework permissions.
@@ -22,6 +23,13 @@ grant codeBase "${codebase.mockito-core}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "getClassLoader";
+  // needed when calling bytebuddy
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "net.bytebuddy.createJavaDispatcher";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.utility";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.dynamic.loading";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.description.type";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.description.method";
 };
 
 grant codeBase "${codebase.byte-buddy}" {
@@ -83,9 +91,11 @@ grant codeBase "${codebase.mocksocket}" {
 grant codeBase "${codebase.elasticsearch}" {
   permission java.lang.RuntimePermission "setSecurityManager";
 };
+
 // this is the test-framework, but the jar is horribly named
 grant codeBase "${codebase.framework}" {
   permission java.lang.RuntimePermission "setSecurityManager";
+  permission java.lang.RuntimePermission "createClassLoader";
 };
 
 grant codeBase "${codebase.elasticsearch-rest-client}" {
@@ -110,8 +120,9 @@ grant codeBase "${codebase.httpasyncclient}" {
 grant codeBase "${codebase.netty-common}" {
    // for reading the system-wide configuration for the backlog of established sockets
    permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
-   // Netty sets custom classloader for some of its internal threads
+   // Netty gets and sets classloaders for some of its internal threads
    permission java.lang.RuntimePermission "setContextClassLoader";
+   permission java.lang.RuntimePermission "getClassLoader";
    permission java.net.SocketPermission "*", "accept,connect";
 };
 
@@ -123,6 +134,10 @@ grant codeBase "${codebase.netty-transport}" {
 };
 
 grant {
-  permission java.net.SocketPermission "127.0.0.1", "connect, resolve";
+  permission java.net.SocketPermission "127.0.0.1", "accept, connect, resolve";
+  permission java.net.SocketPermission "[0:0:0:0:0:0:0:1]", "accept, connect, resolve";
   permission java.nio.file.LinkPermission "symbolic";
+  // needed for keystore tests
+  permission java.lang.RuntimePermission "accessUserInformation";
+  permission java.lang.RuntimePermission "getClassLoader";
 };

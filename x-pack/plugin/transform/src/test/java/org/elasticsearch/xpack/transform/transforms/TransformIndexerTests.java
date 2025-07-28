@@ -10,15 +10,16 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -26,15 +27,15 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -43,6 +44,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositio
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.TransformNode;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.MockTimebasedCheckpointProvider;
@@ -58,7 +61,9 @@ import org.junit.Before;
 import java.time.Clock;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -74,24 +79,8 @@ import static org.mockito.Mockito.mock;
 
 public class TransformIndexerTests extends ESTestCase {
 
-    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = new SearchResponse(
-        new InternalSearchResponse(
-            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
-            // Simulate completely null aggs
-            null,
-            new Suggest(Collections.emptyList()),
-            new SearchProfileResults(Collections.emptyMap()),
-            false,
-            false,
-            1
-        ),
-        "",
-        1,
-        1,
-        0,
-        0,
-        ShardSearchFailure.EMPTY_ARRAY,
-        SearchResponse.Clusters.EMPTY
+    private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = SearchResponseUtils.successfulResponse(
+        new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
     );
 
     private Client client;
@@ -108,8 +97,12 @@ public class TransformIndexerTests extends ESTestCase {
         private CountDownLatch searchLatch;
         private CountDownLatch doProcessLatch;
         private CountDownLatch doSaveStateLatch;
+        private CountDownLatch afterFinishOrFailureLatch;
 
         private AtomicBoolean saveStateInProgress = new AtomicBoolean(false);
+
+        private BlockingDeque<Exception> searchExceptions = new LinkedBlockingDeque<>();
+        private BlockingDeque<Runnable> runBeforeOnFinish = new LinkedBlockingDeque<>();
 
         // how many loops to execute until reporting done
         private int numberOfLoops;
@@ -199,8 +192,8 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        void refreshDestinationIndex(ActionListener<RefreshResponse> responseListener) {
-            responseListener.onResponse(new RefreshResponse(1, 1, 0, Collections.emptyList()));
+        void refreshDestinationIndex(ActionListener<Void> responseListener) {
+            responseListener.onResponse(null);
         }
 
         @Override
@@ -212,7 +205,11 @@ public class TransformIndexerTests extends ESTestCase {
                     throw new IllegalStateException(e);
                 }
             }
-            threadPool.generic().execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
+            if (searchExceptions.isEmpty() == false) {
+                nextPhase.onFailure(searchExceptions.poll());
+            } else {
+                threadPool.generic().execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
+            }
         }
 
         @Override
@@ -257,6 +254,27 @@ public class TransformIndexerTests extends ESTestCase {
             fieldMappingsListener.onResponse(Collections.emptyMap());
         }
 
+        @Override
+        void doMaybeCreateDestIndex(Map<String, String> deducedDestIndexMappings, ActionListener<Boolean> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        protected void onFinish(ActionListener<Void> listener) {
+            while (runBeforeOnFinish.isEmpty() == false) {
+                runBeforeOnFinish.poll().run();
+            }
+            super.onFinish(listener);
+        }
+
+        @Override
+        protected void afterFinishOrFailure() {
+            super.afterFinishOrFailure();
+            if (afterFinishOrFailureLatch != null) {
+                afterFinishOrFailureLatch.countDown();
+            }
+        }
+
         public boolean waitingForNextSearch() {
             return super.getScheduledNextSearch() != null;
         }
@@ -271,8 +289,16 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        void validate(ActionListener<Void> listener) {
+        void validate(ActionListener<ValidateTransformAction.Response> listener) {
             listener.onResponse(null);
+        }
+
+        public void addAfterFinishOrFailureLatch() {
+            afterFinishOrFailureLatch = new CountDownLatch(1);
+        }
+
+        public void waitForAfterFinishOrFailureLatch(long timeout, TimeUnit unit) throws InterruptedException {
+            assertTrue(afterFinishOrFailureLatch.await(timeout, unit));
         }
     }
 
@@ -280,13 +306,12 @@ public class TransformIndexerTests extends ESTestCase {
     public void setUpMocks() {
         auditor = MockTransformAuditor.createMockAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
-        client = new NoOpClient(getTestName());
         threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);
+        client = new NoOpClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
@@ -436,6 +461,199 @@ public class TransformIndexerTests extends ESTestCase {
         assertBusy(() -> assertEquals(IndexerState.STOPPED, indexer.getState()), 5, TimeUnit.SECONDS);
     }
 
+    public void testMaxPageSearchSizeIsResetToDefaultValue() throws Exception {
+        var config = new TransformConfig(
+            randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        var indexer = createMockIndexer(
+            1,
+            config,
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            new TransformIndexerStats(),
+            context
+        );
+
+        // add latches
+        var searchLatch = indexer.createAwaitForSearchLatch(1);
+        indexer.addAfterFinishOrFailureLatch();
+
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(indexer.getState(), IndexerState.INDEXING);
+
+        // set circuit breaker to 50%
+        indexer.searchExceptions.offer(new CircuitBreakingException("hello", 2, 1, CircuitBreaker.Durability.TRANSIENT));
+        indexer.runBeforeOnFinish.offer(() -> {
+            assertEquals(Math.round(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE / 2.0), context.getPageSize());
+        });
+        assertFalse(indexer.runBeforeOnFinish.isEmpty());
+
+        // run and wait
+        searchLatch.countDown();
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
+
+        // rerun, don't throw an exception this time
+        searchLatch = indexer.createAwaitForSearchLatch(1);
+        indexer.addAfterFinishOrFailureLatch();
+        assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
+        searchLatch.countDown();
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
+
+        // verify that we checked the pageSize decreased
+        assertTrue(indexer.runBeforeOnFinish.isEmpty());
+        // verify that the pageSize reset
+        assertEquals(Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE.intValue(), context.getPageSize());
+    }
+
+    public void testMaxPageSearchSizeIsResetToConfiguredValue() throws Exception {
+        var config = new TransformConfig(
+            randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        var indexer = createMockIndexer(
+            1,
+            config,
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            new TransformIndexerStats(),
+            context
+        );
+
+        // add latches
+        var searchLatch = indexer.createAwaitForSearchLatch(1);
+        indexer.addAfterFinishOrFailureLatch();
+
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(indexer.getState(), IndexerState.INDEXING);
+
+        var configuredMaxPageSearchSize = 20_000;
+        indexer.applyNewSettings(
+            new SettingsConfig.Builder(SettingsConfig.EMPTY).setMaxPageSearchSize(configuredMaxPageSearchSize).build()
+        );
+
+        // set circuit breaker to 50%
+        indexer.searchExceptions.offer(new CircuitBreakingException("hello", 2, 1, CircuitBreaker.Durability.TRANSIENT));
+        indexer.runBeforeOnFinish.offer(() -> { assertEquals(Math.round(configuredMaxPageSearchSize / 2.0), context.getPageSize()); });
+        assertFalse(indexer.runBeforeOnFinish.isEmpty());
+
+        // run and wait
+        searchLatch.countDown();
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
+
+        // rerun, don't throw an exception this time
+        searchLatch = indexer.createAwaitForSearchLatch(1);
+        indexer.addAfterFinishOrFailureLatch();
+        assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
+        searchLatch.countDown();
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
+
+        // verify that we checked the pageSize decreased
+        assertTrue(indexer.runBeforeOnFinish.isEmpty());
+        // verify that the pageSize reset
+        assertEquals(configuredMaxPageSearchSize, context.getPageSize());
+    }
+
+    public void testMaxPageSearchSizePrioritizesMostRecentSettings() throws Exception {
+        var settingsLatch = new CountDownLatch(1);
+        var blockingSettings = new SettingsConfig(null, null, null, null, null, null, null, null) {
+            @Override
+            public Integer getMaxPageSearchSize() {
+                try {
+                    // block the indexer thread by stopping it when it tries to initialize the pageSize to null
+                    settingsLatch.await();
+                } catch (InterruptedException e) {
+                    fail(e, "Failed test waiting for settings latch to release.");
+                }
+                return null;
+            }
+        };
+
+        var config = new TransformConfig(
+            randomAlphaOfLength(10),
+            randomSourceConfig(),
+            randomDestConfig(),
+            null,
+            new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
+            null,
+            randomPivotConfig(),
+            null,
+            randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            blockingSettings,
+            null,
+            null,
+            null,
+            null
+        );
+
+        var context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+        var indexer = createMockIndexer(
+            1,
+            config,
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            new TransformIndexerStats(),
+            context
+        );
+
+        // add latches
+        indexer.addAfterFinishOrFailureLatch();
+
+        indexer.start();
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(indexer.getState(), IndexerState.INDEXING);
+
+        // simulate the user updating the pageSize setting to 20,000
+        var configuredMaxPageSearchSize = 20_000;
+        indexer.applyNewSettings(
+            new SettingsConfig.Builder(SettingsConfig.EMPTY).setMaxPageSearchSize(configuredMaxPageSearchSize).build()
+        );
+
+        // unblock the indexer thread, which will now try to update the pageSize setting to null
+        settingsLatch.countDown();
+        // wait for the indexer to finish
+        indexer.waitForAfterFinishOrFailureLatch(10, TimeUnit.SECONDS);
+
+        // verify that the pageSize is the new applied setting and not null
+        assertEquals(configuredMaxPageSearchSize, context.getPageSize());
+    }
+
     private MockedTransformIndexer createMockIndexer(
         int numberOfLoops,
         TransformConfig config,
@@ -452,7 +670,8 @@ public class TransformIndexerTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY, TimeValue.ZERO),
+            mock(TransformNode.class)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
@@ -493,10 +712,10 @@ public class TransformIndexerTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(r -> {
             assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        }), latch);
 
         function.accept(listener);
         assertTrue("timed out after 5s", latch.await(5, TimeUnit.SECONDS));

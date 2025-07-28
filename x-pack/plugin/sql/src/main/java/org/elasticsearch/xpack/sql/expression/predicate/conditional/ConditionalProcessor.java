@@ -59,7 +59,7 @@ public class ConditionalProcessor implements Processor {
     }
 
     public ConditionalProcessor(StreamInput in) throws IOException {
-        processors = in.readNamedWriteableList(Processor.class);
+        processors = in.readNamedWriteableCollectionAsList(Processor.class);
         operation = in.readEnum(ConditionalOperation.class);
     }
 
@@ -70,7 +70,7 @@ public class ConditionalProcessor implements Processor {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(processors);
+        out.writeNamedWriteableCollection(processors);
         out.writeEnum(operation);
     }
 

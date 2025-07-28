@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -13,12 +14,12 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -236,9 +237,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         doXArrayContent(FILTER, filterClauses, builder, params);
         doXArrayContent(MUST_NOT, mustNotClauses, builder, params);
         doXArrayContent(SHOULD, shouldClauses, builder, params);
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
-        } else if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
+        if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
             builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
         }
         if (minimumShouldMatch != null) {
@@ -357,15 +356,16 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         if (mustClauses.size() == 0
             && filterClauses.size() == 0
             && shouldClauses.size() > 0
+            && mustNotClauses.size() == 0
             && newBuilder.shouldClauses.stream().allMatch(b -> b instanceof MatchNoneQueryBuilder)) {
-            return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
 
         // lets do some early termination and prevent any kind of rewriting if we have a mandatory query that is a MatchNoneQueryBuilder
         if (newBuilder.mustClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
             || newBuilder.filterClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
             || newBuilder.mustNotClauses.stream().anyMatch(b -> b instanceof MatchAllQueryBuilder)) {
-            return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
 
         if (changed) {
@@ -406,7 +406,31 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
+    }
+
+    /**
+     * Create a new builder with the same clauses but modification of
+     * the builder won't modify the original. Modifications of any
+     * of the copy's clauses will modify the original. Don't so that.
+     */
+    public BoolQueryBuilder shallowCopy() {
+        BoolQueryBuilder copy = new BoolQueryBuilder();
+        copy.adjustPureNegative = adjustPureNegative;
+        copy.minimumShouldMatch = minimumShouldMatch;
+        for (QueryBuilder q : mustClauses) {
+            copy.must(q);
+        }
+        for (QueryBuilder q : mustNotClauses) {
+            copy.mustNot(q);
+        }
+        for (QueryBuilder q : filterClauses) {
+            copy.filter(q);
+        }
+        for (QueryBuilder q : shouldClauses) {
+            copy.should(q);
+        }
+        return copy;
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.close;
 
@@ -32,7 +33,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
     CloseIndexResponse(StreamInput in) throws IOException {
         super(in, true);
-        indices = in.readImmutableList(IndexResult::new);
+        indices = in.readCollectionAsImmutableList(IndexResult::new);
     }
 
     public CloseIndexResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<IndexResult> indices) {
@@ -48,7 +49,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeShardsAcknowledged(out);
-        out.writeList(indices);
+        out.writeCollection(indices);
     }
 
     @Override
@@ -216,7 +217,7 @@ public class CloseIndexResponse extends ShardsAcknowledgedResponse {
 
         public static class Failure extends DefaultShardOperationFailedException {
 
-            private @Nullable String nodeId;
+            private final @Nullable String nodeId;
 
             private Failure(StreamInput in) throws IOException {
                 super(in);

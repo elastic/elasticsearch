@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -34,7 +37,7 @@ import java.util.function.UnaryOperator;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implements Custom {
+public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "repositories";
 
@@ -47,6 +50,15 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
 
     private final List<RepositoryMetadata> repositories;
+
+    @Deprecated(forRemoval = true)
+    public static RepositoriesMetadata get(ClusterState state) {
+        return get(state.metadata().getDefaultProject());
+    }
+
+    public static RepositoriesMetadata get(ProjectMetadata project) {
+        return project.custom(TYPE, EMPTY);
+    }
 
     /**
      * Constructs new repository metadata
@@ -167,16 +179,16 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     public RepositoriesMetadata(StreamInput in) throws IOException {
-        this.repositories = in.readImmutableList(RepositoryMetadata::new);
+        this.repositories = in.readCollectionAsImmutableList(RepositoryMetadata::new);
     }
 
-    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Custom.class, TYPE, in);
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
     }
 
     /**
@@ -184,7 +196,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(repositories);
+        out.writeCollection(repositories);
     }
 
     public static RepositoriesMetadata fromXContent(XContentParser parser) throws IOException {
@@ -253,9 +265,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return repositories.stream()
-            .map(repository -> (ToXContent) (builder, params) -> toXContent(repository, builder, params))
-            .iterator();
+        return Iterators.map(repositories.iterator(), repository -> (builder, params) -> toXContent(repository, builder, params));
     }
 
     @Override

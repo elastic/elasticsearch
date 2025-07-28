@@ -20,7 +20,7 @@ public final class SearchGroupsResolverSettings {
 
     public static final Function<String, Setting.AffixSetting<String>> BASE_DN = RealmSettings.affixSetting(
         "group_search.base_dn",
-        key -> Setting.simpleString(key, new Setting.Property[] { Setting.Property.NodeScope })
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
     );
 
     public static final Function<String, Setting.AffixSetting<LdapSearchScope>> SCOPE = RealmSettings.affixSetting(
@@ -41,7 +41,7 @@ public final class SearchGroupsResolverSettings {
     public static final Setting.AffixSetting<String> FILTER = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(LDAP_TYPE),
         "group_search.filter",
-        key -> new Setting<>(key, GROUP_SEARCH_DEFAULT_FILTER, Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.simpleString(key, GROUP_SEARCH_DEFAULT_FILTER, Setting.Property.NodeScope)
     );
 
     private SearchGroupsResolverSettings() {}

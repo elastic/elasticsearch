@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -37,7 +38,14 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentilesAggregationBuilder("tdist_percentiles").field(fieldName).percentilesConfig(new PercentilesConfig.TDigest());
+        var tdigestConfig = new PercentilesConfig.TDigest();
+        if (randomBoolean()) {
+            tdigestConfig.setCompression(randomDoubleBetween(50, 200, true));
+        }
+        if (randomBoolean()) {
+            tdigestConfig.parseExecutionHint(randomFrom(TDigestExecutionHint.values()).toString());
+        }
+        return new PercentilesAggregationBuilder("tdist_percentiles").field(fieldName).percentilesConfig(tdigestConfig);
     }
 
     @Override
@@ -49,7 +57,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, tdigest -> {
-            assertEquals(0L, tdigest.state.size());
+            assertEquals(0L, tdigest.getState().size());
             assertFalse(AggregationInspectionHelper.hasValue(tdigest));
         });
     }
@@ -59,7 +67,7 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, tdigest -> {
-            assertEquals(0L, tdigest.state.size());
+            assertEquals(0L, tdigest.getState().size());
             assertFalse(AggregationInspectionHelper.hasValue(tdigest));
         });
     }
@@ -74,10 +82,10 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 1)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 0)));
         }, tdigest -> {
-            assertEquals(7L, tdigest.state.size());
-            assertEquals(7L, tdigest.state.centroidCount());
-            assertEquals(4.5d, tdigest.percentile(75), 0.0d);
-            assertEquals("4.5", tdigest.percentileAsString(75));
+            assertEquals(7L, tdigest.getState().size());
+            assertEquals(7L, tdigest.getState().centroidCount());
+            assertEquals(4.0d, tdigest.percentile(75), 0.0d);
+            assertEquals("4.0", tdigest.percentileAsString(75));
             assertEquals(2.0d, tdigest.percentile(50), 0.0d);
             assertEquals("2.0", tdigest.percentileAsString(50));
             assertEquals(1.0d, tdigest.percentile(22), 0.0d);
@@ -96,18 +104,18 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 0)));
         }, tdigest -> {
-            assertEquals(tdigest.state.size(), 7L);
-            assertEquals(tdigest.state.centroidCount(), 7L);
+            assertEquals(tdigest.getState().size(), 7L);
+            assertEquals(tdigest.getState().centroidCount(), 7L);
             assertEquals(8.0d, tdigest.percentile(100), 0.0d);
             assertEquals("8.0", tdigest.percentileAsString(100));
-            assertEquals(6.98d, tdigest.percentile(88), 0.0d);
-            assertEquals("6.98", tdigest.percentileAsString(88));
+            assertEquals(4.0d, tdigest.percentile(75), 0.0d);
+            assertEquals("4.0", tdigest.percentileAsString(75));
             assertEquals(1.0d, tdigest.percentile(33), 0.0d);
             assertEquals("1.0", tdigest.percentileAsString(33));
             assertEquals(1.0d, tdigest.percentile(25), 0.0d);
             assertEquals("1.0", tdigest.percentileAsString(25));
-            assertEquals(0.0d, tdigest.percentile(1), 0.0d);
-            assertEquals("0.0", tdigest.percentileAsString(1));
+            assertEquals(0.06d, tdigest.percentile(1), 0.0d);
+            assertEquals("0.06", tdigest.percentileAsString(1));
             assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
     }
@@ -124,17 +132,17 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
         };
 
         testCase(LongPoint.newRangeQuery("row", 1, 4), docs, tdigest -> {
-            assertEquals(4L, tdigest.state.size());
-            assertEquals(4L, tdigest.state.centroidCount());
+            assertEquals(4L, tdigest.getState().size());
+            assertEquals(4L, tdigest.getState().centroidCount());
             assertEquals(2.0d, tdigest.percentile(100), 0.0d);
             assertEquals(1.0d, tdigest.percentile(50), 0.0d);
-            assertEquals(0.5d, tdigest.percentile(25), 0.0d);
+            assertEquals(0.75d, tdigest.percentile(25), 0.0d);
             assertTrue(AggregationInspectionHelper.hasValue(tdigest));
         });
 
         testCase(LongPoint.newRangeQuery("row", 100, 110), docs, tdigest -> {
-            assertEquals(0L, tdigest.state.size());
-            assertEquals(0L, tdigest.state.centroidCount());
+            assertEquals(0L, tdigest.getState().size());
+            assertEquals(0L, tdigest.getState().centroidCount());
             assertFalse(AggregationInspectionHelper.hasValue(tdigest));
         });
     }

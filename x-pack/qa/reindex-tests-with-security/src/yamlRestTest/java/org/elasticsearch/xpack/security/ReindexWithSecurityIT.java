@@ -21,10 +21,15 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestResponseParsers;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -40,6 +45,42 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
 
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = createCluster();
+
+    public static ElasticsearchCluster createCluster() {
+        return ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .configFile("http.key", Resource.fromClasspath("ssl/http.key"))
+            .configFile("http.crt", Resource.fromClasspath("ssl/http.crt"))
+            .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+            .setting("reindex.remote.whitelist", "127.0.0.1:*")
+            .setting("xpack.security.enabled", "true")
+            .setting("xpack.ml.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.http.ssl.enabled", "true")
+            .setting("xpack.security.http.ssl.certificate", "http.crt")
+            .setting("xpack.security.http.ssl.key", "http.key")
+            .setting("xpack.security.http.ssl.key_passphrase", "http-password")
+            .setting("reindex.ssl.certificate_authorities", "ca.crt")
+            .setting("xpack.security.autoconfiguration.enabled", "false")
+            .rolesFile(Resource.fromClasspath("roles.yml"))
+            .user(USER, PASS, "superuser", false)
+            .user("powerful_user", "x-pack-test-password", "superuser", false)
+            .user("minimal_user", "x-pack-test-password", "minimal", false)
+            .user("minimal_with_task_user", "x-pack-test-password", "minimal_with_task", false)
+            .user("readonly_user", "x-pack-test-password", "readonly", false)
+            .user("dest_only_user", "x-pack-test-password", "dest_only", false)
+            .user("can_not_see_hidden_docs_user", "x-pack-test-password", "can_not_see_hidden_docs", false)
+            .user("can_not_see_hidden_fields_user", "x-pack-test-password", "can_not_see_hidden_fields", false)
+            .build();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private static Path httpCertificateAuthority;
 
@@ -172,7 +213,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
         if (frequently()) {
             boolean aliasAdded = false;
 
-            IndicesAliasesRequest request = new IndicesAliasesRequest();
+            IndicesAliasesRequest request = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             for (String index : indices) {
                 if (frequently()) {
                     // one alias per index with prefix "alias-"
@@ -193,7 +234,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
             request.toXContent(builder, null);
             restRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
             Response restResponse = client().performRequest(restRequest);
-            AcknowledgedResponse response = AcknowledgedResponse.fromXContent(responseAsParser(restResponse));
+            AcknowledgedResponse response = TestResponseParsers.parseAcknowledgedResponse(responseAsParser(restResponse));
             assertThat(response.isAcknowledged(), is(true));
         }
 

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -33,7 +34,8 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
     private final String[] externalIds;
     private TimeValue timeout = TimeValue.timeValueSeconds(30);
 
-    private PrevalidateNodeRemovalRequest(Builder builder) {
+    private PrevalidateNodeRemovalRequest(TimeValue masterNodeTimeout, Builder builder) {
+        super(masterNodeTimeout);
         this.names = builder.names;
         this.ids = builder.ids;
         this.externalIds = builder.externalIds;
@@ -44,7 +46,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         names = in.readStringArray();
         ids = in.readStringArray();
         externalIds = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             timeout = in.readTimeValue();
         }
     }
@@ -55,7 +57,7 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
         out.writeStringArray(names);
         out.writeStringArray(ids);
         out.writeStringArray(externalIds);
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeTimeValue(timeout);
         }
     }
@@ -94,9 +96,6 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
 
     public PrevalidateNodeRemovalRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
-        if (masterNodeTimeout == DEFAULT_MASTER_NODE_TIMEOUT) {
-            masterNodeTimeout = timeout;
-        }
         return this;
     }
 
@@ -141,8 +140,8 @@ public class PrevalidateNodeRemovalRequest extends MasterNodeReadRequest<Prevali
             return this;
         }
 
-        public PrevalidateNodeRemovalRequest build() {
-            return new PrevalidateNodeRemovalRequest(this);
+        public PrevalidateNodeRemovalRequest build(TimeValue masterNodeTimeout) {
+            return new PrevalidateNodeRemovalRequest(masterNodeTimeout, this);
         }
     }
 }

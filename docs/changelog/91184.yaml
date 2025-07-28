@@ -1,5 +1,0 @@
-pr: 91184
-summary: Add fielddata and scripting support for byte-sized vectors
-area: Vector Search
-type: feature
-issues: []

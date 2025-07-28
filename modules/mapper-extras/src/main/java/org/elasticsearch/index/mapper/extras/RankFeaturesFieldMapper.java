@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -26,6 +28,8 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 
 /**
  * A {@link FieldMapper} that exposes Lucene's {@link FeatureField} as a sparse
@@ -61,10 +65,9 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         @Override
         public RankFeaturesFieldMapper build(MapperBuilderContext context) {
             return new RankFeaturesFieldMapper(
-                name,
-                new RankFeaturesFieldType(context.buildFullName(name), meta.getValue(), positiveScoreImpact.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
+                leafName(),
+                new RankFeaturesFieldType(context.buildFullName(leafName()), meta.getValue(), positiveScoreImpact.getValue()),
+                builderParams(this, context),
                 positiveScoreImpact.getValue()
             );
         }
@@ -77,17 +80,13 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         private final boolean positiveScoreImpact;
 
         public RankFeaturesFieldType(String name, Map<String, String> meta, boolean positiveScoreImpact) {
-            super(name, false, false, false, TextSearchInfo.NONE, meta);
+            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.positiveScoreImpact = positiveScoreImpact;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
-        }
-
-        public boolean positiveScoreImpact() {
-            return positiveScoreImpact;
         }
 
         @Override
@@ -107,7 +106,14 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Queries on [rank_features] fields are not supported");
+            return FeatureField.newLinearQuery(name(), indexedValueForSearch(value), DEFAULT_BOOST);
+        }
+
+        private static String indexedValueForSearch(Object value) {
+            if (value instanceof BytesRef) {
+                return ((BytesRef) value).utf8ToString();
+            }
+            return value.toString();
         }
     }
 
@@ -116,11 +122,10 @@ public class RankFeaturesFieldMapper extends FieldMapper {
     private RankFeaturesFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         boolean positiveScoreImpact
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         this.positiveScoreImpact = positiveScoreImpact;
     }
 
@@ -131,12 +136,17 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
     public RankFeaturesFieldType fieldType() {
         return (RankFeaturesFieldType) super.fieldType();
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     @Override
@@ -149,33 +159,44 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
 
         String feature = null;
-        for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
-            if (token == Token.FIELD_NAME) {
-                feature = context.parser().currentName();
-            } else if (token == Token.VALUE_NULL) {
-                // ignore feature, this is consistent with numeric fields
-            } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
-                final String key = name() + "." + feature;
-                float value = context.parser().floatValue(true);
-                if (context.doc().getByKey(key) != null) {
+        try {
+            // make sure that we don't expand dots in field names while parsing
+            context.path().setWithinLeafObject(true);
+            for (Token token = context.parser().nextToken(); token != Token.END_OBJECT; token = context.parser().nextToken()) {
+                if (token == Token.FIELD_NAME) {
+                    feature = context.parser().currentName();
+                    if (feature.contains(".")) {
+                        throw new IllegalArgumentException(
+                            "[rank_features] fields do not support dots in feature names but found [" + feature + "]"
+                        );
+                    }
+                } else if (token == Token.VALUE_NULL) {
+                    // ignore feature, this is consistent with numeric fields
+                } else if (token == Token.VALUE_NUMBER || token == Token.VALUE_STRING) {
+                    final String key = fullPath() + "." + feature;
+                    float value = context.parser().floatValue(true);
+                    if (context.doc().getByKey(key) != null) {
+                        throw new IllegalArgumentException(
+                            "[rank_features] fields do not support indexing multiple values for the same "
+                                + "rank feature ["
+                                + key
+                                + "] in the same document"
+                        );
+                    }
+                    if (positiveScoreImpact == false) {
+                        value = 1 / value;
+                    }
+                    context.doc().addWithKey(key, new FeatureField(fullPath(), feature, value));
+                } else {
                     throw new IllegalArgumentException(
-                        "[rank_features] fields do not support indexing multiple values for the same "
-                            + "rank feature ["
-                            + key
-                            + "] in the same document"
+                        "[rank_features] fields take hashes that map a feature to a strictly positive "
+                            + "float, but got unexpected token "
+                            + token
                     );
                 }
-                if (positiveScoreImpact == false) {
-                    value = 1 / value;
-                }
-                context.doc().addWithKey(key, new FeatureField(name(), feature, value));
-            } else {
-                throw new IllegalArgumentException(
-                    "[rank_features] fields take hashes that map a feature to a strictly positive "
-                        + "float, but got unexpected token "
-                        + token
-                );
             }
+        } finally {
+            context.path().setWithinLeafObject(false);
         }
     }
 

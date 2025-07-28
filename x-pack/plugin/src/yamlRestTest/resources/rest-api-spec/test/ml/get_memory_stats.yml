@@ -12,9 +12,11 @@
   - do:
       ml.get_memory_stats: {}
 
-  - match: { _nodes.total: 1 }
-  - match: { _nodes.successful: 1 }
-  - match: { _nodes.failed: 0 }
+  # test cluster has 1 node in stateful, 3 in stateless
+  - gte: { _nodes.total: 1 }
+  - lte: { _nodes.total: 3 }
+  - gte: { _nodes.successful: 1 }
+  - lte: { _nodes.successful: 3 }
   - is_true: cluster_name
   - is_true: nodes.$node_id.name
   - is_true: nodes.$node_id.ephemeral_id
@@ -23,7 +25,8 @@
   - is_true: nodes.$node_id.roles
   - gt: { nodes.$node_id.mem.total_in_bytes: 0 }
   - gt: { nodes.$node_id.mem.adjusted_total_in_bytes: 0 }
-  - gt: { nodes.$node_id.mem.ml.max_in_bytes: 0 }
+  # We don't know if the randomly chosen node was an ML node, hence gte here
+  - gte: { nodes.$node_id.mem.ml.max_in_bytes: 0 }
   - match: { nodes.$node_id.mem.ml.native_code_overhead_in_bytes: 0 }
   - match: { nodes.$node_id.mem.ml.anomaly_detectors_in_bytes: 0 }
   - match: { nodes.$node_id.mem.ml.data_frame_analytics_in_bytes: 0 }
@@ -40,7 +43,8 @@
   - skip:
       features: [arbitrary_key]
   - do:
-      ml.get_memory_stats: {}
+      ml.get_memory_stats:
+        node_id: "ml:true"
   - set:
       nodes._arbitrary_key_: node_id
 
@@ -60,6 +64,7 @@
   - is_true: nodes.$node_id.roles
   - gt: { nodes.$node_id.mem.total_in_bytes: 0 }
   - gt: { nodes.$node_id.mem.adjusted_total_in_bytes: 0 }
+  # We specifically asked for an ML node, hence gt here
   - gt: { nodes.$node_id.mem.ml.max_in_bytes: 0 }
   - match: { nodes.$node_id.mem.ml.native_code_overhead_in_bytes: 0 }
   - match: { nodes.$node_id.mem.ml.anomaly_detectors_in_bytes: 0 }
@@ -97,7 +102,8 @@
   - is_true: nodes.$node_id.roles
   - gt: { nodes.$node_id.mem.total_in_bytes: 0 }
   - gt: { nodes.$node_id.mem.adjusted_total_in_bytes: 0 }
-  - gt: { nodes.$node_id.mem.ml.max_in_bytes: 0 }
+  # We don't know if the randomly chosen node was an ML node, hence gte here
+  - gte: { nodes.$node_id.mem.ml.max_in_bytes: 0 }
   - match: { nodes.$node_id.mem.ml.native_code_overhead_in_bytes: 0 }
   - match: { nodes.$node_id.mem.ml.anomaly_detectors_in_bytes: 0 }
   - match: { nodes.$node_id.mem.ml.data_frame_analytics_in_bytes: 0 }

@@ -27,7 +27,7 @@ public class PutFollowActionRequestTests extends AbstractXContentSerializingTest
 
     @Override
     protected PutFollowAction.Request createTestInstance() {
-        PutFollowAction.Request request = new PutFollowAction.Request();
+        PutFollowAction.Request request = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex(randomAlphaOfLength(4));
         request.waitForActiveShards(
             randomFrom(ActiveShardCount.DEFAULT, ActiveShardCount.NONE, ActiveShardCount.ONE, ActiveShardCount.ALL)
@@ -47,7 +47,7 @@ public class PutFollowActionRequestTests extends AbstractXContentSerializingTest
     protected PutFollowAction.Request createXContextTestInstance(XContentType xContentType) {
         // follower index parameter and wait for active shards params are not part of the request body and
         // are provided in the url path. So these fields cannot be used for creating a test instance for xcontent testing.
-        PutFollowAction.Request request = new PutFollowAction.Request();
+        PutFollowAction.Request request = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setRemoteCluster(randomAlphaOfLength(4));
         request.setLeaderIndex(randomAlphaOfLength(4));
         request.setSettings(
@@ -61,12 +61,15 @@ public class PutFollowActionRequestTests extends AbstractXContentSerializingTest
 
     @Override
     protected PutFollowAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return PutFollowAction.Request.fromXContent(parser, "followerIndex", ActiveShardCount.DEFAULT);
+        PutFollowAction.Request request = PutFollowAction.Request.fromXContent(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, parser);
+        request.waitForActiveShards(ActiveShardCount.DEFAULT);
+        request.setFollowerIndex("followerIndex");
+        return request;
     }
 
     @Override
-    protected PutFollowAction.Request mutateInstance(PutFollowAction.Request instance) throws IOException {
-        PutFollowAction.Request request = new PutFollowAction.Request();
+    protected PutFollowAction.Request mutateInstance(PutFollowAction.Request instance) {
+        PutFollowAction.Request request = new PutFollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setFollowerIndex(instance.getFollowerIndex());
         request.waitForActiveShards(instance.waitForActiveShards());
         request.setRemoteCluster(instance.getRemoteCluster());
@@ -98,8 +101,4 @@ public class PutFollowActionRequestTests extends AbstractXContentSerializingTest
         return request;
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

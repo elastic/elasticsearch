@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry;
@@ -16,8 +17,10 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.List;
 
 public class PointTests extends BaseGeometryTestCase<Point> {
+
     @Override
     protected Point createTestInstance(boolean hasAlt) {
         return GeometryTestUtils.randomPoint(hasAlt);
@@ -55,5 +58,25 @@ public class PointTests extends BaseGeometryTestCase<Point> {
             () -> WellKnownText.fromWKT(GeographyValidator.instance(false), randomBoolean(), "point (20.0 10.0 100.0)")
         );
         assertEquals("found Z value [100.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+    }
+
+    public void testParsePointZorMWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        assertEquals(new Point(20, 10, 100), WellKnownText.fromWKT(validator, true, "POINT Z (20.0 10.0 100.0)"));
+        assertEquals(new Point(20, 10, 100), WellKnownText.fromWKT(validator, true, "POINT M (20.0 10.0 100.0)"));
+    }
+
+    public void testParsePointZorMWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        List<String> pointsWkt = List.of("POINT Z (20.0 10.0)", "POINT M (20.0 10.0)");
+        for (String point : pointsWkt) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, point));
+            assertEquals(ZorMMustIncludeThreeValuesMsg, ex.getMessage());
+        }
+    }
+
+    @Override
+    protected Point mutateInstance(Point instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

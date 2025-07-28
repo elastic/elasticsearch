@@ -9,18 +9,14 @@ package org.elasticsearch.xpack.spatial.search.aggregations.support;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.MultiPointValues;
-import org.elasticsearch.index.fielddata.PointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexCartesianPointFieldData;
 
@@ -51,7 +47,7 @@ public abstract class CartesianPointValuesSource extends ValuesSource {
 
     @Override
     public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) {
-        throw new AggregationExecutionException("can't round a [POINT]");
+        throw AggregationErrors.unsupportedRounding("POINT");
     }
 
     /**
@@ -73,33 +69,6 @@ public abstract class CartesianPointValuesSource extends ValuesSource {
             return point.resetFromEncoded(numericValues.nextValue());
         }
 
-        @Override
-        protected PointValues<CartesianPoint> getPointValues() {
-            final NumericDocValues singleton = DocValues.unwrapSingleton(numericValues);
-            return singleton != null ? new CartesianPointValues(singleton) : null;
-        }
-    }
-
-    public static final class CartesianPointValues extends PointValues<CartesianPoint> {
-
-        private final CartesianPoint point = new CartesianPoint();
-
-        CartesianPointValues(NumericDocValues values) {
-            super(values);
-        }
-
-        @Override
-        public CartesianPoint pointValue() throws IOException {
-            return point.resetFromEncoded(values.longValue());
-        }
-    }
-
-    public static final class CartesianPointValue implements ToXContentFragment {
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return null;
-        }
     }
 
     /**

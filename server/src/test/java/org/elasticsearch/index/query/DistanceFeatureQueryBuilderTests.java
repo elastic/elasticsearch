@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -41,7 +43,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             case DATE_FIELD_NAME:
                 long randomDateMills = randomLongBetween(0, 2_000_000_000_000L);
                 origin = randomBoolean() ? new Origin(randomDateMills) : new Origin(Instant.ofEpochMilli(randomDateMills).toString());
-                pivot = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
+                pivot = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m");
                 break;
             default: // DATE_NANOS_FIELD_NAME
                 randomDateMills = randomLongBetween(0, 2_000_000_000_000L);
@@ -52,7 +54,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
                     Instant randomDateNanos = Instant.ofEpochMilli(randomDateMills).plusNanos(randomNanos);
                     origin = new Origin(randomDateNanos.toString());
                 }
-                pivot = randomTimeValue(1, 100_000_000, "nanos");
+                pivot = between(1, 100_000_000) + "nanos";
                 break;
         }
         return new DistanceFeatureQueryBuilder(field, origin, pivot);
@@ -79,7 +81,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             } else { // NANOSECONDS
                 pivotLong = pivotVal.getNanos();
             }
-            expectedQuery = LongPoint.newDistanceFeatureQuery(fieldName, 1.0f, originLong, pivotLong);
+            expectedQuery = LongField.newDistanceFeatureQuery(fieldName, 1.0f, originLong, pivotLong);
         }
         assertEquals(expectedQuery, query);
     }
@@ -88,7 +90,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         // origin as string
         String origin = "2018-01-01T13:10:30Z";
         String pivot = "7d";
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -105,7 +107,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
 
         // origin as long
         long originLong = 1514812230999L;
-        json = formatted("""
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -122,7 +124,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         // origin as string
         String origin = "2018-01-01T13:10:30.323456789Z";
         String pivot = "100000000nanos";
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -139,7 +141,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
 
         // origin as long
         long originLong = 1514812230999L;
-        json = formatted("""
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -157,7 +159,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         final String pivot = "1km";
 
         // origin as string
-        String json = formatted("""
+        String json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -173,7 +175,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
 
         // origin as array
-        json = formatted("""
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -186,7 +188,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
         assertEquals(json, origin, parsed.origin().origin());
 
         // origin as object
-        json = formatted("""
+        json = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",
@@ -217,7 +219,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
     }
 
     public void testQueryFailsWithWrongFieldType() {
-        String query = formatted("""
+        String query = Strings.format("""
             {
               "distance_feature": {
                 "field": "%s",

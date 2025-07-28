@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -11,6 +12,7 @@ package org.elasticsearch.http;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -20,6 +22,8 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
@@ -29,7 +33,7 @@ import static org.elasticsearch.core.Strings.format;
  */
 class HttpTracer {
 
-    private final Logger logger = LogManager.getLogger(HttpTracer.class);
+    private static final Logger logger = LogManager.getLogger(HttpTracer.class);
 
     private volatile String[] tracerLogInclude;
     private volatile String[] tracerLogExclude;
@@ -75,9 +79,68 @@ class HttpTracer {
                 ),
                 e
             );
+            if (isBodyTracerEnabled()) {
+                if (restRequest.isFullContent()) {
+                    logFullContent(restRequest);
+                } else {
+                    logStreamContent(restRequest);
+                }
+            }
+
             return this;
         }
         return null;
+    }
+
+    private void logFullContent(RestRequest restRequest) {
+        try (var stream = HttpBodyTracer.getBodyOutputStream(restRequest.getRequestId(), HttpBodyTracer.Type.REQUEST)) {
+            restRequest.content().writeTo(stream);
+        } catch (Exception e2) {
+            assert false : e2; // no real IO here
+        }
+    }
+
+    private void logStreamContent(RestRequest restRequest) {
+        restRequest.contentStream().addTracingHandler(new LoggingChunkHandler(restRequest));
+    }
+
+    private static class LoggingChunkHandler implements HttpBody.ChunkHandler {
+        private final OutputStream stream;
+        private volatile boolean closed = false;
+
+        LoggingChunkHandler(RestRequest request) {
+            stream = HttpBodyTracer.getBodyOutputStream(request.getRequestId(), HttpBodyTracer.Type.REQUEST);
+        }
+
+        @Override
+        public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+            try {
+                chunk.writeTo(stream);
+            } catch (IOException e) {
+                assert false : e; // no real IO
+            } finally {
+                if (isLast) {
+                    this.close();
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            if (closed) {
+                return;
+            }
+            try {
+                closed = true;
+                stream.close();
+            } catch (IOException e) {
+                assert false : e; // no real IO
+            }
+        }
+    }
+
+    boolean isBodyTracerEnabled() {
+        return HttpBodyTracer.isEnabled();
     }
 
     /**
@@ -119,5 +182,9 @@ class HttpTracer {
 
     private void setTracerLogExclude(List<String> tracerLogExclude) {
         this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
+    }
+
+    OutputStream openResponseBodyLoggingStream(long requestId) {
+        return HttpBodyTracer.getBodyOutputStream(requestId, HttpBodyTracer.Type.RESPONSE);
     }
 }

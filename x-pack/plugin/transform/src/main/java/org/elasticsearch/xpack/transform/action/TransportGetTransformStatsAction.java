@@ -15,28 +15,31 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
 import org.elasticsearch.xpack.core.transform.transforms.NodeAttributes;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
-import org.elasticsearch.xpack.core.transform.transforms.TransformHealth;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
@@ -62,6 +65,9 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     private static final Logger logger = LogManager.getLogger(TransportGetTransformStatsAction.class);
 
+    // default timeout share to receive checkpoint info, with the default of 30s: 30s * 0.8 = 24s
+    private static final double CHECKPOINT_INFO_TIMEOUT_SHARE = 0.8;
+
     private final TransformConfigManager transformConfigManager;
     private final TransformCheckpointService transformCheckpointService;
     private final Client client;
@@ -83,11 +89,10 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
-        this.transformCheckpointService = transformServices.getCheckpointService();
+        this.transformConfigManager = transformServices.configManager();
+        this.transformCheckpointService = transformServices.checkpointService();
         this.client = client;
         this.nodeSettings = settings;
     }
@@ -102,46 +107,72 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         List<TransformStats> responses = tasks.stream()
             .flatMap(r -> r.getTransformsStats().stream())
             .sorted(Comparator.comparing(TransformStats::getId))
-            .collect(Collectors.toList());
+            .toList();
         List<ElasticsearchException> allFailedNodeExceptions = new ArrayList<>(failedNodeExceptions);
-        allFailedNodeExceptions.addAll(tasks.stream().flatMap(r -> r.getNodeFailures().stream()).collect(Collectors.toList()));
+        tasks.stream().map(BaseTasksResponse::getNodeFailures).forEach(allFailedNodeExceptions::addAll);
         return new Response(responses, responses.size(), taskOperationFailures, allFailedNodeExceptions);
     }
 
     @Override
-    protected void taskOperation(Task actionTask, Request request, TransformTask task, ActionListener<Response> listener) {
-        // Little extra insurance, make sure we only return transforms that aren't cancelled
-        ClusterState state = clusterService.state();
-        String nodeId = state.nodes().getLocalNode().getId();
-        if (task.isCancelled() == false) {
-            task.getCheckpointingInfo(
-                transformCheckpointService,
-                ActionListener.wrap(
-                    checkpointingInfo -> listener.onResponse(
-                        new Response(Collections.singletonList(deriveStats(task, checkpointingInfo)), 1L)
-                    ),
-                    e -> {
-                        logger.warn("Failed to retrieve checkpointing info for transform [" + task.getTransformId() + "]", e);
-                        listener.onResponse(
-                            new Response(
-                                Collections.singletonList(deriveStats(task, null)),
-                                1L,
-                                Collections.emptyList(),
-                                Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))
-                            )
-                        );
-                    }
-                )
-            );
-        } else {
-            listener.onResponse(new Response(Collections.emptyList(), 0L));
+    protected void taskOperation(
+        CancellableTask actionTask,
+        Request request,
+        TransformTask transformTask,
+        ActionListener<Response> listener
+    ) {
+        ClusterState clusterState = clusterService.state();
+        String nodeId = clusterState.nodes().getLocalNode().getId();
+        final TaskId parentTaskId = new TaskId(nodeId, actionTask.getId());
+
+        // If the _stats request is cancelled there is no point in continuing this work on the task level
+        if (actionTask.notifyIfCancelled(listener)) {
+            return;
         }
+        // Little extra insurance, make sure we only return transforms that aren't cancelled
+        if (transformTask.isCancelled()) {
+            listener.onResponse(new Response(Collections.emptyList()));
+            return;
+        }
+
+        if (request.isBasic()) {
+            ActionListener.completeWith(
+                listener,
+                () -> new Response(Collections.singletonList(deriveStats(transformTask, transformTask.deriveBasicCheckpointingInfo())))
+            );
+            return;
+        }
+
+        transformTask.getCheckpointingInfo(
+            transformCheckpointService,
+            new ParentTaskAssigningClient(client, parentTaskId),
+            ActionListener.wrap(
+                checkpointingInfo -> listener.onResponse(
+                    new Response(Collections.singletonList(deriveStats(transformTask, checkpointingInfo)))
+                ),
+                e -> {
+                    logger.warn("Failed to retrieve checkpointing info for transform [" + transformTask.getTransformId() + "]", e);
+                    listener.onResponse(
+                        new Response(
+                            Collections.singletonList(deriveStats(transformTask, null)),
+                            1L,
+                            Collections.emptyList(),
+                            Collections.singletonList(new FailedNodeException(nodeId, "Failed to retrieve checkpointing info", e))
+                        )
+                    );
+                }
+            ),
+            // at this point the transport already spend some time budget in `doExecute`, it is hard to tell what is left:
+            // recording the time spend would be complex and crosses machine boundaries, that's why we use a heuristic here
+            TimeValue.timeValueMillis(
+                (long) ((request.getTimeout() != null ? request.getTimeout().millis() : AcknowledgedRequest.DEFAULT_ACK_TIMEOUT.millis())
+                    * CHECKPOINT_INFO_TIMEOUT_SHARE)
+            )
+        );
     }
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
-        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ClusterState clusterState = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(clusterState);
 
@@ -174,7 +205,9 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                 );
 
                 ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
-                    PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                    PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata()
+                        .getProject()
+                        .custom(PersistentTasksCustomMetadata.TYPE);
                     if (tasksInProgress != null) {
                         // Mutates underlying state object with the assigned node attributes
                         response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, clusterState));
@@ -203,12 +236,12 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                     request.setNodes(transformNodeAssignments.getExecutorNodes().toArray(new String[0]));
                     super.doExecute(task, request, doExecuteListener);
                 } else {
-                    doExecuteListener.onResponse(new Response(Collections.emptyList(), 0L));
+                    doExecuteListener.onResponse(new Response(Collections.emptyList()));
                 }
             }, e -> {
                 // If the index to search, or the individual config is not there, just return empty
                 if (e instanceof ResourceNotFoundException) {
-                    finalListener.onResponse(new Response(Collections.emptyList(), 0L));
+                    finalListener.onResponse(new Response(Collections.emptyList()));
                 } else {
                     finalListener.onFailure(e);
                 }
@@ -219,16 +252,16 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private static void setNodeAttributes(
         TransformStats transformStats,
         PersistentTasksCustomMetadata persistentTasksCustomMetadata,
-        ClusterState state
+        ClusterState clusterState
     ) {
         var pTask = persistentTasksCustomMetadata.getTask(transformStats.getId());
         if (pTask != null) {
-            transformStats.setNode(NodeAttributes.fromDiscoveryNode(state.nodes().get(pTask.getExecutorNode())));
+            transformStats.setNode(NodeAttributes.fromDiscoveryNode(clusterState.nodes().get(pTask.getExecutorNode())));
         }
     }
 
-    static TransformStats deriveStats(TransformTask task, @Nullable TransformCheckpointingInfo checkpointingInfo) {
-        TransformState transformState = task.getState();
+    static TransformStats deriveStats(TransformTask transformTask, @Nullable TransformCheckpointingInfo checkpointingInfo) {
+        TransformState transformState = transformTask.getState();
         TransformStats.State derivedState = TransformStats.State.fromComponents(
             transformState.getTaskState(),
             transformState.getIndexerState()
@@ -239,15 +272,18 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             && derivedState.equals(TransformStats.State.FAILED) == false) {
             derivedState = TransformStats.State.STOPPING;
             reason = Strings.isNullOrEmpty(reason) ? "transform is set to stop at the next checkpoint" : reason;
+        } else if (derivedState.equals(TransformStats.State.STARTED) && transformTask.getContext().isWaitingForIndexToUnblock()) {
+            derivedState = TransformStats.State.WAITING;
+            reason = Strings.isNullOrEmpty(reason) ? "transform is paused while destination index is blocked" : reason;
         }
         return new TransformStats(
-            task.getTransformId(),
+            transformTask.getTransformId(),
             derivedState,
             reason,
             null,
-            task.getStats(),
+            transformTask.getStats(),
             checkpointingInfo == null ? TransformCheckpointingInfo.EMPTY : checkpointingInfo,
-            TransformHealthChecker.checkTransform(task)
+            TransformHealthChecker.checkTransform(transformTask, transformState.getAuthState())
         );
     }
 
@@ -265,7 +301,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             return;
         }
         Set<String> transformsWithoutTasks = new HashSet<>(request.getExpandedIds());
-        transformsWithoutTasks.removeAll(response.getTransformsStats().stream().map(TransformStats::getId).collect(Collectors.toList()));
+        response.getTransformsStats().stream().map(TransformStats::getId).forEach(transformsWithoutTasks::remove);
 
         // Small assurance that we are at least below the max. Terms search has a hard limit of 10k, we should at least be below that.
         assert transformsWithoutTasks.size() <= Request.MAX_SIZE_RETURN;
@@ -278,6 +314,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             List<TransformStats> allStateAndStats = new ArrayList<>(response.getTransformsStats());
             addCheckpointingInfoForTransformsWithoutTasks(
                 parentTaskId,
+                request,
                 allStateAndStats,
                 statsForTransformsWithoutTasks,
                 transformsWaitingForAssignment,
@@ -313,30 +350,39 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private void populateSingleStoppedTransformStat(
         TransformStoredDoc transform,
         TaskId parentTaskId,
+        Request request,
         ActionListener<TransformCheckpointingInfo> listener
     ) {
-        transformCheckpointService.getCheckpointingInfo(
-            new ParentTaskAssigningClient(client, parentTaskId),
-            transform.getId(),
-            transform.getTransformState().getCheckpoint(),
-            transform.getTransformState().getPosition(),
-            transform.getTransformState().getProgress(),
-            ActionListener.wrap(infoBuilder -> listener.onResponse(infoBuilder.build()), e -> {
-                logger.warn("Failed to retrieve checkpointing info for transform [" + transform.getId() + "]", e);
-                listener.onResponse(TransformCheckpointingInfo.EMPTY);
-            })
-        );
+        if (request.isBasic()) {
+            ActionListener.completeWith(
+                listener,
+                () -> TransformCheckpointService.deriveBasicCheckpointingInfo(transform.getTransformState())
+            );
+        } else {
+            transformCheckpointService.getCheckpointingInfo(
+                new ParentTaskAssigningClient(client, parentTaskId),
+                request.getTimeout(),
+                transform.getId(),
+                transform.getTransformState().getCheckpoint(),
+                transform.getTransformState().getPosition(),
+                transform.getTransformState().getProgress(),
+                ActionListener.wrap(infoBuilder -> listener.onResponse(infoBuilder.build()), e -> {
+                    logger.warn("Failed to retrieve checkpointing info for transform [" + transform.getId() + "]", e);
+                    listener.onResponse(TransformCheckpointingInfo.EMPTY);
+                })
+            );
+        }
     }
 
     private void addCheckpointingInfoForTransformsWithoutTasks(
         TaskId parentTaskId,
+        Request request,
         List<TransformStats> allStateAndStats,
         List<TransformStoredDoc> statsForTransformsWithoutTasks,
         Set<String> transformsWaitingForAssignment,
         ClusterState clusterState,
         ActionListener<Void> listener
     ) {
-
         if (statsForTransformsWithoutTasks.isEmpty()) {
             // No work to do, but we must respond to the listener
             listener.onResponse(null);
@@ -347,7 +393,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         AtomicBoolean isExceptionReported = new AtomicBoolean(false);
 
         statsForTransformsWithoutTasks.forEach(
-            stat -> populateSingleStoppedTransformStat(stat, parentTaskId, ActionListener.wrap(checkpointingInfo -> {
+            stat -> populateSingleStoppedTransformStat(stat, parentTaskId, request, ActionListener.wrap(checkpointingInfo -> {
                 synchronized (allStateAndStats) {
                     if (transformsWaitingForAssignment.contains(stat.getId())) {
                         Assignment assignment = TransformNodes.getAssignment(stat.getId(), clusterState);
@@ -359,19 +405,27 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
                                 null,
                                 stat.getTransformStats(),
                                 checkpointingInfo,
-                                TransformHealthChecker.checkUnassignedTransform(stat.getId(), clusterState)
+                                TransformHealthChecker.checkUnassignedTransform(
+                                    stat.getId(),
+                                    clusterState,
+                                    stat.getTransformState().getAuthState()
+                                )
                             )
                         );
                     } else {
+                        final boolean transformPersistentTaskIsStillRunning = TransformTask.getTransformTask(
+                            stat.getId(),
+                            clusterState
+                        ) != null;
                         allStateAndStats.add(
                             new TransformStats(
                                 stat.getId(),
-                                TransformStats.State.STOPPED,
+                                transformPersistentTaskIsStillRunning ? TransformStats.State.STOPPING : TransformStats.State.STOPPED,
                                 null,
                                 null,
                                 stat.getTransformStats(),
                                 checkpointingInfo,
-                                TransformHealth.GREEN
+                                TransformHealthChecker.checkTransform(stat.getTransformState().getAuthState())
                             )
                         );
                     }

@@ -58,7 +58,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
     public TransformConfig createConfig() {
         TransformConfig.Builder transformConfigBuilder = new TransformConfig.Builder().setId(NAME)
             .setSource(new SourceConfig(new String[] { CONTINUOUS_EVENTS_SOURCE_INDEX }, QueryConfig.matchAll(), RUNTIME_MAPPINGS))
-            .setDest(new DestConfig(NAME, INGEST_PIPELINE))
+            .setDest(new DestConfig(NAME, null, INGEST_PIPELINE))
             .setLatestConfig(new LatestConfig(List.of(eventField), timestampField));
         addCommonBuilderParameters(transformConfigBuilder);
         return transformConfigBuilder.build();
@@ -74,7 +74,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
 
         var runtimeMappings = toJson(RUNTIME_MAPPINGS);
-        String query = formatted("""
+        String query = format("""
             {
               "runtime_mappings" : %s,
               "aggs": {

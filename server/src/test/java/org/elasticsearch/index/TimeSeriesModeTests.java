@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -121,9 +122,10 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
 
     public void testRequiredRouting() {
         Settings s = getSettings();
+        var mapperService = new TestMapperServiceBuilder().settings(s).applyDefaultMapping(false).build();
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createMapperService(s, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
+            () -> withMapping(mapperService, topMapping(b -> b.startObject("_routing").field("required", true).endObject()))
         );
         assertThat(e.getMessage(), equalTo("routing is forbidden on CRUD operations that target indices in [index.mode=time_series]"));
     }
@@ -171,13 +173,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.endObject().endObject();
         })));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.o] was [object]."
-            )
-        );
+        assertThat(e.getMessage(), equalTo("All fields that match routing_path must be flattened fields. [dim.o] was [object]."));
     }
 
     public void testRoutingPathMatchesNonDimensionKeyword() {
@@ -191,27 +187,21 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.non_dim] was not [time_series_dimension: true]."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.non_dim] was not a dimension."
             )
         );
     }
 
-    public void testRoutingPathMatchesNonKeyword() {
+    public void testRoutingPathMatchesNonKeyword() throws IOException {
         Settings s = getSettings(randomBoolean() ? "dim.non_kwd" : "dim.*");
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
+        createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("non_kwd").field("type", "integer").field("time_series_dimension", true).endObject();
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.endObject().endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.non_kwd] was [integer]."
-            )
-        );
+        }));
     }
 
     public void testRoutingPathMatchesScriptedKeyword() {
@@ -226,8 +216,9 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.kwd] has a [script] parameter."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.kwd] has a [script] parameter."
             )
         );
     }
@@ -241,8 +232,9 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.kwd] was a runtime [keyword]."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.kwd] was a runtime [keyword]."
             )
         );
     }

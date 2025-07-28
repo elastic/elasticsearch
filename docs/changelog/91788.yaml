@@ -1,5 +1,0 @@
-pr: 91788
-summary: Skip remote clusters when performing up front privileges validation
-area: Transform
-type: bug
-issues: []

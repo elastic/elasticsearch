@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -11,6 +12,7 @@ package org.elasticsearch.xcontent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -28,19 +30,19 @@ public class ParsedMediaTypeTests extends ESTestCase {
         assertThat(ParsedMediaType.parseMediaType("application/cbor").toMediaType(mediaTypeRegistry), equalTo(XContentType.CBOR));
 
         assertThat(
-            ParsedMediaType.parseMediaType("application/vnd.elasticsearch+json;compatible-with=7").toMediaType(mediaTypeRegistry),
+            ParsedMediaType.parseMediaType("application/vnd.elasticsearch+json;compatible-with=8").toMediaType(mediaTypeRegistry),
             equalTo(XContentType.VND_JSON)
         );
         assertThat(
-            ParsedMediaType.parseMediaType("application/vnd.elasticsearch+yaml;compatible-with=7").toMediaType(mediaTypeRegistry),
+            ParsedMediaType.parseMediaType("application/vnd.elasticsearch+yaml;compatible-with=8").toMediaType(mediaTypeRegistry),
             equalTo(XContentType.VND_YAML)
         );
         assertThat(
-            ParsedMediaType.parseMediaType("application/vnd.elasticsearch+smile;compatible-with=7").toMediaType(mediaTypeRegistry),
+            ParsedMediaType.parseMediaType("application/vnd.elasticsearch+smile;compatible-with=8").toMediaType(mediaTypeRegistry),
             equalTo(XContentType.VND_SMILE)
         );
         assertThat(
-            ParsedMediaType.parseMediaType("application/vnd.elasticsearch+cbor;compatible-with=7").toMediaType(mediaTypeRegistry),
+            ParsedMediaType.parseMediaType("application/vnd.elasticsearch+cbor;compatible-with=8").toMediaType(mediaTypeRegistry),
             equalTo(XContentType.VND_CBOR)
         );
     }
@@ -108,6 +110,14 @@ public class ParsedMediaTypeTests extends ESTestCase {
         assertEquals(Collections.emptyMap(), parsedMediaType.getParameters());
     }
 
+    public void testMalformedMediaType() {
+        List<String> headers = List.of("a/b[", "a/b]", "a/b\\");
+        for (String header : headers) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParsedMediaType.parseMediaType(header));
+            assertThat(e.getMessage(), equalTo("invalid media-type [" + header + "]"));
+        }
+    }
+
     public void testMalformedParameters() {
         String mediaType = "application/foo";
         IllegalArgumentException exception = expectThrows(
@@ -169,19 +179,19 @@ public class ParsedMediaTypeTests extends ESTestCase {
         );
 
         assertThat(
-            ParsedMediaType.parseMediaType(XContentType.VND_JSON, Map.of("compatible-with", "7")).toMediaType(mediaTypeRegistry),
+            ParsedMediaType.parseMediaType(XContentType.VND_JSON, Map.of("compatible-with", "8")).toMediaType(mediaTypeRegistry),
             equalTo(XContentType.VND_JSON)
         );
         assertThat(
-            ParsedMediaType.parseMediaType(XContentType.VND_YAML, Map.of("compatible-with", "7")).toMediaType(mediaTypeRegistry),
+            ParsedMediaType.parseMediaType(XContentType.VND_YAML, Map.of("compatible-with", "8")).toMediaType(mediaTypeRegistry),
             equalTo(XContentType.VND_YAML)
         );
         assertThat(
-            ParsedMediaType.parseMediaType(XContentType.VND_SMILE, Map.of("compatible-with", "7")).toMediaType(mediaTypeRegistry),
+            ParsedMediaType.parseMediaType(XContentType.VND_SMILE, Map.of("compatible-with", "8")).toMediaType(mediaTypeRegistry),
             equalTo(XContentType.VND_SMILE)
         );
         assertThat(
-            ParsedMediaType.parseMediaType(XContentType.VND_CBOR, Map.of("compatible-with", "7")).toMediaType(mediaTypeRegistry),
+            ParsedMediaType.parseMediaType(XContentType.VND_CBOR, Map.of("compatible-with", "8")).toMediaType(mediaTypeRegistry),
             equalTo(XContentType.VND_CBOR)
         );
     }
@@ -205,20 +215,20 @@ public class ParsedMediaTypeTests extends ESTestCase {
         );
 
         assertThat(
-            ParsedMediaType.parseMediaType(XContentType.VND_JSON, Map.of("compatible-with", "7")).responseContentTypeHeader(),
-            equalTo("application/vnd.elasticsearch+json;compatible-with=7")
+            ParsedMediaType.parseMediaType(XContentType.VND_JSON, Map.of("compatible-with", "8")).responseContentTypeHeader(),
+            equalTo("application/vnd.elasticsearch+json;compatible-with=8")
         );
         assertThat(
-            ParsedMediaType.parseMediaType(XContentType.VND_YAML, Map.of("compatible-with", "7")).responseContentTypeHeader(),
-            equalTo("application/vnd.elasticsearch+yaml;compatible-with=7")
+            ParsedMediaType.parseMediaType(XContentType.VND_YAML, Map.of("compatible-with", "8")).responseContentTypeHeader(),
+            equalTo("application/vnd.elasticsearch+yaml;compatible-with=8")
         );
         assertThat(
-            ParsedMediaType.parseMediaType(XContentType.VND_SMILE, Map.of("compatible-with", "7")).responseContentTypeHeader(),
-            equalTo("application/vnd.elasticsearch+smile;compatible-with=7")
+            ParsedMediaType.parseMediaType(XContentType.VND_SMILE, Map.of("compatible-with", "8")).responseContentTypeHeader(),
+            equalTo("application/vnd.elasticsearch+smile;compatible-with=8")
         );
         assertThat(
-            ParsedMediaType.parseMediaType(XContentType.VND_CBOR, Map.of("compatible-with", "7")).responseContentTypeHeader(),
-            equalTo("application/vnd.elasticsearch+cbor;compatible-with=7")
+            ParsedMediaType.parseMediaType(XContentType.VND_CBOR, Map.of("compatible-with", "8")).responseContentTypeHeader(),
+            equalTo("application/vnd.elasticsearch+cbor;compatible-with=8")
         );
 
         assertThat(

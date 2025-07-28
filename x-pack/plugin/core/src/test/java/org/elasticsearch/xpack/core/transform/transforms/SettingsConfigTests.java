@@ -33,32 +33,30 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     private boolean lenient;
 
     public static SettingsConfig randomSettingsConfig() {
-        Integer unattended = randomBoolean() ? null : randomIntBetween(0, 1);
-
+        Boolean unattended = randomBoolean() ? null : randomBoolean();
         return new SettingsConfig(
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
-            randomBoolean() ? null : randomIntBetween(0, 1),
-            randomBoolean() ? null : randomIntBetween(0, 1),
-            randomBoolean() ? null : randomIntBetween(0, 1),
-            randomBoolean() ? null : randomIntBetween(0, 1),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomBoolean(),
             // don't set retries if unattended is set to true
-            randomBoolean() ? null : Integer.valueOf(1).equals(unattended) ? null : randomIntBetween(-1, 100),
+            randomBoolean() ? null : Boolean.TRUE.equals(unattended) ? null : randomIntBetween(-1, 100),
             unattended
         );
     }
 
     public static SettingsConfig randomNonEmptySettingsConfig() {
-        Integer unattended = randomIntBetween(0, 1);
-
+        Boolean unattended = randomBoolean() ? null : randomBoolean();
         return new SettingsConfig(
             randomIntBetween(10, 10_000),
             randomFloat(),
-            randomIntBetween(0, 1),
-            randomIntBetween(0, 1),
-            randomIntBetween(0, 1),
-            randomIntBetween(0, 1),
-            Integer.valueOf(1).equals(unattended) ? -1 : randomIntBetween(-1, 100),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            Boolean.TRUE.equals(unattended) ? -1 : randomIntBetween(-1, 100),
             unattended
         );
     }
@@ -84,12 +82,16 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     }
 
     @Override
+    protected SettingsConfig mutateInstance(SettingsConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<SettingsConfig> instanceReader() {
         return SettingsConfig::new;
     }
 
     public void testExplicitNullParsing() throws IOException {
-
         // explicit null
         assertThat(fromString("{\"max_page_search_size\" : null}").getMaxPageSearchSize(), equalTo(-1));
         // not set
@@ -114,6 +116,11 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(fromString("{\"num_failure_retries\" : null}").getNumFailureRetriesForUpdate(), equalTo(-2));
         assertNull(fromString("{}").getNumFailureRetries());
         assertNull(fromString("{}").getNumFailureRetriesForUpdate());
+
+        assertNull(fromString("{\"unattended\" : null}").getUnattended());
+        assertThat(fromString("{\"unattended\" : null}").getUnattendedForUpdate(), equalTo(-1));
+        assertNull(fromString("{}").getUnattended());
+        assertNull(fromString("{}").getUnattendedForUpdate());
     }
 
     public void testUpdateMaxPageSearchSizeUsingBuilder() throws IOException {

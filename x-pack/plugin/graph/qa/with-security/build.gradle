@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(":x-pack:plugin:core")
@@ -14,13 +14,6 @@ restResources {
   }
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-
-  rolesFile file('roles.yml')
-  user username: 'test_admin', password: 'x-pack-test-password'
-  user username: 'graph_explorer', password: 'x-pack-test-password', role: 'graph_explorer'
-  user username: 'no_graph_explorer', password: 'x-pack-test-password', role: 'no_graph_explorer'
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("to be triaged")
 }

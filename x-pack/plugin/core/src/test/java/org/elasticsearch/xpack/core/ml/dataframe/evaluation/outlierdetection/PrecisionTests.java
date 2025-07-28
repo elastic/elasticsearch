@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -34,6 +34,11 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
     }
 
     @Override
+    protected Precision mutateInstance(Precision instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Precision> instanceReader() {
         return Precision::new;
     }
@@ -48,7 +53,7 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockFilter("precision_at_0.25_TP", 1L),
                 mockFilter("precision_at_0.25_FP", 4L),
@@ -68,7 +73,9 @@ public class PrecisionTests extends AbstractXContentSerializingTestCase<Precisio
     }
 
     public void testEvaluate_GivenZeroTpAndFp() {
-        Aggregations aggs = new Aggregations(Arrays.asList(mockFilter("precision_at_1.0_TP", 0L), mockFilter("precision_at_1.0_FP", 0L)));
+        InternalAggregations aggs = InternalAggregations.from(
+            Arrays.asList(mockFilter("precision_at_1.0_TP", 0L), mockFilter("precision_at_1.0_FP", 0L))
+        );
 
         Precision precision = new Precision(Arrays.asList(1.0));
         EvaluationMetricResult result = precision.evaluate(aggs);

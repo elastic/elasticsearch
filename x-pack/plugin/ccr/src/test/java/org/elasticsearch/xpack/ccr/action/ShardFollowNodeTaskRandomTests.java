@@ -105,7 +105,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
             TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             10240,
-            new ByteSizeValue(512, ByteSizeUnit.MB),
+            ByteSizeValue.of(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()
@@ -115,7 +115,7 @@ public class ShardFollowNodeTaskRandomTests extends ESTestCase {
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> {
             assert delay.millis() < 100 : "The delay should be kept to a minimum, so that this test does not take to long to run";
             if (stopped.get() == false) {
-                threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
+                threadPool.schedule(task, delay, threadPool.generic());
             }
         };
         List<Translog.Operation> receivedOperations = Collections.synchronizedList(new ArrayList<>());

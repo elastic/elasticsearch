@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.metrics;
@@ -28,7 +29,7 @@ import java.util.concurrent.ConcurrentMap;
  * that will not have conflicts, which means that there no counter will have a label which is a substring of the label of another counter.
  * For example, the counters `foo: 1` and `foo.bar: 3` cannot co-exist in a nested map.
  */
-public class Counters implements Writeable {
+public final class Counters implements Writeable {
 
     private final ConcurrentMap<String, CounterMetric> counters = new ConcurrentHashMap<>();
 
@@ -87,11 +88,11 @@ public class Counters implements Writeable {
      *     },
      *     "foobar": 5
      * }
-     * @return A nested map with all the current configured counters
+     * @return A mutable nested map with all the current configured counters. The map is mutable to allow the client to further enrich it.
      * @throws IllegalStateException if there is a conflict in a path of two counters for example `foo`: 1 and `foo.bar`: 1.
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> toNestedMap() {
+    public Map<String, Object> toMutableNestedMap() {
         Map<String, Object> root = new HashMap<>();
         for (var counter : counters.entrySet()) {
             Map<String, Object> currentLevel = root;

@@ -1,6 +1,0 @@
-pr: 90589
-summary: Upgrade to log4j 2.19.0
-area: Infra/Logging
-type: upgrade
-issues:
- - 90584

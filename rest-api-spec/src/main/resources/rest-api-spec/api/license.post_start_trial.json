@@ -27,6 +27,10 @@
       "acknowledge":{
         "type":"boolean",
         "description":"whether the user has acknowledged acknowledge messages (default: false)"
+      },
+      "master_timeout": {
+        "type": "time",
+        "description": "Timeout for processing on master node"
       }
     }
   }

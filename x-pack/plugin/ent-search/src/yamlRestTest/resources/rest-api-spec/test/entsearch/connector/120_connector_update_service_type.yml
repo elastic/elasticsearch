@@ -1,0 +1,61 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: Introduced in 8.13.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Service Type":
+  - do:
+      connector.update_service_type:
+        connector_id: test-connector
+        body:
+          service_type: even-better-connector
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { service_type: even-better-connector }
+  - match: { status: created }
+
+---
+"Update Connector Service Type - 404 when connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_service_type:
+        connector_id: test-non-existent-connector
+        body:
+          service_type: even-better-connector
+
+---
+"Update Connector Service Type - 400 status code when connector_id is empty":
+  - do:
+      catch: "bad_request"
+      connector.update_service_type:
+        connector_id: ""
+        body:
+          service_type: even-better-connector
+
+---
+"Update Connector Service Type - 400 status code when payload is not string":
+  - do:
+      catch: "bad_request"
+      connector.update_service_type:
+        connector_id: test-connector
+        body:
+          service_type:
+            field_1: test
+            field_2: something

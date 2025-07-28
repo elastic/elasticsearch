@@ -21,7 +21,6 @@ import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -37,6 +36,15 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         .setWarningsHandler(
             warnings -> Collections.singletonList(
                 "Posting data directly to anomaly detection jobs is deprecated, "
+                    + "in a future major version it will be compulsory to use a datafeed"
+            ).equals(warnings) == false
+        )
+        .build();
+
+    private static final RequestOptions FLUSH_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(
+            warnings -> Collections.singletonList(
+                "Forcing any buffered data to be processed is deprecated, "
                     + "in a future major version it will be compulsory to use a datafeed"
             ).equals(warnings) == false
         )
@@ -94,7 +102,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(1403481600000L, responseBody.get("earliest_record_timestamp"));
         assertEquals(1403481700000L, responseBody.get("latest_record_timestamp"));
 
-        Response flushResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
+        Request flustRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush");
+        flustRequest.setOptions(FLUSH_OPTIONS);
+        Response flushResponse = client().performRequest(flustRequest);
         assertFlushResponse(flushResponse, true, 1403481600000L);
 
         Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
@@ -192,7 +202,9 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         assertEquals(1403481600000L, responseBody.get("earliest_record_timestamp"));
         assertEquals(1403482000000L, responseBody.get("latest_record_timestamp"));
 
-        Response flushResponse = client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush"));
+        Request flushRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_flush");
+        flushRequest.setOptions(FLUSH_OPTIONS);
+        Response flushResponse = client().performRequest(flushRequest);
         assertFlushResponse(flushResponse, true, 1403481600000L);
 
         Request closeRequest = new Request("POST", BASE_PATH + "anomaly_detectors/" + jobId + "/_close");
@@ -546,7 +558,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         String dateFormat = datesHaveNanoSecondResolution ? "strict_date_optional_time_nanos" : "strict_date_optional_time";
         String randomNanos = datesHaveNanoSecondResolution ? "," + randomIntBetween(100000000, 999999999) : "";
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
-        createAirlineDataRequest.setJsonEntity(String.format(Locale.ROOT, """
+        createAirlineDataRequest.setJsonEntity(Strings.format("""
             {
               "mappings": {
                 "properties": {

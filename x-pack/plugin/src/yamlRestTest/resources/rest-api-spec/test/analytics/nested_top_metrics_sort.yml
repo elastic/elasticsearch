@@ -1,13 +1,11 @@
 setup:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
   - do:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               timestamp:
@@ -25,8 +23,6 @@ setup:
       indices.create:
         index: test_order_by_top_metrics
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               name:
@@ -110,8 +106,8 @@ teardown:
 
 ---
 "sort on top metrics keyword same version":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
 
   - do:
@@ -162,8 +158,8 @@ teardown:
 
 ---
 "sort on top metrics keyword desc":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
 
   - do:
@@ -213,8 +209,8 @@ teardown:
 
 ---
 "sort on top metrics keyword asc":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
 
   - do:
@@ -264,8 +260,8 @@ teardown:
 
 ---
 "sort on top metrics numeric desc":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
 
   - do:
@@ -315,8 +311,8 @@ teardown:
 
 ---
 "sort on top metrics numeric asc":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
 
   - do:
@@ -366,8 +362,8 @@ teardown:
 
 ---
 "sort on top metrics non-existing field":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: bug fixed in 8.2.0
 
   - do:
@@ -399,8 +395,8 @@ teardown:
 
 ---
 "terms order by top metrics null values":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
   - do:
@@ -465,8 +461,8 @@ teardown:
 
 ---
 "terms order by top metrics date not null values":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
   - do:
@@ -552,8 +548,8 @@ teardown:
 
 ---
 "terms order by top metrics numeric not null integer values":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
   - do:
@@ -639,8 +635,8 @@ teardown:
 
 ---
 "terms order by top metrics numeric not null double values":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
 
@@ -727,8 +723,8 @@ teardown:
 
 ---
 "terms order by top metrics size greater than 1 rewrite_to_filter_by_filter true":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
   - do:
@@ -825,8 +821,8 @@ teardown:
 
 ---
 "terms order by top metrics missing metric rewrite_to_filter_by_filter true":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
   - do:
@@ -871,8 +867,8 @@ teardown:
 
 ---
 "terms order by top metrics equal values sorted on term":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
   - do:
@@ -958,8 +954,8 @@ teardown:
 
 ---
 "terms order by top metrics size greater than 1 rewrite_to_filter_by_filter false":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
   - do:
@@ -1056,8 +1052,8 @@ teardown:
 
 ---
 "terms order by top metrics missing metric rewrite_to_filter_by_filter false":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Bug fixed in 8.2.0
 
   - do:

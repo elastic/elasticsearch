@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.ql.plan;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Alias;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
@@ -23,11 +26,13 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.of;
 import static org.elasticsearch.xpack.ql.TestUtils.relation;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.hamcrest.Matchers.contains;
 
 public class QueryPlanTests extends ESTestCase {
 
@@ -116,6 +121,7 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals(singletonList(one), list);
     }
 
+    // TODO: duplicate of testForEachWithExpressionTopLevel, let's remove it.
     public void testForEachWithExpressionTreeInCollection() throws Exception {
         Alias one = new Alias(EMPTY, "one", of(42));
         FieldAttribute two = fieldAttribute();
@@ -132,4 +138,21 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals(singletonList(one.child().fold()), list);
     }
 
+    public void testPlanExpressions() {
+        Alias one = new Alias(EMPTY, "one", of(42));
+        FieldAttribute two = fieldAttribute();
+        Project project = new Project(EMPTY, relation(), asList(one, two));
+
+        assertThat(Expressions.names(project.expressions()), contains("one", two.name()));
+    }
+
+    public void testPlanReferences() {
+        var one = fieldAttribute("one", INTEGER);
+        var two = fieldAttribute("two", INTEGER);
+        var add = new Add(EMPTY, one, two);
+        var field = fieldAttribute("field", INTEGER);
+
+        var filter = new Filter(EMPTY, relation(), equalsOf(field, add));
+        assertThat(Expressions.names(filter.references()), contains("field", "one", "two"));
+    }
 }

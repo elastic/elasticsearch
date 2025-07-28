@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -40,7 +41,7 @@ public class InboundAggregator implements Releasable {
         Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
         boolean ignoreDeserializationErrors
     ) {
-        this(circuitBreaker, (Predicate<String>) actionName -> {
+        this(circuitBreaker, actionName -> {
             final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
             if (reg == null) {
                 assert ignoreDeserializationErrors : actionName;
@@ -119,7 +120,7 @@ public class InboundAggregator implements Releasable {
                 checkBreaker(aggregated.getHeader(), aggregated.getContentLength(), breakerControl);
             }
             if (isShortCircuited()) {
-                aggregated.decRef();
+                aggregated.close();
                 success = true;
                 return new InboundMessage(aggregated.getHeader(), aggregationException);
             } else {
@@ -130,7 +131,7 @@ public class InboundAggregator implements Releasable {
         } finally {
             resetCurrentAggregation();
             if (success == false) {
-                aggregated.decRef();
+                aggregated.close();
             }
         }
     }

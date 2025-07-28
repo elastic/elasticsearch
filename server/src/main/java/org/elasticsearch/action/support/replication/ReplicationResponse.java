@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.replication;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -35,15 +37,14 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  */
 public class ReplicationResponse extends ActionResponse {
 
-    public static final ReplicationResponse.ShardInfo.Failure[] EMPTY = new ReplicationResponse.ShardInfo.Failure[0];
+    public static final ReplicationResponse.ShardInfo.Failure[] NO_FAILURES = new ReplicationResponse.ShardInfo.Failure[0];
 
     private ShardInfo shardInfo;
 
     public ReplicationResponse() {}
 
     public ReplicationResponse(StreamInput in) throws IOException {
-        super(in);
-        shardInfo = new ReplicationResponse.ShardInfo(in);
+        shardInfo = ReplicationResponse.ShardInfo.readFrom(in);
     }
 
     @Override
@@ -61,30 +62,61 @@ public class ReplicationResponse extends ActionResponse {
 
     public static class ShardInfo implements Writeable, ToXContentObject {
 
+        // cache the most commonly used instances where all shard operations succeeded to save allocations on the transport layer
+        private static final ShardInfo[] COMMON_INSTANCES = IntStream.range(0, 10)
+            .mapToObj(i -> new ShardInfo(i, i, NO_FAILURES))
+            .toArray(ShardInfo[]::new);
+
+        public static final ShardInfo EMPTY = COMMON_INSTANCES[0];
+
         private static final String TOTAL = "total";
         private static final String SUCCESSFUL = "successful";
         private static final String FAILED = "failed";
         private static final String FAILURES = "failures";
 
-        private int total;
-        private int successful;
-        private Failure[] failures = EMPTY;
+        private final int total;
+        private final int successful;
+        private final Failure[] failures;
 
-        public ShardInfo() {}
-
-        public ShardInfo(StreamInput in) throws IOException {
-            total = in.readVInt();
-            successful = in.readVInt();
+        public static ShardInfo readFrom(StreamInput in) throws IOException {
+            int total = in.readVInt();
+            int successful = in.readVInt();
             int size = in.readVInt();
+
+            final Failure[] failures;
             if (size > 0) {
                 failures = new Failure[size];
                 for (int i = 0; i < size; i++) {
                     failures[i] = new Failure(in);
                 }
+            } else {
+                failures = NO_FAILURES;
             }
+            return ShardInfo.of(total, successful, failures);
         }
 
-        public ShardInfo(int total, int successful, Failure... failures) {
+        public static ShardInfo allSuccessful(int total) {
+            if (total < COMMON_INSTANCES.length) {
+                return COMMON_INSTANCES[total];
+            }
+            return new ShardInfo(total, total, NO_FAILURES);
+        }
+
+        public static ShardInfo of(int total, int successful) {
+            if (total == successful) {
+                return allSuccessful(total);
+            }
+            return new ShardInfo(total, successful, ReplicationResponse.NO_FAILURES);
+        }
+
+        public static ShardInfo of(int total, int successful, Failure[] failures) {
+            if (failures.length == 0) {
+                return of(total, successful);
+            }
+            return new ShardInfo(total, successful, failures);
+        }
+
+        private ShardInfo(int total, int successful, Failure[] failures) {
             assert total >= 0 && successful >= 0;
             this.total = total;
             this.successful = successful;
@@ -186,9 +218,9 @@ public class ReplicationResponse extends ActionResponse {
                     parser.skipChildren(); // skip potential inner arrays for forward compatibility
                 }
             }
-            Failure[] failures = EMPTY;
+            Failure[] failures = ReplicationResponse.NO_FAILURES;
             if (failuresList != null) {
-                failures = failuresList.toArray(new Failure[failuresList.size()]);
+                failures = failuresList.toArray(ReplicationResponse.NO_FAILURES);
             }
             return new ShardInfo(total, successful, failures);
         }

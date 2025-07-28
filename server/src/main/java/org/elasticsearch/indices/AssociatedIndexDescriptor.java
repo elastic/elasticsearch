@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.lucene.RegExp;
+import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.indices.system.IndexPatternMatcher;
 
 import java.util.List;
 import java.util.Objects;
@@ -91,9 +93,9 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
      */
     static Automaton buildAutomaton(String pattern) {
         String output = pattern;
-        output = output.replaceAll("\\.", "\\\\.");
-        output = output.replaceAll("\\*", ".*");
-        return new RegExp(output).toAutomaton();
+        output = output.replace(".", "\\.");
+        output = output.replace("*", ".*");
+        return new RegExp(output, RegExp.ALL | RegExp.ALL).toAutomaton();
     }
 
     /**
@@ -102,12 +104,12 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
      * This cannot be done via {@link org.elasticsearch.cluster.metadata.IndexNameExpressionResolver} because that class can only handle
      * simple wildcard expressions, but system index name patterns may use full Lucene regular expression syntax,
      *
-     * @param metadata The current metadata to get the list of matching indices from
+     * @param project The current project metadata to get the list of matching indices from
      * @return A list of index names that match this descriptor
      */
     @Override
-    public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
+    public List<String> getMatchingIndices(ProjectMetadata project) {
+        return project.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
     /**

@@ -1,0 +1,190 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.java'
+apply plugin: 'com.gradleup.shadow'
+
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
+def hdfs2patched = Attribute.of('hdfs2-patched', Boolean)
+def hdfs3patched = Attribute.of('hdfs3-patched', Boolean)
+def hdfsVersionAttr = Attribute.of('hdfs.major.version', Integer)
+
+configurations {
+  hdfs2 {
+    attributes {
+      attribute(hdfs2patched, true)
+    }
+  }
+  hdfs3 {
+    attributes {
+      attribute(hdfs3patched, true)
+    }
+  }
+  consumable("shadowedHdfs2") {
+    attributes {
+      attribute(hdfsVersionAttr, 2)
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, Integer.parseInt(buildParams.minimumRuntimeVersion.getMajorVersion()))
+      attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+      attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+    }
+  }
+  consumable("shadowedHdfs3") {
+    attributes {
+      attribute(hdfsVersionAttr, 3)
+      attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+      attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage, Usage.JAVA_RUNTIME))
+      attribute(TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, Integer.parseInt(buildParams.minimumRuntimeVersion.getMajorVersion()))
+      attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+      attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling, Bundling.EXTERNAL))
+    }
+  }
+}
+
+dependencies {
+  attributesSchema {
+    attribute(hdfs2patched)
+    attribute(hdfs3patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(hdfs2patched, false)
+    attributes.attribute(hdfs3patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(hdfs2patched, false)
+    to.attribute(hdfs2patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop2-common"]
+    }
+  }
+
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(hdfs3patched, false)
+    to.attribute(hdfs3patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop3-common"]
+    }
+  }
+
+  compileOnly("org.apache.hadoop:hadoop-minicluster:2.8.5")
+  api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
+    transitive = false
+  }
+  compileOnly "junit:junit:${versions.junit}"
+
+  def commonExcludes = [
+    [group: "org.apache.commons", module: "commons-compress"],
+    [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-app"],
+    [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-core"],
+    [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-hs"],
+    [group: "org.apache.hadoop", module: "hadoop-mapreduce-client-jobclient"],
+    [group: "org.apache.hadoop", module: "hadoop-yarn-server-tests"],
+    [group: "org.apache.httpcomponents", module: "httpclient"],
+    [group: "org.apache.zookeeper", module: "zookeeper"],
+    [group: "org.apache.curator", module: "curator-recipes"],
+    [group: "org.apache.curator", module: "curator-client"],
+    [group: "org.apache.curator", module: "curator-framework"],
+    [group: "org.apache.avro", module: "avro"],
+    [group: "log4j", module: "log4j"],
+    [group: "io.netty", module: "netty-all"],
+    [group: "io.netty", module: "netty"],
+    [group: "com.squareup.okhttp", module: "okhttp"],
+    [group: "com.google.guava", module: "guava"],
+    [group: "com.google.code.gson", module: "gson"],
+    [group: "javax.servlet.jsp", module: "jsp-api"],
+    [group: "org.fusesource.leveldbjni", module: "leveldbjni-all"],
+    [group: "commons-cli", module: "commons-cli"],
+    [group: "org.mortbay.jetty", module: "servlet-api"],
+    [group: "commons-logging", module: "commons-logging"],
+    [group: "org.slf4j", module: "slf4j-log4j12"],
+    [group: "commons-codec", module: "commons-codec"],
+    [group: "com.sun.jersey", module: "jersey-core"],
+    [group: "com.sun.jersey", module: "jersey-json"],
+    [group: "com.google.code.findbugs", module: "jsr305"],
+    [group: "com.sun.jersey", module: "jersey-json"],
+    [group: "com.nimbusds", module: "nimbus-jose-jwt"],
+    [group: "com.jcraft", module: "jsch"],
+    [group: "org.slf4j", module: "slf4j-api"],
+  ]
+
+  hdfs2("org.apache.hadoop:hadoop-minicluster:2.8.5") {
+    commonExcludes.each { exclude it }
+    exclude group: "org.apache.commons", module: "commons-math3"
+    exclude group: "xmlenc", module: "xmlenc"
+    exclude group: "net.java.dev.jets3t", module: "jets3t"
+    exclude group: "org.apache.directory.server", module: "apacheds-i18n"
+    exclude group: "xerces", module: "xercesImpl"
+  }
+
+  hdfs3("org.apache.hadoop:hadoop-minicluster:3.3.1") {
+    commonExcludes.each { exclude it }
+    exclude group: "dnsjava", module: "dnsjava"
+    exclude group: "com.google.inject.extensions", module: "guice-servlet"
+    exclude group: "com.google.inject", module: "guice"
+    exclude group: "com.microsoft.sqlserver", module: "mssql-jdbc"
+    exclude group: "com.sun.jersey.contribs", module: "jersey-guice"
+    exclude group: "com.zaxxer", module: "HikariCP-java7"
+    exclude group: "com.sun.jersey", module: "jersey-server"
+    exclude group: "org.bouncycastle", module: "bcpkix-jdk15on"
+    exclude group: "org.bouncycastle", module: "bcprov-jdk15on"
+    exclude group: "org.ehcache", module: "ehcache"
+    exclude group: "org.apache.geronimo.specs", module: "geronimo-jcache_1.0_spec"
+    exclude group: "org.xerial.snappy", module: "snappy-java"
+  }
+}
+
+tasks.named("shadowJar").configure {
+  archiveClassifier.set("hdfs3")
+  // fix issues with signed jars
+  relocate("org.apache.hadoop", "fixture.hdfs3.org.apache.hadoop") {
+    exclude "org.apache.hadoop.hdfs.protocol.ClientProtocol"
+    exclude "org.apache.hadoop.ipc.StandbyException"
+  }
+  configurations.add(project.configurations.hdfs3)
+}
+
+def hdfs2Jar = tasks.register("hdfs2jar", ShadowJar) {
+  relocate("org.apache.hadoop", "fixture.hdfs2.org.apache.hadoop") {
+    exclude "org.apache.hadoop.hdfs.protocol.ClientProtocol"
+    exclude "org.apache.hadoop.ipc.StandbyException"
+  }
+  archiveClassifier.set("hdfs2")
+  from sourceSets.main.output
+  configurations.add(project.configurations.hdfs2)
+}
+
+tasks.withType(ShadowJar).configureEach {
+  dependencies {
+    exclude(dependency("com.carrotsearch.randomizedtesting:randomizedtesting-runner:.*"))
+    exclude(dependency("junit:junit:.*"))
+    exclude(dependency("org.apache.httpcomponents:httpcore:.*"))
+    exclude(dependency("org.apache.logging.log4j:log4j-1.2-api:.*"))
+    exclude(dependency("net.java.dev.jna:jna:.*"))
+    exclude(dependency("org.objenesis:objenesis:.*"))
+    exclude(dependency('com.fasterxml.jackson.core:.*:.*'))
+  }
+
+  transform(org.elasticsearch.gradle.internal.shadow.XmlClassRelocationTransformer.class) {
+    resource = "core-default.xml"
+    enabled = true
+  }
+
+  transform(org.elasticsearch.gradle.internal.shadow.XmlClassRelocationTransformer.class) {
+    resource = "hdfs-default.xml"
+    enabled = true
+  }
+}
+
+artifacts {
+  shadowedHdfs2(hdfs2Jar)
+  shadowedHdfs3(tasks.named("shadowJar"))
+}

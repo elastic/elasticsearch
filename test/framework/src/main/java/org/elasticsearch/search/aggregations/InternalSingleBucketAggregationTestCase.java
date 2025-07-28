@@ -1,25 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentType;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,9 +22,6 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public abstract class InternalSingleBucketAggregationTestCase<T extends InternalSingleBucketAggregation> extends
     InternalAggregationTestCase<T> {
@@ -115,38 +107,4 @@ public abstract class InternalSingleBucketAggregationTestCase<T extends Internal
         }
         extraAssertReduced(reduced, inputs);
     }
-
-    @Override
-    protected void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        assertTrue(parsedAggregation instanceof ParsedSingleBucketAggregation);
-        ParsedSingleBucketAggregation parsed = (ParsedSingleBucketAggregation) parsedAggregation;
-
-        assertEquals(aggregation.getDocCount(), parsed.getDocCount());
-        InternalAggregations aggregations = aggregation.getAggregations();
-        Map<String, Aggregation> expectedAggregations = new HashMap<>();
-        int expectedNumberOfAggregations = 0;
-        for (Aggregation expectedAggregation : aggregations) {
-            // since we shuffle xContent, we cannot rely on the order of the original inner aggregations for comparison
-            assertTrue(expectedAggregation instanceof InternalAggregation);
-            expectedAggregations.put(expectedAggregation.getName(), expectedAggregation);
-            expectedNumberOfAggregations++;
-        }
-        int parsedNumberOfAggregations = 0;
-        for (Aggregation parsedAgg : parsed.getAggregations()) {
-            assertTrue(parsedAgg instanceof ParsedAggregation);
-            assertTrue(expectedAggregations.keySet().contains(parsedAgg.getName()));
-            Aggregation expectedInternalAggregation = expectedAggregations.get(parsedAgg.getName());
-            final XContentType xContentType = randomFrom(XContentType.values());
-            final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
-            BytesReference expectedBytes = toXContent(expectedInternalAggregation, xContentType, params, false);
-            BytesReference actualBytes = toXContent(parsedAgg, xContentType, params, false);
-            assertToXContentEquivalent(expectedBytes, actualBytes, xContentType);
-            parsedNumberOfAggregations++;
-        }
-        assertEquals(expectedNumberOfAggregations, parsedNumberOfAggregations);
-        Class<? extends ParsedSingleBucketAggregation> parsedClass = implementationClass();
-        assertTrue(parsedClass != null && parsedClass.isInstance(parsedAggregation));
-    }
-
-    protected abstract Class<? extends ParsedSingleBucketAggregation> implementationClass();
 }

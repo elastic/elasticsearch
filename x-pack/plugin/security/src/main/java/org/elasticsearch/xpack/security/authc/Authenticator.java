@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -44,13 +45,6 @@ public interface Authenticator {
     AuthenticationToken extractCredentials(Context context);
 
     /**
-     * Whether authentication with anonymous or fallback user is allowed after this authenticator.
-     */
-    default boolean canBeFollowedByNullTokenHandler() {
-        return true;
-    }
-
-    /**
      * Attempt to authenticate current request encapsulated by the {@link Context} object.
      * @param context The context object encapsulating current request and other information relevant for authentication.
      * @param listener The listener accepts a {@link AuthenticationResult} object indicating the outcome of authentication.
@@ -58,7 +52,10 @@ public interface Authenticator {
     void authenticate(Context context, ActionListener<AuthenticationResult<Authentication>> listener);
 
     static SecureString extractCredentialFromAuthorizationHeader(ThreadContext threadContext, String prefix) {
-        String header = threadContext.getHeader("Authorization");
+        return extractCredentialFromHeaderValue(threadContext.getHeader("Authorization"), prefix);
+    }
+
+    static SecureString extractCredentialFromHeaderValue(String header, String prefix) {
         final String prefixWithSpace = prefix + " ";
         if (Strings.hasText(header)
             && header.regionMatches(true, 0, prefixWithSpace, 0, prefixWithSpace.length())
@@ -78,25 +75,65 @@ public interface Authenticator {
         return extractCredentialFromAuthorizationHeader(threadContext, "Bearer");
     }
 
+    static SecureString extractApiKeyFromHeader(ThreadContext threadContext) {
+        return extractCredentialFromAuthorizationHeader(threadContext, "ApiKey");
+    }
+
     /**
      * This class is a container to encapsulate the current request and other necessary information (mostly configuration related)
      * required for authentication.
      * It is instantiated for every incoming request and passed around to {@link AuthenticatorChain} and subsequently all
      * {@link Authenticator}.
+     * {@link Authenticator}s are consulted in order (see {@link AuthenticatorChain}),
+     * where each is given the chance to first extract some token, and then to verify it.
+     * If token verification fails in some particular way (i.e. {@code AuthenticationResult.Status.CONTINUE}),
+     * the next {@link Authenticator} is tried.
+     * The extracted tokens are all appended with {@link #addAuthenticationToken(AuthenticationToken)}.
      */
     class Context implements Closeable {
         private final ThreadContext threadContext;
         private final AuthenticationService.AuditableRequest request;
         private final User fallbackUser;
         private final boolean allowAnonymous;
+        private final boolean extractCredentials;
         private final Realms realms;
-        private final List<AuthenticationToken> authenticationTokens = new ArrayList<>();
+        private final List<AuthenticationToken> authenticationTokens;
         private final List<String> unsuccessfulMessages = new ArrayList<>();
         private boolean handleNullToken = true;
         private SecureString bearerString = null;
+        private SecureString apiKeyString = null;
         private List<Realm> defaultOrderedRealmList = null;
         private List<Realm> unlicensedRealms = null;
 
+        /**
+         * Context constructor that provides the authentication token directly as an argument.
+         * This avoids extracting any tokens from the thread context, which is the regular way that authn works.
+         * In this case, the authentication process will simply verify the provided token, and will never fall back to the null-token case
+         * (i.e. in case the token CAN NOT be verified, the user IS NOT authenticated as the anonymous or the fallback user, and
+         * instead the authentication process fails, see {@link AuthenticatorChain#doAuthenticate}). If a {@code null} token is provided
+         * the authentication will invariably fail.
+         */
+        Context(
+            ThreadContext threadContext,
+            AuthenticationService.AuditableRequest request,
+            Realms realms,
+            @Nullable AuthenticationToken token
+        ) {
+            this.threadContext = threadContext;
+            this.request = request;
+            this.realms = realms;
+            // when a token is directly supplied for authn, don't extract other tokens, and don't handle the null-token case
+            this.authenticationTokens = token != null ? List.of(token) : List.of(); // no other tokens should be added
+            this.extractCredentials = false;
+            this.handleNullToken = false;
+            // if handleNullToken is false, fallbackUser and allowAnonymous are irrelevant
+            this.fallbackUser = null;
+            this.allowAnonymous = false;
+        }
+
+        /**
+         * Context constructor where authentication looks for credentials in the thread context.
+         */
         public Context(
             ThreadContext threadContext,
             AuthenticationService.AuditableRequest request,
@@ -106,6 +143,9 @@ public interface Authenticator {
         ) {
             this.threadContext = threadContext;
             this.request = request;
+            this.extractCredentials = true;
+            // the extracted tokens, in order, for each {@code Authenticator}
+            this.authenticationTokens = new ArrayList<>();
             this.fallbackUser = fallbackUser;
             this.allowAnonymous = allowAnonymous;
             this.realms = realms;
@@ -135,6 +175,17 @@ public interface Authenticator {
             return handleNullToken;
         }
 
+        /**
+         * Returns {@code true}, if {@code Authenticator}s should first be tried in order to extract the credentials token
+         * from the thread context. The extracted tokens are appended to this authenticator context with
+         * {@link #addAuthenticationToken(AuthenticationToken)}.
+         * If {@code false}, the credentials token is directly passed in to this authenticator context, and the authenticators
+         * themselves are only consulted to authenticate the token, and never to extract any tokens from the thread context.
+         */
+        public boolean shouldExtractCredentials() {
+            return extractCredentials;
+        }
+
         public List<String> getUnsuccessfulMessages() {
             return unsuccessfulMessages;
         }
@@ -153,6 +204,13 @@ public interface Authenticator {
                 bearerString = extractBearerTokenFromHeader(threadContext);
             }
             return bearerString;
+        }
+
+        public SecureString getApiKeyString() {
+            if (apiKeyString == null) {
+                apiKeyString = extractApiKeyFromHeader(threadContext);
+            }
+            return apiKeyString;
         }
 
         public List<Realm> getDefaultOrderedRealmList() {
@@ -176,6 +234,12 @@ public interface Authenticator {
         @Override
         public void close() throws IOException {
             authenticationTokens.forEach(AuthenticationToken::clearCredentials);
+        }
+
+        public void addUnsuccessfulMessageToMetadata(final ElasticsearchSecurityException ese) {
+            if (false == getUnsuccessfulMessages().isEmpty()) {
+                ese.addMetadata("es.additional_unsuccessful_credentials", getUnsuccessfulMessages());
+            }
         }
     }
 }

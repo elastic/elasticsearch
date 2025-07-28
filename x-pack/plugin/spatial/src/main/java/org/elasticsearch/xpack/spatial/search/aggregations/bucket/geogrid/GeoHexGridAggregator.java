@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.LongConsumer;
 
 /**
  * Aggregates data expressed as h3 longs (for efficiency's sake)
@@ -29,7 +31,7 @@ public class GeoHexGridAggregator extends GeoGridAggregator<InternalGeoHexGrid> 
     public GeoHexGridAggregator(
         String name,
         AggregatorFactories factories,
-        ValuesSource.Numeric valuesSource,
+        Function<LongConsumer, ValuesSource.Numeric> valuesSource,
         int requiredSize,
         int shardSize,
         AggregationContext context,

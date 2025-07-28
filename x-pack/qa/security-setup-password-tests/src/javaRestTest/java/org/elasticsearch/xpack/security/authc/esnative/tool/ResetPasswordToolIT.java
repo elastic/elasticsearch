@@ -11,6 +11,7 @@ import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.core.Strings;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -70,7 +71,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             + Base64.getEncoder().encodeToString(("test_admin:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
         try {
             Request putUserRequest = new Request("PUT", "/_security/user/" + nativeUser);
-            putUserRequest.setJsonEntity(formatted("""
+            putUserRequest.setJsonEntity(Strings.format("""
                 {
                    "password" : "l0ng-r4nd0m-p@ssw0rd",
                    "roles" : [ "admin", "other_role1" ],

@@ -13,7 +13,12 @@ import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 public class DeleteEnrichPolicyActionRequestTests extends AbstractWireSerializingTestCase<DeleteEnrichPolicyAction.Request> {
     @Override
     protected DeleteEnrichPolicyAction.Request createTestInstance() {
-        return new DeleteEnrichPolicyAction.Request(randomAlphaOfLength(4));
+        return new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(4));
+    }
+
+    @Override
+    protected DeleteEnrichPolicyAction.Request mutateInstance(DeleteEnrichPolicyAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

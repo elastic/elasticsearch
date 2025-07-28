@@ -1,0 +1,126 @@
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [short_error_messages_for_unsupported_fields]
+      reason: "We changed error messages for unsupported fields in v 8.16"
+      test_runner_features: [capabilities, allowed_warnings_regex]
+
+  - do:
+      indices.create:
+        index: ambiguous_1
+        body:
+          mappings:
+            properties:
+              "name":
+                type: keyword
+
+  - do:
+      indices.create:
+        index: ambiguous_2
+        body:
+          mappings:
+            properties:
+              "name":
+                type: keyword
+
+  - do:
+      indices.create:
+        index: ambiguous_3
+        body:
+          mappings:
+            properties:
+              "name":
+                type: keyword
+
+  - do:
+      indices.create:
+        index: ambiguous_4
+        body:
+          mappings:
+            properties:
+              "name":
+                type: integer
+
+  - do:
+      indices.create:
+        index: ambiguous_5
+        body:
+          mappings:
+            properties:
+              "name":
+                type: integer
+
+  - do:
+      indices.create:
+        index: ambiguous_6
+        body:
+          mappings:
+            properties:
+              "name":
+                type: integer
+
+  - do:
+      indices.create:
+        index: ambiguous_7
+        body:
+          mappings:
+            properties:
+              "name":
+                type: integer
+
+  - do:
+      indices.create:
+        index: ambiguous_8
+        body:
+          mappings:
+            properties:
+              "name":
+                type: ip
+
+  - do:
+      indices.create:
+        index: ambiguous_9
+        body:
+          mappings:
+            properties:
+              "name":
+                type: ip
+
+  - do:
+      indices.create:
+        index: ambiguous_10
+        body:
+          mappings:
+            properties:
+              "name":
+                type: ip
+
+  - do:
+      indices.create:
+        index: ambiguous_11
+        body:
+          mappings:
+            properties:
+              "name":
+                type: ip
+
+  - do:
+      indices.create:
+        index: ambiguous_12
+        body:
+          mappings:
+            properties:
+              "name":
+                type: ip
+
+---
+load many indices with ambiguities:
+  - do:
+      catch: '/Cannot use field \[name\] due to ambiguities being mapped as \[3\] incompatible types: \[integer\] in \[ambiguous_4, ambiguous_5, ambiguous_6\] and \[1\] other index, \[ip\] in \[ambiguous_10, ambiguous_11, ambiguous_12\] and \[2\] other indices, \[keyword\] in \[ambiguous_1, ambiguous_2, ambiguous_3\]/'
+      esql.query:
+        body:
+          query: 'FROM ambiguous* | SORT name'
+

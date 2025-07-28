@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 
 import java.io.IOException;
 import java.util.Map;
@@ -24,42 +25,48 @@ public interface VersionedNamedWriteable extends NamedWriteable {
     String getWriteableName();
 
     /**
-     * The minimal version of the recipient this object can be sent to
+     * The minimal version of the recipient this object can be sent to.
+     * See {@link #supportsVersion(TransportVersion)} for the default serialization check.
      */
-    Version getMinimalSupportedVersion();
+    TransportVersion getMinimalSupportedVersion();
 
     /**
-     * Tests whether or not the custom should be serialized. The criteria is the output stream must be at least the minimum supported
-     * version of the custom. That is, we only serialize customs to clients than can understand the custom based on the version of the
-     * client.
+     * Determines whether this instance should be serialized based on the provided transport version.
      *
-     * @param out    the output stream
-     * @param custom the custom to serialize
-     * @param <T>    the type of the custom
-     * @return true if the custom should be serialized and false otherwise
+     * The default implementation returns {@code true} if the given transport version is
+     * equal to or newer than {@link #getMinimalSupportedVersion()}.
+     * Subclasses may override this method to define custom serialization logic.
+     *
+     * @param version the transport version of the receiving node
+     * @return {@code true} if the instance should be serialized, {@code false} otherwise
      */
-    static <T extends VersionedNamedWriteable> boolean shouldSerialize(final StreamOutput out, final T custom) {
-        return out.getVersion().onOrAfter(custom.getMinimalSupportedVersion());
+    default boolean supportsVersion(TransportVersion version) {
+        return version.onOrAfter(getMinimalSupportedVersion());
     }
 
     /**
-     * Writes all those values in the given map to {@code out} that pass the version check in {@link #shouldSerialize} as a list.
+     * Writes all those values in the given map to {@code out} that pass the version check in
+     * {@link VersionedNamedWriteable#supportsVersion} as a list.
      *
      * @param out     stream to write to
      * @param customs map of customs
      * @param <T>     type of customs in map
      */
     static <T extends VersionedNamedWriteable> void writeVersionedWritables(StreamOutput out, Map<String, T> customs) throws IOException {
-        // filter out custom states not supported by the other node
-        int numberOfCustoms = 0;
-        for (final T value : customs.values()) {
-            if (shouldSerialize(out, value)) {
-                numberOfCustoms++;
+        writeVersionedWriteables(out, customs.values());
+    }
+
+    static void writeVersionedWriteables(StreamOutput out, Iterable<? extends VersionedNamedWriteable> writeables) throws IOException {
+        // filter out objects not supported by the stream version
+        int numberOfCompatibleValues = 0;
+        for (var value : writeables) {
+            if (value.supportsVersion(out.getTransportVersion())) {
+                numberOfCompatibleValues++;
             }
         }
-        out.writeVInt(numberOfCustoms);
-        for (final T value : customs.values()) {
-            if (shouldSerialize(out, value)) {
+        out.writeVInt(numberOfCompatibleValues);
+        for (var value : writeables) {
+            if (value.supportsVersion(out.getTransportVersion())) {
                 out.writeNamedWriteable(value);
             }
         }

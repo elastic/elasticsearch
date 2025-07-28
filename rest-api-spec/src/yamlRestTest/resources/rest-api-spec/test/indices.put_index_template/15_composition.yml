@@ -1,9 +1,9 @@
 ---
 "Component and index template composition":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       cluster.put_component_template:
@@ -87,10 +87,10 @@
 
 ---
 "Index template priority":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -130,10 +130,10 @@
 
 ---
 "Component template only composition":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       cluster.put_component_template:
@@ -175,10 +175,10 @@
 
 ---
 "Index template without component templates":
-  - skip:
-      version: " - 7.7.99"
+  - requires:
+      cluster_features: ["gte_v7.8.0"]
       reason: "index template v2 API unavailable before 7.8"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -203,10 +203,10 @@
 
 ---
 "Index template mapping merging":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "index template v2 mapping merging not available before 7.9"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       cluster.put_component_template:
@@ -286,3 +286,363 @@
 
   - is_false: purple-index.mappings.properties.nested.include_in_root
   - is_true: purple-index.mappings.properties.nested.include_in_parent
+
+---
+"Index template ignore_missing_component_template valid":
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
+      reason: "index template v2 ignore_missing_component_template config not available before 8.7"
+      test_runner_features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: red
+        body:
+          template:
+            mappings:
+              properties:
+                foo:
+                  type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [blue] has index patterns [purple-index] matching patterns from existing older templates [global] with patterns (global => [*]); this template [blue] will take precedence during new index creation"
+      indices.put_index_template:
+        name: blue
+        body:
+          index_patterns: ["purple-index"]
+          composed_of: ["red", "blue"]
+          ignore_missing_component_templates: ["blue"]
+
+  - do:
+      indices.create:
+        index: purple-index
+
+  - do:
+      indices.get:
+        index: purple-index
+
+  - match: {purple-index.mappings.properties.foo: {type: keyword}}
+
+---
+"Index template ignore_missing_component_template invalid":
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
+      reason: "index template v2 ignore_missing_component_template config not available before 8.7"
+      test_runner_features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: red
+        body:
+          template:
+            mappings:
+              properties:
+                foo:
+                  type: keyword
+
+  - do:
+      catch: /index_template \[blue\] invalid, cause \[index template \[blue\] specifies a missing component templates \[blue\] that does not exist/
+      indices.put_index_template:
+        name: blue
+        body:
+          index_patterns: ["purple-index"]
+          composed_of: ["red", "blue"]
+          ignore_missing_component_templates: ["foo"]
+
+---
+"Composable index templates that include subobjects: false at root":
+  - requires:
+      cluster_features: "gte_v8.11.0"
+      reason: "https://github.com/elastic/elasticsearch/issues/96768 fixed at 8.11.0"
+      test_runner_features: "allowed_warnings"
+
+  - do:
+      cluster.put_component_template:
+        name: test-subobjects
+        body:
+          template:
+            mappings:
+              subobjects: false
+
+  - do:
+      cluster.put_component_template:
+        name: test-field
+        body:
+          template:
+            mappings:
+              properties:
+                parent.subfield:
+                  type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - test-subobjects
+            - test-field
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-generic
+
+  - do:
+      indices.get_mapping:
+        index: test-generic
+  - match: { test-generic.mappings.properties.parent\.subfield.type: "keyword" }
+
+---
+"Composable index templates that include subobjects: false on arbitrary field":
+  - requires:
+      cluster_features: "gte_v8.11.0"
+      reason: "https://github.com/elastic/elasticsearch/issues/96768 fixed at 8.11.0"
+      test_runner_features: "allowed_warnings"
+
+  - do:
+      cluster.put_component_template:
+        name: test-subobjects
+        body:
+          template:
+            mappings:
+              properties:
+                parent:
+                  type: object
+                  subobjects: false
+
+  - do:
+      cluster.put_component_template:
+        name: test-subfield
+        body:
+          template:
+            mappings:
+              properties:
+                parent:
+                  properties:
+                    child.grandchild:
+                      type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - test-subobjects
+            - test-subfield
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-generic
+
+  - do:
+      indices.get_mapping:
+        index: test-generic
+  - match: { test-generic.mappings.properties.parent.properties.child\.grandchild.type: "keyword" }
+
+
+---
+"Composable index templates that include subobjects: auto at root":
+  - requires:
+      test_runner_features: "allowed_warnings"
+
+  - do:
+      cluster.put_component_template:
+        name: test-subobjects
+        body:
+          template:
+            mappings:
+              subobjects: auto
+              properties:
+                message:
+                  enabled: false
+
+  - do:
+      cluster.put_component_template:
+        name: test-field
+        body:
+          template:
+            mappings:
+              properties:
+                parent.subfield:
+                  type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - test-subobjects
+            - test-field
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-generic
+
+  - do:
+      indices.get_mapping:
+        index: test-generic
+  - match: { test-generic.mappings.properties.parent\.subfield.type: "keyword" }
+  - match: { test-generic.mappings.properties.message.type: "object" }
+
+---
+"Composable index templates that include subobjects: auto on arbitrary field":
+  - requires:
+      test_runner_features: "allowed_warnings"
+
+  - do:
+      cluster.put_component_template:
+        name: test-subobjects
+        body:
+          template:
+            mappings:
+              properties:
+                parent:
+                  type: object
+                  subobjects: auto
+                  properties:
+                    message:
+                      enabled: false
+
+  - do:
+      cluster.put_component_template:
+        name: test-subfield
+        body:
+          template:
+            mappings:
+              properties:
+                parent:
+                  properties:
+                    child.grandchild:
+                      type: keyword
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - test-subobjects
+            - test-subfield
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-generic
+
+  - do:
+      indices.get_mapping:
+        index: test-generic
+  - match: { test-generic.mappings.properties.parent.properties.child\.grandchild.type: "keyword" }
+  - match: { test-generic.mappings.properties.parent.properties.message.type: "object" }
+
+
+---
+"Composition of component templates with different legal field mappings":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: mapping
+        body:
+          template:
+            mappings:
+              properties:
+                field:
+                  type: long
+                  coerce: true
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - mapping
+          template:
+            mappings:
+              properties:
+                field:
+                  type: keyword
+                  ignore_above: 1024
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test-generic
+
+  - do:
+      indices.get_mapping:
+        index: test-generic
+  - match: { test-generic.mappings.properties.field.type: "keyword" }
+  - match: { test-generic.mappings.properties.field.ignore_above: 1024 }
+---
+"Using deprecated component templates and pipelines in index template":
+  - requires:
+      cluster_features: "gte_v8.12.0"
+      reason: "The deprecated flags have been introduced in 8.12.0"
+      test_runner_features: "allowed_warnings"
+
+  - do:
+      cluster.put_component_template:
+        name: mapping
+        body:
+          template:
+            mappings:
+              properties:
+                field:
+                  type: long
+          deprecated: true
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_deprecated_pipeline"
+        body:
+          deprecated: true
+          processors: []
+  - match: { acknowledged: true }
+
+  - do:
+      cluster.put_component_template:
+        name: setting
+        body:
+          template:
+            settings:
+              index:
+                default_pipeline: my_deprecated_pipeline
+
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-template] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-template] will take precedence during new index creation"
+        - "index template [test-composable-template] uses deprecated component template [mapping]"
+        - "index template [test-composable-template] uses deprecated ingest pipeline [my_deprecated_pipeline]"
+      indices.put_index_template:
+        name: test-composable-template
+        body:
+          index_patterns:
+            - test-*
+          composed_of:
+            - mapping
+            - setting
+  - is_true: acknowledged

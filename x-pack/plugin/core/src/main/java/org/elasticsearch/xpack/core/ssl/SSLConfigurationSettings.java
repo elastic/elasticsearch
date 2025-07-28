@@ -13,9 +13,12 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
+import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
 import java.util.ArrayList;
@@ -30,6 +33,7 @@ import java.util.stream.Collectors;
 import javax.net.ssl.TrustManagerFactory;
 
 import static org.elasticsearch.common.ssl.SslConfigurationLoader.GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS;
+import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_PREFIX;
 
 /**
  * Bridges SSLConfiguration into the {@link Settings} framework, using {@link Setting} objects.
@@ -50,6 +54,7 @@ public class SSLConfigurationSettings {
     final Setting<List<String>> caPaths;
     final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
     final Setting<Optional<SslVerificationMode>> verificationMode;
+    final Setting<TimeValue> handshakeTimeout;
 
     // public for PKI realm
     private final Setting<SecureString> legacyTruststorePassword;
@@ -57,10 +62,8 @@ public class SSLConfigurationSettings {
     private final List<Setting<?>> enabledSettings;
     private final List<Setting<?>> disabledSettings;
 
-    private static final Function<String, Setting<List<String>>> CIPHERS_SETTING_TEMPLATE = key -> Setting.listSetting(
+    private static final Function<String, Setting<List<String>>> CIPHERS_SETTING_TEMPLATE = key -> Setting.stringListSetting(
         key,
-        List.of(),
-        Function.identity(),
         Property.NodeScope,
         Property.Filtered
     );
@@ -68,7 +71,7 @@ public class SSLConfigurationSettings {
 
     private static final SslSetting<List<String>> SUPPORTED_PROTOCOLS = SslSetting.setting(
         SslConfigurationKeys.PROTOCOLS,
-        key -> Setting.listSetting(key, List.of(), Function.identity(), Property.NodeScope, Property.Filtered)
+        key -> Setting.stringListSetting(key, Property.NodeScope, Property.Filtered)
     );
 
     private static final SslSetting<Optional<String>> KEYSTORE_PATH = SslSetting.setting(
@@ -187,10 +190,8 @@ public class SSLConfigurationSettings {
         X509KeyPairSettings.CERT_TEMPLATE
     );
 
-    public static final Function<String, Setting<List<String>>> CAPATH_SETTING_TEMPLATE = key -> Setting.listSetting(
+    public static final Function<String, Setting<List<String>>> CAPATH_SETTING_TEMPLATE = key -> Setting.stringListSetting(
         key,
-        Collections.emptyList(),
-        Function.identity(),
         Property.NodeScope,
         Property.Filtered
     );
@@ -227,10 +228,15 @@ public class SSLConfigurationSettings {
     public static final Function<String, Setting.AffixSetting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_REALM =
         VERIFICATION_MODE::realm;
 
+    public static final SslSetting<TimeValue> HANDSHAKE_TIMEOUT = SslSetting.setting(
+        SslConfigurationKeys.HANDSHAKE_TIMEOUT,
+        key -> Setting.positiveTimeSetting(key, SslConfigurationLoader.DEFAULT_HANDSHAKE_TIMEOUT, Property.NodeScope)
+    );
+
     /**
      * @param prefix The prefix under which each setting should be defined. Must be either the empty string (<code>""</code>) or a string
      *               ending in <code>"."</code>
-     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords should be accepted
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
      * @see #withoutPrefix
      * @see #withPrefix
      */
@@ -250,6 +256,7 @@ public class SSLConfigurationSettings {
         caPaths = CERT_AUTH_PATH.withPrefix(prefix);
         clientAuth = CLIENT_AUTH_SETTING.withPrefix(prefix);
         verificationMode = VERIFICATION_MODE.withPrefix(prefix);
+        handshakeTimeout = HANDSHAKE_TIMEOUT.withPrefix(prefix);
 
         final List<Setting<? extends Object>> enabled = CollectionUtils.arrayAsArrayList(
             ciphers,
@@ -274,6 +281,16 @@ public class SSLConfigurationSettings {
         enabled.addAll(x509KeyPair.getEnabledSettings());
         disabled.addAll(x509KeyPair.getDisabledSettings());
 
+        if (TRANSPORT_SSL_PREFIX.equals(prefix)
+            || XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX.equals(prefix)
+            || XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX.equals(prefix)) {
+            enabled.add(handshakeTimeout);
+        } else {
+            // Today the handshake timeout is only adjustable for transport connections - see SecurityNetty4Transport. In principle we
+            // could extend this to other contexts too, we just haven't done so yet.
+            disabled.add(handshakeTimeout);
+        }
+
         this.enabledSettings = Collections.unmodifiableList(enabled);
         this.disabledSettings = Collections.unmodifiableList(disabled);
     }
@@ -289,7 +306,7 @@ public class SSLConfigurationSettings {
     /**
      * Construct settings that are un-prefixed. That is, they can be used to read from a {@link Settings} object where the configuration
      * keys are the root names of the <code>Settings</code>.
-     * @param acceptNonSecurePasswords
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
      */
     public static SSLConfigurationSettings withoutPrefix(boolean acceptNonSecurePasswords) {
         return new SSLConfigurationSettings("", acceptNonSecurePasswords);
@@ -300,7 +317,7 @@ public class SSLConfigurationSettings {
      * keys are prefixed-children of the <code>Settings</code>.
      *
      * @param prefix A string that must end in <code>"ssl."</code>
-     * @param acceptNonSecurePasswords
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
      */
     public static SSLConfigurationSettings withPrefix(String prefix, boolean acceptNonSecurePasswords) {
         assert prefix.endsWith(".") : "The ssl config prefix (" + prefix + ") should end in '.'";
@@ -331,7 +348,8 @@ public class SSLConfigurationSettings {
             CERT,
             CERT_AUTH_PATH,
             CLIENT_AUTH_SETTING,
-            VERIFICATION_MODE
+            VERIFICATION_MODE,
+            HANDSHAKE_TIMEOUT
         );
     }
 

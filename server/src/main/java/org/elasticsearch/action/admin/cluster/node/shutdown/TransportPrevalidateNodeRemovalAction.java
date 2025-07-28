@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
@@ -18,15 +19,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.Task;
@@ -53,6 +55,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
     private static final Logger logger = LogManager.getLogger(TransportPrevalidateNodeRemovalAction.class);
 
     private final NodeClient client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPrevalidateNodeRemovalAction(
@@ -60,8 +63,8 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        NodeClient client
+        NodeClient client,
+        ProjectResolver projectResolver
     ) {
         super(
             PrevalidateNodeRemovalAction.NAME,
@@ -71,11 +74,11 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             threadPool,
             actionFilters,
             PrevalidateNodeRemovalRequest::new,
-            indexNameExpressionResolver,
             PrevalidateNodeRemovalResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -83,14 +86,16 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         Task task,
         PrevalidateNodeRemovalRequest request,
         ClusterState state,
-        ActionListener<PrevalidateNodeRemovalResponse> listener
+        ActionListener<PrevalidateNodeRemovalResponse> responseListener
     ) {
-        try {
+        ActionListener.run(responseListener, listener -> {
             Set<DiscoveryNode> requestNodes = resolveNodes(request, state.nodes());
+            if (projectResolver.supportsMultipleProjects()) {
+                assert false : "The node removal prevalidation API does not support a multi-project setup";
+                throw new IllegalStateException("The node removal prevalidation API does not support a multi-project setup");
+            }
             doPrevalidation(request, requestNodes, state, listener);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        });
     }
 
     public static Set<DiscoveryNode> resolveNodes(PrevalidateNodeRemovalRequest request, DiscoveryNodes discoveryNodes) {
@@ -159,7 +164,12 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         assert requestNodes != null && requestNodes.isEmpty() == false;
 
         logger.debug(() -> "prevalidate node removal for nodes " + requestNodes);
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
+        final var projectMetadata = projectResolver.getProjectMetadata(clusterState);
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(
+            clusterState,
+            projectMetadata.getConcreteAllIndices(),
+            projectResolver.getProjectId()
+        );
         Metadata metadata = clusterState.metadata();
         DiscoveryNodes clusterNodes = clusterState.getNodes();
         if (clusterStateHealth.getStatus() == ClusterHealthStatus.GREEN || clusterStateHealth.getStatus() == ClusterHealthStatus.YELLOW) {
@@ -187,7 +197,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             .collect(Collectors.toSet());
         // If all red indices are searchable snapshot indices, it is safe to remove any node.
         Set<String> redNonSSIndices = redIndices.stream()
-            .map(metadata::index)
+            .map(projectMetadata::index)
             .filter(i -> i.isSearchableSnapshot() == false)
             .map(im -> im.getIndex().getName())
             .collect(Collectors.toSet());
@@ -223,13 +233,14 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 ) // (Index, ClusterShardHealth) of all red shards
                 .map(
                     redIndexShardHealthTuple -> new ShardId(
-                        metadata.index(redIndexShardHealthTuple.v1()).getIndex(),
+                        projectMetadata.index(redIndexShardHealthTuple.v1()).getIndex(),
                         redIndexShardHealthTuple.v2().getShardId()
                     )
                 ) // Convert to ShardId
                 .collect(Collectors.toSet());
             var nodeIds = requestNodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
-            var checkShardsRequest = new PrevalidateShardPathRequest(redShards, nodeIds).timeout(request.timeout());
+            var checkShardsRequest = new PrevalidateShardPathRequest(redShards, nodeIds);
+            checkShardsRequest.setTimeout(request.timeout());
             client.execute(TransportPrevalidateShardPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(PrevalidateShardPathResponse response) {
@@ -244,7 +255,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         }
     }
 
-    private NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, PrevalidateShardPathResponse response) {
+    private static NodesRemovalPrevalidation createPrevalidationResult(DiscoveryNodes nodes, PrevalidateShardPathResponse response) {
         List<NodeResult> nodeResults = new ArrayList<>(response.getNodes().size() + response.failures().size());
         for (NodePrevalidateShardPathResponse nodeResponse : response.getNodes()) {
             Result result;

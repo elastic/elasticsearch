@@ -10,6 +10,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
@@ -123,7 +124,7 @@ public class RestGetTokenActionTests extends ESTestCase {
         String errorMessage = "failed to authenticate user, gss context negotiation not complete";
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(errorMessage, RestStatus.UNAUTHORIZED);
         boolean addBase64EncodedToken = randomBoolean();
-        ese.addHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate" + ((addBase64EncodedToken) ? " FAIL" : ""));
+        ese.addBodyHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE, "Negotiate" + ((addBase64EncodedToken) ? " FAIL" : ""));
         listener.onFailure(ese);
 
         RestResponse response = responseSetOnce.get();
@@ -142,7 +143,7 @@ public class RestGetTokenActionTests extends ESTestCase {
     }
 
     public void testParser() throws Exception {
-        final String request = formatted("""
+        final String request = Strings.format("""
             {
               "grant_type": "password",
               "username": "user1",
@@ -160,7 +161,7 @@ public class RestGetTokenActionTests extends ESTestCase {
 
     public void testParserRefreshRequest() throws Exception {
         final String token = randomAlphaOfLengthBetween(4, 32);
-        final String request = formatted("""
+        final String request = Strings.format("""
             {
               "grant_type": "refresh_token",
               "refresh_token": "%s",

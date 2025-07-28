@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.stats;
@@ -15,10 +16,6 @@ import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -43,9 +40,6 @@ public class HealthApiStats {
         diagnosis
     );
 
-    private final Set<HealthStatus> statuses = ConcurrentHashMap.newKeySet();
-    private final ConcurrentMap<HealthStatus, Set<String>> indicators = new ConcurrentHashMap<>();
-    private final ConcurrentMap<HealthStatus, Set<String>> diagnoses = new ConcurrentHashMap<>();
     private final Counters stats = new Counters(TOTAL_INVOCATIONS);
 
     public HealthApiStats() {}
@@ -65,19 +59,15 @@ public class HealthApiStats {
             : response.getIndicatorResults().stream().map(HealthIndicatorResult::status).findFirst().orElse(null);
         if (status != null) {
             stats.inc(statusLabel.apply(status));
-            statuses.add(status);
         }
 
         if (status != HealthStatus.GREEN) {
             for (HealthIndicatorResult indicator : response.getIndicatorResults()) {
                 if (indicator.status() != HealthStatus.GREEN) {
                     stats.inc(indicatorLabel.apply(indicator.status(), indicator.name()));
-                    indicators.computeIfAbsent(indicator.status(), k -> ConcurrentHashMap.newKeySet()).add(indicator.name());
                     if (indicator.diagnosisList() != null) {
                         for (Diagnosis diagnosis : indicator.diagnosisList()) {
                             stats.inc(diagnosisLabel.apply(indicator.status(), diagnosis.definition().getUniqueId()));
-                            diagnoses.computeIfAbsent(indicator.status(), k -> ConcurrentHashMap.newKeySet())
-                                .add(diagnosis.definition().getUniqueId());
                         }
                     }
                 }
@@ -91,17 +81,5 @@ public class HealthApiStats {
 
     public Counters getStats() {
         return stats;
-    }
-
-    public Map<HealthStatus, Set<String>> getIndicators() {
-        return Map.copyOf(indicators);
-    }
-
-    public Map<HealthStatus, Set<String>> getDiagnoses() {
-        return Map.copyOf(diagnoses);
-    }
-
-    public Set<HealthStatus> getStatuses() {
-        return Set.copyOf(statuses);
     }
 }

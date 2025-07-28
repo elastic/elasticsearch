@@ -4,6 +4,8 @@ setup:
       indices.create:
           index: test-index
           body:
+            settings:
+              number_of_shards: 1
             mappings:
               "properties":
                 "k1":
@@ -23,8 +25,8 @@ setup:
 
 ---
 "Plain Highligher should skip highlighting ignored keyword values":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "skip highlighting of ignored values was introduced in 7.7"
   - do:
       search:
@@ -44,8 +46,8 @@ setup:
 
 ---
 "Unified Highligher should skip highlighting ignored keyword values":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "skip highlighting of ignored values was introduced in 7.7"
   - do:
       search:

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.prefix;
@@ -13,7 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.elasticsearch.test.MapMatcher;
 
@@ -36,12 +37,6 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
     @Override
     protected InternalIpPrefix createTestInstance(String name, Map<String, Object> metadata, InternalAggregations aggregations) {
         return createTestInstance(name, metadata, aggregations, randomPrefixLength(), randomMinDocCount());
-    }
-
-    @Override
-    protected Class<? extends ParsedMultiBucketAggregation<?>> implementationClass() {
-        // Deprecated high level rest client not supported
-        return null;
     }
 
     private int randomPrefixLength() {
@@ -80,16 +75,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
             BytesRef key = itr.next();
             boolean v6 = InetAddressPoint.decode(key.bytes) instanceof Inet6Address;
             buckets.add(
-                new InternalIpPrefix.Bucket(
-                    DocValueFormat.IP,
-                    key,
-                    keyed,
-                    v6,
-                    prefixLength,
-                    appendPrefixLength,
-                    randomLongBetween(0, Long.MAX_VALUE),
-                    aggregations
-                )
+                new InternalIpPrefix.Bucket(key, v6, prefixLength, appendPrefixLength, randomLongBetween(0, Long.MAX_VALUE), aggregations)
             );
         }
 
@@ -101,7 +87,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
         int m = 0;
         int b = 0x80;
         for (int i = 0; i < prefixLength; i++) {
-            mask[m] |= b;
+            mask[m] |= (byte) b;
             b = b >> 1;
             if (b == 0) {
                 m++;
@@ -127,14 +113,10 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
 
     @Override
     protected void assertReduced(InternalIpPrefix reduced, List<InternalIpPrefix> inputs) {
-        InternalIpPrefix leader = inputs.get(0);
-        assertThat(reduced.keyed, equalTo(leader.keyed));
-        assertThat(reduced.format, equalTo(leader.format));
-        assertThat(reduced.minDocCount, equalTo(leader.minDocCount));
+        // we cannot check the current attribute values as they depend on the first aggregator during the reduced phase
         Map<BytesRef, Long> expectedCounts = new HashMap<>();
         for (InternalIpPrefix i : inputs) {
             for (InternalIpPrefix.Bucket b : i.getBuckets()) {
-                assertThat(b.getFormat(), equalTo(DocValueFormat.IP));
                 long acc = expectedCounts.getOrDefault(b.getKey(), 0L);
                 acc += b.getDocCount();
                 expectedCounts.put(b.getKey(), acc);
@@ -142,7 +124,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
         }
         MapMatcher countsMatches = matchesMap();
         for (Map.Entry<BytesRef, Long> e : expectedCounts.entrySet()) {
-            if (e.getValue() >= leader.minDocCount) {
+            if (e.getValue() >= inputs.get(0).minDocCount) {
                 countsMatches = countsMatches.entry(DocValueFormat.IP.format(e.getKey()), e.getValue());
             }
         }
@@ -154,9 +136,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
 
     public void testPartialReduceNoMinDocCount() {
         InternalIpPrefix.Bucket b1 = new InternalIpPrefix.Bucket(
-            DocValueFormat.IP,
             new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.0.1"))),
-            false,
             false,
             1,
             false,
@@ -164,9 +144,7 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
             InternalAggregations.EMPTY
         );
         InternalIpPrefix.Bucket b2 = new InternalIpPrefix.Bucket(
-            DocValueFormat.IP,
             new BytesRef(InetAddressPoint.encode(InetAddresses.forString("200.0.0.1"))),
-            false,
             false,
             1,
             false,
@@ -174,8 +152,16 @@ public class InternalIpPrefixTests extends InternalMultiBucketAggregationTestCas
             InternalAggregations.EMPTY
         );
         InternalIpPrefix t = new InternalIpPrefix("test", DocValueFormat.IP, false, 100, List.of(b1, b2), null);
-        InternalIpPrefix reduced = (InternalIpPrefix) t.reduce(List.of(t), emptyReduceContextBuilder().forPartialReduction());
+        InternalIpPrefix reduced = (InternalIpPrefix) InternalAggregationTestCase.reduce(
+            List.of(t),
+            emptyReduceContextBuilder().forPartialReduction()
+        );
         assertThat(reduced.getBuckets().get(0).getDocCount(), equalTo(1L));
         assertThat(reduced.getBuckets().get(1).getDocCount(), equalTo(2L));
+    }
+
+    @Override
+    protected InternalIpPrefix mutateInstance(InternalIpPrefix instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

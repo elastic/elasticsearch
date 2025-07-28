@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.security.action.filter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
@@ -28,12 +28,14 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.support.SecondaryAuthActions;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 
@@ -51,6 +53,7 @@ public class SecurityActionFilter implements ActionFilter {
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
+    private final SecondaryAuthActions secondaryAuthActions;
 
     public SecurityActionFilter(
         AuthenticationService authcService,
@@ -59,7 +62,8 @@ public class SecurityActionFilter implements ActionFilter {
         XPackLicenseState licenseState,
         ThreadPool threadPool,
         SecurityContext securityContext,
-        DestructiveOperations destructiveOperations
+        DestructiveOperations destructiveOperations,
+        SecondaryAuthActions secondaryAuthActions
     ) {
         this.authcService = authcService;
         this.authzService = authzService;
@@ -68,6 +72,7 @@ public class SecurityActionFilter implements ActionFilter {
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = securityContext;
         this.destructiveOperations = destructiveOperations;
+        this.secondaryAuthActions = secondaryAuthActions;
     }
 
     @Override
@@ -106,9 +111,21 @@ public class SecurityActionFilter implements ActionFilter {
                 AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
                     threadContext,
                     securityContext,
-                    Version.CURRENT, // current version since this is on the same node
+                    TransportVersion.current(), // current version since this is on the same node
                     (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); }
                 );
+            } else if (secondaryAuthActions.get().contains(action) && threadContext.getHeader("secondary_auth_action_applied") == null) {
+                SecondaryAuthentication secondaryAuth = securityContext.getSecondaryAuthentication();
+                if (secondaryAuth == null) {
+                    throw new IllegalArgumentException("es-secondary-authorization header must be used to call action [" + action + "]");
+                } else {
+                    secondaryAuth.execute(ignore -> {
+                        // this header exists to ensure that if this action goes across nodes we don't attempt to swap out the user again
+                        threadContext.putHeader("secondary_auth_action_applied", "true");
+                        applyInternal(task, chain, action, request, contextPreservingListener);
+                        return null;
+                    });
+                }
             } else {
                 try (ThreadContext.StoredContext ignore = threadContext.newStoredContextPreservingResponseHeaders()) {
                     applyInternal(task, chain, action, request, contextPreservingListener);
@@ -131,7 +148,9 @@ public class SecurityActionFilter implements ActionFilter {
         Request request,
         ActionListener<Response> listener
     ) {
-        if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
+        if (TransportCloseIndexAction.NAME.equals(action)
+            || OpenIndexAction.NAME.equals(action)
+            || TransportDeleteIndexAction.TYPE.name().equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
                 destructiveOperations.failDestructive(indicesRequest.indices());
@@ -152,7 +171,7 @@ public class SecurityActionFilter implements ActionFilter {
          here if a request is not associated with any other user.
          */
         final String securityAction = SecurityActionMapper.action(action, request);
-        authcService.authenticate(securityAction, request, SystemUser.INSTANCE, ActionListener.wrap((authc) -> {
+        authcService.authenticate(securityAction, request, InternalUsers.SYSTEM_USER, listener.delegateFailureAndWrap((delegate, authc) -> {
             if (authc != null) {
                 final String requestId = AuditUtil.extractRequestId(threadContext);
                 assert Strings.hasText(requestId);
@@ -160,14 +179,14 @@ public class SecurityActionFilter implements ActionFilter {
                     authc,
                     securityAction,
                     request,
-                    listener.delegateFailure((ll, aVoid) -> chain.proceed(task, action, request, ll.delegateFailure((l, response) -> {
+                    delegate.delegateFailure((ll, aVoid) -> chain.proceed(task, action, request, ll.map(response -> {
                         auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request, response);
-                        l.onResponse(response);
+                        return response;
                     })))
                 );
             } else {
-                listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+                delegate.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }
-        }, listener::onFailure));
+        }));
     }
 }

@@ -11,7 +11,6 @@ setup:
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
 
   - do:
       bulk:
@@ -37,8 +36,8 @@ teardown:
 
 ---
 disable optimization:
-  - skip:
-      version: " - 7.13.1"
+  - requires:
+      cluster_features: ["gte_v7.13.2"]
       reason: setting to disable optimization added in 7.13.2
 
   - do:
@@ -66,8 +65,8 @@ disable optimization:
 
 ---
 enable optimization:
-  - skip:
-      version: " - 7.13.1"
+  - requires:
+      cluster_features: ["gte_v7.13.2"]
       reason: setting to disable optimization added in 7.13.2
 
   - do:
@@ -94,8 +93,8 @@ enable optimization:
 
 ---
 enabled by default:
-  - skip:
-      version: " - 7.13.1"
+  - requires:
+      cluster_features: ["gte_v7.13.2"]
       reason: setting to disable optimization added in 7.13.2
 
   - do:

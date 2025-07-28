@@ -7,10 +7,11 @@
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -19,23 +20,16 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotField.SNAPSHOT_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestUpdateModelSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_update")
-                .replaces(
-                    POST,
-                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_update",
-                    RestApiVersion.V_7
-                )
-                .build()
-        );
+        return List.of(new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_update"));
     }
 
     @Override
@@ -52,10 +46,6 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
             parser
         );
 
-        return channel -> client.execute(
-            UpdateModelSnapshotAction.INSTANCE,
-            updateModelSnapshot,
-            new RestStatusToXContentListener<>(channel)
-        );
+        return channel -> client.execute(UpdateModelSnapshotAction.INSTANCE, updateModelSnapshot, new RestToXContentListener<>(channel));
     }
 }

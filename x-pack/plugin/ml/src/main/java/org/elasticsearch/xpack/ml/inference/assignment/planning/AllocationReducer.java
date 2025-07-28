@@ -106,7 +106,7 @@ public class AllocationReducer {
                 logger.debug(
                     () -> format(
                         "[%s] removing assignment with [%s] allocations on node [%s]",
-                        assignment.getModelId(),
+                        assignment.getDeploymentId(),
                         smallestAssignmentInLargestZone.getValue(),
                         smallestAssignmentInLargestZone.getKey()
                     )
@@ -118,7 +118,7 @@ public class AllocationReducer {
                 logger.debug(
                     () -> format(
                         "[%s] removing 1 allocation from assignment with [%s] allocations on node [%s]",
-                        assignment.getModelId(),
+                        assignment.getDeploymentId(),
                         smallestAssignmentInLargestZone.getValue(),
                         smallestAssignmentInLargestZone.getKey()
                     )
@@ -132,7 +132,7 @@ public class AllocationReducer {
         return buildUpdatedAssignment(numberOfAllocations, allocationsByNode);
     }
 
-    private boolean canAssignmentBeRemovedEntirely(
+    private static boolean canAssignmentBeRemovedEntirely(
         Map.Entry<String, Integer> assignment,
         int minAllocationsInOtherZones,
         int zoneAllocations,

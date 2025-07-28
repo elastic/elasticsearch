@@ -7,14 +7,12 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -22,6 +20,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -40,11 +39,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("removal")
 public class TransformProgressIT extends TransformSingleNodeTestCase {
     private static final String REVIEWS_INDEX_NAME = "reviews";
 
@@ -135,7 +134,7 @@ public class TransformProgressIT extends TransformSingleNodeTestCase {
         boolean missingBucket = userWithMissingBuckets > 0;
         createReviewsIndex(userWithMissingBuckets);
         SourceConfig sourceConfig = new SourceConfig(REVIEWS_INDEX_NAME);
-        DestConfig destConfig = new DestConfig("unnecessary", null);
+        DestConfig destConfig = new DestConfig("unnecessary", null, null);
         GroupConfig histgramGroupConfig = new GroupConfig(
             Collections.emptyMap(),
             Collections.singletonMap("every_50", new HistogramGroupSource("count", null, missingBucket, 50.0))
@@ -161,7 +160,7 @@ public class TransformProgressIT extends TransformSingleNodeTestCase {
             null
         );
 
-        Pivot pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        Pivot pivot = new Pivot(pivotConfig, SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
 
         TransformProgress progress = getProgress(pivot, getProgressQuery(pivot, config.getSource().getIndex(), null));
 
@@ -189,7 +188,7 @@ public class TransformProgressIT extends TransformSingleNodeTestCase {
             Collections.singletonMap("every_50", new HistogramGroupSource("missing_field", null, missingBucket, 50.0))
         );
         pivotConfig = new PivotConfig(histgramGroupConfig, aggregationConfig, null);
-        pivot = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT, Collections.emptySet());
+        pivot = new Pivot(pivotConfig, SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
 
         progress = getProgress(
             pivot,
@@ -214,10 +213,12 @@ public class TransformProgressIT extends TransformSingleNodeTestCase {
         final AtomicReference<TransformProgress> progressHolder = new AtomicReference<>();
         final AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        SearchResponse response = client().search(searchRequest).actionGet();
-        function.getInitialProgressFromResponse(
-            response,
-            new LatchedActionListener<>(ActionListener.wrap(progressHolder::set, exceptionHolder::set), latch)
+        assertResponse(
+            client().search(searchRequest),
+            response -> function.getInitialProgressFromResponse(
+                response,
+                new LatchedActionListener<>(ActionListener.wrap(progressHolder::set, exceptionHolder::set), latch)
+            )
         );
 
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));

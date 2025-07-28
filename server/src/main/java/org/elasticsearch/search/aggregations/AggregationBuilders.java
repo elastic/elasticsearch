@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
@@ -21,16 +22,12 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregati
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.nested.ReverseNested;
 import org.elasticsearch.search.aggregations.bucket.nested.ReverseNestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder;
@@ -38,7 +35,6 @@ import org.elasticsearch.search.aggregations.bucket.range.IpRangeAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
@@ -75,7 +71,6 @@ import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 
 import java.util.List;
 
@@ -98,13 +93,6 @@ public class AggregationBuilders {
      */
     public static AvgAggregationBuilder avg(String name) {
         return new AvgAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link Avg} aggregation with the given name.
-     */
-    public static WeightedAvgAggregationBuilder weightedAvg(String name) {
-        return new WeightedAvgAggregationBuilder(name);
     }
 
     /**
@@ -143,7 +131,7 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link Filter} aggregation with the given name.
+     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
      */
     public static FilterAggregationBuilder filter(String name, QueryBuilder filter) {
         return new FilterAggregationBuilder(name, filter);
@@ -164,42 +152,42 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link Sampler} aggregation with the given name.
+     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
      */
     public static SamplerAggregationBuilder sampler(String name) {
         return new SamplerAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link Sampler} aggregation with the given name.
+     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
      */
     public static DiversifiedAggregationBuilder diversifiedSampler(String name) {
         return new DiversifiedAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link Global} aggregation with the given name.
+     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
      */
     public static GlobalAggregationBuilder global(String name) {
         return new GlobalAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link Missing} aggregation with the given name.
+     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
      */
     public static MissingAggregationBuilder missing(String name) {
         return new MissingAggregationBuilder(name);
     }
 
     /**
-     * Create a new {@link Nested} aggregation with the given name.
+     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
      */
     public static NestedAggregationBuilder nested(String name, String path) {
         return new NestedAggregationBuilder(name, path);
     }
 
     /**
-     * Create a new {@link ReverseNested} aggregation with the given name.
+     * Create a new {@link SingleBucketAggregation} aggregation with the given name.
      */
     public static ReverseNestedAggregationBuilder reverseNested(String name) {
         return new ReverseNestedAggregationBuilder(name);

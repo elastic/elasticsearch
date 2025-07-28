@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -42,8 +43,8 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
     }
 
     private final String fieldName;
-    DoubleFieldScript.LeafFactory leafFactory;
-    protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
+    final DoubleFieldScript.LeafFactory leafFactory;
+    private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
     private DoubleScriptFieldData(
         String fieldName,
@@ -89,6 +90,11 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
         return true;
     }
 
+    @Override
+    protected boolean isIndexed() {
+        return false;
+    }
+
     public static class DoubleScriptLeafFieldData extends LeafDoubleFieldData {
         private final DoubleScriptDocValues doubleScriptDocValues;
         protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
@@ -97,7 +103,6 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
             DoubleScriptDocValues doubleScriptDocValues,
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
-            super(0);
             this.doubleScriptDocValues = doubleScriptDocValues;
             this.toScriptFieldFactory = toScriptFieldFactory;
         }
@@ -106,9 +111,6 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
         public SortedNumericDoubleValues getDoubleValues() {
             return doubleScriptDocValues;
         }
-
-        @Override
-        public void close() {}
 
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {

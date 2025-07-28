@@ -7,15 +7,13 @@
 
 package org.elasticsearch.xpack.core.security.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.io.IOException;
 
@@ -33,6 +31,24 @@ public class Grant implements Writeable {
     private SecureString password;
     private SecureString accessToken;
     private String runAsUsername;
+    private ClientAuthentication clientAuthentication;
+
+    public record ClientAuthentication(String scheme, SecureString value) implements Writeable {
+
+        public ClientAuthentication(SecureString value) {
+            this(JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME, value);
+        }
+
+        ClientAuthentication(StreamInput in) throws IOException {
+            this(in.readString(), in.readSecureString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(scheme);
+            out.writeSecureString(value);
+        }
+    }
 
     public Grant() {}
 
@@ -41,10 +57,15 @@ public class Grant implements Writeable {
         this.username = in.readOptionalString();
         this.password = in.readOptionalSecureString();
         this.accessToken = in.readOptionalSecureString();
-        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             this.runAsUsername = in.readOptionalString();
         } else {
             this.runAsUsername = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            this.clientAuthentication = in.readOptionalWriteable(ClientAuthentication::new);
+        } else {
+            this.clientAuthentication = null;
         }
     }
 
@@ -53,8 +74,11 @@ public class Grant implements Writeable {
         out.writeOptionalString(username);
         out.writeOptionalSecureString(password);
         out.writeOptionalSecureString(accessToken);
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeOptionalString(runAsUsername);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeOptionalWriteable(clientAuthentication);
         }
     }
 
@@ -78,6 +102,10 @@ public class Grant implements Writeable {
         return runAsUsername;
     }
 
+    public ClientAuthentication getClientAuthentication() {
+        return clientAuthentication;
+    }
+
     public void setType(String type) {
         this.type = type;
     }
@@ -98,13 +126,8 @@ public class Grant implements Writeable {
         this.runAsUsername = runAsUsername;
     }
 
-    public AuthenticationToken getAuthenticationToken() {
-        assert validate(null) == null : "grant is invalid";
-        return switch (type) {
-            case PASSWORD_GRANT_TYPE -> new UsernamePasswordToken(username, password);
-            case ACCESS_TOKEN_GRANT_TYPE -> new BearerToken(accessToken);
-            default -> null;
-        };
+    public void setClientAuthentication(ClientAuthentication clientAuthentication) {
+        this.clientAuthentication = clientAuthentication;
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
@@ -114,10 +137,20 @@ public class Grant implements Writeable {
             validationException = validateRequiredField("username", username, validationException);
             validationException = validateRequiredField("password", password, validationException);
             validationException = validateUnsupportedField("access_token", accessToken, validationException);
+            if (clientAuthentication != null) {
+                return addValidationError("[client_authentication] is not supported for grant_type [" + type + "]", validationException);
+            }
         } else if (type.equals(ACCESS_TOKEN_GRANT_TYPE)) {
             validationException = validateRequiredField("access_token", accessToken, validationException);
             validationException = validateUnsupportedField("username", username, validationException);
             validationException = validateUnsupportedField("password", password, validationException);
+            if (clientAuthentication != null
+                && JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME.equals(clientAuthentication.scheme.trim()) == false) {
+                return addValidationError(
+                    "[client_authentication.scheme] must be set to [" + JwtRealmSettings.HEADER_SHARED_SECRET_AUTHENTICATION_SCHEME + "]",
+                    validationException
+                );
+            }
         } else {
             validationException = addValidationError("grant_type [" + type + "] is not supported", validationException);
         }

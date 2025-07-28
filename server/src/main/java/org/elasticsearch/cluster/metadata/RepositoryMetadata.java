@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -45,7 +46,11 @@ public class RepositoryMetadata implements Writeable {
      * @param settings repository settings
      */
     public RepositoryMetadata(String name, String type, Settings settings) {
-        this(name, RepositoryData.MISSING_UUID, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
+        this(name, RepositoryData.MISSING_UUID, type, settings);
+    }
+
+    public RepositoryMetadata(String name, String uuid, String type, Settings settings) {
+        this(name, uuid, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
     }
 
     public RepositoryMetadata(RepositoryMetadata metadata, long generation, long pendingGeneration) {
@@ -106,8 +111,13 @@ public class RepositoryMetadata implements Writeable {
     /**
      * Returns the safe repository generation. {@link RepositoryData} for this generation is assumed to exist in the repository.
      * All operations on the repository must be based on the {@link RepositoryData} at this generation.
-     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
-     * on how this value is used during snapshots.
+     * <p>
+     * This value is always at most {@link #pendingGeneration()}, and will be equal to {@link #pendingGeneration()} iff there are no ongoing
+     * root-blob writes.
+     * <p>
+     * See the package level documentation for {@link org.elasticsearch.repositories.blobstore} for details on how this value is used during
+     * snapshots.
+
      * @return safe repository generation
      */
     public long generation() {
@@ -118,8 +128,12 @@ public class RepositoryMetadata implements Writeable {
      * Returns the pending repository generation. {@link RepositoryData} for this generation and all generations down to the safe
      * generation {@link #generation} may exist in the repository and should not be reused for writing new {@link RepositoryData} to the
      * repository.
-     * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
-     * on how this value is used during snapshots.
+     * <p>
+     * This value is always at least {@link #generation()}, and will be equal to {@link #generation()} iff there are no ongoing root-blob
+     * writes.
+     * <p>
+     * See the package level documentation for {@link org.elasticsearch.repositories.blobstore} for details on how this value is used during
+     * snapshots.
      *
      * @return highest pending repository generation
      */
@@ -129,11 +143,7 @@ public class RepositoryMetadata implements Writeable {
 
     public RepositoryMetadata(StreamInput in) throws IOException {
         name = in.readString();
-        if (in.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
-            uuid = in.readString();
-        } else {
-            uuid = RepositoryData.MISSING_UUID;
-        }
+        uuid = in.readString();
         type = in.readString();
         settings = Settings.readSettingsFromStream(in);
         generation = in.readLong();
@@ -148,9 +158,7 @@ public class RepositoryMetadata implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        if (out.getVersion().onOrAfter(SnapshotsService.UUIDS_IN_REPO_DATA_VERSION)) {
-            out.writeString(uuid);
-        }
+        out.writeString(uuid);
         out.writeString(type);
         settings.writeTo(out);
         out.writeLong(generation);

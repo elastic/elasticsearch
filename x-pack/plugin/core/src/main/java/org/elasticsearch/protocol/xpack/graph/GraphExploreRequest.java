@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
@@ -33,7 +33,7 @@ import java.util.List;
  * Holds the criteria required to guide the exploration of connected terms which
  * can be returned as a graph.
  */
-public class GraphExploreRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
+public class GraphExploreRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
 
     public static final String NO_HOPS_ERROR_MESSAGE = "Graph explore request must have at least one hop";
     public static final String NO_VERTICES_ERROR_MESSAGE = "Graph explore hop must have at least one VertexRequest";
@@ -111,7 +111,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
 
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             String[] types = in.readStringArray();
             assert types.length == 0;
         }
@@ -158,9 +158,8 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * available but can still overrun due to the nature of their "best efforts"
      * timeout support. When a timeout occurs partial results are returned.
      *
-     * @param timeout
-     *            a {@link TimeValue} object which determines the maximum length
-     *            of time to spend exploring
+     * @param timeout a {@link TimeValue} object which determines the maximum length
+     *                of time to spend exploring
      */
     public GraphExploreRequest timeout(TimeValue timeout) {
         if (timeout == null) {
@@ -170,17 +169,12 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return this;
     }
 
-    public GraphExploreRequest timeout(String timeout) {
-        timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
-        return this;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         out.writeOptionalString(routing);
@@ -217,8 +211,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * background frequencies of terms found in the documents
      * </p>
      *
-     * @param maxNumberOfDocsPerHop
-     *            shard-level sample size in documents
+     * @param maxNumberOfDocsPerHop shard-level sample size in documents
      */
     public void sampleSize(int maxNumberOfDocsPerHop) {
         sampleSize = maxNumberOfDocsPerHop;
@@ -258,8 +251,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * significance (see the {@link SignificantTerms} aggregation) rather than
      * popularity (using the {@link TermsAggregator}).
      *
-     * @param value
-     *            true if the significant_terms algorithm should be used.
+     * @param value true if the significant_terms algorithm should be used.
      */
     public void useSignificance(boolean value) {
         this.useSignificance = value;
@@ -273,8 +265,7 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * Return detailed information about vertex frequencies as part of JSON
      * results - defaults to false
      *
-     * @param value
-     *            true if detailed information is required in JSON responses
+     * @param value true if detailed information is required in JSON responses
      */
     public void returnDetailedInfo(boolean value) {
         this.returnDetailedInfo = value;
@@ -289,11 +280,10 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
      * querying elasticsearch to identify terms which can then be connnected to
      * other terms in a subsequent hop.
      *
-     * @param guidingQuery
-     *            optional choice of query which influences which documents are
-     *            considered in this stage
+     * @param guidingQuery optional choice of query which influences which documents are
+     *                     considered in this stage
      * @return a {@link Hop} object that holds settings for a stage in the graph
-     *         exploration
+     * exploration
      */
     public Hop createNextHop(QueryBuilder guidingQuery) {
         Hop parent = null;

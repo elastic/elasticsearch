@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathFunctionP
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.MathProcessor.MathOperation;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -64,7 +63,7 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
     }
 
     @Override
-    protected ComputingExtractor mutateInstance(ComputingExtractor instance) throws IOException {
+    protected ComputingExtractor mutateInstance(ComputingExtractor instance) {
         return new ComputingExtractor(
             randomValueOtherThan(instance.processor(), () -> randomProcessor()),
             randomValueOtherThan(instance.hitName(), () -> randomAlphaOfLength(10))
@@ -83,8 +82,8 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
             double value = randomDouble();
             double expected = Math.log(value);
             DocumentField field = new DocumentField(fieldName, singletonList(value));
-            SearchHit hit = new SearchHit(1, null);
-            hit.setDocumentField(fieldName, field);
+            SearchHit hit = SearchHit.unpooled(1, null);
+            hit.setDocumentField(field);
             assertEquals(expected, extractor.process(hit));
         }
     }

@@ -1,39 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.rest.action.search.RestMultiSearchAction;
-import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -49,12 +46,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in search requests is deprecated.";
-    public static final String FIRST_LINE_EMPTY_DEPRECATION_MESSAGE =
-        "support for empty first line before any action metadata in msearch API is deprecated "
-            + "and will be removed in the next major version";
+public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
@@ -207,17 +199,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
     ) throws IOException {
         int from = 0;
-        byte marker = xContent.streamSeparator();
+        byte marker = xContent.bulkSeparator();
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
                 break;
-            }
-            // support first line with \n
-            if (parserConfig.restApiVersion() == RestApiVersion.V_7 && nextMarker == 0) {
-                deprecationLogger.compatibleCritical("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
-                from = nextMarker + 1;
-                continue;
             }
 
             SearchRequest searchRequest = new SearchRequest();
@@ -240,10 +226,16 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // now parse the action
             if (nextMarker - from > 0) {
                 try (
-                    InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                    XContentParser parser = xContent.createParser(parserConfig, stream)
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        parserConfig,
+                        data.slice(from, nextMarker - from),
+                        xContent.type()
+                    )
                 ) {
                     Map<String, Object> source = parser.map();
+                    if (parser.nextToken() != null) {
+                        throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                    }
                     Object expandWildcards = null;
                     Object ignoreUnavailable = null;
                     Object ignoreThrottled = null;
@@ -275,14 +267,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
-                        } else if (parserConfig.restApiVersion() == RestApiVersion.V_7
-                            && ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
-                                deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
-                            } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
-                                // Skip, the parser handled the key/value
-                            } else {
-                                throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
-                            }
+                        } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                            // Skip, the parser handled the key/value
+                        } else {
+                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
+                        }
                     }
                     defaultOptions = IndicesOptions.fromParameters(
                         expandWildcards,
@@ -302,9 +291,17 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker == -1) {
                 break;
             }
-            BytesReference bytes = data.slice(from, nextMarker - from);
-            try (InputStream stream = bytes.streamInput(); XContentParser parser = xContent.createParser(parserConfig, stream)) {
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    parserConfig,
+                    data.slice(from, nextMarker - from),
+                    xContent.type()
+                )
+            ) {
                 consumer.accept(searchRequest, parser);
+                if (parser.nextToken() != null) {
+                    throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                }
             }
             // move pointers
             from = nextMarker + 1;
@@ -330,7 +327,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 writeSearchRequestParams(request, xContentBuilder);
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
                 if (request.source() != null) {
                     request.source().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -340,7 +337,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 }
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
         }
         return output.toByteArray();
     }
@@ -351,9 +348,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
-            WildcardStates.toXContent(request.indicesOptions().expandWildcards(), xContentBuilder);
-            xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
-            xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
+            request.indicesOptions().wildcardOptions().toXContent(xContentBuilder, true);
+            request.indicesOptions().concreteTargetOptions().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         }
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));

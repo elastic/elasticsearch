@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.security.action.saml;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
@@ -45,7 +46,7 @@ public class TransportSamlSpMetadataAction extends HandledTransportAction<SamlSp
 
     @Inject
     public TransportSamlSpMetadataAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlSpMetadataAction.NAME, transportService, actionFilters, SamlSpMetadataRequest::new);
+        super(SamlSpMetadataAction.NAME, transportService, actionFilters, SamlSpMetadataRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.realms = realms;
     }
 

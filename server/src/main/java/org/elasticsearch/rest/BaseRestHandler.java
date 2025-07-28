@@ -1,30 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -40,13 +46,6 @@ import java.util.stream.Collectors;
  * {@link ActionPlugin#getRestHeaders()}.
  */
 public abstract class BaseRestHandler implements RestHandler {
-
-    /**
-     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: This parameter is only available through compatible rest api for {@link RestApiVersion#V_7}.
-     */
-    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
-    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
         "rest.action.multi.allow_explicit_index",
@@ -74,91 +73,165 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public abstract List<Route> routes();
 
+    private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "filter_path", "pretty", "human");
+
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        // check if the query has any parameters that are not in the supported set (if declared)
+        Set<String> supported = allSupportedParameters();
+        assert supported == allSupportedParameters() : getName() + ": did not return same instance from allSupportedParameters()";
+        if (supported != null) {
+            var allSupported = Sets.union(
+                RestResponse.RESPONSE_PARAMS,
+                ALWAYS_SUPPORTED,
+                // these internal parameters cannot be set by end-users, but are used by Elasticsearch internally.
+                // they must be accepted by all handlers
+                RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS,
+                supported
+            );
+            if (allSupported.containsAll(request.params().keySet()) == false) {
+                Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
+                throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));
+            }
+        }
+
         // prepare the request for execution; has the side effect of touching the request parameters
-        final RestChannelConsumer action = prepareRequest(request, client);
+        try (var action = prepareRequest(request, client)) {
 
-        // validate unconsumed params, but we must exclude params used to format the response
-        // use a sorted set so the unconsumed parameters appear in a reliable sorted order
-        final SortedSet<String> unconsumedParams = request.unconsumedParams()
-            .stream()
-            .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
-            .collect(Collectors.toCollection(TreeSet::new));
+            assert assertConsumesSupportedParams(supported, request);
 
-        // validate the non-response params
-        if (unconsumedParams.isEmpty() == false) {
-            final Set<String> candidateParams = new HashSet<>();
-            candidateParams.addAll(request.consumedParams());
-            candidateParams.addAll(responseParams(request.getRestApiVersion()));
-            throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
+            // validate unconsumed params, but we must exclude params used to format the response
+            // use a sorted set so the unconsumed parameters appear in a reliable sorted order
+            final SortedSet<String> unconsumedParams = request.unconsumedParams()
+                .stream()
+                .filter(p -> RestResponse.RESPONSE_PARAMS.contains(p) == false)
+                .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
+                .collect(Collectors.toCollection(TreeSet::new));
+
+            // validate the non-response params
+            if (unconsumedParams.isEmpty() == false) {
+                final Set<String> candidateParams = new HashSet<>();
+                candidateParams.addAll(request.consumedParams());
+                candidateParams.addAll(responseParams(request.getRestApiVersion()));
+                throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
+            }
+
+            if (request.hasContent() && (request.isContentConsumed() == false && request.isFullContent())) {
+                throw new IllegalArgumentException(
+                    "request [" + request.method() + " " + request.path() + "] does not support having a body"
+                );
+            }
+
+            usageCount.increment();
+            if (request.isStreamedContent()) {
+                assert action instanceof RequestBodyChunkConsumer;
+                var chunkConsumer = (RequestBodyChunkConsumer) action;
+
+                request.contentStream().setHandler(new HttpBody.ChunkHandler() {
+                    @Override
+                    public void onNext(ReleasableBytesReference chunk, boolean isLast) {
+                        chunkConsumer.handleChunk(channel, chunk, isLast);
+                    }
+
+                    @Override
+                    public void close() {
+                        chunkConsumer.streamClose();
+                    }
+                });
+                action.accept(channel);
+            } else {
+                action.accept(channel);
+                request.getHttpRequest().release();
+            }
         }
-
-        if (request.hasContent() && request.isContentConsumed() == false) {
-            throw new IllegalArgumentException("request [" + request.method() + " " + request.path() + "] does not support having a body");
-        }
-
-        usageCount.increment();
-        // execute the action
-        action.accept(channel);
     }
 
-    @Override
-    public boolean mediaTypesValid(RestRequest request) {
-        return request.getXContentType() != null;
+    private boolean assertConsumesSupportedParams(@Nullable Set<String> supported, RestRequest request) {
+        if (supported != null) {
+            final var supportedAndCommon = new TreeSet<>(supported);
+            supportedAndCommon.add("error_trace");
+            supportedAndCommon.addAll(ALWAYS_SUPPORTED);
+            supportedAndCommon.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            final var consumed = new TreeSet<>(request.consumedParams());
+            consumed.removeAll(RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS);
+            // Response parameters are implicitly consumed since they are made available to response renderings.
+            consumed.addAll(responseParams(request.getRestApiVersion()));
+            assert supportedAndCommon.equals(consumed)
+                : getName() + ": consumed params " + consumed + " while supporting " + supportedAndCommon;
+        }
+        return true;
     }
 
-    protected static String unrecognized(
-        final RestRequest request,
-        final Set<String> invalids,
-        final Set<String> candidates,
-        final String detail
-    ) {
-        StringBuilder message = new StringBuilder(
-            String.format(Locale.ROOT, "request [%s] contains unrecognized %s%s: ", request.path(), detail, invalids.size() > 1 ? "s" : "")
-        );
-        boolean first = true;
-        for (final String invalid : invalids) {
-            final LevenshteinDistance ld = new LevenshteinDistance();
-            final List<Tuple<Float, String>> scoredParams = new ArrayList<>();
-            for (final String candidate : candidates) {
-                final float distance = ld.getDistance(invalid, candidate);
-                if (distance > 0.5f) {
-                    scoredParams.add(new Tuple<>(distance, candidate));
-                }
-            }
-            CollectionUtil.timSort(scoredParams, (a, b) -> {
-                // sort by distance in reverse order, then parameter name for equal distances
-                int compare = a.v1().compareTo(b.v1());
-                if (compare != 0) return -compare;
-                else return a.v2().compareTo(b.v2());
-            });
-            if (first == false) {
-                message.append(", ");
-            }
+    protected static String unrecognized(RestRequest request, Set<String> invalids, Set<String> candidates, String detail) {
+        StringBuilder message = new StringBuilder().append("request [")
+            .append(request.path())
+            .append("] contains unrecognized ")
+            .append(detail)
+            .append(invalids.size() > 1 ? "s" : "")
+            .append(": ");
+
+        for (Iterator<String> it = invalids.iterator(); it.hasNext();) {
+            String invalid = it.next();
+
+            LevenshteinDistance ld = new LevenshteinDistance();
+            List<String> candidateParams = candidates.stream()
+                .map(c -> Tuple.tuple(ld.getDistance(invalid, c), c))
+                .filter(t -> t.v1() > 0.5f)
+                .sorted(Comparator.<Tuple<Float, String>, Float>comparing(Tuple::v1).reversed().thenComparing(Tuple::v2))
+                .map(Tuple::v2)
+                .toList();
+
             message.append("[").append(invalid).append("]");
-            final List<String> keys = scoredParams.stream().map(Tuple::v2).toList();
-            if (keys.isEmpty() == false) {
+            if (candidateParams.isEmpty() == false) {
                 message.append(" -> did you mean ");
-                if (keys.size() == 1) {
-                    message.append("[").append(keys.get(0)).append("]");
-                } else {
-                    message.append("any of ").append(keys.toString());
+                if (candidateParams.size() > 1) {
+                    message.append("any of ");
                 }
+                message.append(candidateParams);
                 message.append("?");
             }
-            first = false;
+
+            if (it.hasNext()) {
+                message.append(", ");
+            }
         }
 
         return message.toString();
     }
 
     /**
-     * REST requests are handled by preparing a channel consumer that represents the execution of
-     * the request against a channel.
+     * REST requests are handled by preparing a channel consumer that represents the execution of the request against a channel.
      */
     @FunctionalInterface
-    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception>, Releasable {
+        /**
+         * Called just after the execution has started (or failed, if the request was invalid), but typically well before the execution has
+         * completed. This callback should be used to release (refs to) resources that were acquired when constructing this consumer, for
+         * instance by calling {@link RefCounted#decRef()} on any newly-created transport requests with nontrivial lifecycles.
+         */
+        @Override
+        default void close() {}
+    }
+
+    public interface RequestBodyChunkConsumer extends RestChannelConsumer {
+
+        /**
+         * Handle one chunk of the request body. The handler <b>must</b> close the chunk once it is no longer
+         * needed to avoid leaking.
+         *
+         * @param channel The rest channel associated to the request
+         * @param chunk The chunk of request body that is ready for processing
+         * @param isLast Whether the chunk is the last one of the request
+         */
+        void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
+
+        /**
+         * Called when the stream closes. This could happen prior to the completion of the request if the underlying channel was closed.
+         * Implementors should do their best to clean up resources and early terminate request processing if it is triggered before a
+         * response is generated.
+         */
+        default void streamClose() {}
+    }
 
     /**
      * Prepare the request for execution. Implementations should consume all request params before
@@ -198,5 +271,4 @@ public abstract class BaseRestHandler implements RestHandler {
     protected Set<String> responseParams(RestApiVersion restApiVersion) {
         return responseParams();
     }
-
 }

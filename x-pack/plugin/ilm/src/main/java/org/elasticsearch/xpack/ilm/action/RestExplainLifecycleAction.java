@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestExplainLifecycleAction extends BaseRestHandler {
 
@@ -35,16 +37,15 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        ExplainLifecycleRequest explainLifecycleRequest = new ExplainLifecycleRequest();
+        ExplainLifecycleRequest explainLifecycleRequest = new ExplainLifecycleRequest(getMasterNodeTimeout(restRequest));
         explainLifecycleRequest.indices(indexes);
         explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         explainLifecycleRequest.onlyManaged(restRequest.paramAsBoolean("only_managed", false));
         explainLifecycleRequest.onlyErrors(restRequest.paramAsBoolean("only_errors", false));
-        String masterNodeTimeout = restRequest.param("master_timeout");
-        if (masterNodeTimeout != null) {
-            explainLifecycleRequest.masterNodeTimeout(masterNodeTimeout);
-        }
-
-        return channel -> client.execute(ExplainLifecycleAction.INSTANCE, explainLifecycleRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            ExplainLifecycleAction.INSTANCE,
+            explainLifecycleRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

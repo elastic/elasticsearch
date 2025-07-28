@@ -15,22 +15,24 @@ public class UpgradeJobModelSnapshotRequestTests extends AbstractXContentSeriali
 
     @Override
     protected Request createTestInstance() {
-        return new Request(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomBoolean() ? null : randomTimeValue(),
-            randomBoolean() ? null : randomBoolean()
-        );
+        return randomBoolean()
+            ? new Request(randomAlphaOfLength(10), randomAlphaOfLength(10), randomBoolean() ? null : randomTimeValue(), randomBoolean())
+            : new Request(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomTimeValue().getStringRep(),
+                randomBoolean() ? null : randomBoolean()
+            );
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override

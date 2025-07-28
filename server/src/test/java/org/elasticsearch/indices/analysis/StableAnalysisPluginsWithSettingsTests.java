@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis;
@@ -15,29 +16,34 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.indices.analysis.lucene.AppendTokenFilter;
+import org.elasticsearch.indices.analysis.lucene.CharSkippingTokenizer;
 import org.elasticsearch.indices.analysis.lucene.ReplaceCharToNumber;
-import org.elasticsearch.indices.analysis.lucene.SkipTokenFilter;
-import org.elasticsearch.indices.analysis.lucene.TestTokenizer;
-import org.elasticsearch.plugin.analysis.api.AnalysisMode;
-import org.elasticsearch.plugin.api.Inject;
-import org.elasticsearch.plugin.api.NamedComponent;
-import org.elasticsearch.plugin.api.settings.AnalysisSettings;
-import org.elasticsearch.plugin.api.settings.BooleanSetting;
-import org.elasticsearch.plugin.api.settings.IntSetting;
-import org.elasticsearch.plugin.api.settings.ListSetting;
-import org.elasticsearch.plugin.api.settings.LongSetting;
-import org.elasticsearch.plugin.api.settings.StringSetting;
+import org.elasticsearch.indices.analysis.lucene.SkipStartingWithDigitTokenFilter;
+import org.elasticsearch.plugin.Inject;
+import org.elasticsearch.plugin.NamedComponent;
+import org.elasticsearch.plugin.analysis.AnalysisMode;
+import org.elasticsearch.plugin.analysis.AnalyzerFactory;
+import org.elasticsearch.plugin.analysis.CharFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenizerFactory;
+import org.elasticsearch.plugin.settings.AnalysisSettings;
+import org.elasticsearch.plugin.settings.BooleanSetting;
+import org.elasticsearch.plugin.settings.IntSetting;
+import org.elasticsearch.plugin.settings.ListSetting;
+import org.elasticsearch.plugin.settings.LongSetting;
+import org.elasticsearch.plugin.settings.StringSetting;
 import org.elasticsearch.plugins.scanners.NameToPluginInfo;
 import org.elasticsearch.plugins.scanners.NamedComponentReader;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -66,7 +72,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
                 .put("index.analysis.analyzer.char_filter_with_defaults_test.tokenizer", "standard")
                 .put("index.analysis.analyzer.char_filter_with_defaults_test.char_filter", "stableCharFilterFactory")
 
-                .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                 .build()
         );
         assertTokenStreamContents(analyzers.get("char_filter_test").tokenStream("", "t#st"), new String[] { "t3st" });
@@ -82,7 +88,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
                 .put("index.analysis.analyzer.token_filter_test.tokenizer", "standard")
                 .put("index.analysis.analyzer.token_filter_test.filter", "my_token_filter")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                 .build()
         );
         assertTokenStreamContents(
@@ -103,7 +109,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
                 .putList("index.analysis.tokenizer.my_tokenizer.tokenizer_list_of_chars", "_", " ")
 
                 .put("index.analysis.analyzer.tokenizer_test.tokenizer", "my_tokenizer")
-                .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                 .build()
         );
         assertTokenStreamContents(analyzers.get("tokenizer_test").tokenStream("", "x_y z"), new String[] { "x", "y", "z" });
@@ -118,7 +124,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
                 .put("index.analysis.analyzer.analyzer_provider_test.old_char", "#")
                 .put("index.analysis.analyzer.analyzer_provider_test.new_number", 3)
                 .put("index.analysis.analyzer.analyzer_provider_test.analyzerUseTokenListOfChars", true)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                 .build()
         );
         assertTokenStreamContents(analyzers.get("analyzer_provider_test").tokenStream("", "1x_y_#z"), new String[] { "y", "3z" });
@@ -128,7 +134,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
         AnalysisRegistry registry = setupRegistry();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        return registry.build(idxSettings);
+        return registry.build(IndexCreationContext.CREATE_INDEX, idxSettings);
     }
 
     private AnalysisRegistry setupRegistry() throws IOException {
@@ -140,28 +146,28 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
             new StablePluginsRegistry(
                 new NamedComponentReader(),
                 Map.of(
-                    org.elasticsearch.plugin.analysis.api.CharFilterFactory.class.getCanonicalName(),
+                    CharFilterFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableCharFilterFactory",
                             new PluginInfo("stableCharFilterFactory", TestCharFilterFactory.class.getName(), classLoader)
                         )
                     ),
-                    org.elasticsearch.plugin.analysis.api.TokenFilterFactory.class.getCanonicalName(),
+                    TokenFilterFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableTokenFilterFactory",
                             new PluginInfo("stableTokenFilterFactory", TestTokenFilterFactory.class.getName(), classLoader)
                         )
                     ),
-                    org.elasticsearch.plugin.analysis.api.TokenizerFactory.class.getCanonicalName(),
+                    TokenizerFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableTokenizerFactory",
                             new PluginInfo("stableTokenizerFactory", TestTokenizerFactory.class.getName(), classLoader)
                         )
                     ),
-                    org.elasticsearch.plugin.analysis.api.AnalyzerFactory.class.getCanonicalName(),
+                    AnalyzerFactory.class.getCanonicalName(),
                     new NameToPluginInfo(
                         Map.of(
                             "stableAnalyzerFactory",
@@ -193,7 +199,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
     }
 
     @NamedComponent("stableAnalyzerFactory")
-    public static class TestAnalyzerFactory implements org.elasticsearch.plugin.analysis.api.AnalyzerFactory {
+    public static class TestAnalyzerFactory implements AnalyzerFactory {
 
         private final TestAnalysisSettings settings;
 
@@ -217,9 +223,9 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
             @Override
             protected TokenStreamComponents createComponents(String fieldName) {
-                var tokenizer = new TestTokenizer(settings.tokenizerListOfChars());
+                var tokenizer = new CharSkippingTokenizer(settings.tokenizerListOfChars());
                 long tokenFilterNumber = settings.analyzerUseTokenListOfChars() ? settings.tokenFilterNumber() : -1;
-                var tokenFilter = new SkipTokenFilter(tokenizer, tokenFilterNumber);
+                var tokenFilter = new SkipStartingWithDigitTokenFilter(tokenizer, tokenFilterNumber);
                 return new TokenStreamComponents(
                     r -> tokenizer.setReader(new ReplaceCharToNumber(r, settings.oldChar(), settings.newNumber())),
                     tokenFilter
@@ -229,7 +235,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
     }
 
     @NamedComponent("stableCharFilterFactory")
-    public static class TestCharFilterFactory implements org.elasticsearch.plugin.analysis.api.CharFilterFactory {
+    public static class TestCharFilterFactory implements CharFilterFactory {
         private final String oldChar;
         private final int newNumber;
 
@@ -252,7 +258,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
     }
 
     @NamedComponent("stableTokenFilterFactory")
-    public static class TestTokenFilterFactory implements org.elasticsearch.plugin.analysis.api.TokenFilterFactory {
+    public static class TestTokenFilterFactory implements TokenFilterFactory {
 
         private final long tokenFilterNumber;
 
@@ -263,7 +269,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
         @Override
         public TokenStream create(TokenStream tokenStream) {
-            return new SkipTokenFilter(tokenStream, tokenFilterNumber);
+            return new SkipStartingWithDigitTokenFilter(tokenStream, tokenFilterNumber);
         }
 
         @Override
@@ -273,13 +279,13 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
         @Override
         public AnalysisMode getAnalysisMode() {
-            return org.elasticsearch.plugin.analysis.api.TokenFilterFactory.super.getAnalysisMode();
+            return TokenFilterFactory.super.getAnalysisMode();
         }
 
     }
 
     @NamedComponent("stableTokenizerFactory")
-    public static class TestTokenizerFactory implements org.elasticsearch.plugin.analysis.api.TokenizerFactory {
+    public static class TestTokenizerFactory implements TokenizerFactory {
         private final java.util.List<String> tokenizerListOfChars;
 
         @Inject
@@ -289,7 +295,7 @@ public class StableAnalysisPluginsWithSettingsTests extends ESTestCase {
 
         @Override
         public Tokenizer create() {
-            return new TestTokenizer(tokenizerListOfChars);
+            return new CharSkippingTokenizer(tokenizerListOfChars);
         }
 
     }

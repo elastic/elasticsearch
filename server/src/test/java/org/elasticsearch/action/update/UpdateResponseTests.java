@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponseTests;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
@@ -38,6 +40,7 @@ import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
@@ -62,7 +65,7 @@ public class UpdateResponseTests extends ESTestCase {
         }
         {
             UpdateResponse updateResponse = new UpdateResponse(
-                new ReplicationResponse.ShardInfo(10, 6),
+                ReplicationResponse.ShardInfo.of(10, 6),
                 new ShardId("index", "index_uuid", 1),
                 "id",
                 3,
@@ -94,7 +97,7 @@ public class UpdateResponseTests extends ESTestCase {
             fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123")));
 
             UpdateResponse updateResponse = new UpdateResponse(
-                new ReplicationResponse.ShardInfo(3, 2),
+                ReplicationResponse.ShardInfo.of(3, 2),
                 new ShardId("books", "books_uuid", 2),
                 "1",
                 7,
@@ -174,7 +177,7 @@ public class UpdateResponseTests extends ESTestCase {
         }
         UpdateResponse parsedUpdateResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedUpdateResponse = UpdateResponse.fromXContent(parser);
+            parsedUpdateResponse = parseInstanceFromXContent(parser);
             assertNull(parser.nextToken());
         }
 
@@ -189,6 +192,32 @@ public class UpdateResponseTests extends ESTestCase {
         BytesReference parsedBytes = toXContent(parsedUpdateResponse, xContentType, humanReadable);
         BytesReference expectedBytes = toXContent(expectedUpdateResponse, xContentType, humanReadable);
         assertToXContentEquivalent(expectedBytes, parsedBytes, xContentType);
+    }
+
+    private static UpdateResponse parseInstanceFromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+
+        UpdateResponse.Builder context = new UpdateResponse.Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            parseXContentFields(parser, context);
+        }
+        return context.build();
+    }
+
+    /**
+     * Parse the current token and update the parsing context appropriately.
+     */
+    public static void parseXContentFields(XContentParser parser, UpdateResponse.Builder context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        String currentFieldName = parser.currentName();
+
+        if (UpdateResponse.GET.equals(currentFieldName)) {
+            if (token == XContentParser.Token.START_OBJECT) {
+                context.setGetResult(GetResultTests.parseInstanceFromEmbedded(parser));
+            }
+        } else {
+            BulkItemResponseTests.parseInnerToXContent(parser, context);
+        }
     }
 
     /**

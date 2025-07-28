@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +43,8 @@ public class JvmStats implements Writeable, ToXContentFragment {
     private static final ThreadMXBean threadMXBean;
     private static final ClassLoadingMXBean classLoadingMXBean;
 
+    private static final Logger logger = LogManager.getLogger(JvmStats.class);
+
     static {
         runtimeMXBean = ManagementFactory.getRuntimeMXBean();
         memoryMXBean = ManagementFactory.getMemoryMXBean();
@@ -59,12 +64,9 @@ public class JvmStats implements Writeable, ToXContentFragment {
         List<MemoryPool> pools = new ArrayList<>();
         for (MemoryPoolMXBean memoryPoolMXBean : memoryPoolMXBeans) {
             try {
+                String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), memoryPoolMXBean.getName());
                 MemoryUsage usage = memoryPoolMXBean.getUsage();
                 MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
-                String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
-                if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
-                    continue;
-                }
                 pools.add(
                     new MemoryPool(
                         name,
@@ -76,6 +78,15 @@ public class JvmStats implements Writeable, ToXContentFragment {
                 );
             } catch (final Exception ignored) {
 
+            } catch (InternalError e) {
+                /*
+                 * This catch block is here due to https://github.com/elastic/elasticsearch/issues/94728. It appears to be due to a JVM
+                 * bug starting in java 20. This is meant to (1) log a warning in production and move on rather than killing the server and
+                 * (2) fail any tests that hit this, giving us information about which memory pool it is so that we can troubleshoot more.
+                 */
+                String message = "Unexpected error getting information about " + memoryPoolMXBean.getName();
+                logger.warn(message, e);
+                assert false : message;
             }
         }
         Mem mem = new Mem(heapCommitted, heapUsed, heapMax, nonHeapCommitted, nonHeapUsed, Collections.unmodifiableList(pools));
@@ -154,7 +165,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
         mem = new Mem(in);
         threads = new Threads(in);
         gc = new GarbageCollectors(in);
-        bufferPools = in.readList(BufferPool::new);
+        bufferPools = in.readCollectionAsList(BufferPool::new);
         classes = new Classes(in);
     }
 
@@ -165,7 +176,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
         mem.writeTo(out);
         threads.writeTo(out);
         gc.writeTo(out);
-        out.writeList(bufferPools);
+        out.writeCollection(bufferPools);
         classes.writeTo(out);
     }
 
@@ -493,7 +504,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
             nonHeapCommitted = in.readVLong();
             nonHeapUsed = in.readVLong();
             heapMax = in.readVLong();
-            pools = in.readList(MemoryPool::new);
+            pools = in.readCollectionAsList(MemoryPool::new);
         }
 
         @Override
@@ -503,7 +514,7 @@ public class JvmStats implements Writeable, ToXContentFragment {
             out.writeVLong(nonHeapCommitted);
             out.writeVLong(nonHeapUsed);
             out.writeVLong(heapMax);
-            out.writeList(pools);
+            out.writeCollection(pools);
         }
 
         @Override

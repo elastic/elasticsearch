@@ -96,8 +96,8 @@ setup:
 
 ---
 "Get snapshot info contains include_global_state":
-  - skip:
-      version: " - 6.1.99"
+  - requires:
+      cluster_features: ["gte_v6.2.0"]
       reason: "include_global_state field has been added in the response in 6.2.0"
 
   - do:
@@ -156,8 +156,8 @@ setup:
 
 ---
 "Get snapshot info with metadata":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "Introduced with 7.3"
 
   - do:
@@ -195,8 +195,8 @@ setup:
 
 ---
 "Get snapshot info with index details":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: "Introduced in 7.13.0"
 
   - do:
@@ -235,8 +235,8 @@ setup:
 
 ---
 "Get snapshot info without index names":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: "Introduced in 8.3.0"
 
   - do:
@@ -303,3 +303,72 @@ setup:
       snapshot.delete:
         repository: test_repo_get_1
         snapshot: test_snapshot_no_repo_name
+
+---
+"Get snapshot using state parameter":
+  - requires:
+      cluster_features: "snapshots.get.state_parameter"
+      test_runner_features: capabilities
+      capabilities:
+        - method: GET
+          path: /_snapshot/{repository}/{snapshot}
+          parameters: [ state ]
+      reason: "state parameter was introduced in 9.1"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        state: SUCCESS
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_with_state_param }
+  - match: { snapshots.0.state: SUCCESS }
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        state: SUCCESS,PARTIAL
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_with_state_param }
+  - match: { snapshots.0.state: SUCCESS }
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        state: FAILED
+
+  - is_true: snapshots
+  - length: { snapshots: 0 }
+
+  - do:
+      catch: bad_request
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param
+        state: FOO
+
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "No enum constant org.elasticsearch.snapshots.SnapshotState.FOO" }
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_state_param

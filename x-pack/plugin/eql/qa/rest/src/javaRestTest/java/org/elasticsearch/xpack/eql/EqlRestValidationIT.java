@@ -7,11 +7,25 @@
 
 package org.elasticsearch.xpack.eql;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.elasticsearch.test.TestClustersThreadFilter;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.eql.EqlRestValidationTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EqlRestValidationIT extends EqlRestValidationTestCase {
+
+    @ClassRule
+    public static final ElasticsearchCluster cluster = EqlTestCluster.CLUSTER;
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @Override
     protected String getInexistentIndexErrorMessage() {
@@ -30,7 +44,11 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
         // TODO: revisit after
         // https://github.com/elastic/elasticsearch/issues/64197
         // is closed
-        assertErrorMessage("inexistent1,inexistent2", reqParameter, """
-            "root_cause":[{"type":"index_not_found_exception","reason":"no such index [null]\"""");
+        assertErrorMessage(
+            "inexistent1,inexistent2",
+            reqParameter,
+            "\"root_cause\":[{\"type\":\"index_not_found_exception\",\"reason\":\"no such index [null]\","
+                + "\"resource.type\":\"index_expression\",\"resource.id\":[\"inexistent1\",\"inexistent2\"]}]"
+        );
     }
 }

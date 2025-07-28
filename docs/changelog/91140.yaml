@@ -1,5 +1,0 @@
-pr: 91140
-summary: Improve H3#hexRing logic and add H3#areNeighborCells method
-area: Geo
-type: enhancement
-issues: []

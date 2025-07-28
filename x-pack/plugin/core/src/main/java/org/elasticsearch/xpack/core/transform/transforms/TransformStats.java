@@ -7,13 +7,12 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,16 +48,12 @@ public class TransformStats implements Writeable, ToXContentObject {
     private final TransformHealth health;
 
     public static TransformStats initialStats(String id) {
-        return stoppedStats(id, new TransformIndexerStats());
-    }
-
-    public static TransformStats stoppedStats(String id, TransformIndexerStats indexerTransformStats) {
         return new TransformStats(
             id,
             State.STOPPED,
             null,
             null,
-            indexerTransformStats,
+            new TransformIndexerStats(),
             TransformCheckpointingInfo.EMPTY,
             TransformHealth.GREEN
         );
@@ -94,7 +89,7 @@ public class TransformStats implements Writeable, ToXContentObject {
         this.indexerStats = new TransformIndexerStats(in);
         this.checkpointingInfo = new TransformCheckpointingInfo(in);
 
-        if (in.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             if (in.readBoolean()) {
                 this.health = new TransformHealth(in);
             } else {
@@ -138,7 +133,7 @@ public class TransformStats implements Writeable, ToXContentObject {
         }
         indexerStats.writeTo(out);
         checkpointingInfo.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_6_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_6_0)) {
             if (health != null) {
                 out.writeBoolean(true);
                 health.writeTo(out);
@@ -204,6 +199,10 @@ public class TransformStats implements Writeable, ToXContentObject {
         return checkpointingInfo;
     }
 
+    public TransformHealth getHealth() {
+        return health;
+    }
+
     @Override
     public String toString() {
         return Strings.toString(this);
@@ -260,25 +259,6 @@ public class TransformStats implements Writeable, ToXContentObject {
 
         public String value() {
             return name().toLowerCase(Locale.ROOT);
-        }
-
-        // only used when speaking to nodes < 7.4 (can be removed for 8.0)
-        public Tuple<TransformTaskState, IndexerState> toComponents() {
-
-            return switch (this) {
-                case STARTED -> new Tuple<>(TransformTaskState.STARTED, IndexerState.STARTED);
-                case INDEXING -> new Tuple<>(TransformTaskState.STARTED, IndexerState.INDEXING);
-                case ABORTING -> new Tuple<>(TransformTaskState.STARTED, IndexerState.ABORTING);
-                case STOPPING ->
-                    // This one is not deterministic, because an overall state of STOPPING could arise
-                    // from either (STARTED, STOPPED) or (STARTED, STOPPING). However, (STARTED, STOPPED)
-                    // is a very short-lived state so it's reasonable to assume the other, especially
-                    // as this method is only for mixed version cluster compatibility.
-                    new Tuple<>(TransformTaskState.STARTED, IndexerState.STOPPING);
-                case STOPPED -> new Tuple<>(TransformTaskState.STOPPED, null);
-                case FAILED -> new Tuple<>(TransformTaskState.FAILED, null);
-                default -> throw new IllegalStateException("Unexpected state enum value: " + this);
-            };
         }
     }
 }

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
@@ -16,10 +18,15 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -38,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.index.rankeval.RatedRequest.validateEvaluatedQuery;
@@ -59,6 +67,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private final Client client;
     private final ScriptService scriptService;
     private final NamedXContentRegistry namedXContentRegistry;
+    private final Predicate<NodeFeature> clusterSupportsFeature;
 
     @Inject
     public TransportRankEvalAction(
@@ -66,11 +75,17 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         Client client,
         TransportService transportService,
         ScriptService scriptService,
-        NamedXContentRegistry namedXContentRegistry
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
-        super(RankEvalAction.NAME, transportService, actionFilters, RankEvalRequest::new);
+        super(RankEvalPlugin.ACTION.name(), transportService, actionFilters, RankEvalRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.scriptService = scriptService;
         this.namedXContentRegistry = namedXContentRegistry;
+        this.clusterSupportsFeature = f -> {
+            ClusterState state = clusterService.state();
+            return state.clusterRecovered() && featureService.clusterHasFeature(state, f);
+        };
         this.client = client;
     }
 
@@ -105,7 +120,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
                         XContentType.JSON
                     )
                 ) {
-                    evaluationRequest = new SearchSourceBuilder().parseXContent(subParser, false);
+                    evaluationRequest = new SearchSourceBuilder().parseXContent(subParser, false, clusterSupportsFeature);
                     // check for parts that should not be part of a ranking evaluation request
                     validateEvaluatedQuery(evaluationRequest);
                 } catch (IOException e) {
@@ -143,7 +158,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         );
     }
 
-    static class RankEvalActionListener extends ActionListener.Delegating<MultiSearchResponse, RankEvalResponse> {
+    static class RankEvalActionListener extends DelegatingActionListener<MultiSearchResponse, RankEvalResponse> {
 
         private final RatedRequest[] specifications;
 

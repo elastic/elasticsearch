@@ -16,11 +16,8 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
-import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,9 +26,7 @@ import java.util.List;
 
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 public class TopMetricsAggregationBuilderTests extends AbstractXContentSerializingTestCase<TopMetricsAggregationBuilder> {
     @Override
@@ -86,31 +81,28 @@ public class TopMetricsAggregationBuilderTests extends AbstractXContentSerializi
         return new TopMetricsAggregationBuilder(randomAlphaOfLength(5), sortBuilders, between(1, 100), metricFields);
     }
 
-    public void testClientBuilder() throws IOException {
-        AbstractXContentTestCase.xContentTester(this::createParser, this::createTestInstance, this::toXContentThroughClientBuilder, p -> {
-            p.nextToken();
-            AggregatorFactories.Builder b = AggregatorFactories.parseAggregators(p);
-            assertThat(b.getAggregatorFactories(), hasSize(1));
-            assertThat(b.getPipelineAggregatorFactories(), empty());
-            return (TopMetricsAggregationBuilder) b.getAggregatorFactories().iterator().next();
-        }).test();
+    @Override
+    protected TopMetricsAggregationBuilder mutateInstance(TopMetricsAggregationBuilder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
-    private void toXContentThroughClientBuilder(TopMetricsAggregationBuilder serverBuilder, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        createClientBuilder(serverBuilder).toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-    }
-
-    private org.elasticsearch.client.analytics.TopMetricsAggregationBuilder createClientBuilder(
-        TopMetricsAggregationBuilder serverBuilder
-    ) {
-        assertThat(serverBuilder.getSortBuilders(), hasSize(1));
-        return new org.elasticsearch.client.analytics.TopMetricsAggregationBuilder(
-            serverBuilder.getName(),
-            serverBuilder.getSortBuilders().get(0),
-            serverBuilder.getSize(),
-            serverBuilder.getMetricFields().stream().map(MultiValuesSourceFieldConfig::getFieldName).toArray(String[]::new)
-        );
+    public void testValidation() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            List<SortBuilder<?>> sortBuilders = singletonList(
+                new FieldSortBuilder(randomAlphaOfLength(5)).order(randomFrom(SortOrder.values()))
+            );
+            List<MultiValuesSourceFieldConfig> metricFields = InternalTopMetricsTests.randomMetricNames(between(1, 5))
+                .stream()
+                .map(name -> {
+                    MultiValuesSourceFieldConfig.Builder metricField = new MultiValuesSourceFieldConfig.Builder();
+                    metricField.setFieldName(randomAlphaOfLength(5)).setMissing(1.0);
+                    return metricField.build();
+                })
+                .collect(toList());
+            new TopMetricsAggregationBuilder("tm", sortBuilders, between(1, 100), metricFields).subAggregations(
+                AggregatorFactories.builder()
+            );
+        });
+        assertEquals("Aggregator [tm] of type [top_metrics] cannot accept sub-aggregations", e.getMessage());
     }
 }

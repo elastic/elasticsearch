@@ -1,23 +1,23 @@
 ---
 "cluster stats test":
   - do:
-      cluster.stats: {}
+      cluster.stats: { }
 
   - is_true: timestamp
   - is_true: cluster_name
-  - match: {status: green}
-  - gte: { indices.count: 0}
+  - match: { status: green }
+  - gte: { indices.count: 0 }
   - is_true: indices.docs
   - is_true: indices.store
   - is_true: indices.fielddata
   - is_true: indices.query_cache
   - is_true: indices.completion
   - is_true: indices.segments
-  - gte: { nodes.count.total: 1}
-  - gte: { nodes.count.master: 1}
-  - gte: { nodes.count.data: 1}
-  - gte: { nodes.count.ingest: 0}
-  - gte: { nodes.count.coordinating_only: 0}
+  - gte: { nodes.count.total: 1 }
+  - gte: { nodes.count.master: 1 }
+  - gte: { nodes.count.data: 1 }
+  - gte: { nodes.count.ingest: 0 }
+  - gte: { nodes.count.coordinating_only: 0 }
   - is_true: nodes.os
   - is_true: nodes.os.mem.total_in_bytes
   - is_true: nodes.os.mem.free_in_bytes
@@ -31,27 +31,62 @@
   - is_true: nodes.network_types
 
 ---
+"cluster stats accepts timeout param":
+  - do:
+      cluster.stats:
+        timeout: 24h
+
+  - is_true: timestamp
+  - is_true: cluster_name
+
+---
+"cluster stats with human flag returns docs as human readable size":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_cluster/stats
+          capabilities:
+            - "human-readable-total-docs-size"
+      reason: "Capability required to run test"
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          foo: bar
+
+  - do:
+      cluster.stats:
+        human: true
+
+  - exists: indices.docs.total_size_in_bytes
+  - exists: indices.docs.total_size
+
+---
 "get cluster stats returns cluster_uuid at the top level":
 
   - do:
-      cluster.stats: {}
+      cluster.stats: { }
 
   - is_true: cluster_uuid
   - is_true: timestamp
   - is_true: cluster_name
-  - match: {status: green}
-  - gte: { indices.count: 0}
+  - match: { status: green }
+  - gte: { indices.count: 0 }
   - is_true: indices.docs
   - is_true: indices.store
   - is_true: indices.fielddata
   - is_true: indices.query_cache
   - is_true: indices.completion
   - is_true: indices.segments
-  - gte: { nodes.count.total: 1}
-  - gte: { nodes.count.master: 1}
-  - gte: { nodes.count.data: 1}
-  - gte: { nodes.count.ingest: 0}
-  - gte: { nodes.count.coordinating_only: 0}
+  - gte: { nodes.count.total: 1 }
+  - gte: { nodes.count.master: 1 }
+  - gte: { nodes.count.data: 1 }
+  - gte: { nodes.count.ingest: 0 }
+  - gte: { nodes.count.coordinating_only: 0 }
   - is_true: nodes.os
   - is_true: nodes.os.mem.total_in_bytes
   - is_true: nodes.os.mem.free_in_bytes
@@ -68,39 +103,39 @@
 "get cluster stats returns discovery types":
 
   - do:
-      cluster.stats: {}
+      cluster.stats: { }
 
   - is_true: nodes.discovery_types
 
 ---
 "get cluster stats returns packaging types":
 
-  - skip:
-      version: " - 7.1.99"
-      reason:  "packaging types are added for v7.2.0"
+  - requires:
+      cluster_features: [ "gte_v7.2.0" ]
+      reason: "packaging types are added for v7.2.0"
 
   - do:
-      cluster.stats: {}
+      cluster.stats: { }
 
   - is_true: nodes.packaging_types
 ---
 "get cluster stats without runtime fields":
-  - skip:
-      version: " - 7.12.99"
-      reason:  "cluster stats includes runtime fields from 7.13 on"
+  - requires:
+      cluster_features: [ "gte_v7.13.0" ]
+      reason: "cluster stats includes runtime fields from 7.13 on"
   - do:
       indices.create:
         index: sensor
 
-  - do: {cluster.stats: {}}
+  - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 0 }
   - length: { indices.mappings.runtime_field_types: 0 }
 
 ---
 "Usage stats with script-less runtime fields":
-  - skip:
-      version: " - 7.12.99"
-      reason:  "cluster stats includes runtime fields from 7.13 on"
+  - requires:
+      cluster_features: [ "gte_v7.13.0" ]
+      reason: "cluster stats includes runtime fields from 7.13 on"
   - do:
       indices.create:
         index: sensor
@@ -122,7 +157,7 @@
               bad_map:
                 type: long
 
-  - do: {cluster.stats: {}}
+  - do: { cluster.stats: { } }
   - length: { indices.mappings.field_types: 3 }
 
   - match: { indices.mappings.field_types.0.name: keyword }
@@ -145,9 +180,9 @@
   - match: { indices.mappings.runtime_field_types.0.shadowed_count: 1 }
   - match: { indices.mappings.runtime_field_types.0.source_max: 0 }
   - match: { indices.mappings.runtime_field_types.0.source_total: 0 }
-  - match: { indices.mappings.runtime_field_types.0.lines_max:  0 }
+  - match: { indices.mappings.runtime_field_types.0.lines_max: 0 }
   - match: { indices.mappings.runtime_field_types.0.lines_total: 0 }
-  - match: { indices.mappings.runtime_field_types.0.chars_max:  0 }
+  - match: { indices.mappings.runtime_field_types.0.chars_max: 0 }
   - match: { indices.mappings.runtime_field_types.0.chars_total: 0 }
   - match: { indices.mappings.runtime_field_types.0.doc_max: 0 }
   - match: { indices.mappings.runtime_field_types.0.doc_total: 0 }
@@ -159,18 +194,18 @@
   - match: { indices.mappings.runtime_field_types.1.shadowed_count: 1 }
   - match: { indices.mappings.runtime_field_types.1.source_max: 0 }
   - match: { indices.mappings.runtime_field_types.1.source_total: 0 }
-  - match: { indices.mappings.runtime_field_types.1.lines_max:  0 }
+  - match: { indices.mappings.runtime_field_types.1.lines_max: 0 }
   - match: { indices.mappings.runtime_field_types.1.lines_total: 0 }
-  - match: { indices.mappings.runtime_field_types.1.chars_max:  0 }
+  - match: { indices.mappings.runtime_field_types.1.chars_max: 0 }
   - match: { indices.mappings.runtime_field_types.1.chars_total: 0 }
   - match: { indices.mappings.runtime_field_types.1.doc_max: 0 }
   - match: { indices.mappings.runtime_field_types.1.doc_total: 0 }
 
 ---
 "mappings sizes reported in get cluster stats":
-  - skip:
-      version: " - 8.3.99"
-      reason:  "mapping sizes reported from 8.4 onwards"
+  - requires:
+      cluster_features: [ "gte_v8.4.0" ]
+      reason: "mapping sizes reported from 8.4 onwards"
   - do:
       indices.create:
         index: sensor
@@ -180,7 +215,243 @@
               "field":
                 "type": "keyword"
 
-  - do: {cluster.stats: {}}
+  - do: { cluster.stats: { } }
   - gt: { indices.mappings.total_field_count: 0 }
   - gt: { indices.mappings.total_deduplicated_field_count: 0 }
   - gt: { indices.mappings.total_deduplicated_mapping_size_in_bytes: 0 }
+
+
+---
+"snapshot stats reported in get cluster stats":
+  - requires:
+      cluster_features: [ "gte_v8.8.0" ]
+      reason: "snapshot stats reported from 8.8 onwards"
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_for_stats
+        body:
+          type: fs
+          settings:
+            location: "test_repo_for_stats_loc"
+
+  - do:
+      cluster.stats:
+        human: true
+
+  - gte: { snapshots.current_counts.snapshots: 0 }
+  - gte: { snapshots.current_counts.shard_snapshots: 0 }
+  - gte: { snapshots.current_counts.snapshot_deletions: 0 }
+  - gte: { snapshots.current_counts.concurrent_operations: 0 }
+  - gte: { snapshots.current_counts.cleanups: 0 }
+  - is_true: snapshots.repositories.test_repo_for_stats.type
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.snapshots: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.clones: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.finalizations: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.deletions: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.snapshot_deletions: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.active_deletions: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.total: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.complete: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.incomplete: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.INIT: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.SUCCESS: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.FAILED: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.ABORTED: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.MISSING: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.WAITING: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.current_counts.shards.states.QUEUED: 0 }
+  - gte: { snapshots.repositories.test_repo_for_stats.oldest_start_time_millis: 0 }
+  - is_true: snapshots.repositories.test_repo_for_stats.oldest_start_time
+
+---
+"Dense vector stats":
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "dense vector stats reports from primary indices in 8.15 and fixed in 8.16"
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index: true
+                dims: 3
+                similarity: cosine
+              another_vector:
+                type: dense_vector
+                index: true
+                dims: 3
+                similarity: cosine
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                index: true
+                dims: 3
+                similarity: cosine
+              another_vector:
+                type: dense_vector
+                index: true
+                dims: 3
+                similarity: cosine
+
+  - do:
+      index:
+        index: test1
+        id: "1"
+        body:
+          vector: [ 1, 2, 3 ]
+          another_vector: [ 4, 5, 6 ]
+
+  - do:
+      index:
+        index: test1
+        id: "2"
+        body:
+          vector: [ 7, 8, 9 ]
+          another_vector: [ 10, 11, 12 ]
+
+  - do:
+      index:
+        index: test2
+        id: "1"
+        body:
+          vector: [ 1, 2, 3 ]
+          another_vector: [ 4, 5, 6 ]
+
+  - do:
+      index:
+        index: test2
+        id: "2"
+        body:
+          vector: [ 7, 8, 9 ]
+          another_vector: [ 10, 11, 12 ]
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      index:
+        index: test2
+        id: "3"
+        refresh: true
+        body:
+          not_vector_field: "not vector"
+
+  - do: { cluster.stats: { } }
+
+  - match: { indices.docs.count: 5 }
+  - match: { indices.docs.deleted: 0 }
+  - match: { indices.dense_vector.value_count: 8 }
+  - is_false: indices.dense_vector.off_heap
+
+---
+"Sparse vector stats":
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "sparse vector stats added in 8.15"
+  - do:
+      indices.create:
+        index: test1
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              vector:
+                type: sparse_vector
+              another_vector:
+                type: sparse_vector
+              not_a_vector:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              vector:
+                type: sparse_vector
+              another_vector:
+                type: sparse_vector
+
+  - do:
+      index:
+        index: test1
+        id: "1"
+        body:
+          vector:
+            a: 1.0
+            b: 2.0
+            c: 3.0
+          another_vector:
+            d: 4.0
+            e: 5.0
+            f: 6.0
+          not_a_vector: "I'm not a vector"
+
+  - do:
+      index:
+        index: test1
+        id: "2"
+        body:
+          vector:
+            g: 7.0
+            h: 8.0
+            i: 9.0
+          another_vector:
+            j: 10.0
+            k: 11.0
+            l: 12.0
+
+  - do:
+      index:
+        index: test1
+        id: "3"
+        body:
+          not_a_vector: "seriously, I'm not a vector"
+
+  - do:
+      index:
+        index: test2
+        id: "1"
+        body:
+          vector:
+            a: 1.0
+            b: 2.0
+            c: 3.0
+          another_vector:
+            d: 4.0
+            e: 5.0
+            f: 6.0
+
+  - do:
+      index:
+        index: test2
+        id: "2"
+        body:
+          vector:
+            g: 7.0
+            h: 8.0
+            i: 9.0
+
+  - do:
+      indices.refresh: { }
+
+  - do: { cluster.stats: { } }
+
+  - match: { indices.docs.count: 5 }
+  - match: { indices.docs.deleted: 0 }
+  - match: { indices.sparse_vector.value_count: 7 }
+

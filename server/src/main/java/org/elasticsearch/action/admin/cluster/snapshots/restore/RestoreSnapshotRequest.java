@@ -1,22 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -40,7 +44,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String snapshot;
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenFailureNoSelectors();
     private String[] featureStates = Strings.EMPTY_ARRAY;
     private String renamePattern;
     private String renameReplacement;
@@ -48,7 +52,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    public static Version VERSION_SUPPORTING_QUIET_PARAMETER = Version.V_8_4_0;
+    public static final TransportVersion VERSION_SUPPORTING_QUIET_PARAMETER = TransportVersions.V_8_4_0;
     private boolean quiet = false;
     private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
@@ -59,7 +63,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
 
-    public RestoreSnapshotRequest() {}
+    public RestoreSnapshotRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     /**
      * Constructs a new put repository request with the provided repository and snapshot names.
@@ -67,7 +73,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @param repository repository name
      * @param snapshot   snapshot name
      */
-    public RestoreSnapshotRequest(String repository, String snapshot) {
+    public RestoreSnapshotRequest(TimeValue masterNodeTimeout, String repository, String snapshot) {
+        this(masterNodeTimeout);
         this.snapshot = snapshot;
         this.repository = repository;
     }
@@ -85,7 +92,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
-        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+        if (in.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
             quiet = in.readBoolean();
         } else {
             quiet = true;
@@ -109,7 +116,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+        if (out.getTransportVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
             out.writeBoolean(quiet);
         }
         indexSettings.writeTo(out);
@@ -131,6 +138,16 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is missing", validationException);
+        }
+        // This action does not use the IndexNameExpressionResolver to resolve concrete indices, this is why we check here for selectors
+        if (indicesOptions.allowSelectors() == false) {
+            for (String index : indices) {
+                try {
+                    IndexNameExpressionResolver.SelectorResolver.parseExpression(index, indicesOptions);
+                } catch (IllegalArgumentException e) {
+                    validationException = addValidationError(e.getMessage(), validationException);
+                }
+            }
         }
         if (featureStates == null) {
             validationException = addValidationError("featureStates is missing", validationException);
@@ -580,11 +597,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     private void toXContentFragment(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("indices");
-        for (String index : indices) {
-            builder.value(index);
-        }
-        builder.endArray();
+        builder.array("indices", indices);
         if (indicesOptions != null) {
             indicesOptions.toXContent(builder, params);
         }
@@ -595,11 +608,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             builder.field("rename_replacement", renameReplacement);
         }
         if (featureStates != null && featureStates.length > 0) {
-            builder.startArray("feature_states");
-            for (String plugin : featureStates) {
-                builder.value(plugin);
-            }
-            builder.endArray();
+            builder.array("feature_states", featureStates);
         }
         builder.field("include_global_state", includeGlobalState);
         builder.field("partial", partial);
@@ -611,11 +620,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             }
             builder.endObject();
         }
-        builder.startArray("ignore_index_settings");
-        for (String ignoreIndexSetting : ignoreIndexSettings) {
-            builder.value(ignoreIndexSetting);
-        }
-        builder.endArray();
+        builder.array("ignore_index_settings", ignoreIndexSettings);
     }
 
     @Override

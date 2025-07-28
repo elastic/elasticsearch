@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.core.watcher.crypto;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 
@@ -54,10 +54,9 @@ public class CryptoService {
     private static final String DEFAULT_KEY_ALGORITH = "AES";
     private static final int DEFAULT_KEY_LENGTH = 128;
 
-    private static final Setting<String> ENCRYPTION_ALGO_SETTING = new Setting<>(
+    private static final Setting<String> ENCRYPTION_ALGO_SETTING = Setting.simpleString(
         SecurityField.setting("encryption.algorithm"),
-        s -> DEFAULT_ENCRYPTION_ALGORITHM,
-        s -> s,
+        DEFAULT_ENCRYPTION_ALGORITHM,
         Property.NodeScope
     );
     private static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING = Setting.intSetting(
@@ -65,10 +64,9 @@ public class CryptoService {
         DEFAULT_KEY_LENGTH,
         Property.NodeScope
     );
-    private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING = new Setting<>(
+    private static final Setting<String> ENCRYPTION_KEY_ALGO_SETTING = Setting.simpleString(
         SecurityField.setting("encryption_key.algorithm"),
         DEFAULT_KEY_ALGORITH,
-        s -> s,
         Property.NodeScope
     );
     private static final Logger logger = LogManager.getLogger(CryptoService.class);
@@ -156,7 +154,7 @@ public class CryptoService {
      * @param chars the chars to check if they are encrypted
      * @return true is data is encrypted
      */
-    protected boolean isEncrypted(char[] chars) {
+    protected static boolean isEncrypted(char[] chars) {
         return CharArrays.charsBeginsWith(ENCRYPTED_TEXT_PREFIX, chars);
     }
 

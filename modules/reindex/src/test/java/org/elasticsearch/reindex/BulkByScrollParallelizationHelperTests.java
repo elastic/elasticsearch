@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -14,8 +15,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.reindex.BulkByScrollParallelizationHelper.sliceIntoSubRequests;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchSourceBuilder;
@@ -23,7 +24,7 @@ import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearch
 public class BulkByScrollParallelizationHelperTests extends ESTestCase {
     public void testSliceIntoSubRequests() throws IOException {
         SearchRequest searchRequest = randomSearchRequest(
-            () -> randomSearchSourceBuilder(() -> null, () -> null, () -> null, () -> emptyList(), () -> null, () -> null)
+            () -> randomSearchSourceBuilder(() -> null, () -> null, () -> null, Collections::emptyList, () -> null, () -> null)
         );
         if (searchRequest.source() != null) {
             // Clear the slice builder if there is one set. We can't call sliceIntoSubRequests if it is.

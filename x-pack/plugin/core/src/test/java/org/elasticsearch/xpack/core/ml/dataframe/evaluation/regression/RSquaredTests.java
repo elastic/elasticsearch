@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -34,6 +34,11 @@ public class RSquaredTests extends AbstractXContentSerializingTestCase<RSquared>
     }
 
     @Override
+    protected RSquared mutateInstance(RSquared instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<RSquared> instanceReader() {
         return RSquared::new;
     }
@@ -43,7 +48,7 @@ public class RSquaredTests extends AbstractXContentSerializingTestCase<RSquared>
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockSingleValue("residual_sum_of_squares", 10_111),
                 mockExtendedStats("extended_stats_actual", 155.23, 1000),
@@ -61,7 +66,7 @@ public class RSquaredTests extends AbstractXContentSerializingTestCase<RSquared>
     }
 
     public void testEvaluateWithZeroCount() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockSingleValue("residual_sum_of_squares", 0),
                 mockExtendedStats("extended_stats_actual", 0.0, 0),
@@ -78,7 +83,7 @@ public class RSquaredTests extends AbstractXContentSerializingTestCase<RSquared>
     }
 
     public void testEvaluateWithSingleCountZeroVariance() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockSingleValue("residual_sum_of_squares", 1),
                 mockExtendedStats("extended_stats_actual", 0.0, 1),
@@ -95,7 +100,9 @@ public class RSquaredTests extends AbstractXContentSerializingTestCase<RSquared>
     }
 
     public void testEvaluate_GivenMissingAggs() {
-        Aggregations aggs = new Aggregations(Collections.singletonList(mockSingleValue("some_other_single_metric_agg", 0.2377)));
+        InternalAggregations aggs = InternalAggregations.from(
+            (Collections.singletonList(mockSingleValue("some_other_single_metric_agg", 0.2377)))
+        );
 
         RSquared rSquared = new RSquared();
         rSquared.process(aggs);
@@ -105,7 +112,7 @@ public class RSquaredTests extends AbstractXContentSerializingTestCase<RSquared>
     }
 
     public void testEvaluate_GivenMissingExtendedStatsAgg() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(mockSingleValue("some_other_single_metric_agg", 0.2377), mockSingleValue("residual_sum_of_squares", 0.2377))
         );
 
@@ -117,7 +124,7 @@ public class RSquaredTests extends AbstractXContentSerializingTestCase<RSquared>
     }
 
     public void testEvaluate_GivenMissingResidualSumOfSquaresAgg() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(mockSingleValue("some_other_single_metric_agg", 0.2377), mockExtendedStats("extended_stats_actual", 100, 50))
         );
 

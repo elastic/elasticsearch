@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis.wrappers;
@@ -15,8 +16,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.plugin.api.Inject;
-import org.elasticsearch.plugin.api.settings.AnalysisSettings;
+import org.elasticsearch.plugin.Inject;
+import org.elasticsearch.plugin.analysis.AnalysisMode;
+import org.elasticsearch.plugin.analysis.AnalyzerFactory;
+import org.elasticsearch.plugin.analysis.CharFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenFilterFactory;
+import org.elasticsearch.plugin.analysis.TokenizerFactory;
+import org.elasticsearch.plugin.settings.AnalysisSettings;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 
@@ -38,41 +44,25 @@ public class StableApiWrappers {
     public static
         Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.CharFilterFactory>>
         oldApiForStableCharFilterFactory(StablePluginsRegistry stablePluginRegistry) {
-        return mapStablePluginApiToOld(
-            stablePluginRegistry,
-            org.elasticsearch.plugin.analysis.api.CharFilterFactory.class,
-            StableApiWrappers::wrapCharFilterFactory
-        );
+        return mapStablePluginApiToOld(stablePluginRegistry, CharFilterFactory.class, StableApiWrappers::wrapCharFilterFactory);
     }
 
     public static
         Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenFilterFactory>>
         oldApiForTokenFilterFactory(StablePluginsRegistry stablePluginRegistry) {
-        return mapStablePluginApiToOld(
-            stablePluginRegistry,
-            org.elasticsearch.plugin.analysis.api.TokenFilterFactory.class,
-            StableApiWrappers::wrapTokenFilterFactory
-        );
+        return mapStablePluginApiToOld(stablePluginRegistry, TokenFilterFactory.class, StableApiWrappers::wrapTokenFilterFactory);
     }
 
     public static Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.TokenizerFactory>> oldApiForTokenizerFactory(
         StablePluginsRegistry stablePluginRegistry
     ) {
-        return mapStablePluginApiToOld(
-            stablePluginRegistry,
-            org.elasticsearch.plugin.analysis.api.TokenizerFactory.class,
-            StableApiWrappers::wrapTokenizerFactory
-        );
+        return mapStablePluginApiToOld(stablePluginRegistry, TokenizerFactory.class, StableApiWrappers::wrapTokenizerFactory);
     }
 
     public static
         Map<String, AnalysisModule.AnalysisProvider<org.elasticsearch.index.analysis.AnalyzerProvider<?>>>
         oldApiForAnalyzerFactory(StablePluginsRegistry stablePluginRegistry) {
-        return mapStablePluginApiToOld(
-            stablePluginRegistry,
-            org.elasticsearch.plugin.analysis.api.AnalyzerFactory.class,
-            StableApiWrappers::wrapAnalyzerFactory
-        );
+        return mapStablePluginApiToOld(stablePluginRegistry, AnalyzerFactory.class, StableApiWrappers::wrapAnalyzerFactory);
     }
 
     private static <T, F> Map<String, AnalysisModule.AnalysisProvider<T>> mapStablePluginApiToOld(
@@ -106,9 +96,7 @@ public class StableApiWrappers {
         };
     }
 
-    private static org.elasticsearch.index.analysis.CharFilterFactory wrapCharFilterFactory(
-        org.elasticsearch.plugin.analysis.api.CharFilterFactory charFilterFactory
-    ) {
+    private static org.elasticsearch.index.analysis.CharFilterFactory wrapCharFilterFactory(CharFilterFactory charFilterFactory) {
         return new org.elasticsearch.index.analysis.CharFilterFactory() {
             @Override
             public String name() {
@@ -127,9 +115,7 @@ public class StableApiWrappers {
         };
     }
 
-    private static org.elasticsearch.index.analysis.TokenFilterFactory wrapTokenFilterFactory(
-        org.elasticsearch.plugin.analysis.api.TokenFilterFactory f
-    ) {
+    private static org.elasticsearch.index.analysis.TokenFilterFactory wrapTokenFilterFactory(TokenFilterFactory f) {
         return new org.elasticsearch.index.analysis.TokenFilterFactory() {
             @Override
             public String name() {
@@ -151,17 +137,13 @@ public class StableApiWrappers {
                 return mapAnalysisMode(f.getAnalysisMode());
             }
 
-            private org.elasticsearch.index.analysis.AnalysisMode mapAnalysisMode(
-                org.elasticsearch.plugin.analysis.api.AnalysisMode analysisMode
-            ) {
+            private static org.elasticsearch.index.analysis.AnalysisMode mapAnalysisMode(AnalysisMode analysisMode) {
                 return org.elasticsearch.index.analysis.AnalysisMode.valueOf(analysisMode.name());
             }
         };
     }
 
-    private static org.elasticsearch.index.analysis.TokenizerFactory wrapTokenizerFactory(
-        org.elasticsearch.plugin.analysis.api.TokenizerFactory f
-    ) {
+    private static org.elasticsearch.index.analysis.TokenizerFactory wrapTokenizerFactory(TokenizerFactory f) {
         return new org.elasticsearch.index.analysis.TokenizerFactory() {
 
             @Override
@@ -176,9 +158,7 @@ public class StableApiWrappers {
         };
     }
 
-    private static org.elasticsearch.index.analysis.AnalyzerProvider<?> wrapAnalyzerFactory(
-        org.elasticsearch.plugin.analysis.api.AnalyzerFactory f
-    ) {
+    private static org.elasticsearch.index.analysis.AnalyzerProvider<?> wrapAnalyzerFactory(AnalyzerFactory f) {
         return new org.elasticsearch.index.analysis.AnalyzerProvider<>() {
             @Override
             public String name() {
@@ -225,7 +205,9 @@ public class StableApiWrappers {
                     }
                     return (T) constructor.newInstance(parameters);
                 } else {
-                    throw new IllegalStateException("Missing @Inject annotation for constructor with settings.");
+                    throw new IllegalStateException(
+                        "Missing @" + Inject.class.getCanonicalName() + " annotation for constructor with settings."
+                    );
                 }
             }
 

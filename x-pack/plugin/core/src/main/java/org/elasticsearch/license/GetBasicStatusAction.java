@@ -14,6 +14,6 @@ public class GetBasicStatusAction extends ActionType<GetBasicStatusResponse> {
     public static final String NAME = "cluster:admin/xpack/license/basic_status";
 
     private GetBasicStatusAction() {
-        super(NAME, GetBasicStatusResponse::new);
+        super(NAME);
     }
 }

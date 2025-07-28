@@ -41,6 +41,11 @@ public class ItemSetMapReduceValueSourceSerializationTests extends AbstractWireS
         throw new AssertionError("field type missing");
     }
 
+    @Override
+    protected Field mutateInstance(Field instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     @Before
     public void registerNamedObjects() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());

@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.enrich.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
@@ -30,42 +32,51 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-public class TransportEnrichStatsAction extends TransportMasterNodeAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
+public class TransportEnrichStatsAction extends TransportLocalClusterStateAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
 
     private final Client client;
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportEnrichStatsAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
         super(
             EnrichStatsAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            EnrichStatsAction.Request::new,
-            indexNameExpressionResolver,
-            EnrichStatsAction.Response::new,
-            ThreadPool.Names.SAME
+            transportService.getTaskManager(),
+            clusterService,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            EnrichStatsAction.Request::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         EnrichStatsAction.Request request,
         ClusterState state,
         ActionListener<EnrichStatsAction.Response> listener
-    ) throws Exception {
+    ) {
         EnrichCoordinatorStatsAction.Request statsRequest = new EnrichCoordinatorStatsAction.Request();
-        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = ActionListener.wrap(response -> {
+        ActionListener<EnrichCoordinatorStatsAction.Response> statsListener = listener.delegateFailureAndWrap((delegate, response) -> {
             if (response.hasFailures()) {
                 // Report failures even if some node level requests succeed:
                 Exception failure = null;
@@ -76,14 +87,14 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                         failure.addSuppressed(nodeFailure);
                     }
                 }
-                listener.onFailure(failure);
+                delegate.onFailure(failure);
                 return;
             }
 
             List<CoordinatorStats> coordinatorStats = response.getNodes()
                 .stream()
                 .map(EnrichCoordinatorStatsAction.NodeResponse::getCoordinatorStats)
-                .sorted(Comparator.comparing(CoordinatorStats::getNodeId))
+                .sorted(Comparator.comparing(CoordinatorStats::nodeId))
                 .collect(Collectors.toList());
             List<ExecutingPolicy> policyExecutionTasks = taskManager.getTasks()
                 .values()
@@ -91,16 +102,17 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 .filter(t -> t.getAction().equals(EnrichPolicyExecutor.TASK_ACTION))
                 .map(t -> t.taskInfo(clusterService.localNode().getId(), true))
                 .map(t -> new ExecutingPolicy(t.description(), t))
-                .sorted(Comparator.comparing(ExecutingPolicy::getName))
+                .sorted(Comparator.comparing(ExecutingPolicy::name))
                 .collect(Collectors.toList());
             List<EnrichStatsAction.Response.CacheStats> cacheStats = response.getNodes()
                 .stream()
                 .map(EnrichCoordinatorStatsAction.NodeResponse::getCacheStats)
                 .filter(Objects::nonNull)
-                .sorted(Comparator.comparing(EnrichStatsAction.Response.CacheStats::getNodeId))
+                .sorted(Comparator.comparing(EnrichStatsAction.Response.CacheStats::nodeId))
                 .collect(Collectors.toList());
-            listener.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats, cacheStats));
-        }, listener::onFailure);
+            delegate.onResponse(new EnrichStatsAction.Response(policyExecutionTasks, coordinatorStats, cacheStats));
+        });
+        ((CancellableTask) task).ensureNotCancelled();
         client.execute(EnrichCoordinatorStatsAction.INSTANCE, statsRequest, statsListener);
     }
 

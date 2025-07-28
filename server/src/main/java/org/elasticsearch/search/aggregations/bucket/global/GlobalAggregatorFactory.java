@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.global;
@@ -29,7 +30,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
     ) throws IOException {
         super(name, context, parent, subFactories, metadata);
         if (subFactories.isInSortOrderExecutionRequired()) {
-            throw new AggregationExecutionException("Time series aggregations cannot be used inside global aggregation.");
+            throw new IllegalArgumentException("Time series aggregations cannot be used inside global aggregation.");
         }
     }
 
@@ -37,7 +38,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         if (parent != null) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "Aggregation ["
                     + parent.name()
                     + "] cannot have a global "
@@ -47,6 +48,7 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
             );
         }
         if (cardinality != CardinalityUpperBound.ONE) {
+            // Hitting this exception is a programmer error. Hopefully never seen in production.
             throw new AggregationExecutionException("Aggregation [" + name() + "] must have cardinality 1 but was [" + cardinality + "]");
         }
         return new GlobalAggregator(name, factories, context, metadata);

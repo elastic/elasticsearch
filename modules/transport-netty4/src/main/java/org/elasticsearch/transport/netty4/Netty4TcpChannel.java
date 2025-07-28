@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport.netty4;
@@ -11,83 +12,54 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPromise;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.TcpChannel;
-import org.elasticsearch.transport.TransportException;
 
 import java.net.InetSocketAddress;
+
+import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
+import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
 public class Netty4TcpChannel implements TcpChannel {
 
     private final Channel channel;
     private final boolean isServer;
     private final String profile;
-    private final ListenableFuture<Void> connectContext;
-    private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
+    private final SubscribableListener<Void> connectContext = new SubscribableListener<>();
+    private final SubscribableListener<Void> closeContext = new SubscribableListener<>();
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
+    /**
+     * Exception causing a close, reported to the {@link #closeContext} listener
+     */
+    private volatile Exception closeException = null;
 
     Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, ChannelFuture connectFuture) {
         this.channel = channel;
         this.isServer = isServer;
         this.profile = profile;
-        this.connectContext = new ListenableFuture<>();
         this.rstOnClose = rstOnClose;
-        addListener(this.channel.closeFuture(), closeContext);
         addListener(connectFuture, connectContext);
-    }
-
-    /**
-     * Adds a listener that completes the given {@link ListenableFuture} to the given {@link ChannelFuture}.
-     * @param channelFuture Channel future
-     * @param listener Listener to complete
-     */
-    public static void addListener(ChannelFuture channelFuture, ListenableFuture<Void> listener) {
-        channelFuture.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                Throwable cause = f.cause();
-                if (cause instanceof Error) {
-                    ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                    listener.onFailure(new Exception(cause));
+        addListener(this.channel.closeFuture(), new ActionListener<>() {
+            @Override
+            public void onResponse(Void ignored) {
+                if (closeException != null) {
+                    closeContext.onFailure(closeException);
                 } else {
-                    listener.onFailure((Exception) cause);
+                    closeContext.onResponse(null);
                 }
             }
-        });
-    }
 
-    /**
-     * Creates a {@link ChannelPromise} for the given {@link Channel} and adds a listener that invokes the given {@link ActionListener}
-     * on its completion.
-     * @param listener lister to invoke
-     * @param channel channel
-     * @return write promise
-     */
-    public static ChannelPromise addPromise(ActionListener<Void> listener, Channel channel) {
-        ChannelPromise writePromise = channel.newPromise();
-        writePromise.addListener(f -> {
-            if (f.isSuccess()) {
-                listener.onResponse(null);
-            } else {
-                final Throwable cause = f.cause();
-                ExceptionsHelper.maybeDieOnAnotherThread(cause);
-                if (cause instanceof Error) {
-                    listener.onFailure(new Exception(cause));
-                } else {
-                    listener.onFailure((Exception) cause);
-                }
+            @Override
+            public void onFailure(Exception e) {
+                assert false : new AssertionError("netty channel closeFuture should never report a failure");
             }
         });
-        return writePromise;
     }
 
     @Override
@@ -141,6 +113,11 @@ public class Netty4TcpChannel implements TcpChannel {
     }
 
     @Override
+    public void setCloseException(Exception e) {
+        closeException = e;
+    }
+
+    @Override
     public ChannelStats getChannelStats() {
         return stats;
     }
@@ -162,11 +139,7 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        channel.writeAndFlush(Netty4Utils.toByteBuf(reference), addPromise(listener, channel));
-
-        if (channel.eventLoop().isShutdown()) {
-            listener.onFailure(new TransportException("Cannot send message, event loop is shutting down."));
-        }
+        safeWriteAndFlush(channel, reference, listener);
     }
 
     public Channel getNettyChannel() {

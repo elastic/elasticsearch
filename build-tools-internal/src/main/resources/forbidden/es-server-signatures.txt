@@ -1,8 +1,9 @@
-# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License
-# 2.0 and the Server Side Public License, v 1; you may not use this file except
-# in compliance with, at your election, the Elastic License 2.0 or the Server
-# Side Public License, v 1.
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
 
 # For third-party dependencies, please put signatures in third-party.txt instead of here.
 
@@ -38,6 +39,11 @@ java.lang.Math#abs(long)
 @defaultMessage Please do not try to stop the world
 java.lang.System#gc()
 
+@defaultMessage Don't use MethodHandles in slow ways
+java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)
+
 @defaultMessage Use Channels.* methods to write to channels. Do not write directly.
 java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer)
 java.nio.channels.FileChannel#write(java.nio.ByteBuffer, long)
@@ -52,13 +58,6 @@ java.nio.channels.FileChannel#read(java.nio.ByteBuffer, long)
 org.apache.lucene.util.Version#parseLeniently(java.lang.String)
 
 org.apache.lucene.index.NoMergePolicy#INSTANCE @ explicit use of NoMergePolicy risks forgetting to configure NoMergeScheduler; use org.elasticsearch.common.lucene.Lucene#indexWriterConfigWithNoMerging() instead.
-
-@defaultMessage Spawns a new thread which is solely under lucenes control use ThreadPool#relativeTimeInMillis instead
-org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
-org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
-
-@defaultMessage use @org.elasticsearch.common.lucene.RegExp instead to avoid StackOverflowError
-org.apache.lucene.util.automaton.RegExp
 
 @defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
 java.util.concurrent.Future#cancel(boolean)
@@ -120,7 +119,7 @@ java.time.zone.ZoneRules#getStandardOffset(java.time.Instant)
 java.time.zone.ZoneRules#getDaylightSavings(java.time.Instant)
 java.time.zone.ZoneRules#isDaylightSavings(java.time.Instant)
 
-@defaultMessage Use logger methods with non-Object parameter
+@defaultMessage The first parameter to a log4j log statement should be a String, a log4j Supplier (not java.util.function.Supplier), or another object that log4j supports.
 org.apache.logging.log4j.Logger#trace(java.lang.Object)
 org.apache.logging.log4j.Logger#trace(java.lang.Object, java.lang.Throwable)
 org.apache.logging.log4j.Logger#debug(java.lang.Object)
@@ -139,7 +138,9 @@ org.apache.logging.log4j.LogManager#getLogger()
 
 # This is permitted in test code, where we have a Checkstyle rule to guard
 # against unsafe uses. This leniency does not extend to server code.
-java.lang.String#formatted(java.lang.Object[]) @ Uses default locale - use String#format(Locale, String, Object...) instead
+@defaultMessage Uses default locale - use org.elasticsearch.common.Strings#format(String, Object...) instead
+java.lang.String#formatted(java.lang.Object[])
+java.lang.String#format(java.lang.String,java.lang.Object[])
 
 @defaultMessage Unbatched cluster state tasks are a source of performance and stability bugs. Implement the update logic in a executor which is reused across tasks instead.
 org.elasticsearch.cluster.service.MasterService#submitUnbatchedStateUpdateTask(java.lang.String, org.elasticsearch.cluster.ClusterStateUpdateTask)
@@ -148,3 +149,19 @@ org.elasticsearch.cluster.service.ClusterService#submitUnbatchedStateUpdateTask(
 @defaultMessage Reacting to the published cluster state is an obstruction to batching cluster state tasks which leads to performance and stability bugs. Use the variants that accept a Runnable instead.
 org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer)
 org.elasticsearch.cluster.ClusterStateTaskExecutor$TaskContext#success(java.util.function.Consumer, org.elasticsearch.cluster.ClusterStateAckListener)
+
+@defaultMessage ClusterState#compatibilityVersions are for internal use only. Use ClusterState#getMinVersions or a different version. See TransportVersion javadocs for more info.
+org.elasticsearch.cluster.ClusterState#compatibilityVersions()
+
+@defaultMessage ClusterFeatures#nodeFeatures is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
+org.elasticsearch.cluster.ClusterFeatures#nodeFeatures()
+@defaultMessage ClusterFeatures#clusterHasFeature is for internal use only. Use FeatureService#clusterHasFeature to determine if a feature is present on the cluster.
+org.elasticsearch.cluster.ClusterFeatures#clusterHasFeature(org.elasticsearch.cluster.node.DiscoveryNodes, org.elasticsearch.features.NodeFeature)
+
+@defaultMessage Do not construct this records outside the source files they are declared in
+org.elasticsearch.cluster.SnapshotsInProgress$ShardSnapshotStatus#<init>(java.lang.String, org.elasticsearch.cluster.SnapshotsInProgress$ShardState, org.elasticsearch.repositories.ShardGeneration, java.lang.String, org.elasticsearch.repositories.ShardSnapshotResult)
+org.elasticsearch.cluster.SnapshotDeletionsInProgress$Entry#<init>(org.elasticsearch.cluster.metadata.ProjectId, java.lang.String, java.util.List, long, long, org.elasticsearch.cluster.SnapshotDeletionsInProgress$State, java.lang.String)
+
+@defaultMessage Use a Thread constructor with a name, anonymous threads are more difficult to debug
+java.lang.Thread#<init>(java.lang.Runnable)
+java.lang.Thread#<init>(java.lang.ThreadGroup, java.lang.Runnable)

@@ -1,14 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.index.shard.ShardId;
+
+import java.util.Collection;
 
 /**
  * Needs to be implemented by all {@link org.elasticsearch.action.ActionRequest} subclasses that relate to
@@ -58,5 +62,33 @@ public interface IndicesRequest {
         default boolean allowsRemoteIndices() {
             return false;
         }
+    }
+
+    /**
+     * For use cases where a Request instance cannot implement Replaceable due to not supporting wildcards
+     * and only supporting a single index at a time, this is an alternative interface that the
+     * security layer checks against to determine if remote indices are allowed for that Request type.
+     *
+     * This may change with https://github.com/elastic/elasticsearch/issues/105598
+     */
+    interface SingleIndexNoWildcards extends IndicesRequest {
+        default boolean allowsRemoteIndices() {
+            return true;
+        }
+    }
+
+    /**
+     * This subtype of request is for requests which may travel to remote clusters. These requests may need to provide additional
+     * information to the system on top of the indices the action relates to in order to be handled correctly in all cases.
+     */
+    interface RemoteClusterShardRequest extends IndicesRequest {
+        /**
+         * Returns the shards this action is targeting directly, which may not obviously align with the indices returned by
+         * {@code indices()}. This is mostly used by requests which fan out to a number of shards for the those fan-out requests.
+         *
+         * A default is intentionally not provided for this method. It is critical that this method be implemented correctly for all
+         * remote cluster requests,
+         */
+        Collection<ShardId> shards();
     }
 }

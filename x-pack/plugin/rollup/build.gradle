@@ -1,18 +1,17 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 esplugin {
-  name 'x-pack-rollup'
-  description 'Elasticsearch Expanded Pack Plugin - Rollup'
-  classname 'org.elasticsearch.xpack.rollup.Rollup'
-  extendedPlugins = ['x-pack-aggregate-metric']
+  name = 'x-pack-rollup'
+  description = 'Elasticsearch Expanded Pack Plugin - Rollup'
+  classname ='org.elasticsearch.xpack.rollup.Rollup'
+  extendedPlugins = ['x-pack-core']
 }
 
-archivesBaseName = 'x-pack-rollup'
+base {
+  archivesName = 'x-pack-rollup'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  compileOnly project(':modules:data-streams')
-  compileOnly project(path: xpackModule('ilm'))
-  compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 

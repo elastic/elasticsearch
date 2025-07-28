@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction.Request;
@@ -18,6 +19,9 @@ public class FlushJobActionRequestTests extends AbstractBWCWireSerializationTest
         Request request = new Request(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             request.setWaitForNormalization(randomBoolean());
+        }
+        if (randomBoolean()) {
+            request.setRefreshRequired(randomBoolean());
         }
         if (randomBoolean()) {
             request.setCalcInterim(randomBoolean());
@@ -38,12 +42,20 @@ public class FlushJobActionRequestTests extends AbstractBWCWireSerializationTest
     }
 
     @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }
 
     @Override
-    protected Request mutateInstanceForVersion(Request instance, Version version) {
+    protected Request mutateInstanceForVersion(Request instance, TransportVersion version) {
+        if (version.before(TransportVersions.V_8_9_X)) {
+            instance.setRefreshRequired(true);
+        }
         return instance;
     }
 }

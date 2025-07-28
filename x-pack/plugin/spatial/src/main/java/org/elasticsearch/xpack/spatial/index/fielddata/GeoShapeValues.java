@@ -12,9 +12,12 @@ import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Point;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -25,7 +28,7 @@ import java.io.IOException;
  */
 public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShapeValue> {
 
-    public static GeoShapeValues EMPTY = new GeoShapeValues() {
+    public static final GeoShapeValues EMPTY = new GeoShapeValues() {
         private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
 
         @Override
@@ -69,6 +72,12 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
             this.tile2DVisitor = new Tile2DVisitor();
         }
 
+        @SuppressWarnings("this-escape")
+        public GeoShapeValue(StreamInput in) throws IOException {
+            this();
+            reset(in);
+        }
+
         @Override
         protected Component2D centroidAsComponent2D() throws IOException {
             return LatLonGeometry.create(new Point(getY(), getX()));
@@ -92,6 +101,11 @@ public abstract class GeoShapeValues extends ShapeValues<GeoShapeValues.GeoShape
          */
         public GeoRelation relate(LatLonGeometry geometry) throws IOException {
             return relate(LatLonGeometry.create(geometry));
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "GeoShapeValue";
         }
     }
 }

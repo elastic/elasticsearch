@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry.CacheInvalidator;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion;
 import org.junit.Before;
 
 import java.time.Instant;
@@ -53,21 +56,19 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         final CacheInvalidator invalidator3 = mock(CacheInvalidator.class);
         cacheInvalidatorRegistry.registerCacheInvalidator("service3", invalidator3);
 
-        final SecurityIndexManager.State previousState = SecurityIndexManager.State.UNRECOVERED_STATE;
-        final SecurityIndexManager.State currentState = new SecurityIndexManager.State(
-            Instant.now(),
-            true,
-            true,
-            true,
-            Version.CURRENT,
-            ".security",
-            ClusterHealthStatus.GREEN,
-            IndexMetadata.State.OPEN,
-            null,
-            "my_uuid"
+        final ProjectId projectId = randomProjectIdOrDefault();
+        final SecurityIndexManager indexManager = mock(SecurityIndexManager.class);
+        final SecurityIndexManager.IndexState previousState = indexManager.new IndexState(
+            projectId, SecurityIndexManager.ProjectStatus.CLUSTER_NOT_RECOVERED, null, false, false, false, false, false, null, null, null,
+            null, null, null, null, null, Set.of()
+        );
+        final SecurityIndexManager.IndexState currentState = indexManager.new IndexState(
+            projectId, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), true, true, true, true, true, null, null,
+            new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0), null, ".security",
+            ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
 
-        cacheInvalidatorRegistry.onSecurityIndexStateChange(previousState, currentState);
+        cacheInvalidatorRegistry.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         verify(invalidator1).invalidateAll();
         verify(invalidator2).invalidateAll();
         verify(invalidator3, never()).invalidateAll();

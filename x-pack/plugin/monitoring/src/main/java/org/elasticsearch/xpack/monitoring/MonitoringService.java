@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -96,6 +97,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private final Executor executor;
     private final Set<Collector> collectors;
     private final Exporters exporters;
 
@@ -113,6 +115,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
     ) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
+        this.executor = threadPool.generic();
         this.collectors = Objects.requireNonNull(collectors);
         this.exporters = Objects.requireNonNull(exporters);
         this.elasticsearchCollectionEnabled = ELASTICSEARCH_COLLECTION_ENABLED.get(settings);
@@ -158,10 +161,6 @@ public class MonitoringService extends AbstractLifecycleComponent {
         return isElasticsearchCollectionEnabled() && isMonitoringActive();
     }
 
-    private String threadPoolName() {
-        return ThreadPool.Names.GENERIC;
-    }
-
     boolean isStarted() {
         return started.get();
     }
@@ -190,6 +189,20 @@ public class MonitoringService extends AbstractLifecycleComponent {
         }
     }
 
+    // exposed for tests
+    public void unpause() {
+        synchronized (lifecycle) {
+            doStart();
+        }
+    }
+
+    // exposed for tests
+    public void pause() {
+        synchronized (lifecycle) {
+            doStop();
+        }
+    }
+
     @Override
     protected void doClose() {
         logger.debug("monitoring service is closing");
@@ -203,7 +216,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
             cancelExecution();
         }
         if (shouldScheduleExecution()) {
-            scheduler = threadPool.scheduleWithFixedDelay(monitor, interval, threadPoolName());
+            scheduler = threadPool.scheduleWithFixedDelay(monitor, interval, executor);
         }
     }
 
@@ -250,7 +263,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 return;
             }
 
-            threadPool.executor(threadPoolName()).submit(new AbstractRunnable() {
+            executor.execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() throws Exception {
                     final long timestamp = System.currentTimeMillis();

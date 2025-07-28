@@ -1,17 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 rootProject.name = "root"
 
 include ":distribution:bwc:bugfix"
+include ":distribution:bwc:bugfix2"
+include ":distribution:bwc:bugfix3"
 include ":distribution:bwc:minor"
 include ":distribution:bwc:major"
 include ":distribution:bwc:staged"
+include ":distribution:bwc:staged2"
+include ":distribution:bwc:maintenance"
 include ":distribution:archives:darwin-tar"
 include ":distribution:archives:oss-darwin-tar"
 include ":distribution:archives:darwin-aarch64-tar"

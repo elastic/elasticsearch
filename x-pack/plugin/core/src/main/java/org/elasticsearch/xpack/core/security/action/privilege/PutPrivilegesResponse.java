@@ -26,8 +26,7 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
     private final Map<String, List<String>> created;
 
     public PutPrivilegesResponse(StreamInput in) throws IOException {
-        super(in);
-        this.created = in.readImmutableMap(StreamInput::readString, StreamInput::readStringList);
+        this.created = in.readImmutableMap(StreamInput::readStringCollectionAsList);
     }
 
     public PutPrivilegesResponse(Map<String, List<String>> created) {
@@ -50,7 +49,7 @@ public final class PutPrivilegesResponse extends ActionResponse implements ToXCo
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(created, StreamOutput::writeString, StreamOutput::writeStringCollection);
+        out.writeMap(created, StreamOutput::writeStringCollection);
     }
 
 }

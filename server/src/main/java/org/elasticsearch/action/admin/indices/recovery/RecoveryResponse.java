@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.recovery;
@@ -14,7 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -26,13 +27,13 @@ import java.util.Map;
 /**
  * Information regarding the recovery state of indices and their associated shards.
  */
-public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedToXContent {
+public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedToXContentObject {
 
     private final Map<String, List<RecoveryState>> shardRecoveryStates;
 
     public RecoveryResponse(StreamInput in) throws IOException {
         super(in);
-        shardRecoveryStates = in.readMapOfLists(StreamInput::readString, RecoveryState::readRecoveryState);
+        shardRecoveryStates = in.readMapOfLists(RecoveryState::readRecoveryState);
     }
 
     /**
@@ -91,7 +92,7 @@ public class RecoveryResponse extends BaseBroadcastResponse implements ChunkedTo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMapOfLists(shardRecoveryStates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(shardRecoveryStates, StreamOutput::writeCollection);
     }
 
     @Override

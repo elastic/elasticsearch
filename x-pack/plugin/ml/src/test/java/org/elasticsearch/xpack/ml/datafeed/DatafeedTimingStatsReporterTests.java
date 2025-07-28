@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +25,8 @@ import java.time.Instant;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -40,6 +44,12 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
     @Before
     public void setUpTests() {
         timingStatsPersister = mock(DatafeedTimingStatsPersister.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(mock(BulkResponse.class));
+            return Void.TYPE;
+        }).when(timingStatsPersister).persistDatafeedTimingStats(any(), any(), any());
     }
 
     public void testReportSearchDuration_Null() {
@@ -59,7 +69,11 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         reporter.reportSearchDuration(TimeValue.ZERO);
         assertThat(reporter.getCurrentTimingStats(), equalTo(createDatafeedTimingStats(JOB_ID, 1, 0, 0.0)));
 
-        verify(timingStatsPersister).persistDatafeedTimingStats(createDatafeedTimingStats(JOB_ID, 1, 0, 0.0), RefreshPolicy.NONE);
+        verify(timingStatsPersister).persistDatafeedTimingStats(
+            eq(createDatafeedTimingStats(JOB_ID, 1, 0, 0.0)),
+            eq(RefreshPolicy.NONE),
+            any()
+        );
         verifyNoMoreInteractions(timingStatsPersister);
     }
 
@@ -81,9 +95,9 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
 
         InOrder inOrder = inOrder(timingStatsPersister);
         inOrder.verify(timingStatsPersister)
-            .persistDatafeedTimingStats(createDatafeedTimingStats(JOB_ID, 15, 10, 12000.0, 12000.0), RefreshPolicy.NONE);
+            .persistDatafeedTimingStats(eq(createDatafeedTimingStats(JOB_ID, 15, 10, 12000.0, 12000.0)), eq(RefreshPolicy.NONE), any());
         inOrder.verify(timingStatsPersister)
-            .persistDatafeedTimingStats(createDatafeedTimingStats(JOB_ID, 17, 10, 14000.0, 14000.0), RefreshPolicy.NONE);
+            .persistDatafeedTimingStats(eq(createDatafeedTimingStats(JOB_ID, 17, 10, 14000.0, 14000.0)), eq(RefreshPolicy.NONE), any());
         verifyNoMoreInteractions(timingStatsPersister);
     }
 
@@ -112,7 +126,7 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
 
         InOrder inOrder = inOrder(timingStatsPersister);
         inOrder.verify(timingStatsPersister)
-            .persistDatafeedTimingStats(createDatafeedTimingStats(JOB_ID, 3, 23, 10000.0), RefreshPolicy.NONE);
+            .persistDatafeedTimingStats(eq(createDatafeedTimingStats(JOB_ID, 3, 23, 10000.0)), eq(RefreshPolicy.NONE), any());
         verifyNoMoreInteractions(timingStatsPersister);
     }
 
@@ -130,8 +144,9 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
         reporter.finishReporting();
 
         verify(timingStatsPersister).persistDatafeedTimingStats(
-            new DatafeedTimingStats(JOB_ID, 0, 0, 0.0, new ExponentialAverageCalculationContext(0.0, TIMESTAMP, null)),
-            RefreshPolicy.IMMEDIATE
+            eq(new DatafeedTimingStats(JOB_ID, 0, 0, 0.0, new ExponentialAverageCalculationContext(0.0, TIMESTAMP, null))),
+            eq(RefreshPolicy.IMMEDIATE),
+            any()
         );
         verifyNoMoreInteractions(timingStatsPersister);
     }
@@ -205,11 +220,11 @@ public class DatafeedTimingStatsReporterTests extends ESTestCase {
     }
 
     public void testFinishReportingTimingStatsException() {
-        doThrow(new ElasticsearchException("BOOM")).when(timingStatsPersister).persistDatafeedTimingStats(any(), any());
+        doThrow(new ElasticsearchException("BOOM")).when(timingStatsPersister).persistDatafeedTimingStats(any(), any(), any());
         DatafeedTimingStatsReporter reporter = createReporter(new DatafeedTimingStats(JOB_ID));
 
         try {
-            reporter.reportDataCounts(createDataCounts(0, TIMESTAMP));
+            reporter.reportDataCounts(createDataCounts(0));
             reporter.finishReporting();
         } catch (ElasticsearchException ex) {
             fail("Should not have failed with: " + ex.getDetailedMessage());

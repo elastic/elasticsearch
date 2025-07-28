@@ -10,7 +10,7 @@ setup:
           index_patterns: [simple-data-stream1]
           template:
             settings:
-              index.number_of_replicas: 0
+              index.number_of_replicas: 1
           data_stream: {}
 
   - do:
@@ -29,8 +29,8 @@ setup:
 
 ---
 "Create data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -42,6 +42,10 @@ setup:
       indices.create_data_stream:
         name: simple-data-stream2
   - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       indices.get_data_stream:
@@ -109,10 +113,12 @@ setup:
 
 ---
 "Create hidden data stream":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
+      test_runner_features: ["warnings", "headers"]
       reason: "hidden data streams only available in 7.11"
   - do:
+      headers: { X-elastic-product-origin: elastic }
       allowed_warnings:
         - "index template [my-template3] has index patterns [.hidden-data-stream, hidden-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template3] will take precedence during new index creation"
       indices.put_index_template:
@@ -138,7 +144,7 @@ setup:
 
   - do:
       indices.get_data_stream:
-        name: "*"
+        name: ['*', '-ilm-history*']
         expand_wildcards: hidden
   - length: { data_streams: 2 }
   - match: { data_streams.0.name: .hidden-data-stream }
@@ -202,10 +208,210 @@ setup:
   - do:
       indices.delete_index_template:
         name: my-template3
+
+---
+"Create data stream with failure store":
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
+
+  - do:
+      ingest.put_pipeline:
+        id: "data_stream_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "message",
+                  "value" : "hello world"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "data_stream_final_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "message",
+                  "value" : "goodbye world"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template4] has index patterns [failure-data-stream1, failure-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template4] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template4
+        body:
+          index_patterns: [ failure-data-stream1, failure-data-stream2 ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                default_pipeline: "data_stream_pipeline"
+                final_pipeline: "data_stream_final_pipeline"
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
+
+  - do:
+      indices.create_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: failure-data-stream2
+  - is_true: acknowledged
+
+  # Initialize failure store
+  - do:
+      index:
+        index: failure-data-stream1
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+  # Initialize failure store
+  - do:
+      index:
+        index: failure-data-stream2
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: failure-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.status: 'GREEN' }
+  - match: { data_streams.0.template: 'my-template4' }
+  - match: { data_streams.0.hidden: false }
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000002/'}
+
+  - match: { data_streams.1.name: failure-data-stream2 }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.1.generation: 2 }
+  - length: { data_streams.1.indices: 1 }
+  - match: { data_streams.1.indices.0.index_name: '/\.ds-failure-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.1.template: 'my-template4' }
+  - match: { data_streams.1.hidden: false }
+  - match: { data_streams.1.failure_store.enabled: true }
+  - length: { data_streams.1.failure_store.indices: 1 }
+  - match: { data_streams.1.failure_store.indices.0.index_name: '/\.fs-failure-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+
+  # save the backing index names for later use
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.failure_store.indices.0.index_name: fsidx0name }
+  - set: { data_streams.1.indices.0.index_name: idx1name }
+  - set: { data_streams.1.failure_store.indices.0.index_name: fsidx1name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.@timestamp.type: 'date' }
+
+  - do:
+      indices.get_mapping:
+        index: $fsidx0name
+        expand_wildcards: hidden
+  - match: { .$fsidx0name.mappings.properties.@timestamp.type: 'date' }
+
+  - do:
+      indices.get_mapping:
+        index: $idx1name
+        expand_wildcards: hidden
+  - match: { .$idx1name.mappings.properties.@timestamp.type: 'date' }
+
+  - do:
+      indices.get_mapping:
+        index: $fsidx1name
+        expand_wildcards: hidden
+  - match: { .$fsidx1name.mappings.properties.@timestamp.type: 'date' }
+
+  - do:
+      indices.get_settings:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.settings.index.default_pipeline: 'data_stream_pipeline' }
+  - match: { .$idx0name.settings.index.final_pipeline: 'data_stream_final_pipeline' }
+
+  - do:
+      indices.get_settings:
+        index: $fsidx0name
+        expand_wildcards: hidden
+  - is_false: .$fsidx0name.settings.index.default_pipeline
+  - is_false: .$fsidx0name.settings.index.final_pipeline
+  - is_true: .$fsidx0name.settings.index.failure_store.version
+
+  - do:
+      indices.get_settings:
+        index: $idx1name
+        expand_wildcards: hidden
+  - match: { .$idx1name.settings.index.default_pipeline: 'data_stream_pipeline' }
+  - match: { .$idx1name.settings.index.final_pipeline: 'data_stream_final_pipeline' }
+
+  - do:
+      indices.get_settings:
+        index: $fsidx1name
+        expand_wildcards: hidden
+  - is_false: .$fsidx1name.settings.index.default_pipeline
+  - is_false: .$fsidx1name.settings.index.final_pipeline
+  - is_true: .$fsidx1name.settings.index.failure_store.version
+
+  - do:
+      indices.delete_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: failure-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_index_template:
+        name: my-template4
+  - is_true: acknowledged
+
 ---
 "Create data stream with invalid name":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -219,8 +425,8 @@ setup:
 
 ---
 "Create existing data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -244,8 +450,8 @@ setup:
 
 ---
 "Get data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams available in 7.9+"
 
   - do:
@@ -308,9 +514,80 @@ setup:
   - is_true: acknowledged
 
 ---
+"Get data stream and check DSL and ILM information":
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "data streams DSL and ILM mixing information available in 8.11+"
+
+  - do:
+      allowed_warnings:
+        - "index template [mixing-dsl-template] has index patterns [mixing-dsl-stream] matching patterns from existing older templates
+        [global] with patterns (global => [*]); this template [mixing-dsl-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: mixing-dsl-template
+        body:
+          index_patterns: [mixing-dsl-stream]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date_nanos
+            lifecycle:
+              data_retention: "30d"
+              enabled: false
+            settings:
+              index.lifecycle.prefer_ilm: false
+              index.lifecycle.name: "missing_ilm_policy"
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: mixing-dsl-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: mixing-dsl-stream
+  - match: { data_streams.0.name: mixing-dsl-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.0.ilm_policy: "missing_ilm_policy" }
+  - match: { data_streams.0.prefer_ilm: false }
+  - match: { data_streams.0.next_generation_managed_by: "Index Lifecycle Management" }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.prefer_ilm: false }
+  - match: { data_streams.0.indices.0.ilm_policy: "missing_ilm_policy" }
+  - match: { data_streams.0.indices.0.managed_by: "Index Lifecycle Management" }
+
+  - do:
+      indices.put_data_lifecycle:
+        name: "*"
+        body: >
+          {
+            "data_retention": "30d",
+            "enabled": true
+          }
+
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: mixing-dsl-stream
+  - match: { data_streams.0.name: mixing-dsl-stream }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.0.ilm_policy: "missing_ilm_policy" }
+  - match: { data_streams.0.prefer_ilm: false }
+  - match: { data_streams.0.next_generation_managed_by: "Data stream lifecycle" }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.prefer_ilm: false }
+  - match: { data_streams.0.indices.0.ilm_policy: "missing_ilm_policy" }
+  - match: { data_streams.0.indices.0.managed_by: "Data stream lifecycle" }
+
+---
 "Delete data stream with backing indices":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -359,9 +636,180 @@ setup:
         index: $idx0name
 
 ---
+"Delete data stream with failure store":
+  - requires:
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ allowed_warnings, capabilities ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template4] has index patterns [failure-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template4] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template4
+        body:
+          index_patterns: [ failure-data-stream1 ]
+          data_stream: {}
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
+
+  - do:
+      indices.create_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  # Initialize failure store
+  - do:
+      index:
+        index: failure-data-stream1
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          count: 'invalid value'
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: failure-data-stream1
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.failure_store.indices.0.index_name: fs0name }
+
+  - do:
+      indices.get:
+        index: ['.ds-failure-data-stream1-*000001', 'test_index']
+
+  - is_true: test_index.settings
+  - is_true: .$idx0name.settings
+
+  - do:
+      indices.get_data_stream: {}
+  - match: { data_streams.0.name: failure-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+
+  - do:
+      indices.delete_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.get:
+        index: $idx0name
+
+  - do:
+      catch: missing
+      indices.get:
+        index: $fs0name
+
+  - do:
+      indices.delete_index_template:
+        name: my-template4
+  - is_true: acknowledged
+
+---
+"Delete data stream with failure store uninitialized":
+  - requires:
+      reason: "Data stream failure stores config in templates was added in 8.18+"
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: POST
+          path: /_index_template/{template}
+          capabilities: [ 'data_stream_options.failure_store' ]
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template4] has index patterns [failure-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template4] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template4
+        body:
+          index_patterns: [ failure-data-stream1 ]
+          data_stream: {}
+          template:
+            data_stream_options:
+              failure_store:
+                enabled: true
+
+  - do:
+      indices.create_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: failure-data-stream1
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - length: { data_streams.0.failure_store.indices: 0 }
+
+  - do:
+      indices.get:
+        index: ['.ds-failure-data-stream1-*000001', 'test_index']
+
+  - is_true: test_index.settings
+  - is_true: .$idx0name.settings
+
+  - do:
+      indices.get_data_stream: {}
+  - match: { data_streams.0.name: failure-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 0 }
+
+  - do:
+      indices.delete_data_stream:
+        name: failure-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.get:
+        index: $idx0name
+
+  - do:
+      indices.delete_index_template:
+        name: my-template4
+  - is_true: acknowledged
+
+---
 "Delete data stream missing behaviour":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -405,8 +853,8 @@ setup:
 
 ---
 "Delete data stream by wildcard":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams supported only in 7.9+"
 
   - do:
@@ -442,10 +890,10 @@ setup:
 
 ---
 "append-only writes to backing indices prohibited":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -504,10 +952,10 @@ setup:
 
 ---
 "Indexing a document into a data stream without a timestamp field":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -553,10 +1001,10 @@ setup:
 
 ---
 "Include metadata in a data stream":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "re-enable in 7.11 when backported"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -595,10 +1043,10 @@ setup:
 
 ---
 "Create index into a namespace that is governed by a data stream template":
-  - skip:
-      version: " - 7.9.1"
+  - requires:
+      cluster_features: ["gte_v7.9.2"]
       reason: "validation added in 7.9.2"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -623,8 +1071,8 @@ setup:
 
 ---
 "Get data stream api check existence of replicated field":
-  - skip:
-      version: " - 7.16.0"
+  - requires:
+      cluster_features: ["gte_v7.16.1"]
       reason: "replicated field only supported in 7.16+"
 
   - do:
@@ -636,6 +1084,10 @@ setup:
       indices.create_data_stream:
         name: simple-data-stream2
   - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       indices.get_data_stream:
@@ -670,8 +1122,8 @@ setup:
 
 ---
 "Get data stream api check existence of allow_custom_routing field":
-  - skip:
-      version: " - 8.0.0"
+  - requires:
+      cluster_features: ["gte_v8.0.1"]
       reason: "allow_custom_routing field only supported in 8.0+"
 
   - do:
@@ -683,6 +1135,10 @@ setup:
       indices.create_data_stream:
         name: simple-data-stream2
   - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
 
   - do:
       indices.get_data_stream:
@@ -715,3 +1171,158 @@ setup:
         name: simple-data-stream2
   - is_true: acknowledged
 
+---
+"Create data stream with match all template":
+  - requires:
+      cluster_features: ["gte_v8.16.0"]
+      reason: "data streams supoprt for match all templates only supported in 8.16"
+
+  - do:
+      allowed_warnings:
+        - "index template [match-all-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,global,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],global => [*],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-template] will take precedence during new index creation"
+        - "index template [match-all-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: match-all-template
+        body:
+          index_patterns: [ "*" ]
+          priority: 1
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: match-all-data-stream
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: match-all-data-stream }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-match-all-data-stream-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.status: 'GREEN' }
+  - match: { data_streams.0.template: 'match-all-template' }
+  - match: { data_streams.0.hidden: false }
+
+  - do:
+      indices.delete_data_stream:
+        name: match-all-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_index_template:
+        name: match-all-template
+  - is_true: acknowledged
+
+---
+"Create hidden data stream with match all template":
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: "data streams supoprt for match all templates only supported in 8.16"
+  - do:
+      allowed_warnings:
+        - "index template [match-all-hidden-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,global,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],global => [*],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-hidden-template] will take precedence during new index creation"
+        - "index template [match-all-hidden-template] has index patterns [*] matching patterns from existing older templates [.monitoring-logstash,.monitoring-es,.monitoring-beats,.monitoring-alerts-7,.monitoring-kibana] with patterns (.monitoring-logstash => [.monitoring-logstash-7-*],.monitoring-es => [.monitoring-es-7-*],.monitoring-beats => [.monitoring-beats-7-*],.monitoring-alerts-7 => [.monitoring-alerts-7],.monitoring-kibana => [.monitoring-kibana-7-*]); this template [match-all-hidden-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: match-all-hidden-template
+        body:
+          index_patterns: [ "*" ]
+          priority: 1
+          data_stream:
+            hidden: true
+  - do:
+      indices.create_data_stream:
+        name: match-all-hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - length: { data_streams: 0 }
+
+  - do:
+      indices.get_data_stream:
+        name: ['*']
+        expand_wildcards: hidden
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: match-all-hidden-data-stream }
+  - match: { data_streams.0.hidden: true }
+
+  - do:
+      indices.delete_data_stream:
+        name: match-all-hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_index_template:
+        name: match-all-hidden-template
+
+---
+"Get maximum_timestamp for the data stream":
+  - requires:
+       capabilities:
+         - method: GET
+           path: /_data_stream
+           parameters: [verbose]
+       test_runner_features: [allowed_warnings, capabilities]
+       reason: Verbose flag required for the test
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [data-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [data-*]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: data-stream1
+        verbose: false
+
+  - match: { data_streams.0.name: data-stream1 }
+  - is_false: data_streams.0.maximum_timestamp
+
+  - do:
+      indices.get_data_stream:
+        name: data-stream1
+        verbose: true
+
+  - match: { data_streams.0.name: data-stream1 }
+  # 0 because no documents have been indexed yet
+  - match: { data_streams.0.maximum_timestamp: 0 }
+
+  - do:
+      index:
+        index: data-stream1
+        refresh: true
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      indices.get_data_stream:
+        name: data-stream1
+        verbose: true
+
+  - match: { data_streams.0.name: data-stream1 }
+  - match: { data_streams.0.maximum_timestamp: 1607731200000 }
+
+  - do:
+      indices.delete_data_stream:
+        name: data-stream1
+  - is_true: acknowledged

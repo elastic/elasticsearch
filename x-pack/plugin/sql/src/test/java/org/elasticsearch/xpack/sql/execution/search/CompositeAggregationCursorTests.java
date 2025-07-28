@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractorTests;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractorTests;
 
-import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -49,7 +48,7 @@ public class CompositeAggregationCursorTests extends AbstractSqlWireSerializingT
     }
 
     @Override
-    protected CompositeAggCursor mutateInstance(CompositeAggCursor instance) throws IOException {
+    protected CompositeAggCursor mutateInstance(CompositeAggCursor instance) {
         return new CompositeAggCursor(
             instance.next(),
             instance.extractors(),

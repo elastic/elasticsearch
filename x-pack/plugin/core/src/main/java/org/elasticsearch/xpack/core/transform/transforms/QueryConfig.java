@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -25,6 +26,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
@@ -59,7 +61,7 @@ public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXC
     }
 
     public QueryConfig(final StreamInput in) throws IOException {
-        this.source = in.readMap();
+        this.source = in.readGenericMap();
         this.query = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
@@ -106,11 +108,17 @@ public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXC
         NamedXContentRegistry namedXContentRegistry,
         DeprecationHandler deprecationHandler
     ) throws IOException {
-        QueryBuilder query = null;
+        final QueryBuilder query;
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-        XContentParser sourceParser = XContentType.JSON.xContent()
-            .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput());
-        query = AbstractQueryBuilder.parseTopLevelQuery(sourceParser);
+        try (
+            XContentParser sourceParser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
+                BytesReference.bytes(xContentBuilder),
+                XContentType.JSON
+            )
+        ) {
+            query = AbstractQueryBuilder.parseTopLevelQuery(sourceParser);
+        }
 
         return query;
     }
@@ -147,7 +155,7 @@ public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXC
 
         try {
             queryFromXContent(source, namedXContentRegistry, deprecationLogger);
-        } catch (IOException e) {
+        } catch (Exception e) {
             onDeprecation.accept(
                 new DeprecationIssue(
                     Level.CRITICAL,

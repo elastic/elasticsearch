@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
@@ -15,9 +14,9 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -46,14 +45,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
     }
 
     private IndexMetadata makeMeta(Index index) {
-        return IndexMetadata.builder(index.getName())
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            )
-            .build();
+        return IndexMetadata.builder(index.getName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build();
     }
 
     @Override
@@ -85,14 +77,14 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
         ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
         IndexShardSegments indexShardSegments = new IndexShardSegments(ShardId.fromString("[idx][123]"), shardSegmentsArray);
-        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
+        Map<Integer, IndexShardSegments> indexShards = Map.of(0, indexShardSegments);
         Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < maxNumSegments - randomIntBetween(0, 3); i++) {
             segments.add(null);
         }
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
-        Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), indexSegments));
+        Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Map.of(index.getName(), indexSegments));
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
@@ -111,7 +103,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -137,14 +130,14 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
         ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
         IndexShardSegments indexShardSegments = new IndexShardSegments(ShardId.fromString("[idx][123]"), shardSegmentsArray);
-        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
+        Map<Integer, IndexShardSegments> indexShards = Map.of(0, indexShardSegments);
         Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < maxNumSegments + randomIntBetween(1, 3); i++) {
             segments.add(null);
         }
         Mockito.when(indicesSegmentResponse.getStatus()).thenReturn(RestStatus.OK);
-        Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Collections.singletonMap(index.getName(), indexSegments));
+        Mockito.when(indicesSegmentResponse.getIndices()).thenReturn(Map.of(index.getName(), indexSegments));
         Mockito.when(indexSegments.spliterator()).thenReturn(iss);
         Mockito.when(shardSegmentsOne.getSegments()).thenReturn(segments);
 
@@ -163,7 +156,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -189,7 +183,7 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
         ShardSegments shardSegmentsOne = Mockito.mock(ShardSegments.class);
         ShardSegments[] shardSegmentsArray = new ShardSegments[] { shardSegmentsOne };
         IndexShardSegments indexShardSegments = new IndexShardSegments(ShardId.fromString("[idx][123]"), shardSegmentsArray);
-        Map<Integer, IndexShardSegments> indexShards = Collections.singletonMap(0, indexShardSegments);
+        Map<Integer, IndexShardSegments> indexShards = Map.of(0, indexShardSegments);
         Spliterator<IndexShardSegments> iss = indexShards.values().spliterator();
         List<Segment> segments = new ArrayList<>();
         for (int i = 0; i < maxNumSegments + randomIntBetween(1, 3); i++) {
@@ -220,7 +214,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 conditionMetResult.set(conditionMet);
@@ -257,7 +252,8 @@ public class SegmentCountStepTests extends AbstractStepTestCase<SegmentCountStep
 
         SegmentCountStep step = new SegmentCountStep(stepKey, nextStepKey, client, maxNumSegments);
         IndexMetadata indexMetadata = makeMeta(index);
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean conditionMet, ToXContentObject info) {
                 throw new AssertionError("unexpected method call");

@@ -1,0 +1,212 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [metadata_fields, metadata_ignored_field]
+      reason: "Ignored metadata field capability required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              integer:
+                type: integer
+                ignore_malformed: true
+              keyword:
+                type: keyword
+                ignore_above: 3
+              case:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { index: { } }
+          - { case: "ok", integer: 10, keyword: "ok" }
+          - { index: { } }
+          - { case: "integer_ignored", integer: "not-an-integer", keyword: "ok" }
+          - { index: { } }
+          - { case: "all_ignored", integer: "not-an-integer", keyword: "long-keyword" }
+
+---
+"All fields correct":
+  - do:
+      esql.query:
+        body:
+          query: 'from test metadata _ignored | where case == "ok" | limit 2 | keep integer, keyword, _ignored'
+
+  - length: { columns: 3 }
+  - match: { columns.0.name: integer }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: keyword }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: _ignored }
+  - match: { columns.2.type: keyword }
+
+  - length: { values: 1 }
+  - match: { values.0.0: 10 }
+  - match: { values.0.1: "ok" }
+  - match: { values.0.2: null }
+
+---
+"One ignored field":
+  - do:
+      esql.query:
+        body:
+          query: 'from test metadata _ignored | where case == "integer_ignored" | limit 2 | keep integer, keyword, _ignored'
+
+  - length: { columns: 3 }
+  - match: { columns.0.name: integer }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: keyword }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: _ignored }
+  - match: { columns.2.type: keyword }
+
+  - length: { values: 1 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: "ok" }
+  - match: { values.0.2: "integer" }
+
+---
+"All fields ignored":
+  - do:
+      esql.query:
+        body:
+          query: 'from test metadata _ignored | where case == "all_ignored" | limit 2 | keep integer, keyword, _ignored'
+
+  - length: { columns: 3 }
+  - match: { columns.0.name: integer }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: keyword }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: _ignored }
+  - match: { columns.2.type: keyword }
+
+  - length: { values: 1 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: null }
+  - match: { values.0.2: ["integer", "keyword"] }
+
+---
+"Filter by ignored":
+  - do:
+      esql.query:
+        body:
+          query: 'from test metadata _ignored | where _ignored == "keyword" | limit 3 | stats count(*)'
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: { columns.0.name: "count(*)"}
+  - match: { columns.0.type: long }
+  - match: { values.0.0: 1 }
+
+---
+"Group by ignored field":
+  - do:
+      esql.query:
+        body:
+          query: 'from test metadata _ignored | limit 3 | stats count = count(*) by _ignored'
+
+  - length: { columns: 2 }
+  - length: { values: 3 }
+  - match: {columns.0.name: "count"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "_ignored"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0.0: 1}
+  - match: {values.0.1: null}
+  - match: {values.1.0: 2}
+  - match: {values.1.1: "integer"}
+  - match: {values.2.0: 1}
+  - match: {values.2.1: "keyword"}
+
+---
+"Aggregate ignored field":
+  - do:
+      esql.query:
+        body:
+          query: 'from test metadata _ignored | limit 3 | stats count_distinct(_ignored)'
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: {columns.0.name: "count_distinct(_ignored)"}
+  - match: {columns.0.type: "long"}
+  - match: {values.0.0: 2}
+
+---
+"Count_distinct on _source is a 400 error":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [fix_count_distinct_source_error]
+      reason: "Capability marks fixing this bug"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test [metadata _source] | STATS COUNT_DISTINCT(_source)'
+
+---
+"sort on _source not allowed":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on _source shouldn't have been possible"
+  - do:
+      catch: /cannot sort on _source/
+      esql.query:
+        body:
+          query: 'FROM test metadata _source | SORT _source'
+
+---
+"sort returning _source is allowed":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sort_returning_source_ok]
+      reason: "Sorts returning _source should be ok, but weren't in older versions"
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _source | SORT case ASC | KEEP case, _source | LIMIT 5'
+  - length: { columns: 2 }
+  - length: { values: 3 }
+  - match: {columns.0.name: "case"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "_source"}
+  - match: {columns.1.type: "_source"}
+  - match: {values.0.0: "all_ignored"}
+  - match: {values.0.1: {
+    "integer" : "not-an-integer",
+    "keyword" : "long-keyword",
+    "case" : "all_ignored"
+  }}
+  - match: {values.1.0: "integer_ignored"}
+  - match: {values.1.1: {
+    "integer" : "not-an-integer",
+    "keyword" : "ok",
+    "case" : "integer_ignored"
+  }}
+  - match: {values.2.0: "ok"}
+  - match: {values.2.1: {
+    "integer" : 10,
+    "keyword" : "ok",
+    "case" : "ok"
+  }}

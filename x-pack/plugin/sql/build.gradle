@@ -1,17 +1,21 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 esplugin {
-  name 'x-pack-sql'
-  description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
-  classname 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
+  name = 'x-pack-sql'
+  description = 'The Elasticsearch plugin that powers SQL for Elasticsearch'
+  classname = 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
   extendedPlugins = ['x-pack-ql', 'lang-painless']
 }
 
 ext {
-  antlrVersion = "4.9.2"
   // SQL dependency versions
   jlineVersion = "3.21.0"
 
@@ -26,7 +30,9 @@ configurations {
   bin
 }
 
-archivesBaseName = 'x-pack-sql'
+base {
+  archivesName = 'x-pack-sql'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
@@ -36,7 +42,6 @@ dependencies {
   compileOnly project(path: xpackModule('ql'))
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation(testArtifact(project(xpackModule('security'))))
   testImplementation(testArtifact(project(xpackModule('ql'))))
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
@@ -63,7 +68,7 @@ configurations {
 }
 
 dependencies {
-  regenerate "org.antlr:antlr4:${antlrVersion}"
+  regenerate "org.antlr:antlr4:${versions.antlr4}"
 }
 
 String grammarPath = 'src/main/antlr'
@@ -137,7 +142,7 @@ allprojects {
   }
 }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("internalClusterTest").configure{enabled = false }
 }

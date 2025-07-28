@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.annotatedtext;
@@ -19,6 +20,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -120,11 +122,27 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
     static MarkupPassage mergeAnnotations(AnnotationToken[] annotations, Passage passage) {
         MarkupPassage markupPassage = new MarkupPassage();
 
+        final Integer[] matches = new Integer[passage.getNumMatches()];
+        for (int i = 0; i < matches.length; ++i) {
+            matches[i] = i;
+        }
+        Arrays.sort(matches, (l, r) -> {
+            int lStart = passage.getMatchStarts()[l];
+            int lEnd = passage.getMatchEnds()[l];
+            int rStart = passage.getMatchStarts()[r];
+            int rEnd = passage.getMatchEnds()[r];
+            if (lStart == rStart) {
+                return rEnd - lEnd; // longest match first
+            } else {
+                return lStart - rStart;
+            }
+        });
+
         // Add search hits first - they take precedence over any other markup
-        for (int i = 0; i < passage.getNumMatches(); i++) {
-            int start = passage.getMatchStarts()[i];
-            int end = passage.getMatchEnds()[i];
-            String searchTerm = passage.getMatchTerms()[i].utf8ToString();
+        for (int matchId : matches) {
+            int start = passage.getMatchStarts()[matchId];
+            int end = passage.getMatchEnds()[matchId];
+            String searchTerm = passage.getMatchTerms()[matchId].utf8ToString();
             Markup markup = new Markup(start, end, SEARCH_HIT_TYPE + "=" + URLEncoder.encode(searchTerm, StandardCharsets.UTF_8));
             markupPassage.addUnlessOverlapping(markup);
         }

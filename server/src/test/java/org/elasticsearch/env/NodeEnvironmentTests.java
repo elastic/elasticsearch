@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
+import org.apache.logging.log4j.Level;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -15,6 +17,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,13 +34,19 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -114,44 +123,62 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
+    // using a literal string here because the logger is mentioned in the docs, and therefore must only be changed with care
+    private static final String NODE_ENVIRONMENT_LOGGER_NAME = "org.elasticsearch.env.NodeEnvironment";
+
+    @TestLogging(reason = "test includes assertions about DEBUG logging", value = NODE_ENVIRONMENT_LOGGER_NAME + ":DEBUG")
     public void testShardLock() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
+        try (var env = newNodeEnvironment()) {
 
-        Index index = new Index("foo", "fooUUID");
-        ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
-        assertEquals(new ShardId(index, 0), fooLock.getShardId());
+            Index index = new Index("foo", "fooUUID");
 
-        try {
-            env.shardLock(new ShardId(index, 0), "2");
-            fail("shard is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
-        }
-        for (Path path : env.indexPaths(index)) {
-            Files.createDirectories(path.resolve("0"));
-            Files.createDirectories(path.resolve("1"));
-        }
-        try {
-            env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10));
-            fail("shard 0 is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
-        }
+            try (var mockLog = MockLog.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "hot threads logging",
+                        NODE_ENVIRONMENT_LOGGER_NAME,
+                        Level.DEBUG,
+                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "second attempt should be suppressed due to throttling",
+                        NODE_ENVIRONMENT_LOGGER_NAME,
+                        Level.DEBUG,
+                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
+                    )
+                );
 
-        fooLock.close();
-        // can lock again?
-        env.shardLock(new ShardId(index, 0), "4").close();
+                assertEquals(new ShardId(index, 0), lock.getShardId());
 
-        List<ShardLock> locks = env.lockAllForIndex(index, idxSettings, "5", randomIntBetween(0, 10));
-        try {
-            env.shardLock(new ShardId(index, 0), "6");
-            fail("shard is locked");
-        } catch (ShardLockObtainFailedException ex) {
-            // expected
+                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2"));
+
+                for (Path path : env.indexPaths(index)) {
+                    Files.createDirectories(path.resolve("0"));
+                    Files.createDirectories(path.resolve("1"));
+                }
+                expectThrows(
+                    ShardLockObtainFailedException.class,
+                    () -> env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10))
+                );
+
+                mockLog.assertAllExpectationsMatched();
+            }
+
+            // can lock again?
+            env.shardLock(new ShardId(index, 0), "4").close();
+
+            List<ShardLock> locks = new ArrayList<>();
+            try {
+                locks.addAll(env.lockAllForIndex(index, idxSettings, "5", randomIntBetween(0, 10)));
+                expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "6"));
+            } finally {
+                IOUtils.close(locks);
+            }
+
+            assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         }
-        IOUtils.close(locks);
-        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
-        env.close();
     }
 
     public void testAvailableIndexFolders() throws Exception {
@@ -232,11 +259,9 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         expectThrows(
             ShardLockObtainFailedException.class,
-            () -> env.deleteShardDirectorySafe(
-                new ShardId(index, 0),
-                idxSettings,
-                shardPaths -> { assert false : "should not be called " + shardPaths; }
-            )
+            () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, shardPaths -> {
+                assert false : "should not be called " + shardPaths;
+            })
         );
 
         for (Path path : env.indexPaths(index)) {
@@ -260,12 +285,9 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         expectThrows(
             ShardLockObtainFailedException.class,
-            () -> env.deleteIndexDirectorySafe(
-                index,
-                randomIntBetween(0, 10),
-                idxSettings,
-                indexPaths -> { assert false : "should not be called " + indexPaths; }
-            )
+            () -> env.deleteIndexDirectorySafe(index, randomIntBetween(0, 10), idxSettings, indexPaths -> {
+                assert false : "should not be called " + indexPaths;
+            })
         );
 
         fooLock.close();
@@ -335,46 +357,23 @@ public class NodeEnvironmentTests extends ESTestCase {
             flipFlop[i] = new AtomicInteger();
         }
 
-        Thread[] threads = new Thread[randomIntBetween(2, 5)];
-        final CountDownLatch latch = new CountDownLatch(1);
+        final int threads = randomIntBetween(2, 5);
         final int iters = scaledRandomIntBetween(10000, 100000);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.await();
-                    } catch (InterruptedException e) {
-                        fail(e.getMessage());
+        startInParallel(threads, tid -> {
+            for (int i = 0; i < iters; i++) {
+                int shard = randomIntBetween(0, counts.length - 1);
+                try {
+                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", "fooUUID", shard), "1", scaledRandomIntBetween(0, 10))) {
+                        counts[shard].value++;
+                        countsAtomic[shard].incrementAndGet();
+                        assertEquals(flipFlop[shard].incrementAndGet(), 1);
+                        assertEquals(flipFlop[shard].decrementAndGet(), 0);
                     }
-                    for (int i = 0; i < iters; i++) {
-                        int shard = randomIntBetween(0, counts.length - 1);
-                        try {
-                            try (
-                                ShardLock autoCloses = env.shardLock(
-                                    new ShardId("foo", "fooUUID", shard),
-                                    "1",
-                                    scaledRandomIntBetween(0, 10)
-                                )
-                            ) {
-                                counts[shard].value++;
-                                countsAtomic[shard].incrementAndGet();
-                                assertEquals(flipFlop[shard].incrementAndGet(), 1);
-                                assertEquals(flipFlop[shard].decrementAndGet(), 0);
-                            }
-                        } catch (ShardLockObtainFailedException ex) {
-                            // ok
-                        }
-                    }
+                } catch (ShardLockObtainFailedException ex) {
+                    // ok
                 }
-            };
-            threads[i].start();
-        }
-        latch.countDown(); // fire the threads up
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].join();
-        }
-
+            }
+        });
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         for (int i = 0; i < counts.length; i++) {
             assertTrue(counts[i].value > 0);
@@ -548,7 +547,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     env.nodeId(),
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(
@@ -563,7 +563,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                 );
             }
 
-            Version oldIndexVersion = Version.fromId(between(1, Version.CURRENT.minimumIndexCompatibilityVersion().id - 1));
+            Version oldVersion = Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
+            IndexVersion oldIndexVersion = IndexVersion.fromId(between(1, IndexVersions.MINIMUM_COMPATIBLE.id() - 1));
             Version previousNodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id - 1));
             overrideOldestIndexVersion(oldIndexVersion, previousNodeVersion, env.nodeDataPaths());
 
@@ -577,21 +578,27 @@ public class NodeEnvironmentTests extends ESTestCase {
                 ex.getMessage(),
                 allOf(
                     containsString("Cannot start this node"),
-                    containsString("it holds metadata for indices created with version [" + oldIndexVersion + "]"),
-                    containsString("Revert this node to version [" + previousNodeVersion + "]")
+                    containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion() + "]"),
+                    containsString(
+                        "Revert this node to version ["
+                            + (previousNodeVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion())
+                                ? previousNodeVersion
+                                : Version.CURRENT.minimumCompatibilityVersion())
+                            + "]"
+                    )
                 )
             );
 
             // This should work
-            overrideOldestIndexVersion(Version.CURRENT.minimumIndexCompatibilityVersion(), previousNodeVersion, env.nodeDataPaths());
+            overrideOldestIndexVersion(IndexVersions.MINIMUM_COMPATIBLE, previousNodeVersion, env.nodeDataPaths());
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Trying to boot with newer version should pass this check
-            overrideOldestIndexVersion(NodeMetadataTests.tooNewVersion(), previousNodeVersion, env.nodeDataPaths());
+            overrideOldestIndexVersion(NodeMetadataTests.tooNewIndexVersion(), previousNodeVersion, env.nodeDataPaths());
             checkForIndexCompatibility(logger, env.dataPaths());
 
             // Simulate empty old index version, attempting to upgrade before 7.17
-            removeOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
+            removeOldestIndexVersion(oldVersion, env.nodeDataPaths());
 
             ex = expectThrows(
                 IllegalStateException.class,
@@ -599,8 +606,13 @@ public class NodeEnvironmentTests extends ESTestCase {
                 () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
-            assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldIndexVersion + "] directly"));
-            assertThat(ex.getMessage(), containsString("upgrade to version [" + Version.CURRENT.minimumCompatibilityVersion()));
+            assertThat(
+                ex.getMessage(),
+                allOf(
+                    startsWith("cannot upgrade a node from version [" + oldVersion + "] directly"),
+                    containsString("upgrade to version [" + Build.current().minWireCompatVersion())
+                )
+            );
         }
     }
 
@@ -609,11 +621,55 @@ public class NodeEnvironmentTests extends ESTestCase {
         Path dataPath = tempDir.resolve("data");
         Files.createDirectories(dataPath);
         Path symLinkPath = tempDir.resolve("data_symlink");
-        Files.createSymbolicLink(symLinkPath, dataPath);
+        try {
+            Files.createSymbolicLink(symLinkPath, dataPath);
+        } catch (FileSystemException e) {
+            if (IOUtils.WINDOWS && "A required privilege is not held by the client".equals(e.getReason())) {
+                throw new AssumptionViolatedException("Symlinks on Windows need admin privileges", e);
+            } else {
+                throw e;
+            }
+        }
+
         NodeEnvironment env = newNodeEnvironment(new String[] { symLinkPath.toString() }, "/tmp", Settings.EMPTY);
 
         assertTrue(Files.exists(symLinkPath));
         env.close();
+    }
+
+    public void testGetBestDowngradeVersion() {
+        int prev = Version.CURRENT.minimumCompatibilityVersion().major;
+        int last = Version.CURRENT.minimumCompatibilityVersion().minor;
+        int old = prev - 1;
+
+        assumeTrue("The current compatibility rules are active only from 8.x onward", prev >= 7);
+        assertEquals(Version.CURRENT.major - 1, prev);
+
+        assertEquals(
+            "From an old major, recommend prev.last",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(old + ".0.0")),
+            BuildVersion.fromString(prev + "." + last + ".0")
+        );
+
+        if (last >= 1) {
+            assertEquals(
+                "From an old minor of the previous major, recommend prev.last",
+                NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + (last - 1) + ".0")),
+                BuildVersion.fromString(prev + "." + last + ".0")
+            );
+        }
+
+        assertEquals(
+            "From an old patch of prev.last, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + last + ".1")),
+            BuildVersion.fromString(prev + "." + last + ".1")
+        );
+
+        assertEquals(
+            "From the first version of this major, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(Version.CURRENT.major + ".0.0")),
+            BuildVersion.fromString(Version.CURRENT.major + ".0.0")
+        );
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
@@ -697,7 +753,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
-    private static void overrideOldestIndexVersion(Version oldestIndexVersion, Version previousNodeVersion, Path... dataPaths)
+    private static void overrideOldestIndexVersion(IndexVersion oldestIndexVersion, Version previousNodeVersion, Path... dataPaths)
         throws IOException {
         for (final Path dataPath : dataPaths) {
             final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
@@ -714,7 +770,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     ) {
                         final Map<String, String> commitData = new HashMap<>(userData);
                         commitData.put(NODE_VERSION_KEY, Integer.toString(previousNodeVersion.id));
-                        commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id));
+                        commitData.put(OLDEST_INDEX_VERSION_KEY, Integer.toString(oldestIndexVersion.id()));
                         indexWriter.setLiveCommitData(commitData.entrySet());
                         indexWriter.commit();
                     }

@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
@@ -40,24 +43,32 @@ import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
+import org.apache.lucene.analysis.sr.SerbianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
+import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.synonyms.PagedResult;
+import org.elasticsearch.synonyms.SynonymRule;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -67,18 +78,7 @@ import static java.util.Map.entry;
 
 public class Analysis {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(Analysis.class);
-
-    public static void checkForDeprecatedVersion(String name, Settings settings) {
-        String sVersion = settings.get("version");
-        if (sVersion != null) {
-            DEPRECATION_LOGGER.warn(
-                DeprecationCategory.ANALYSIS,
-                "analyzer.version",
-                "Setting [version] on analysis component [" + name + "] has no effect and is deprecated"
-            );
-        }
-    }
+    private static final Logger logger = LogManager.getLogger(Analysis.class);
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
         String value = settings.get("stem_exclusion");
@@ -124,6 +124,7 @@ public class Analysis {
         entry("_portuguese_", PortugueseAnalyzer.getDefaultStopSet()),
         entry("_romanian_", RomanianAnalyzer.getDefaultStopSet()),
         entry("_russian_", RussianAnalyzer.getDefaultStopSet()),
+        entry("_serbian_", SerbianAnalyzer.getDefaultStopSet()),
         entry("_sorani_", SoraniAnalyzer.getDefaultStopSet()),
         entry("_spanish_", SpanishAnalyzer.getDefaultStopSet()),
         entry("_swedish_", SwedishAnalyzer.getDefaultStopSet()),
@@ -232,22 +233,83 @@ public class Analysis {
             }
         }
 
-        final Path path = env.configFile().resolve(wordListPath);
+        final Path path = env.configDir().resolve(wordListPath);
 
         try {
             return loadWordList(path, removeComments);
         } catch (CharacterCodingException ex) {
-            String message = String.format(
-                Locale.ROOT,
+            String message = Strings.format(
                 "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
                 settingPath,
-                path.toString()
+                path
             );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s: %s", settingPath, path.toString());
+            String message = Strings.format("IOException while reading %s: %s", settingPath, path);
             throw new IllegalArgumentException(message, ioe);
+        } catch (SecurityException ace) {
+            throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
         }
+    }
+
+    public static List<String> getWordList(
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        String settingLenient,
+        boolean removeComments,
+        boolean checkDuplicate
+    ) {
+        boolean deduplicateDictionary = settings.getAsBoolean(settingLenient, false);
+        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
+        if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
+            return deDuplicateRules(ruleList, deduplicateDictionary == false);
+        }
+        return ruleList;
+    }
+
+    /**
+     * This method checks for any duplicate rules in the provided ruleList. Each rule in the list is parsed with CSVUtil.parse
+     * to separate the rule into individual components, represented as a String array. Only the first component from each rule
+     * is considered in the duplication check.
+     *
+     * The method will ignore any line that starts with a '#' character, treating it as a comment.
+     *
+     * The check is performed by adding the first component of each rule into a HashSet (dup), which does not allow duplicates.
+     * If the addition to the HashSet returns false, it means that item was already present in the set, indicating a duplicate.
+     * In such a case, an IllegalArgumentException is thrown specifying the duplicate term and the line number in the original list.
+     *
+     * Optionally the function will return the deduplicated list
+     *
+     * @param ruleList The list of rules to check for duplicates.
+     * @throws IllegalArgumentException If a duplicate rule is found.
+     */
+    private static List<String> deDuplicateRules(List<String> ruleList, boolean failOnDuplicate) {
+        Set<String> duplicateKeys = new HashSet<>();
+        List<String> deduplicatedList = new ArrayList<>();
+        for (int lineNum = 0; lineNum < ruleList.size(); lineNum++) {
+            String line = ruleList.get(lineNum);
+            // ignore lines beginning with # as those are comments
+            if (line.startsWith("#") == false) {
+                String[] values = CSVUtil.parse(line);
+                if (duplicateKeys.add(values[0]) == false) {
+                    if (failOnDuplicate) {
+                        throw new IllegalArgumentException(
+                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + (lineNum + 1) + "]"
+                        );
+                    } else {
+                        logger.warn("Ignoring duplicate term [" + values[0] + "] in user dictionary " + "at line [" + (lineNum + 1) + "]");
+                    }
+                } else {
+                    deduplicatedList.add(line);
+                }
+            } else {
+                deduplicatedList.add(line);
+            }
+        }
+
+        return Collections.unmodifiableList(deduplicatedList);
     }
 
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {
@@ -271,13 +333,11 @@ public class Analysis {
      * @throws IllegalArgumentException
      *          If the Reader can not be instantiated.
      */
-    public static Reader getReaderFromFile(Environment env, Settings settings, String settingPrefix) {
-        String filePath = settings.get(settingPrefix, null);
-
+    public static Reader getReaderFromFile(Environment env, String filePath, String settingPrefix) {
         if (filePath == null) {
             return null;
         }
-        final Path path = env.configFile().resolve(filePath);
+        final Path path = env.configDir().resolve(filePath);
         try {
             return Files.newBufferedReader(path, StandardCharsets.UTF_8);
         } catch (CharacterCodingException ex) {
@@ -292,6 +352,48 @@ public class Analysis {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
             throw new IllegalArgumentException(message, ioe);
         }
+    }
+
+    public static Reader getReaderFromIndex(
+        String synonymsSet,
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        boolean ignoreMissing
+    ) {
+        final PlainActionFuture<PagedResult<SynonymRule>> synonymsLoadingFuture = new PlainActionFuture<>();
+        synonymsManagementAPIService.getSynonymSetRules(synonymsSet, synonymsLoadingFuture);
+
+        PagedResult<SynonymRule> results;
+
+        try {
+            results = synonymsLoadingFuture.actionGet();
+        } catch (Exception e) {
+            if (ignoreMissing == false) {
+                throw e;
+            }
+
+            boolean notFound = e instanceof ResourceNotFoundException;
+            String message = String.format(
+                Locale.ROOT,
+                "Synonyms set %s %s. Synonyms will not be applied to search results on indices that use this synonym set",
+                synonymsSet,
+                notFound ? "not found" : "could not be loaded"
+            );
+
+            if (notFound) {
+                logger.warn(message);
+            } else {
+                logger.error(message, e);
+            }
+
+            results = new PagedResult<>(0, new SynonymRule[0]);
+        }
+
+        SynonymRule[] synonymRules = results.pageResults();
+        StringBuilder sb = new StringBuilder();
+        for (SynonymRule synonymRule : synonymRules) {
+            sb.append(synonymRule.synonyms()).append(System.lineSeparator());
+        }
+        return new StringReader(sb.toString());
     }
 
 }

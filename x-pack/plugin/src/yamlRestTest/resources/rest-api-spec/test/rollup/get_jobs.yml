@@ -1,6 +1,6 @@
 setup:
   - skip:
-      features: headers
+      features: ["allowed_warnings", "headers"]
   - do:
       indices.create:
         index: foo
@@ -12,10 +12,25 @@ setup:
               value_field:
                 type: integer
 
+  - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: { }
+
+
 ---
 "Test basic get_jobs":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:
@@ -42,6 +57,8 @@ setup:
   - is_true: acknowledged
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.get_jobs:
         id: foo
 
@@ -84,6 +101,8 @@ setup:
 "Test get with no jobs":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.get_jobs:
         id: "_all"
 
@@ -93,135 +112,10 @@ setup:
 "Test get missing job":
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.get_jobs:
         id: foo
 
   - match:
       jobs: []
-
----
-"Test get all jobs":
-
-  - skip:
-      version: all
-      reason: Job ordering isn't guaranteed right now, cannot test
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      rollup.put_job:
-        id: foo
-        body:  >
-          {
-            "index_pattern": "foo",
-            "rollup_index": "foo_rollup",
-            "cron": "*/30 * * * * ?",
-            "page_size" :10,
-            "groups" : {
-              "date_histogram": {
-                "field": "the_field",
-                "calendar_interval": "1h"
-              }
-            },
-            "metrics": [
-              {
-                "field": "value_field",
-                "metrics": ["min", "max", "sum"]
-              }
-            ]
-          }
-  - is_true: acknowledged
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      rollup.put_job:
-        id: bar
-        body:  >
-          {
-            "index_pattern": "bar",
-            "rollup_index": "foo_rollup",
-            "cron": "*/30 * * * * ?",
-            "page_size" :10,
-            "groups" : {
-              "date_histogram": {
-                "field": "the_field",
-                "calendar_interval": "1h"
-              }
-            },
-            "metrics": [
-              {
-                "field": "value_field",
-                "metrics": ["min", "max", "sum"]
-              }
-            ]
-          }
-  - is_true: acknowledged
-
-  - do:
-      rollup.get_jobs:
-        id: "_all"
-
-  - length: { jobs: 2 }
-  - match:
-      jobs:
-        - config:
-            id: "foo"
-            index_pattern: "foo"
-            rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
-            page_size: 10
-            groups :
-              date_histogram:
-                calendar_interval: "1h"
-                field: "the_field"
-                time_zone: "UTC"
-            metrics:
-              - field: "value_field"
-                metrics:
-                 - "min"
-                 - "max"
-                 - "sum"
-            timeout: "20s"
-          stats:
-            pages_processed: 0
-            documents_processed: 0
-            rollups_indexed: 0
-            trigger_count: 0
-          status:
-            job_state: "stopped"
-        - config:
-            id: "bar"
-            index_pattern: "bar"
-            rollup_index: "foo_rollup"
-            cron: "*/30 * * * * ?"
-            page_size: 10
-            groups :
-              date_histogram:
-                calendar_interval: "1h"
-                field: "the_field"
-                time_zone: "UTC"
-            metrics:
-              - field: "value_field"
-                metrics:
-                 - "min"
-                 - "max"
-                 - "sum"
-            timeout: "20s"
-          stats:
-            pages_processed: 0
-            documents_processed: 0
-            rollups_indexed: 0
-            trigger_count: 0
-            search_failures: 0
-            index_failures: 0
-            index_time_in_ms: 0
-            index_total: 0
-            search_time_in_ms: 0
-            search_total: 0
-            processing_time_in_ms: 0
-            processing_total: 0
-          status:
-            job_state: "stopped"
-
-

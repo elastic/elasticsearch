@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.core.security.support;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -50,7 +50,7 @@ public class StringMatcherTests extends ESTestCase {
             assertMatch(matcher, randomAlphaOfLengthBetween(i, 20));
         }
 
-        assertThat(matcher.getPredicate(), sameInstance(StringMatcher.ALWAYS_TRUE_PREDICATE));
+        assertThat(matcher.getPredicate(), sameInstance(Predicates.always()));
     }
 
     public void testSingleWildcard() throws Exception {
@@ -209,13 +209,13 @@ public class StringMatcherTests extends ESTestCase {
 
     private void assertMatch(StringMatcher matcher, String str) {
         if (matcher.test(str) == false) {
-            fail(String.format(Locale.ROOT, "Matcher [%s] failed to match [%s] but should", matcher, str));
+            fail(Strings.format("Matcher [%s] failed to match [%s] but should", matcher, str));
         }
     }
 
     private void assertNoMatch(StringMatcher matcher, String str) {
         if (matcher.test(str)) {
-            fail(String.format(Locale.ROOT, "Matcher [%s] matched [%s] but should not", matcher, str));
+            fail(Strings.format("Matcher [%s] matched [%s] but should not", matcher, str));
         }
     }
 

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.pipeline;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,14 +50,14 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
      */
     public BucketSelectorPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
-        bucketsPathsMap = in.readMap(StreamInput::readString, StreamInput::readString);
+        bucketsPathsMap = in.readMap(StreamInput::readString);
         script = new Script(in);
         gapPolicy = GapPolicy.readFrom(in);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeMap(bucketsPathsMap, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(bucketsPathsMap, StreamOutput::writeString);
         script.writeTo(out);
         gapPolicy.writeTo(out);
     }
@@ -214,7 +216,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

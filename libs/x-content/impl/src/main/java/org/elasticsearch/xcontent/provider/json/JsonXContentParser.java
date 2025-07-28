@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.provider.json;
@@ -17,10 +18,12 @@ import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.XContentParserConfigurationImpl;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
@@ -57,7 +60,8 @@ public class JsonXContentParser extends AbstractXContentParser {
         try {
             return convertToken(parser.nextToken());
         } catch (JsonEOFException e) {
-            throw new XContentEOFException(e);
+            JsonLocation location = e.getLocation();
+            throw new XContentEOFException(new XContentLocation(location.getLineNr(), location.getColumnNr()), "Unexpected end of file", e);
         } catch (JsonParseException e) {
             throw newXContentParseException(e);
         }
@@ -106,11 +110,29 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (currentToken().isValue() == false) {
             throwOnNoText();
         }
-        return parser.getText();
+        try {
+            return parser.getText();
+        } catch (JsonParseException e) {
+            throw newXContentParseException(e);
+        }
+    }
+
+    @Override
+    public XContentString optimizedText() throws IOException {
+        if (currentToken().isValue() == false) {
+            throwOnNoText();
+        }
+        if (parser instanceof ESUTF8StreamJsonParser esParser) {
+            var bytesRef = esParser.getValueAsText();
+            if (bytesRef != null) {
+                return bytesRef;
+            }
+        }
+        return new Text(text());
     }
 
     private void throwOnNoText() {
-        throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
+        throw new IllegalArgumentException("Expected text at " + getTokenLocation() + " but found " + currentToken());
     }
 
     @Override

@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,25 +47,26 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
     public static final String NAME = "cluster:admin/xpack/ml/datafeeds/preview";
 
     private PreviewDatafeedAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         private static final String BLANK_ID = "";
 
         public static final ParseField DATAFEED_CONFIG = new ParseField("datafeed_config");
         public static final ParseField JOB_CONFIG = new ParseField("job_config");
 
-        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("preview_datafeed_action", Request.Builder::new);
+        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("preview_datafeed_action", Builder::new);
+
         static {
             PARSER.declareObject(Builder::setDatafeedBuilder, DatafeedConfig.STRICT_PARSER, DATAFEED_CONFIG);
-            PARSER.declareObject(Builder::setJobBuilder, Job.STRICT_PARSER, JOB_CONFIG);
+            PARSER.declareObject(Builder::setJobBuilder, Job.REST_REQUEST_PARSER, JOB_CONFIG);
             PARSER.declareString(Builder::setStart, START_TIME);
             PARSER.declareString(Builder::setEnd, END_TIME);
         }
 
-        public static Request.Builder fromXContent(XContentParser parser, @Nullable String datafeedId) {
+        public static Builder fromXContent(XContentParser parser, @Nullable String datafeedId) {
             Builder builder = PARSER.apply(parser, null);
             // We don't need to check for "inconsistent ids" as we don't parse an ID from the body
             if (datafeedId != null) {
@@ -85,7 +86,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             datafeedId = in.readString();
             datafeedConfig = in.readOptionalWriteable(DatafeedConfig::new);
             jobConfig = in.readOptionalWriteable(Job.Builder::new);
-            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 this.startTime = in.readOptionalLong();
                 this.endTime = in.readOptionalLong();
             } else {
@@ -163,7 +164,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             out.writeString(datafeedId);
             out.writeOptionalWriteable(datafeedConfig);
             out.writeOptionalWriteable(jobConfig);
-            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
                 out.writeOptionalLong(startTime);
                 out.writeOptionalLong(endTime);
             }
@@ -297,11 +298,6 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final BytesReference preview;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            preview = in.readBytesReference();
-        }
 
         public Response(BytesReference preview) {
             this.preview = preview;

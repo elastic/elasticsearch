@@ -103,10 +103,13 @@ public final class SqlTestUtils {
             objectGenerator.accept(generator);
             generator.close();
             // System.out.println(out.toString(StandardCharsets.UTF_8));
-            XContentParser parser = builder.contentType()
-                .xContent()
-                .createParser(XContentParserConfiguration.EMPTY, new ByteArrayInputStream(out.toByteArray()));
-            builder.copyCurrentStructure(parser);
+            try (
+                XContentParser parser = builder.contentType()
+                    .xContent()
+                    .createParser(XContentParserConfiguration.EMPTY, new ByteArrayInputStream(out.toByteArray()))
+            ) {
+                builder.copyCurrentStructure(parser);
+            }
             builder.flush();
             ByteArrayOutputStream stream = (ByteArrayOutputStream) builder.getOutputStream();
             assertEquals("serialized objects differ", out.toString(StandardCharsets.UTF_8), stream.toString(StandardCharsets.UTF_8));

@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -118,11 +119,15 @@ public abstract class AbstractXPackRestTest extends ESClientYamlSuiteTestCase {
         if (isWaitForPendingTasks()) {
             // This waits for pending tasks to complete, so must go last (otherwise
             // it could be waiting for pending tasks while monitoring is still running).
-            waitForPendingTasks(adminClient(), task -> {
-                // Don't check rollup jobs because we clear them in the superclass.
-                return task.contains(RollupJob.NAME);
-            });
+            waitForPendingTasks(adminClient(), waitForPendingTasksFilter());
         }
+    }
+
+    protected Predicate<String> waitForPendingTasksFilter() {
+        return task -> {
+            // Don't check rollup jobs because we clear them in the superclass.
+            return task.contains(RollupJob.NAME);
+        };
     }
 
     /**

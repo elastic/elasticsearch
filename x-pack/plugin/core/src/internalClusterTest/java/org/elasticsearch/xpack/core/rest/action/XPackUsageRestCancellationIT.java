@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TransportAction;
@@ -20,12 +19,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -34,10 +31,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
-import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
@@ -53,6 +49,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
+import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.xpackUsageFeatureAction;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -100,8 +97,8 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
     }
 
     public static class BlockingUsageActionXPackPlugin extends LocalStateCompositeXPackPlugin {
-        public static final XPackUsageFeatureAction BLOCKING_XPACK_USAGE = new XPackUsageFeatureAction("blocking_xpack_usage");
-        public static final XPackUsageFeatureAction NON_BLOCKING_XPACK_USAGE = new XPackUsageFeatureAction("regular_xpack_usage");
+        public static final ActionType<XPackUsageFeatureResponse> BLOCKING_XPACK_USAGE = xpackUsageFeatureAction("blocking_xpack_usage");
+        public static final ActionType<XPackUsageFeatureResponse> NON_BLOCKING_XPACK_USAGE = xpackUsageFeatureAction("regular_xpack_usage");
 
         public BlockingUsageActionXPackPlugin(Settings settings, Path configPath) {
             super(settings, configPath);
@@ -113,10 +110,10 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         }
 
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            final ArrayList<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>(super.getActions());
-            actions.add(new ActionHandler<>(BLOCKING_XPACK_USAGE, BlockingXPackUsageAction.class));
-            actions.add(new ActionHandler<>(NON_BLOCKING_XPACK_USAGE, NonBlockingXPackUsageAction.class));
+        public List<ActionHandler> getActions() {
+            final ArrayList<ActionHandler> actions = new ArrayList<>(super.getActions());
+            actions.add(new ActionHandler(BLOCKING_XPACK_USAGE, BlockingXPackUsageAction.class));
+            actions.add(new ActionHandler(NON_BLOCKING_XPACK_USAGE, NonBlockingXPackUsageAction.class));
             return actions;
         }
     }
@@ -128,14 +125,13 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
             NodeClient client
         ) {
-            super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
+            super(threadPool, transportService, clusterService, actionFilters, client);
         }
 
         @Override
-        protected List<XPackUsageFeatureAction> usageActions() {
+        protected List<ActionType<XPackUsageFeatureResponse>> usageActions() {
             return List.of(BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE, BlockingUsageActionXPackPlugin.NON_BLOCKING_XPACK_USAGE);
         }
     }
@@ -146,23 +142,13 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Settings settings,
-            XPackLicenseState licenseState
+            ActionFilters actionFilters
         ) {
-            super(
-                BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE.name(),
-                transportService,
-                clusterService,
-                threadPool,
-                actionFilters,
-                indexNameExpressionResolver
-            );
+            super(BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE.name(), transportService, clusterService, threadPool, actionFilters);
         }
 
         @Override
-        protected void masterOperation(
+        protected void localClusterStateOperation(
             Task task,
             XPackUsageRequest request,
             ClusterState state,
@@ -170,10 +156,10 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         ) throws Exception {
             blockingXPackUsageActionExecuting.countDown();
             blockActionLatch.await();
-            listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureSet.Usage("test", false, false) {
+            listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureUsage("test", false, false) {
                 @Override
-                public Version getMinimalSupportedVersion() {
-                    return Version.CURRENT;
+                public TransportVersion getMinimalSupportedVersion() {
+                    return TransportVersion.current();
                 }
             }));
         }
@@ -185,23 +171,19 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Settings settings,
-            XPackLicenseState licenseState
+            ActionFilters actionFilters
         ) {
             super(
                 BlockingUsageActionXPackPlugin.NON_BLOCKING_XPACK_USAGE.name(),
                 transportService,
                 clusterService,
                 threadPool,
-                actionFilters,
-                indexNameExpressionResolver
+                actionFilters
             );
         }
 
         @Override
-        protected void masterOperation(
+        protected void localClusterStateOperation(
             Task task,
             XPackUsageRequest request,
             ClusterState state,

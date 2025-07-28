@@ -17,10 +17,9 @@ import java.util.Objects;
 
 public class GetTrialStatusResponse extends ActionResponse implements ToXContentObject {
 
-    private boolean eligibleToStartTrial;
+    private final boolean eligibleToStartTrial;
 
     GetTrialStatusResponse(StreamInput in) throws IOException {
-        super(in);
         eligibleToStartTrial = in.readBoolean();
     }
 

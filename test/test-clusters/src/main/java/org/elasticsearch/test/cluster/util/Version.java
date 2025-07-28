@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.cluster.util;
 
@@ -12,6 +13,7 @@ import java.io.InputStream;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,7 +21,7 @@ import java.util.regex.Pattern;
 /**
  * Encapsulates comparison and printing logic for an x.y.z version.
  */
-public final class Version implements Comparable<Version>, Serializable {
+public class Version implements Comparable<Version>, Serializable {
     public static final Version CURRENT;
     private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(?:-(alpha\\d+|beta\\d+|rc\\d+|SNAPSHOT))?");
     private static final Pattern relaxedPattern = Pattern.compile(
@@ -93,6 +95,23 @@ public final class Version implements Comparable<Version>, Serializable {
         String qualifier = matcher.group(4);
 
         return new Version(Integer.parseInt(major), Integer.parseInt(minor), revision == null ? 0 : Integer.parseInt(revision), qualifier);
+    }
+
+    public static Optional<Version> tryParse(final String s) {
+        Objects.requireNonNull(s);
+        Matcher matcher = pattern.matcher(s);
+        if (matcher.matches() == false) {
+            return Optional.empty();
+        }
+
+        String major = matcher.group(1);
+        String minor = matcher.group(2);
+        String revision = matcher.group(3);
+        String qualifier = matcher.group(4);
+
+        return Optional.of(
+            new Version(Integer.parseInt(major), Integer.parseInt(minor), revision == null ? 0 : Integer.parseInt(revision), qualifier)
+        );
     }
 
     @Override

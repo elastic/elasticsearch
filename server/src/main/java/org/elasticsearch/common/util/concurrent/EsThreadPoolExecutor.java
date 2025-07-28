@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -27,6 +28,15 @@ import static org.elasticsearch.core.Strings.format;
 public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
+
+    // noop probe to prevent starvation of work in the work queue due to ForceQueuePolicy
+    // https://github.com/elastic/elasticsearch/issues/124667
+    // note, this is intentionally not a lambda to avoid this ever be turned into a compile time constant
+    // matching similar lambdas coming from other places
+    static final Runnable WORKER_PROBE = new Runnable() {
+        @Override
+        public void run() {}
+    };
 
     private final ThreadContext contextHolder;
 
@@ -66,8 +76,18 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
+    public void setCorePoolSize(int corePoolSize) {
+        throw new UnsupportedOperationException("reconfiguration at runtime is not supported");
+    }
+
+    @Override
+    public void setMaximumPoolSize(int maximumPoolSize) {
+        throw new UnsupportedOperationException("reconfiguration at runtime is not supported");
+    }
+
+    @Override
     public void execute(Runnable command) {
-        final Runnable wrappedRunnable = wrapRunnable(command);
+        final Runnable wrappedRunnable = command != WORKER_PROBE ? wrapRunnable(command) : WORKER_PROBE;
         try {
             super.execute(wrappedRunnable);
         } catch (Exception e) {
@@ -125,7 +145,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         StringBuilder b = new StringBuilder();
         b.append(getClass().getSimpleName()).append('[');
         b.append("name = ").append(name).append(", ");
-        if (getQueue()instanceof SizeBlockingQueue<?> queue) {
+        if (getQueue() instanceof SizeBlockingQueue<?> queue) {
             b.append("queue capacity = ").append(queue.capacity()).append(", ");
         }
         appendThreadPoolExecutorDetails(b);
@@ -135,6 +155,12 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
          */
         b.append(super.toString()).append(']');
         return b.toString();
+    }
+
+    @Override
+    public boolean remove(Runnable task) {
+        logger.trace(() -> "task is removed " + task);
+        return super.remove(task);
     }
 
     /**

@@ -97,8 +97,6 @@
   - do:
       indices.close:
         index: index1
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       catch: bad_request
@@ -172,9 +170,14 @@
 
 ---
 tsdb:
+  - requires:
+      cluster_features: "gte_v8.5.0"
+      reason: "Serialization for segment stats fixed in 8.5.0"
   - skip:
-      version: " - 8.4.99"
-      reason: Serialization for segment stats fixed in 8.5.0
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
   - do:
       indices.create:

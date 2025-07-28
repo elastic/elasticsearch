@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -16,8 +16,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.node.UpdateHealthInfoCacheAction.Request;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -67,13 +69,9 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode(
-            "local_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
+        localNode = DiscoveryNodeUtils.builder("local_node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
         allNodes = new DiscoveryNode[] { localNode };
     }
 
@@ -92,7 +90,7 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
 
     public void testAction() throws ExecutionException, InterruptedException {
         DiskHealthInfo diskHealthInfo = new DiskHealthInfo(HealthStatus.GREEN, null);
-        UpdateHealthInfoCacheAction.Request request = new UpdateHealthInfoCacheAction.Request(localNode.getId(), diskHealthInfo);
+        Request request = new Request.Builder().nodeId(localNode.getId()).diskHealthInfo(diskHealthInfo).build();
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
         setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, localNode, allNodes));
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
@@ -115,28 +113,31 @@ public class UpdateHealthInfoCacheActionTests extends ESTestCase {
     }
 
     public void testRequestSerialization() {
-        DiskHealthInfo diskHealthInfo = randomBoolean()
-            ? new DiskHealthInfo(randomFrom(HealthStatus.values()))
-            : new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values()));
-        UpdateHealthInfoCacheAction.Request request = new UpdateHealthInfoCacheAction.Request(randomAlphaOfLength(10), diskHealthInfo);
+        // We start off with an "empty" request (i.e. only nodeId set), and let #mutateRequest change one of the fields at a time.
+        Request request = new Request.Builder().nodeId(randomAlphaOfLength(10)).build();
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             request,
-            serializedRequest -> copyWriteable(serializedRequest, writableRegistry(), UpdateHealthInfoCacheAction.Request::new),
+            serializedRequest -> copyWriteable(serializedRequest, writableRegistry(), Request::new),
             this::mutateRequest
         );
     }
 
-    private UpdateHealthInfoCacheAction.Request mutateRequest(UpdateHealthInfoCacheAction.Request request) {
+    private Request mutateRequest(Request request) {
         String nodeId = request.getNodeId();
         DiskHealthInfo diskHealthInfo = request.getDiskHealthInfo();
-        switch (randomIntBetween(1, 2)) {
-            case 1 -> nodeId = randomAlphaOfLength(10);
-            case 2 -> diskHealthInfo = new DiskHealthInfo(
-                randomValueOtherThan(diskHealthInfo.healthStatus(), () -> randomFrom(HealthStatus.values())),
-                randomBoolean() ? null : randomFrom(DiskHealthInfo.Cause.values())
-            );
+        var dslHealthInfo = request.getDslHealthInfo();
+        var repoHealthInfo = request.getRepositoriesHealthInfo();
+        switch (randomInt(3)) {
+            case 0 -> nodeId = randomAlphaOfLength(10);
+            case 1 -> diskHealthInfo = randomValueOtherThan(diskHealthInfo, HealthInfoTests::randomDiskHealthInfo);
+            case 2 -> dslHealthInfo = randomValueOtherThan(dslHealthInfo, HealthInfoTests::randomDslHealthInfo);
+            case 3 -> repoHealthInfo = randomValueOtherThan(repoHealthInfo, HealthInfoTests::randomRepoHealthInfo);
             default -> throw new IllegalStateException();
         }
-        return new UpdateHealthInfoCacheAction.Request(nodeId, diskHealthInfo);
+        return new Request.Builder().nodeId(nodeId)
+            .diskHealthInfo(diskHealthInfo)
+            .dslHealthInfo(dslHealthInfo)
+            .repositoriesHealthInfo(repoHealthInfo)
+            .build();
     }
 }

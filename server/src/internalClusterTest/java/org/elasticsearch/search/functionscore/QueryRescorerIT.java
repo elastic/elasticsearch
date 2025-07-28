@@ -1,39 +1,56 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.functionscore;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.tests.util.English;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.lucene.search.function.CombineFunction.REPLACE;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -50,7 +67,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirs
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFourthHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThirdHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -68,36 +87,37 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // this
         int iters = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < iters; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("f", Integer.toString(i)).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("f", Integer.toString(i)).get();
         }
         refresh();
 
         int numShards = getNumShards("test").numPrimaries;
         for (int j = 0; j < iters; j++) {
-            SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(QueryBuilders.matchAllQuery())
-                .setRescorer(
-                    new QueryRescorerBuilder(
-                        functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.weightFactorFunction(100)).boostMode(
-                            CombineFunction.REPLACE
-                        )
-                    ).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f),
-                    1
-                )
-                .setSize(randomIntBetween(2, 10))
-                .get();
-            assertSearchResponse(searchResponse);
-            assertFirstHit(searchResponse, hasScore(100.f));
-            int numDocsWith100AsAScore = 0;
-            for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
-                float score = searchResponse.getHits().getHits()[i].getScore();
-                if (score == 100f) {
-                    numDocsWith100AsAScore += 1;
+            assertNoFailuresAndResponse(
+                prepareSearch().setQuery(QueryBuilders.matchAllQuery())
+                    .setRescorer(
+                        new QueryRescorerBuilder(
+                            functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.weightFactorFunction(100)).boostMode(
+                                CombineFunction.REPLACE
+                            ).queryName("hello world")
+                        ).setQueryWeight(0.0f).setRescoreQueryWeight(1.0f),
+                        1
+                    )
+                    .setSize(randomIntBetween(2, 10)),
+                response -> {
+                    assertFirstHit(response, hasScore(100.f));
+                    int numDocsWith100AsAScore = 0;
+                    for (int i = 0; i < response.getHits().getHits().length; i++) {
+                        float score = response.getHits().getHits()[i].getScore();
+                        if (score == 100f) {
+                            numDocsWith100AsAScore += 1;
+                        }
+                    }
+                    assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+                    // we cannot assert that they are equal since some shards might not have docs at all
+                    assertThat(numDocsWith100AsAScore, lessThanOrEqualTo(numShards));
                 }
-            }
-            assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-            // we cannot assert that they are equal since some shards might not have docs at all
-            assertThat(numDocsWith100AsAScore, lessThanOrEqualTo(numShards));
+            );
         }
     }
 
@@ -117,47 +137,38 @@ public class QueryRescorerIT extends ESIntegTestCase {
             ).setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
         );
 
-        client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
-        client().prepareIndex("test").setId("2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
-        client().prepareIndex("test")
-            .setId("3")
+        prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
+        prepareIndex("test").setId("2").setSource("field1", "the quick lazy huge brown fox jumps over the tree ").get();
+        prepareIndex("test").setId("3")
             .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
             .get();
         refresh();
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-            .setRescorer(
-                new QueryRescorerBuilder(matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)).setRescoreQueryWeight(2),
-                5
-            )
-            .get();
-
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
-        assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
-        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
-
-        searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-            .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown").slop(3)), 5)
-            .get();
-
-        assertHitCount(searchResponse, 3);
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThirdHit(searchResponse, hasId("3"));
-
-        searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-            .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown")), 5)
-            .get();
-
-        assertHitCount(searchResponse, 3);
-        assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThirdHit(searchResponse, hasId("3"));
+        assertResponse(
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
+                .setRescorer(
+                    new QueryRescorerBuilder(matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)).setRescoreQueryWeight(2),
+                    5
+                ),
+            response -> {
+                assertHitCount(response, 3);
+                assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+                assertFirstHit(response, hasId("1"));
+                assertSecondHit(response, hasId("3"));
+                assertThirdHit(response, hasId("2"));
+            }
+        );
+        assertResponses(response -> {
+            assertHitCount(response, 3);
+            assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+            assertFirstHit(response, hasId("1"));
+            assertSecondHit(response, hasId("2"));
+            assertThirdHit(response, hasId("3"));
+        },
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
+                .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown").slop(3)), 5),
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
+                .setRescorer(new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown")), 5)
+        );
     }
 
     public void testMoreDocs() throws Exception {
@@ -175,79 +186,69 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(
-            client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1))
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1)));
+
+        prepareIndex("test").setId("1").setSource("field1", "massachusetts avenue boston massachusetts").get();
+        prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts").get();
+        prepareIndex("test").setId("3").setSource("field1", "boston avenue lexington massachusetts").get();
+        indicesAdmin().prepareRefresh("test").get();
+        prepareIndex("test").setId("4").setSource("field1", "boston road lexington massachusetts").get();
+        prepareIndex("test").setId("5").setSource("field1", "lexington street lexington massachusetts").get();
+        prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        prepareIndex("test").setId("7").setSource("field1", "bosten street san franciso california").get();
+        indicesAdmin().prepareRefresh("test").get();
+        prepareIndex("test").setId("8").setSource("field1", "hollywood boulevard los angeles california").get();
+        prepareIndex("test").setId("9").setSource("field1", "1st street boston massachussetts").get();
+        prepareIndex("test").setId("10").setSource("field1", "1st street boston massachusetts").get();
+        indicesAdmin().prepareRefresh("test").get();
+        prepareIndex("test").setId("11").setSource("field1", "2st street boston massachusetts").get();
+        prepareIndex("test").setId("12").setSource("field1", "3st street boston massachusetts").get();
+        indicesAdmin().prepareRefresh("test").get();
+
+        assertResponses(response -> {
+            assertThat(response.getHits().getHits().length, equalTo(5));
+            assertHitCount(response, 9);
+            assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+            assertFirstHit(response, hasId("2"));
+            assertSecondHit(response, hasId("6"));
+            assertThirdHit(response, hasId("3"));
+        },
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
+                .setFrom(0)
+                .setSize(5)
+                .setRescorer(
+                    new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
+                        .setRescoreQueryWeight(2.0f),
+                    20
+                ),
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
+                .setFrom(0)
+                .setSize(5)
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setRescorer(
+                    new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
+                        .setRescoreQueryWeight(2.0f),
+                    20
+                )
         );
-
-        client().prepareIndex("test").setId("1").setSource("field1", "massachusetts avenue boston massachusetts").get();
-        client().prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts").get();
-        client().prepareIndex("test").setId("3").setSource("field1", "boston avenue lexington massachusetts").get();
-        client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test").setId("4").setSource("field1", "boston road lexington massachusetts").get();
-        client().prepareIndex("test").setId("5").setSource("field1", "lexington street lexington massachusetts").get();
-        client().prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
-        client().prepareIndex("test").setId("7").setSource("field1", "bosten street san franciso california").get();
-        client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test").setId("8").setSource("field1", "hollywood boulevard los angeles california").get();
-        client().prepareIndex("test").setId("9").setSource("field1", "1st street boston massachussetts").get();
-        client().prepareIndex("test").setId("10").setSource("field1", "1st street boston massachusetts").get();
-        client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test").setId("11").setSource("field1", "2st street boston massachusetts").get();
-        client().prepareIndex("test").setId("12").setSource("field1", "3st street boston massachusetts").get();
-        client().admin().indices().prepareRefresh("test").get();
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
-            .setFrom(0)
-            .setSize(5)
-            .setRescorer(
-                new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
-                    .setRescoreQueryWeight(2.0f),
-                20
-            )
-            .get();
-
-        assertThat(searchResponse.getHits().getHits().length, equalTo(5));
-        assertHitCount(searchResponse, 9);
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("6"));
-        assertThirdHit(searchResponse, hasId("3"));
-
-        searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
-            .setFrom(0)
-            .setSize(5)
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setRescorer(
-                new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
-                    .setRescoreQueryWeight(2.0f),
-                20
-            )
-            .get();
-
-        assertThat(searchResponse.getHits().getHits().length, equalTo(5));
-        assertHitCount(searchResponse, 9);
-        assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("6"));
-        assertThirdHit(searchResponse, hasId("3"));
-
         // Make sure non-zero from works:
-        searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
-            .setFrom(2)
-            .setSize(5)
-            .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-            .setRescorer(
-                new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
-                    .setRescoreQueryWeight(2.0f),
-                20
-            )
-            .get();
-
-        assertThat(searchResponse.getHits().getHits().length, equalTo(5));
-        assertHitCount(searchResponse, 9);
-        assertThat(searchResponse.getHits().getMaxScore(), greaterThan(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("3"));
+        assertResponse(
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(Operator.OR))
+                .setFrom(2)
+                .setSize(5)
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setRescorer(
+                    new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
+                        .setRescoreQueryWeight(2.0f),
+                    20
+                ),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(5));
+                assertHitCount(response, 9);
+                assertThat(response.getHits().getMaxScore(), greaterThan(response.getHits().getHits()[0].getScore()));
+                assertFirstHit(response, hasId("3"));
+            }
+        );
     }
 
     // Tests a rescore window smaller than number of hits:
@@ -266,70 +267,68 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(
-            client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1))
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1)));
 
-        client().prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
-        client().prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
-        client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test").setId("1").setSource("field1", "lexington massachusetts avenue").get();
-        client().prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts road").get();
-        client().admin().indices().prepareRefresh("test").get();
+        prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
+        prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        indicesAdmin().prepareRefresh("test").get();
+        prepareIndex("test").setId("1").setSource("field1", "lexington massachusetts avenue").get();
+        prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts road").get();
+        indicesAdmin().prepareRefresh("test").get();
 
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
-            .setFrom(0)
-            .setSize(5)
-            .get();
-        assertThat(searchResponse.getHits().getHits().length, equalTo(4));
-        assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("3"));
-        assertSecondHit(searchResponse, hasId("6"));
-        assertThirdHit(searchResponse, hasId("1"));
-        assertFourthHit(searchResponse, hasId("2"));
+        assertResponse(prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "massachusetts")).setFrom(0).setSize(5), response -> {
+            assertThat(response.getHits().getHits().length, equalTo(4));
+            assertHitCount(response, 4);
+            assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+            assertFirstHit(response, hasId("3"));
+            assertSecondHit(response, hasId("6"));
+            assertThirdHit(response, hasId("1"));
+            assertFourthHit(response, hasId("2"));
+        });
 
         // Now, rescore only top 2 hits w/ proximity:
-        searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
-            .setFrom(0)
-            .setSize(5)
-            .setRescorer(
-                new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
-                    .setRescoreQueryWeight(2.0f),
-                2
-            )
-            .get();
-        // Only top 2 hits were re-ordered:
-        assertThat(searchResponse.getHits().getHits().length, equalTo(4));
-        assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("6"));
-        assertSecondHit(searchResponse, hasId("3"));
-        assertThirdHit(searchResponse, hasId("1"));
-        assertFourthHit(searchResponse, hasId("2"));
+        assertResponse(
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
+                .setFrom(0)
+                .setSize(5)
+                .setRescorer(
+                    new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
+                        .setRescoreQueryWeight(2.0f),
+                    2
+                ),
+            response -> {
+                // Only top 2 hits were re-ordered:
+                assertThat(response.getHits().getHits().length, equalTo(4));
+                assertHitCount(response, 4);
+                assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+                assertFirstHit(response, hasId("6"));
+                assertSecondHit(response, hasId("3"));
+                assertThirdHit(response, hasId("1"));
+                assertFourthHit(response, hasId("2"));
+            }
+        );
 
         // Now, rescore only top 3 hits w/ proximity:
-        searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
-            .setFrom(0)
-            .setSize(5)
-            .setRescorer(
-                new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
-                    .setRescoreQueryWeight(2.0f),
-                3
-            )
-            .get();
-
-        // Only top 3 hits were re-ordered:
-        assertThat(searchResponse.getHits().getHits().length, equalTo(4));
-        assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("1"));
-        assertSecondHit(searchResponse, hasId("6"));
-        assertThirdHit(searchResponse, hasId("3"));
-        assertFourthHit(searchResponse, hasId("2"));
+        assertResponse(
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "massachusetts"))
+                .setFrom(0)
+                .setSize(5)
+                .setRescorer(
+                    new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(0.6f)
+                        .setRescoreQueryWeight(2.0f),
+                    3
+                ),
+            response -> {
+                // Only top 3 hits were re-ordered:
+                assertThat(response.getHits().getHits().length, equalTo(4));
+                assertHitCount(response, 4);
+                assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+                assertFirstHit(response, hasId("1"));
+                assertSecondHit(response, hasId("6"));
+                assertThirdHit(response, hasId("3"));
+                assertFourthHit(response, hasId("2"));
+            }
+        );
     }
 
     // Tests a rescorer that penalizes the scores:
@@ -348,48 +347,46 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .endObject()
             .endObject();
 
-        assertAcked(
-            client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1))
+        assertAcked(indicesAdmin().prepareCreate("test").setMapping(mapping).setSettings(builder.put("index.number_of_shards", 1)));
+
+        prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
+        prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
+        indicesAdmin().prepareRefresh("test").get();
+        prepareIndex("test").setId("1").setSource("field1", "lexington massachusetts avenue").get();
+        prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts road").get();
+        indicesAdmin().prepareRefresh("test").get();
+
+        assertResponse(
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(Operator.OR)).setFrom(0).setSize(5),
+            response -> {
+                assertThat(response.getHits().getHits().length, equalTo(4));
+                assertHitCount(response, 4);
+                assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+                assertFirstHit(response, hasId("3"));
+                assertSecondHit(response, hasId("6"));
+                assertThirdHit(response, hasId("1"));
+                assertFourthHit(response, hasId("2"));
+            }
         );
-
-        client().prepareIndex("test").setId("3").setSource("field1", "massachusetts").get();
-        client().prepareIndex("test").setId("6").setSource("field1", "massachusetts avenue lexington massachusetts").get();
-        client().admin().indices().prepareRefresh("test").get();
-        client().prepareIndex("test").setId("1").setSource("field1", "lexington massachusetts avenue").get();
-        client().prepareIndex("test").setId("2").setSource("field1", "lexington avenue boston massachusetts road").get();
-        client().admin().indices().prepareRefresh("test").get();
-
-        SearchResponse searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(Operator.OR))
-            .setFrom(0)
-            .setSize(5)
-            .get();
-        assertThat(searchResponse.getHits().getHits().length, equalTo(4));
-        assertHitCount(searchResponse, 4);
-        assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("3"));
-        assertSecondHit(searchResponse, hasId("6"));
-        assertThirdHit(searchResponse, hasId("1"));
-        assertFourthHit(searchResponse, hasId("2"));
-
         // Now, penalizing rescore (nothing matches the rescore query):
-        searchResponse = client().prepareSearch()
-            .setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(Operator.OR))
-            .setFrom(0)
-            .setSize(5)
-            .setRescorer(
-                new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(1.0f)
-                    .setRescoreQueryWeight(-1f),
-                3
-            )
-            .get();
-
-        // 6 and 1 got worse, and then the hit (2) outside the rescore window were sorted ahead:
-        assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("3"));
-        assertSecondHit(searchResponse, hasId("2"));
-        assertThirdHit(searchResponse, hasId("6"));
-        assertFourthHit(searchResponse, hasId("1"));
+        assertResponse(
+            prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "massachusetts").operator(Operator.OR))
+                .setFrom(0)
+                .setSize(5)
+                .setRescorer(
+                    new QueryRescorerBuilder(matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3)).setQueryWeight(1.0f)
+                        .setRescoreQueryWeight(-1f),
+                    3
+                ),
+            response -> {
+                // 6 and 1 got worse, and then the hit (2) outside the rescore window were sorted ahead:
+                assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+                assertFirstHit(response, hasId("3"));
+                assertSecondHit(response, hasId("2"));
+                assertThirdHit(response, hasId("6"));
+                assertFourthHit(response, hasId("1"));
+            }
+        );
     }
 
     // Comparator that sorts hits and rescored hits in the same way.
@@ -414,7 +411,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertNoFailures(rescored);
         SearchHits leftHits = plain.getHits();
         SearchHits rightHits = rescored.getHits();
-        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
+        assertThat(leftHits.getTotalHits().value(), equalTo(rightHits.getTotalHits().value()));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();
@@ -442,46 +439,42 @@ public class QueryRescorerIT extends ESIntegTestCase {
             int rescoreWindow = between(1, 3) * resultSize;
             String intToEnglish = English.intToEnglish(between(0, numDocs - 1));
             String query = intToEnglish.split(" ")[0];
-            SearchResponse rescored = client().prepareSearch()
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setPreference("test") // ensure we hit the same shards for tie-breaking
-                .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
-                .setFrom(0)
-                .setSize(resultSize)
-                .setRescorer(
-                    new QueryRescorerBuilder(constantScoreQuery(matchPhraseQuery("field1", intToEnglish).slop(3))).setQueryWeight(1.0f)
-                        // no weight - so we basically use the same score as the actual query
-                        .setRescoreQueryWeight(0.0f),
-                    rescoreWindow
-                )
-                .get();
 
-            SearchResponse plain = client().prepareSearch()
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setPreference("test") // ensure we hit the same shards for tie-breaking
-                .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
-                .setFrom(0)
-                .setSize(resultSize)
-                .get();
-
-            // check equivalence
-            assertEquivalent(query, plain, rescored);
-
-            rescored = client().prepareSearch()
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setPreference("test") // ensure we hit the same shards for tie-breaking
-                .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
-                .setFrom(0)
-                .setSize(resultSize)
-                .setRescorer(
-                    new QueryRescorerBuilder(constantScoreQuery(matchPhraseQuery("field1", "not in the index").slop(3))).setQueryWeight(
-                        1.0f
-                    ).setRescoreQueryWeight(1.0f),
-                    rescoreWindow
-                )
-                .get();
-            // check equivalence
-            assertEquivalent(query, plain, rescored);
+            assertResponse(
+                prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setPreference("test") // ensure we hit the same shards for tie-breaking
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
+                    .setFrom(0)
+                    .setSize(resultSize),
+                plain -> {
+                    assertResponses(
+                        rescored -> assertEquivalent(query, plain, rescored),
+                        prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                            .setPreference("test") // ensure we hit the same shards for tie-breaking
+                            .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
+                            .setFrom(0)
+                            .setSize(resultSize)
+                            .setRescorer(
+                                new QueryRescorerBuilder(constantScoreQuery(matchPhraseQuery("field1", intToEnglish).slop(3)))
+                                    .setQueryWeight(1.0f)
+                                    // no weight - so we basically use the same score as the actual query
+                                    .setRescoreQueryWeight(0.0f),
+                                rescoreWindow
+                            ),
+                        prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                            .setPreference("test") // ensure we hit the same shards for tie-breaking
+                            .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
+                            .setFrom(0)
+                            .setSize(resultSize)
+                            .setRescorer(
+                                new QueryRescorerBuilder(constantScoreQuery(matchPhraseQuery("field1", "not in the index").slop(3)))
+                                    .setQueryWeight(1.0f)
+                                    .setRescoreQueryWeight(1.0f),
+                                rescoreWindow
+                            )
+                    );  // check equivalence
+                }
+            );
         }
     }
 
@@ -501,49 +494,50 @@ public class QueryRescorerIT extends ESIntegTestCase {
             )
         );
         ensureGreen();
-        client().prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
-        client().prepareIndex("test").setId("2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").get();
-        client().prepareIndex("test")
-            .setId("3")
+        prepareIndex("test").setId("1").setSource("field1", "the quick brown fox").get();
+        prepareIndex("test").setId("2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").get();
+        prepareIndex("test").setId("3")
             .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree")
             .get();
         refresh();
 
         {
-            SearchResponse searchResponse = client().prepareSearch()
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-                .setRescorer(
-                    new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown").slop(2).boost(4.0f)).setQueryWeight(0.5f)
-                        .setRescoreQueryWeight(0.4f),
-                    5
-                )
-                .setExplain(true)
-                .get();
-            assertHitCount(searchResponse, 3);
-            assertFirstHit(searchResponse, hasId("1"));
-            assertSecondHit(searchResponse, hasId("2"));
-            assertThirdHit(searchResponse, hasId("3"));
+            assertResponse(
+                prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
+                    .setRescorer(
+                        new QueryRescorerBuilder(matchPhraseQuery("field1", "the quick brown").slop(2).boost(4.0f)).setQueryWeight(0.5f)
+                            .setRescoreQueryWeight(0.4f),
+                        5
+                    )
+                    .setExplain(true),
+                response -> {
+                    assertHitCount(response, 3);
+                    assertFirstHit(response, hasId("1"));
+                    assertSecondHit(response, hasId("2"));
+                    assertThirdHit(response, hasId("3"));
 
-            for (int i = 0; i < 3; i++) {
-                assertThat(searchResponse.getHits().getAt(i).getExplanation(), notNullValue());
-                assertThat(searchResponse.getHits().getAt(i).getExplanation().isMatch(), equalTo(true));
-                assertThat(searchResponse.getHits().getAt(i).getExplanation().getDetails().length, equalTo(2));
-                assertThat(searchResponse.getHits().getAt(i).getExplanation().getDetails()[0].isMatch(), equalTo(true));
-                if (i == 2) {
-                    assertThat(searchResponse.getHits().getAt(i).getExplanation().getDetails()[1].getValue(), equalTo(0.5f));
-                } else {
-                    assertThat(searchResponse.getHits().getAt(i).getExplanation().getDescription(), equalTo("sum of:"));
-                    assertThat(
-                        searchResponse.getHits().getAt(i).getExplanation().getDetails()[0].getDetails()[1].getValue(),
-                        equalTo(0.5f)
-                    );
-                    assertThat(
-                        searchResponse.getHits().getAt(i).getExplanation().getDetails()[1].getDetails()[1].getValue(),
-                        equalTo(0.4f)
-                    );
+                    for (int i = 0; i < 3; i++) {
+                        assertThat(response.getHits().getAt(i).getExplanation(), notNullValue());
+                        assertThat(response.getHits().getAt(i).getExplanation().isMatch(), equalTo(true));
+                        assertThat(response.getHits().getAt(i).getExplanation().getDetails().length, equalTo(2));
+                        assertThat(response.getHits().getAt(i).getExplanation().getDetails()[0].isMatch(), equalTo(true));
+                        if (i == 2) {
+                            assertThat(response.getHits().getAt(i).getExplanation().getDetails()[1].getValue(), equalTo(0.5f));
+                        } else {
+                            assertThat(response.getHits().getAt(i).getExplanation().getDescription(), equalTo("sum of:"));
+                            assertThat(
+                                response.getHits().getAt(i).getExplanation().getDetails()[0].getDetails()[1].getValue(),
+                                equalTo(0.5f)
+                            );
+                            assertThat(
+                                response.getHits().getAt(i).getExplanation().getDetails()[1].getDetails()[1].getValue(),
+                                equalTo(0.4f)
+                            );
+                        }
+                    }
                 }
-            }
+            );
         }
 
         String[] scoreModes = new String[] { "max", "min", "avg", "total", "multiply", "" };
@@ -556,22 +550,26 @@ public class QueryRescorerIT extends ESIntegTestCase {
             if ("".equals(scoreModes[innerMode]) == false) {
                 innerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[innerMode]));
             }
+            final int finalInnerMode = innerMode;
+            assertResponse(
+                prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
+                    .setRescorer(innerRescoreQuery, 5)
+                    .setExplain(true),
+                response -> {
+                    assertHitCount(response, 3);
+                    assertFirstHit(response, hasId("1"));
+                    assertSecondHit(response, hasId("2"));
+                    assertThirdHit(response, hasId("3"));
 
-            SearchResponse searchResponse = client().prepareSearch()
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-                .setRescorer(innerRescoreQuery, 5)
-                .setExplain(true)
-                .get();
-            assertHitCount(searchResponse, 3);
-            assertFirstHit(searchResponse, hasId("1"));
-            assertSecondHit(searchResponse, hasId("2"));
-            assertThirdHit(searchResponse, hasId("3"));
-
-            for (int j = 0; j < 3; j++) {
-                assertThat(searchResponse.getHits().getAt(j).getExplanation().getDescription(), equalTo(descriptionModes[innerMode]));
-            }
-
+                    for (int j = 0; j < 3; j++) {
+                        assertThat(
+                            response.getHits().getAt(j).getExplanation().getDescription(),
+                            equalTo(descriptionModes[finalInnerMode])
+                        );
+                    }
+                }
+            );
             for (int outerMode = 0; outerMode < scoreModes.length; outerMode++) {
                 QueryRescorerBuilder outerRescoreQuery = new QueryRescorerBuilder(matchQuery("field1", "the quick brown").boost(4.0f))
                     .setQueryWeight(0.5f)
@@ -580,24 +578,29 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 if ("".equals(scoreModes[outerMode]) == false) {
                     outerRescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreModes[outerMode]));
                 }
+                final int finalOuterMode = outerMode;
+                assertResponse(
+                    prepareSearch().setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                        .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
+                        .addRescorer(innerRescoreQuery, 5)
+                        .addRescorer(outerRescoreQuery.windowSize(10))
+                        .setExplain(true),
+                    response -> {
+                        assertHitCount(response, 3);
+                        assertFirstHit(response, hasId("1"));
+                        assertSecondHit(response, hasId("2"));
+                        assertThirdHit(response, hasId("3"));
 
-                searchResponse = client().prepareSearch()
-                    .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                    .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(Operator.OR))
-                    .addRescorer(innerRescoreQuery, 5)
-                    .addRescorer(outerRescoreQuery.windowSize(10))
-                    .setExplain(true)
-                    .get();
-                assertHitCount(searchResponse, 3);
-                assertFirstHit(searchResponse, hasId("1"));
-                assertSecondHit(searchResponse, hasId("2"));
-                assertThirdHit(searchResponse, hasId("3"));
-
-                for (int j = 0; j < 3; j++) {
-                    Explanation explanation = searchResponse.getHits().getAt(j).getExplanation();
-                    assertThat(explanation.getDescription(), equalTo(descriptionModes[outerMode]));
-                    assertThat(explanation.getDetails()[0].getDetails()[0].getDescription(), equalTo(descriptionModes[innerMode]));
-                }
+                        for (int j = 0; j < 3; j++) {
+                            Explanation explanation = response.getHits().getAt(j).getExplanation();
+                            assertThat(explanation.getDescription(), equalTo(descriptionModes[finalOuterMode]));
+                            assertThat(
+                                explanation.getDetails()[0].getDetails()[0].getDescription(),
+                                equalTo(descriptionModes[finalInnerMode])
+                            );
+                        }
+                    }
+                );
             }
         }
     }
@@ -635,59 +638,66 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 if ("".equals(scoreMode) == false) {
                     rescoreQuery.setScoreMode(QueryRescoreMode.fromString(scoreMode));
                 }
+                final int finalI = i;
+                assertResponse(
+                    prepareSearch().setPreference("test") // ensure we hit the same shards for tie-breaking
+                        .setFrom(0)
+                        .setSize(10)
+                        .setQuery(query)
+                        .setRescorer(rescoreQuery, 50),
+                    rescored -> {
+                        assertHitCount(rescored, 4);
 
-                SearchResponse rescored = client().prepareSearch()
-                    .setPreference("test") // ensure we hit the same shards for tie-breaking
-                    .setFrom(0)
-                    .setSize(10)
-                    .setQuery(query)
-                    .setRescorer(rescoreQuery, 50)
-                    .get();
-
-                assertHitCount(rescored, 4);
-
-                assertThat(rescored.getHits().getMaxScore(), equalTo(rescored.getHits().getHits()[0].getScore()));
-                if ("total".equals(scoreMode) || "".equals(scoreMode)) {
-                    assertFirstHit(rescored, hasId(String.valueOf(i + 1)));
-                    assertSecondHit(rescored, hasId(String.valueOf(i)));
-                    assertThirdHit(rescored, hasId(String.valueOf(i + 2)));
-                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(3.0f * primaryWeight + 7.0f * secondaryWeight));
-                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(2.0f * primaryWeight + 5.0f * secondaryWeight));
-                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(5.0f * primaryWeight));
-                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.2f * primaryWeight + 0.0f * secondaryWeight));
-                } else if ("max".equals(scoreMode)) {
-                    assertFirstHit(rescored, hasId(String.valueOf(i + 1)));
-                    assertSecondHit(rescored, hasId(String.valueOf(i)));
-                    assertThirdHit(rescored, hasId(String.valueOf(i + 2)));
-                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(7.0f * secondaryWeight));
-                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(5.0f * secondaryWeight));
-                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(5.0f * primaryWeight));
-                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.2f * primaryWeight));
-                } else if ("min".equals(scoreMode)) {
-                    assertFirstHit(rescored, hasId(String.valueOf(i + 2)));
-                    assertSecondHit(rescored, hasId(String.valueOf(i + 1)));
-                    assertThirdHit(rescored, hasId(String.valueOf(i)));
-                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(5.0f * primaryWeight));
-                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(3.0f * primaryWeight));
-                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(2.0f * primaryWeight));
-                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.0f * secondaryWeight));
-                } else if ("avg".equals(scoreMode)) {
-                    assertFirstHit(rescored, hasId(String.valueOf(i + 1)));
-                    assertSecondHit(rescored, hasId(String.valueOf(i + 2)));
-                    assertThirdHit(rescored, hasId(String.valueOf(i)));
-                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo((3.0f * primaryWeight + 7.0f * secondaryWeight) / 2.0f));
-                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(5.0f * primaryWeight));
-                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo((2.0f * primaryWeight + 5.0f * secondaryWeight) / 2.0f));
-                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo((0.2f * primaryWeight) / 2.0f));
-                } else if ("multiply".equals(scoreMode)) {
-                    assertFirstHit(rescored, hasId(String.valueOf(i + 1)));
-                    assertSecondHit(rescored, hasId(String.valueOf(i)));
-                    assertThirdHit(rescored, hasId(String.valueOf(i + 2)));
-                    assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(3.0f * primaryWeight * 7.0f * secondaryWeight));
-                    assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(2.0f * primaryWeight * 5.0f * secondaryWeight));
-                    assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(5.0f * primaryWeight));
-                    assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.2f * primaryWeight * 0.0f * secondaryWeight));
-                }
+                        assertThat(rescored.getHits().getMaxScore(), equalTo(rescored.getHits().getHits()[0].getScore()));
+                        if ("total".equals(scoreMode) || "".equals(scoreMode)) {
+                            assertFirstHit(rescored, hasId(String.valueOf(finalI + 1)));
+                            assertSecondHit(rescored, hasId(String.valueOf(finalI)));
+                            assertThirdHit(rescored, hasId(String.valueOf(finalI + 2)));
+                            assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(3.0f * primaryWeight + 7.0f * secondaryWeight));
+                            assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(2.0f * primaryWeight + 5.0f * secondaryWeight));
+                            assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(5.0f * primaryWeight));
+                            assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.2f * primaryWeight + 0.0f * secondaryWeight));
+                        } else if ("max".equals(scoreMode)) {
+                            assertFirstHit(rescored, hasId(String.valueOf(finalI + 1)));
+                            assertSecondHit(rescored, hasId(String.valueOf(finalI)));
+                            assertThirdHit(rescored, hasId(String.valueOf(finalI + 2)));
+                            assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(7.0f * secondaryWeight));
+                            assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(5.0f * secondaryWeight));
+                            assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(5.0f * primaryWeight));
+                            assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.2f * primaryWeight));
+                        } else if ("min".equals(scoreMode)) {
+                            assertFirstHit(rescored, hasId(String.valueOf(finalI + 2)));
+                            assertSecondHit(rescored, hasId(String.valueOf(finalI + 1)));
+                            assertThirdHit(rescored, hasId(String.valueOf(finalI)));
+                            assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(5.0f * primaryWeight));
+                            assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(3.0f * primaryWeight));
+                            assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(2.0f * primaryWeight));
+                            assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.0f * secondaryWeight));
+                        } else if ("avg".equals(scoreMode)) {
+                            assertFirstHit(rescored, hasId(String.valueOf(finalI + 1)));
+                            assertSecondHit(rescored, hasId(String.valueOf(finalI + 2)));
+                            assertThirdHit(rescored, hasId(String.valueOf(finalI)));
+                            assertThat(
+                                rescored.getHits().getHits()[0].getScore(),
+                                equalTo((3.0f * primaryWeight + 7.0f * secondaryWeight) / 2.0f)
+                            );
+                            assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(5.0f * primaryWeight));
+                            assertThat(
+                                rescored.getHits().getHits()[2].getScore(),
+                                equalTo((2.0f * primaryWeight + 5.0f * secondaryWeight) / 2.0f)
+                            );
+                            assertThat(rescored.getHits().getHits()[3].getScore(), equalTo((0.2f * primaryWeight) / 2.0f));
+                        } else if ("multiply".equals(scoreMode)) {
+                            assertFirstHit(rescored, hasId(String.valueOf(finalI + 1)));
+                            assertSecondHit(rescored, hasId(String.valueOf(finalI)));
+                            assertThirdHit(rescored, hasId(String.valueOf(finalI + 2)));
+                            assertThat(rescored.getHits().getHits()[0].getScore(), equalTo(3.0f * primaryWeight * 7.0f * secondaryWeight));
+                            assertThat(rescored.getHits().getHits()[1].getScore(), equalTo(2.0f * primaryWeight * 5.0f * secondaryWeight));
+                            assertThat(rescored.getHits().getHits()[2].getScore(), equalTo(5.0f * primaryWeight));
+                            assertThat(rescored.getHits().getHits()[3].getScore(), equalTo(0.2f * primaryWeight * 0.0f * secondaryWeight));
+                        }
+                    }
+                );
             }
         }
     }
@@ -705,15 +715,18 @@ public class QueryRescorerIT extends ESIntegTestCase {
         ).setScoreMode(QueryRescoreMode.Total);
 
         // First set the rescore window large enough that both rescores take effect
-        SearchRequestBuilder request = client().prepareSearch();
+        SearchRequestBuilder request = prepareSearch();
         request.addRescorer(eightIsGreat, numDocs).addRescorer(sevenIsBetter, numDocs);
-        SearchResponse response = request.get();
-        assertFirstHit(response, hasId("7"));
-        assertSecondHit(response, hasId("8"));
+        assertResponse(request, response -> {
+            assertFirstHit(response, hasId("7"));
+            assertSecondHit(response, hasId("8"));
+        });
 
         // Now squash the second rescore window so it never gets to see a seven
-        response = request.setSize(1).clearRescorers().addRescorer(eightIsGreat, numDocs).addRescorer(sevenIsBetter, 1).get();
-        assertFirstHit(response, hasId("8"));
+        assertResponse(
+            request.setSize(1).clearRescorers().addRescorer(eightIsGreat, numDocs).addRescorer(sevenIsBetter, 1),
+            response -> assertFirstHit(response, hasId("8"))
+        );
         // We have no idea what the second hit will be because we didn't get a chance to look for seven
 
         // Now use one rescore to drag the number we're looking for into the window of another
@@ -728,11 +741,12 @@ public class QueryRescorerIT extends ESIntegTestCase {
             )
         ).setScoreMode(QueryRescoreMode.Total);
         request.clearRescorers().addRescorer(ninetyIsGood, numDocs).addRescorer(oneToo, 10);
-        response = request.setSize(2).get();
-        assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
-        assertFirstHit(response, hasId("91"));
-        assertFirstHit(response, hasScore(2001.0f));
-        assertSecondHit(response, hasScore(1001.0f)); // Not sure which one it is but it is ninety something
+        assertResponse(request.setSize(2), response -> {
+            assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
+            assertFirstHit(response, hasId("91"));
+            assertFirstHit(response, hasScore(2001.0f));
+            assertSecondHit(response, hasScore(1001.0f)); // Not sure which one it is but it is ninety something
+        });
     }
 
     private int indexRandomNumbers(String analyzer) throws Exception {
@@ -763,7 +777,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i));
         }
 
         indexRandom(true, dummyDocs, docs);
@@ -773,63 +787,309 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
     // #11277
     public void testFromSize() throws Exception {
-        Builder settings = Settings.builder();
-        settings.put(SETTING_NUMBER_OF_SHARDS, 1);
-        settings.put(SETTING_NUMBER_OF_REPLICAS, 0);
-        assertAcked(prepareCreate("test").setSettings(settings));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(1, 0)));
         for (int i = 0; i < 5; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("text", "hello world").get();
+            prepareIndex("test").setId("" + i).setSource("text", "hello world").get();
         }
         refresh();
 
-        SearchRequestBuilder request = client().prepareSearch();
+        SearchRequestBuilder request = prepareSearch();
         request.setQuery(QueryBuilders.termQuery("text", "hello"));
         request.setFrom(1);
         request.setSize(4);
         request.addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50);
 
-        assertEquals(4, request.get().getHits().getHits().length);
+        assertResponse(request, response -> assertEquals(4, response.getHits().getHits().length));
     }
 
     public void testRescorePhaseWithInvalidSort() throws Exception {
         assertAcked(prepareCreate("test"));
         for (int i = 0; i < 5; i++) {
-            client().prepareIndex("test").setId("" + i).setSource("number", 0).get();
+            prepareIndex("test").setId("" + i).setSource("number", 0).get();
         }
         refresh();
 
         Exception exc = expectThrows(
             Exception.class,
-            () -> client().prepareSearch()
-                .addSort(SortBuilders.fieldSort("number"))
+            prepareSearch().addSort(SortBuilders.fieldSort("number"))
                 .setTrackScores(true)
                 .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
-                .get()
         );
         assertNotNull(exc.getCause());
         assertThat(exc.getCause().getMessage(), containsString("Cannot use [sort] option in conjunction with [rescore]."));
 
         exc = expectThrows(
             Exception.class,
-            () -> client().prepareSearch()
-                .addSort(SortBuilders.fieldSort("number"))
+            prepareSearch().addSort(SortBuilders.fieldSort("number"))
                 .addSort(SortBuilders.scoreSort())
                 .setTrackScores(true)
                 .addRescorer(new QueryRescorerBuilder(matchAllQuery()), 50)
-                .get()
         );
         assertNotNull(exc.getCause());
         assertThat(exc.getCause().getMessage(), containsString("Cannot use [sort] option in conjunction with [rescore]."));
 
-        SearchResponse resp = client().prepareSearch()
-            .addSort(SortBuilders.scoreSort())
-            .setTrackScores(true)
-            .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50)
-            .get();
-        assertThat(resp.getHits().getTotalHits().value, equalTo(5L));
-        assertThat(resp.getHits().getHits().length, equalTo(5));
-        for (SearchHit hit : resp.getHits().getHits()) {
-            assertThat(hit.getScore(), equalTo(101f));
+        assertResponse(
+            prepareSearch().addSort(SortBuilders.scoreSort())
+                .setTrackScores(true)
+                .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
+                assertThat(response.getHits().getHits().length, equalTo(5));
+                for (SearchHit hit : response.getHits().getHits()) {
+                    assertThat(hit.getScore(), equalTo(101f));
+                }
+            }
+        );
+
+        assertResponse(
+            prepareSearch().addSort(SortBuilders.scoreSort())
+                .addSort(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME))
+                .setTrackScores(true)
+                .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50),
+            response -> {
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
+                assertThat(response.getHits().getHits().length, equalTo(5));
+                for (SearchHit hit : response.getHits().getHits()) {
+                    assertThat(hit.getScore(), equalTo(101f));
+                }
+            }
+        );
+    }
+
+    record GroupDoc(String id, String group, float firstPassScore, float secondPassScore, boolean shouldFilter) {}
+
+    public void testRescoreAfterCollapse() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("group", "type=keyword", "shouldFilter", "type=boolean"));
+        ensureGreen("test");
+        GroupDoc[] groupDocs = new GroupDoc[] {
+            new GroupDoc("1", "c", 200, 1, false),
+            new GroupDoc("2", "a", 1, 10, true),
+            new GroupDoc("3", "b", 2, 30, false),
+            new GroupDoc("4", "c", 1, 1000, false),
+            // should be highest on rescore, but filtered out during collapse
+            new GroupDoc("5", "b", 1, 40, false),
+            new GroupDoc("6", "a", 2, 20, false) };
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        for (var groupDoc : groupDocs) {
+            requests.add(
+                client().prepareIndex("test")
+                    .setId(groupDoc.id())
+                    .setRouting(groupDoc.group())
+                    .setSource(
+                        "group",
+                        groupDoc.group(),
+                        "firstPassScore",
+                        groupDoc.firstPassScore(),
+                        "secondPassScore",
+                        groupDoc.secondPassScore(),
+                        "shouldFilter",
+                        groupDoc.shouldFilter()
+                    )
+            );
+        }
+        indexRandom(true, requests);
+
+        var request = client().prepareSearch("test")
+            .setQuery(fieldValueScoreQuery("firstPassScore"))
+            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")))
+            .setCollapse(new CollapseBuilder("group"));
+        if (randomBoolean()) {
+            request.addSort(SortBuilders.scoreSort());
+            request.addSort(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+        }
+        assertResponse(request, resp -> {
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(5L));
+            assertThat(resp.getHits().getHits().length, equalTo(3));
+
+            SearchHit hit1 = resp.getHits().getAt(0);
+            assertThat(hit1.getId(), equalTo("1"));
+            assertThat(hit1.getScore(), equalTo(201F));
+            assertThat(hit1.field("group").getValues().size(), equalTo(1));
+            assertThat(hit1.field("group").getValues().get(0), equalTo("c"));
+
+            SearchHit hit2 = resp.getHits().getAt(1);
+            assertThat(hit2.getId(), equalTo("3"));
+            assertThat(hit2.getScore(), equalTo(32F));
+            assertThat(hit2.field("group").getValues().size(), equalTo(1));
+            assertThat(hit2.field("group").getValues().get(0), equalTo("b"));
+
+            SearchHit hit3 = resp.getHits().getAt(2);
+            assertThat(hit3.getId(), equalTo("6"));
+            assertThat(hit3.getScore(), equalTo(22F));
+            assertThat(hit3.field("group").getValues().size(), equalTo(1));
+            assertThat(hit3.field("group").getValues().get(0), equalTo("a"));
+        });
+    }
+
+    public void testRescoreAfterCollapseRandom() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("group", "type=keyword", "shouldFilter", "type=boolean"));
+        ensureGreen("test");
+        int numGroups = randomIntBetween(1, 100);
+        int numDocs = atLeast(100);
+        GroupDoc[] groups = new GroupDoc[numGroups];
+        int numHits = 0;
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            int group = randomIntBetween(0, numGroups - 1);
+            boolean shouldFilter = rarely();
+            String id = randomUUID();
+            float firstPassScore = randomFloat();
+            float secondPassScore = randomFloat();
+            float bestScore = groups[group] == null ? -1 : groups[group].firstPassScore;
+            var groupDoc = new GroupDoc(id, Integer.toString(group), firstPassScore, secondPassScore, shouldFilter);
+            if (shouldFilter == false) {
+                if (firstPassScore == bestScore) {
+                    // avoid tiebreaker
+                    continue;
+                }
+
+                numHits++;
+                if (firstPassScore > bestScore) {
+                    groups[group] = groupDoc;
+                }
+            }
+            requests.add(
+                client().prepareIndex("test")
+                    .setId(groupDoc.id())
+                    .setRouting(groupDoc.group())
+                    .setSource(
+                        "group",
+                        groupDoc.group(),
+                        "firstPassScore",
+                        groupDoc.firstPassScore(),
+                        "secondPassScore",
+                        groupDoc.secondPassScore(),
+                        "shouldFilter",
+                        groupDoc.shouldFilter()
+                    )
+            );
+        }
+        indexRandom(true, requests);
+
+        GroupDoc[] sortedGroups = Arrays.stream(groups)
+            .filter(g -> g != null)
+            .sorted(Comparator.comparingDouble(GroupDoc::secondPassScore).reversed())
+            .toArray(GroupDoc[]::new);
+
+        var request = client().prepareSearch("test")
+            .setQuery(fieldValueScoreQuery("firstPassScore"))
+            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")).setQueryWeight(0f).windowSize(numGroups))
+            .setCollapse(new CollapseBuilder("group"))
+            .setSize(Math.min(numGroups, 10));
+        if (randomBoolean()) {
+            request.addSort(SortBuilders.scoreSort());
+            request.addSort(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
+        }
+        long expectedNumHits = numHits;
+        assertResponse(request, resp -> {
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(expectedNumHits));
+            for (int pos = 0; pos < resp.getHits().getHits().length; pos++) {
+                SearchHit hit = resp.getHits().getAt(pos);
+                assertThat(hit.getId(), equalTo(sortedGroups[pos].id()));
+                String group = hit.field("group").getValue();
+                assertThat(group, equalTo(sortedGroups[pos].group()));
+                assertThat(hit.getScore(), equalTo(sortedGroups[pos].secondPassScore));
+            }
+        });
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(TestTimedQueryPlugin.class);
+    }
+
+    private QueryBuilder fieldValueScoreQuery(String scoreField) {
+        return functionScoreQuery(termQuery("shouldFilter", false), ScoreFunctionBuilders.fieldValueFactorFunction(scoreField)).boostMode(
+            CombineFunction.REPLACE
+        );
+    }
+
+    public static class TestTimedQueryPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<ScoreFunctionSpec<?>> getScoreFunctions() {
+            return List.of(
+                new ScoreFunctionSpec<>(
+                    new ParseField("timed"),
+                    TestTimedScoreFunctionBuilder::new,
+                    p -> new TestTimedScoreFunctionBuilder()
+                )
+            );
+        }
+    }
+
+    static class TestTimedScoreFunctionBuilder extends ScoreFunctionBuilder<TestTimedScoreFunctionBuilder> {
+        private final long time = 500;
+
+        TestTimedScoreFunctionBuilder() {}
+
+        TestTimedScoreFunctionBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        public String getName() {
+            return "timed";
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) {}
+
+        @Override
+        protected boolean doEquals(TestTimedScoreFunctionBuilder functionBuilder) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
+            return new ScoreFunction(REPLACE) {
+                @Override
+                public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                    return new LeafScoreFunction() {
+                        @Override
+                        public double score(int docId, float subQueryScore) {
+                            try {
+                                Thread.sleep(time);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                            return time;
+                        }
+
+                        @Override
+                        public Explanation explainScore(int docId, Explanation subQueryScore) {
+                            return null;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needsScores() {
+                    return true;
+                }
+
+                @Override
+                protected boolean doEquals(ScoreFunction other) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            };
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
     }
 }

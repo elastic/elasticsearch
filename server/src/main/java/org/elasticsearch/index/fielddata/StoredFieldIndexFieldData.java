@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -21,6 +23,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.io.IOException;
 import java.util.Set;
 
 /**
@@ -51,11 +54,15 @@ public abstract class StoredFieldIndexFieldData<T> implements IndexFieldData<Sto
 
     @Override
     public final StoredFieldLeafFieldData load(LeafReaderContext context) {
-        return loadDirect(context);
+        try {
+            return loadDirect(context);
+        } catch (Exception e) {
+            throw ExceptionsHelper.convertToElastic(e);
+        }
     }
 
     @Override
-    public final StoredFieldLeafFieldData loadDirect(LeafReaderContext context) {
+    public final StoredFieldLeafFieldData loadDirect(LeafReaderContext context) throws IOException {
         return new StoredFieldLeafFieldData(loader.getLoader(context, null));
     }
 
@@ -96,9 +103,6 @@ public abstract class StoredFieldIndexFieldData<T> implements IndexFieldData<Sto
         public long ramBytesUsed() {
             return 0;
         }
-
-        @Override
-        public void close() {}
 
         @Override
         public SortedBinaryDocValues getBytesValues() {

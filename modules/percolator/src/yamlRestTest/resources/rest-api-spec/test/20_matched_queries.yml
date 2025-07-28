@@ -1,0 +1,125 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "Displaying matched named queries within percolator queries was added in 8.13"
+  - do:
+      indices.create:
+        index: houses
+        body:
+          mappings:
+            dynamic: strict
+            properties:
+              my_query:
+                type: percolator
+              description:
+                type: text
+              num_of_bedrooms:
+                type: integer
+              type:
+                type: keyword
+              price:
+                type: integer
+
+  - do:
+      index:
+        refresh: true
+        index: houses
+        id: query_3_bedroom_detached_house_with_fireplace
+        body:
+          my_query:
+            {
+              "bool": {
+                "should": [
+                  { "match": { "description": { "query": "fireplace"} } },
+                  { "match": { "type": { "query": "detached", "_name": "detached_query" } } }
+                ],
+                "filter": {
+                  "match": {
+                    "num_of_bedrooms": {"query": 3, "_name": "3_bedrooms_query"}
+                  }
+                }
+              }
+            }
+
+  - do:
+      index:
+        refresh: true
+        index: houses
+        id: query_3_bedroom_house_with_swimming_pool
+        body:
+          my_query:
+            {
+              "bool": {
+                "filter": [
+                  { "match": { "description": { "query": "swimming pool", "_name": "swimming_pool_query" } } },
+                  { "match": { "num_of_bedrooms": {"query": 3, "_name": "3_bedrooms_query"} } }
+                ]
+              }
+            }
+
+---
+"Matched named queries within percolator queries: percolate existing document":
+  - do:
+      index:
+        refresh: true
+        index: houses
+        id: house1
+        body:
+          description: "house with a beautiful fireplace and swimming pool"
+          num_of_bedrooms: 3
+          type: detached
+          price: 1000000
+
+  - do:
+      search:
+        index: houses
+        body:
+          query:
+            percolate:
+              field: my_query
+              index: houses
+              id: house1
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: query_3_bedroom_detached_house_with_fireplace }
+  - match: { hits.hits.0.fields._percolator_document_slot: [0] }
+  - match: { hits.hits.0.fields._percolator_document_slot_0_matched_queries: ["detached_query", "3_bedrooms_query"] }
+
+  - match: { hits.hits.1._id: query_3_bedroom_house_with_swimming_pool }
+  - match: { hits.hits.1.fields._percolator_document_slot: [0] }
+  - match: { hits.hits.1.fields._percolator_document_slot_0_matched_queries: ["swimming_pool_query", "3_bedrooms_query"] }
+
+
+---
+"Matched named queries within percolator queries: percolate multiple documents in request":
+  - do:
+      search:
+        index: houses
+        body:
+          query:
+            percolate:
+              field: my_query
+              documents:
+                - {
+                    "description": "house with a beautiful fireplace and swimming pool",
+                    "num_of_bedrooms": 3,
+                    "type": "detached",
+                    "price": 1000000
+                  }
+                - {
+                    "description": "house has a wood burning fireplace",
+                    "num_of_bedrooms": 3,
+                    "type": "semi-detached",
+                    "price": 500000
+                  }
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._id: query_3_bedroom_detached_house_with_fireplace }
+  - match: { hits.hits.0.fields._percolator_document_slot: [0, 1] }
+  - match: { hits.hits.0.fields._percolator_document_slot_0_matched_queries: ["detached_query", "3_bedrooms_query"] }
+
+  - match: { hits.hits.1._id: query_3_bedroom_house_with_swimming_pool }
+  - match: { hits.hits.1.fields._percolator_document_slot: [0] }
+  - match: { hits.hits.1.fields._percolator_document_slot_0_matched_queries: ["swimming_pool_query", "3_bedrooms_query"] }

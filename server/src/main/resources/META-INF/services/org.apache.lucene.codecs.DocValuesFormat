@@ -1,0 +1,2 @@
+org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat
+org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat

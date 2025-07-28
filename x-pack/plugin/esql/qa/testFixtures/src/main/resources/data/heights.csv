@@ -1,0 +1,6 @@
+height_range:double_range, description:keyword
+{"gte": 0\, "lt": 1.5},    Very Short
+{"gte": 1.5\, "lt": 1.6},  Short
+{"gte": 1.6\, "lt": 1.8},  Medium Height
+{"gte": 1.8\, "lt": 2.0},  Tall
+{"gte": 2.0\, "lt": 5.0},  Very Tall

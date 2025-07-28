@@ -1,0 +1,22 @@
+{
+  "index_patterns": [
+    "profiling-hosts*"
+  ],
+  "data_stream": {},
+  "composed_of": [
+    "profiling-hosts",
+    "profiling-hosts@custom",
+    "profiling-ilm",
+    "profiling-ilm@custom"
+  ],
+  "ignore_missing_component_templates": [
+    "profiling-hosts@custom",
+    "profiling-ilm@custom"
+  ],
+  "priority": 100,
+  "_meta": {
+    "description": "Index template for profiling-hosts",
+    "managed": true
+  },
+  "version": ${xpack.profiling.template.version}
+}

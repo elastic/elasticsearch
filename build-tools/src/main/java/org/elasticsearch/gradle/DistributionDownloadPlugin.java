@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle;
@@ -22,7 +23,11 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
 
 import javax.inject.Inject;
 
@@ -41,15 +46,22 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private static final String FAKE_SNAPSHOT_IVY_GROUP = "elasticsearch-distribution-snapshot";
     private static final String DOWNLOAD_REPO_NAME = "elasticsearch-downloads";
     private static final String SNAPSHOT_REPO_NAME = "elasticsearch-snapshots";
-    public static final String DISTRO_EXTRACTED_CONFIG_PREFIX = "es_distro_extracted_";
 
+    public static final String ES_DISTRO_CONFIG_PREFIX = "es_distro_";
+    public static final String DISTRO_EXTRACTED_CONFIG_PREFIX = ES_DISTRO_CONFIG_PREFIX + "extracted_";
+    public static final String DISTRO_CONFIG_PREFIX = ES_DISTRO_CONFIG_PREFIX + "file_";
+
+    private final ObjectFactory objectFactory;
     private NamedDomainObjectContainer<ElasticsearchDistribution> distributionsContainer;
-    private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
+    private List<DistributionResolution> distributionsResolutionStrategies;
 
     private Property<Boolean> dockerAvailability;
 
+    private boolean writingDependencies = false;
+
     @Inject
     public DistributionDownloadPlugin(ObjectFactory objectFactory) {
+        this.objectFactory = objectFactory;
         this.dockerAvailability = objectFactory.property(Boolean.class).value(false);
     }
 
@@ -59,47 +71,107 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        writingDependencies = project.getGradle().getStartParameter().getWriteDependencyVerifications().isEmpty() == false;
         project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.ZIP_TYPE);
             transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
         });
 
-        ArtifactTypeDefinition tarArtifactTypeDefinition = project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
+        var tarArtifactTypeDefinition = project.getDependencies().getArtifactTypes().maybeCreate("tar.gz");
         project.getDependencies().registerTransform(SymbolicLinkPreservingUntarTransform.class, transformSpec -> {
             transformSpec.getFrom().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, tarArtifactTypeDefinition.getName());
             transformSpec.getTo().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
         });
 
         setupResolutionsContainer(project);
-        setupDistributionContainer(project, dockerAvailability);
+        setupDistributionContainer(project);
         setupDownloadServiceRepo(project);
     }
 
-    private void setupDistributionContainer(Project project, Property<Boolean> dockerAvailable) {
+    private void setupDistributionContainer(Project project) {
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
-            Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
-            Configuration extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
+            var fileConfiguration = project.getConfigurations().create(DISTRO_CONFIG_PREFIX + name);
+            fileConfiguration.setCanBeConsumed(false);
+            var extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
+            extractedConfiguration.setCanBeConsumed(false);
             extractedConfiguration.getAttributes()
                 .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
-            return new ElasticsearchDistribution(
+            var distribution = new ElasticsearchDistribution(
                 name,
-                project.getObjects(),
+                objectFactory,
                 dockerAvailability,
-                fileConfiguration,
-                extractedConfiguration,
-                (dist) -> finalizeDistributionDependencies(project, dist)
+                objectFactory.fileCollection().from(fileConfiguration),
+                objectFactory.fileCollection().from(extractedConfiguration)
             );
+
+            // when running with --write-dependency-verification to update dependency verification data,
+            // we do not register the dependencies as we ignore elasticsearch internal dependencies anyhow and
+            // want to reduce general resolution time
+            if (writingDependencies == false) {
+                registerDistributionDependencies(project, distribution);
+            }
+            return distribution;
         });
         project.getExtensions().add(CONTAINER_NAME, distributionsContainer);
     }
 
+    private void registerDistributionDependencies(Project project, ElasticsearchDistribution distribution) {
+        Configuration distroConfig = project.getConfigurations().getByName(DISTRO_CONFIG_PREFIX + distribution.getName());
+        distroConfig.getDependencies()
+            .addLater(
+                project.provider(() -> distribution.maybeFreeze())
+                    .map(
+                        frozenDistro -> project.getDependencies()
+                            .create(resolveDependencyNotation(project, frozenDistro).getDefaultNotation())
+                    )
+            );
+
+        Configuration extractedDistroConfig = project.getConfigurations()
+            .getByName(DISTRO_EXTRACTED_CONFIG_PREFIX + distribution.getName());
+        extractedDistroConfig.getDependencies()
+            .addAllLater(
+                project.provider(() -> distribution.maybeFreeze())
+                    .map(
+                        frozenDistro -> distribution.getType().shouldExtract()
+                            ? List.of(
+                                project.getDependencies().create(resolveDependencyNotation(project, frozenDistro).getExtractedNotation())
+                            )
+                            : Collections.emptyList()
+                    )
+            );
+    }
+
+    private DistributionDependency resolveDependencyNotation(Project project, ElasticsearchDistribution distro) {
+        return distributionsResolutionStrategies.stream()
+            .sorted(Comparator.comparing(DistributionResolution::getPriority).reversed())
+            .map(r -> r.getResolver().resolve(project, distro))
+            .filter(Objects::nonNull)
+            .findFirst()
+            .orElseGet(() -> DistributionDependency.of(dependencyNotation(distro)));
+    }
+
+    /**
+     * Returns a dependency object representing the given distribution.
+     * <p>
+     * The returned object is suitable to be passed to {@link DependencyHandler}.
+     * The concrete type of the object will be a set of maven coordinates as a {@link String}.
+     * Maven coordinates point to either the integ-test-zip coordinates on maven central, or a set of artificial
+     * coordinates that resolve to the Elastic download service through an ivy repository.
+     */
+    private static String dependencyNotation(ElasticsearchDistribution distribution) {
+        if (distribution.getType() == ElasticsearchDistributionTypes.INTEG_TEST_ZIP) {
+            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
+        }
+        var distroVersion = Version.fromString(distribution.getVersion());
+        var extension = distribution.getType().getExtension(distribution.getPlatform());
+        var classifier = distribution.getType().getClassifier(distribution.getPlatform(), distroVersion);
+        var group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
+        return group + ":elasticsearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
+    }
+
     private void setupResolutionsContainer(Project project) {
-        distributionsResolutionStrategiesContainer = project.container(DistributionResolution.class);
-        // We want this ordered in the same resolution strategies are added
-        distributionsResolutionStrategiesContainer.whenObjectAdded(
-            resolveDependencyNotation -> resolveDependencyNotation.setPriority(distributionsResolutionStrategiesContainer.size())
-        );
-        project.getExtensions().add(RESOLUTION_CONTAINER_NAME, distributionsResolutionStrategiesContainer);
+        distributionsResolutionStrategies = new ArrayList<>();
+        project.getExtensions().add(RESOLUTION_CONTAINER_NAME, distributionsResolutionStrategies);
     }
 
     @SuppressWarnings("unchecked")
@@ -108,30 +180,8 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     }
 
     @SuppressWarnings("unchecked")
-    public static NamedDomainObjectContainer<DistributionResolution> getRegistrationsContainer(Project project) {
-        return (NamedDomainObjectContainer<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
-    }
-
-    private void finalizeDistributionDependencies(Project project, ElasticsearchDistribution distribution) {
-        DependencyHandler dependencies = project.getDependencies();
-        // for the distribution as a file, just depend on the artifact directly
-        DistributionDependency distributionDependency = resolveDependencyNotation(project, distribution);
-        dependencies.add(distribution.configuration.getName(), distributionDependency.getDefaultNotation());
-        // no extraction needed for rpm, deb or docker
-        if (distribution.getType().shouldExtract()) {
-            // The extracted configuration depends on the artifact directly but has
-            // an artifact transform registered to resolve it as an unpacked folder.
-            dependencies.add(distribution.getExtracted().getName(), distributionDependency.getExtractedNotation());
-        }
-    }
-
-    private DistributionDependency resolveDependencyNotation(Project p, ElasticsearchDistribution distribution) {
-        return distributionsResolutionStrategiesContainer.stream()
-            .sorted(Comparator.comparingInt(DistributionResolution::getPriority))
-            .map(r -> r.getResolver().resolve(p, distribution))
-            .filter(d -> d != null)
-            .findFirst()
-            .orElseGet(() -> DistributionDependency.of(dependencyNotation(distribution)));
+    public static List<DistributionResolution> getRegistrationsContainer(Project project) {
+        return (List<DistributionResolution>) project.getExtensions().getByName(RESOLUTION_CONTAINER_NAME);
     }
 
     private static void addIvyRepo(Project project, String name, String url, String group) {
@@ -155,22 +205,4 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         addIvyRepo(project, SNAPSHOT_REPO_NAME, "https://snapshots-no-kpi.elastic.co", FAKE_SNAPSHOT_IVY_GROUP);
     }
 
-    /**
-     * Returns a dependency object representing the given distribution.
-     * <p>
-     * The returned object is suitable to be passed to {@link DependencyHandler}.
-     * The concrete type of the object will be a set of maven coordinates as a {@link String}.
-     * Maven coordinates point to either the integ-test-zip coordinates on maven central, or a set of artificial
-     * coordinates that resolve to the Elastic download service through an ivy repository.
-     */
-    private String dependencyNotation(ElasticsearchDistribution distribution) {
-        if (distribution.getType() == ElasticsearchDistributionTypes.INTEG_TEST_ZIP) {
-            return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
-        }
-        Version distroVersion = Version.fromString(distribution.getVersion());
-        String extension = distribution.getType().getExtension(distribution.getPlatform());
-        String classifier = distribution.getType().getClassifier(distribution.getPlatform(), distroVersion);
-        String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
-        return group + ":elasticsearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
-    }
 }

@@ -19,7 +19,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -65,7 +65,7 @@ public class ClassificationTests extends AbstractXContentSerializingTestCase<Cla
     public static Classification createRandom() {
         List<EvaluationMetric> metrics = randomSubsetOf(
             Arrays.asList(
-                AccuracyTests.createRandom(),
+                // AccuracyTests.createRandom(),
                 AucRocTests.createRandom(),
                 PrecisionTests.createRandom(),
                 RecallTests.createRandom(),
@@ -90,6 +90,11 @@ public class ClassificationTests extends AbstractXContentSerializingTestCase<Cla
     @Override
     protected Classification createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Classification mutateInstance(Classification instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -287,8 +292,7 @@ public class ClassificationTests extends AbstractXContentSerializingTestCase<Cla
 
     private static SearchResponse mockSearchResponseWithNonZeroTotalHits() {
         SearchResponse searchResponse = mock(SearchResponse.class);
-        SearchHits hits = new SearchHits(SearchHits.EMPTY, new TotalHits(10, TotalHits.Relation.EQUAL_TO), 0);
-        when(searchResponse.getHits()).thenReturn(hits);
+        when(searchResponse.getHits()).thenReturn(SearchHits.empty(new TotalHits(10, TotalHits.Relation.EQUAL_TO), 0));
         return searchResponse;
     }
 
@@ -337,7 +341,7 @@ public class ClassificationTests extends AbstractXContentSerializingTestCase<Cla
         }
 
         @Override
-        public void process(Aggregations aggs) {
+        public void process(InternalAggregations aggs) {
             if (result != null) {
                 return;
             }

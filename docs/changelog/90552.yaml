@@ -1,6 +1,0 @@
-pr: 90552
-summary: "Generate 'index.routing_path' from dynamic mapping templates"
-area: TSDB
-type: enhancement
-issues:
-  - 90528

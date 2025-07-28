@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -26,6 +27,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
     private final boolean keyed;
     private final boolean otherBucket;
     private final String otherBucketKey;
+    private final boolean keyedBucket;
 
     public FiltersAggregatorFactory(
         String name,
@@ -33,6 +35,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         boolean keyed,
         boolean otherBucket,
         String otherBucketKey,
+        boolean keyedBucket,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactories,
@@ -42,6 +45,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
         this.keyed = keyed;
         this.otherBucket = otherBucket;
         this.otherBucketKey = otherBucketKey;
+        this.keyedBucket = keyedBucket;
         this.filters = new ArrayList<>(filters.size());
         for (KeyedFilter f : filters) {
             this.filters.add(QueryToFilterAdapter.build(context.searcher(), f.key(), context.buildQuery(f.filter())));
@@ -57,6 +61,7 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
             filters,
             keyed,
             otherBucket ? otherBucketKey : null,
+            keyedBucket,
             context,
             parent,
             cardinality,

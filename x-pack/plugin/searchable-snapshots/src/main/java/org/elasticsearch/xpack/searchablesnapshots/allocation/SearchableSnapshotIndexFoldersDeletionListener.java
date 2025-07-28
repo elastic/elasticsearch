@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.plugins.IndexStorePlugin;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 import java.nio.file.Path;
 import java.util.Objects;
@@ -33,33 +36,43 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
     private final Supplier<CacheService> cacheServiceSupplier;
-    private final Supplier<FrozenCacheService> frozenCacheServiceSupplier;
+    private final Supplier<SharedBlobCacheService<CacheKey>> frozenCacheServiceSupplier;
 
     public SearchableSnapshotIndexFoldersDeletionListener(
         Supplier<CacheService> cacheServiceSupplier,
-        Supplier<FrozenCacheService> frozenCacheServiceSupplier
+        Supplier<SharedBlobCacheService<CacheKey>> frozenCacheServiceSupplier
     ) {
         this.cacheServiceSupplier = Objects.requireNonNull(cacheServiceSupplier);
         this.frozenCacheServiceSupplier = Objects.requireNonNull(frozenCacheServiceSupplier);
     }
 
     @Override
-    public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
+    public void beforeIndexFoldersDeleted(
+        Index index,
+        IndexSettings indexSettings,
+        Path[] indexPaths,
+        IndexRemovalReason indexRemovalReason
+    ) {
         if (indexSettings.getIndexMetadata().isSearchableSnapshot()) {
             for (int shard = 0; shard < indexSettings.getNumberOfShards(); shard++) {
-                markShardAsEvictedInCache(new ShardId(index, shard), indexSettings);
+                markShardAsEvictedInCache(new ShardId(index, shard), indexSettings, indexRemovalReason);
             }
         }
     }
 
     @Override
-    public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
+    public void beforeShardFoldersDeleted(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Path[] shardPaths,
+        IndexRemovalReason indexRemovalReason
+    ) {
         if (indexSettings.getIndexMetadata().isSearchableSnapshot()) {
-            markShardAsEvictedInCache(shardId, indexSettings);
+            markShardAsEvictedInCache(shardId, indexSettings, indexRemovalReason);
         }
     }
 
-    private void markShardAsEvictedInCache(ShardId shardId, IndexSettings indexSettings) {
+    private void markShardAsEvictedInCache(ShardId shardId, IndexSettings indexSettings, IndexRemovalReason indexRemovalReason) {
         final CacheService cacheService = this.cacheServiceSupplier.get();
         assert cacheService != null : "cache service not initialized";
 
@@ -70,12 +83,25 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
             shardId
         );
 
-        final FrozenCacheService frozenCacheService = this.frozenCacheServiceSupplier.get();
-        assert frozenCacheService != null : "frozen cache service not initialized";
-        frozenCacheService.markShardAsEvictedInCache(
-            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
-            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-            shardId
-        );
+        // Only partial searchable snapshots use the shared blob cache.
+        if (indexSettings.getIndexMetadata().isPartialSearchableSnapshot()) {
+            switch (indexRemovalReason) {
+                // The index was deleted, it's not coming back - we can evict asynchronously
+                case DELETED -> {
+                    final SharedBlobCacheService<CacheKey> sharedBlobCacheService =
+                        SearchableSnapshotIndexFoldersDeletionListener.this.frozenCacheServiceSupplier.get();
+                    assert sharedBlobCacheService != null : "frozen cache service not initialized";
+                    sharedBlobCacheService.forceEvictAsync(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+                }
+                // An error occurred - we should eagerly clear the state
+                case FAILURE -> {
+                    final SharedBlobCacheService<CacheKey> sharedBlobCacheService =
+                        SearchableSnapshotIndexFoldersDeletionListener.this.frozenCacheServiceSupplier.get();
+                    assert sharedBlobCacheService != null : "frozen cache service not initialized";
+                    sharedBlobCacheService.forceEvict(SearchableSnapshots.forceEvictPredicate(shardId, indexSettings.getSettings()));
+                }
+                // Any other reason - we let the cache entries expire naturally
+            }
+        }
     }
 }

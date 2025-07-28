@@ -41,12 +41,12 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().getIndexSafe(shardRouting.index()), allocation);
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
     }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return allowAllocation(allocation.metadata().getIndexSafe(shardRouting.index()), allocation);
+        return allowAllocation(allocation.metadata().indexMetadata(shardRouting.index()), allocation);
     }
 
     @Override
@@ -58,8 +58,8 @@ public class SearchableSnapshotRepositoryExistsAllocationDecider extends Allocat
         if (indexMetadata.isSearchableSnapshot()) {
             final Settings settings = indexMetadata.getSettings();
 
-            final RepositoriesMetadata repositoriesMetadata = allocation.metadata().custom(RepositoriesMetadata.TYPE);
-            if (repositoriesMetadata == null || repositoriesMetadata.repositories().isEmpty()) {
+            final var repositoriesMetadata = RepositoriesMetadata.get(allocation.getClusterState());
+            if (repositoriesMetadata.repositories().isEmpty()) {
                 return allocation.decision(Decision.NO, NAME, "there are no repositories registered in this cluster");
             }
 

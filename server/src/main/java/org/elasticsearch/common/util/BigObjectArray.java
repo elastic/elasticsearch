@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.recycler.Recycler;
 
 import java.util.Arrays;
 
@@ -44,7 +46,15 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
     }
 
     @Override
-    public T set(long index, T value) {
+    public void set(long index, T value) {
+        final int pageIndex = pageIndex(index);
+        final int indexInPage = indexInPage(index);
+        final Object[] page = pages[pageIndex];
+        page[indexInPage] = value;
+    }
+
+    @Override
+    public T getAndSet(long index, T value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         final Object[] page = pages[pageIndex];
@@ -81,4 +91,12 @@ final class BigObjectArray<T> extends AbstractBigArray implements ObjectArray<T>
         return ESTIMATOR.ramBytesEstimated(size);
     }
 
+    private Object[] newObjectPage(int page) {
+        if (recycler != null) {
+            final Recycler.V<Object[]> v = recycler.objectPage();
+            return registerNewPage(v, page, PageCacheRecycler.OBJECT_PAGE_SIZE);
+        } else {
+            return new Object[PageCacheRecycler.OBJECT_PAGE_SIZE];
+        }
+    }
 }

@@ -1,0 +1,68 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.bc-upgrade-test'
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index'
+  }
+  restTests {
+    includeXpack 'esql'
+  }
+}
+
+dependencies {
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+}
+
+GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
+
+// ESQL is available in 8.11 or later
+def supportedVersion = bwcVersion -> {
+  return bwcVersion.onOrAfter(Version.fromString("8.11.0")) && bwcVersion != VersionProperties.elasticsearchVersion
+}
+
+buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+  def javaRestTest = tasks.register("v${bwcVersion}#javaRestTest", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    maxParallelForks = 1
+  }
+
+  def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    testClassesDirs = sourceSets.yamlRestTest.output.classesDirs
+    classpath = sourceSets.yamlRestTest.runtimeClasspath
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn javaRestTest, yamlRestTest
+  }
+}
+
+tasks.named("yamlRestTest") {
+  enabled = false
+}

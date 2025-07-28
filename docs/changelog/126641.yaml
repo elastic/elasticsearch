@@ -1,0 +1,5 @@
+pr: 126641
+summary: Push more `==`s on text fields to lucene
+area: ES|QL
+type: enhancement
+issues: []

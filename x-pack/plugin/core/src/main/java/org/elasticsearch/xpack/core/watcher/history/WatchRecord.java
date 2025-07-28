@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.watcher.history;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,8 +22,10 @@ import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
+import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchField;
 
@@ -45,13 +48,16 @@ public abstract class WatchRecord implements ToXContentObject {
     private static final ParseField EXECUTION_RESULT = new ParseField("result");
     private static final ParseField EXCEPTION = new ParseField("exception");
     private static final ParseField USER = new ParseField("user");
+    public static final String TRUNCATED_RECORD_KEY = "truncated";
+    public static final String TRUNCATED_RECORD_VALUE = "Watch history record exceeded the value of the "
+        + "`xpack.watcher.max.history.record.size' setting";
 
     protected final Wid id;
     protected final Watch watch;
     private final String nodeId;
     protected final TriggerEvent triggerEvent;
     protected final ExecutionState state;
-    private final String user;
+    protected final String user;
 
     // only emitted to xcontent in "debug" mode
     protected final Map<String, Object> vars;
@@ -254,6 +260,8 @@ public abstract class WatchRecord implements ToXContentObject {
         return id.toString();
     }
 
+    public abstract WatchRecord dropLargeFields() throws Exception;
+
     public static class MessageWatchRecord extends WatchRecord {
         @Nullable
         private final String[] messages;
@@ -299,6 +307,24 @@ public abstract class WatchRecord implements ToXContentObject {
             }
         }
 
+        private MessageWatchRecord(
+            Wid id,
+            TriggerEvent triggerEvent,
+            ExecutionState state,
+            Map<String, Object> vars,
+            ExecutableInput<? extends Input, ? extends Input.Result> redactedInput,
+            ExecutableCondition condition,
+            Map<String, Object> metadata,
+            Watch watch,
+            WatchExecutionResult redactedResult,
+            String nodeId,
+            String user,
+            String[] messages
+        ) {
+            super(id, triggerEvent, state, vars, redactedInput, condition, metadata, watch, redactedResult, nodeId, user);
+            this.messages = messages;
+        }
+
         public String[] messages() {
             return messages;
         }
@@ -309,9 +335,45 @@ public abstract class WatchRecord implements ToXContentObject {
                 builder.array(MESSAGES.getPreferredName(), messages);
             }
         }
+
+        @Override
+        public WatchRecord dropLargeFields() throws Exception {
+            return new MessageWatchRecord(
+                this.id,
+                this.triggerEvent,
+                this.state,
+                this.vars,
+                this.input == null ? null : getTruncatedInput(),
+                this.condition,
+                this.metadata,
+                this.watch,
+                this.executionResult == null ? null : getTruncatedWatchExecutionResult(this),
+                this.getNodeId(),
+                this.user,
+                this.messages
+            );
+        }
     }
 
     public static class ExceptionWatchRecord extends WatchRecord {
+
+        private ExceptionWatchRecord(
+            Wid id,
+            TriggerEvent triggerEvent,
+            ExecutionState state,
+            Map<String, Object> vars,
+            ExecutableInput<? extends Input, ? extends Input.Result> redactedInput,
+            ExecutableCondition condition,
+            Map<String, Object> metadata,
+            Watch watch,
+            WatchExecutionResult redactedResult,
+            String nodeId,
+            String user,
+            Exception exception
+        ) {
+            super(id, triggerEvent, state, vars, redactedInput, condition, metadata, watch, redactedResult, nodeId, user);
+            this.exception = exception;
+        }
 
         private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS = Map.of(
             ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE,
@@ -356,5 +418,101 @@ public abstract class WatchRecord implements ToXContentObject {
                 }
             }
         }
+
+        @Override
+        public WatchRecord dropLargeFields() throws Exception {
+            return new ExceptionWatchRecord(
+                this.id,
+                triggerEvent,
+                this.state,
+                this.vars,
+                this.input == null ? null : getTruncatedInput(),
+                this.condition,
+                this.metadata,
+                this.watch,
+                this.executionResult == null ? null : getTruncatedWatchExecutionResult(this),
+                this.getNodeId(),
+                this.user,
+                this.exception
+            );
+        }
+    }
+
+    /*
+     * This returns a ExecutableInput whose toXContent() returns no information other than a new TRUNCATED_MESSAGE field. It
+     * drops other information to avoid having a document that is too large to index into Elasticsearch.
+     */
+    private static ExecutableInput<? extends Input, ? extends Input.Result> getTruncatedInput() {
+        return new ExecutableInput<>(new Input() {
+            @Override
+            public String type() {
+                return TRUNCATED_RECORD_KEY;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.value(TRUNCATED_RECORD_VALUE);
+                return builder;
+            }
+        }) {
+            @Override
+            public Input.Result execute(WatchExecutionContext ctx, Payload payload) {
+                throw new UnsupportedOperationException("Redacted input cannot be executed");
+            }
+        };
+    }
+
+    /*
+     * This returns a WatchExecutionResult whose toXContent() returns minimal information, including a new TRUNCATED_MESSAGE field. It
+     * drops most other information to avoid having a document that is too large to index into Elasticsearch.
+     */
+    private static WatchExecutionResult getTruncatedWatchExecutionResult(WatchRecord watchRecord) {
+        WatchExecutionContext watchExecutionContext = new WatchExecutionContext(
+            watchRecord.id.watchId(),
+            watchRecord.executionResult.executionTime(),
+            null,
+            TimeValue.ZERO
+        ) {
+            @Override
+            public boolean knownWatch() {
+                return false;
+            }
+
+            @Override
+            public boolean simulateAction(String actionId) {
+                return false;
+            }
+
+            @Override
+            public boolean skipThrottling(String actionId) {
+                return false;
+            }
+
+            @Override
+            public boolean shouldBeExecuted() {
+                return false;
+            }
+
+            @Override
+            public boolean recordExecution() {
+                return false;
+            }
+        };
+
+        return new WatchExecutionResult(watchExecutionContext, watchRecord.executionResult.executionDurationMs()) {
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                WatcherDateTimeUtils.writeDate(
+                    Field.EXECUTION_TIME.getPreferredName(),
+                    builder,
+                    watchRecord.executionResult.executionTime()
+                );
+                builder.field(Field.EXECUTION_DURATION.getPreferredName(), watchRecord.executionResult.executionDurationMs());
+                builder.field(TRUNCATED_RECORD_KEY, TRUNCATED_RECORD_VALUE);
+                builder.endObject();
+                return builder;
+            }
+        };
     }
 }

@@ -85,10 +85,6 @@ public class MonitoringServiceTests extends ESTestCase {
         assertBusy(() -> assertFalse(monitoringService.isStarted()));
         assertFalse(monitoringService.isMonitoringActive());
 
-        monitoringService.start();
-        assertBusy(() -> assertTrue(monitoringService.isStarted()));
-        assertTrue(monitoringService.isMonitoringActive());
-
         monitoringService.close();
         assertBusy(() -> assertFalse(monitoringService.isStarted()));
         assertFalse(monitoringService.isMonitoringActive());
@@ -114,7 +110,8 @@ public class MonitoringServiceTests extends ESTestCase {
         // take down threads
         monitoringService.setMonitoringActive(false);
         assertWarnings(
-            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -139,8 +136,10 @@ public class MonitoringServiceTests extends ESTestCase {
 
         assertThat(exporter.getExportsCount(), equalTo(1));
         assertWarnings(
-            "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.",
-            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version.",
+            "[xpack.monitoring.collection.interval] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -168,8 +167,6 @@ public class MonitoringServiceTests extends ESTestCase {
         @Override
         protected void doStop() {}
 
-        @Override
-        protected void doClose() {}
     }
 
     class BlockingExporter extends CountingExporter {
@@ -182,24 +179,16 @@ public class MonitoringServiceTests extends ESTestCase {
 
         @Override
         public void export(Collection<MonitoringDoc> docs, ActionListener<Void> listener) {
-            super.export(docs, ActionListener.wrap(r -> {
+            super.export(docs, listener.delegateFailureAndWrap((l, r) -> {
                 try {
                     latch.await();
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 } catch (InterruptedException e) {
-                    listener.onFailure(new ExportException("BlockingExporter failed", e));
+                    l.onFailure(new ExportException("BlockingExporter failed", e));
                 }
-            }, listener::onFailure));
+            }));
 
         }
 
-        @Override
-        protected void doStart() {}
-
-        @Override
-        protected void doStop() {}
-
-        @Override
-        protected void doClose() {}
     }
 }

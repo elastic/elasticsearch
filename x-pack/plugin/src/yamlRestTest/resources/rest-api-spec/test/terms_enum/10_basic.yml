@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 7.15.0"
+  - requires:
+      cluster_features: ["gte_v7.15.1"]
       reason:  original indices are propagated correctly in 7.15.1
-      features: headers
+      test_runner_features: headers
   - do:
       cluster.health:
           wait_for_status: yellow
@@ -123,7 +123,6 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               foo:
@@ -131,6 +130,8 @@ setup:
               foo_non_indexed:
                 type: keyword
                 index: false
+              semver:
+                type: version
               timestamp:
                 type : date
   - do:
@@ -140,7 +141,6 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               foo:
@@ -157,7 +157,6 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               foo:
@@ -173,11 +172,12 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               foo:
                 type : flattened
+              semver:
+                type: version
               timestamp:
                 type : date
   - do:
@@ -189,7 +189,6 @@ setup:
           settings:
             index:
               number_of_shards:   1
-              number_of_replicas: 0
           mappings:
             properties:
               ck:
@@ -197,6 +196,8 @@ setup:
                 value: const
               foo:
                 type : keyword
+              semver:
+                type: version
               foo_non_indexed:
                 type: keyword
                 index: false
@@ -205,7 +206,7 @@ setup:
       index:
           index:  test_k
           id:     "1"
-          body:   { foo: "bar_k", foo_non_indexed: "bar_k", "timestamp":"2021-01-01T01:01:01.000Z" }
+          body:   { foo: "bar_k", foo_non_indexed: "bar_k", "semver" : ["11.1.1", "2.0.0-beta"], "timestamp":"2021-01-01T01:01:01.000Z" }
 
   - do:
       index:
@@ -223,12 +224,12 @@ setup:
       index:
           index:  test_f
           id:     "3"
-          body:   { foo: { bar: "bar_f" }, "timestamp":"2019-01-01T01:01:01.000Z" }
+          body:   { foo: { bar: "bar_f" }, "semver" : "1.2.1", "timestamp":"2019-01-01T01:01:01.000Z" }
   - do:
       index:
           index:  test_security
           id:     "4"
-          body:   { foo: "bar_dls", foo_non_indexed: "bar_dls"}
+          body:   { foo: "bar_dls", foo_non_indexed: "bar_dls", "semver" : "1.11.1"}
 
   - do: #superuser
       headers: { Authorization: "Basic dGVzdF9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # admin
@@ -237,7 +238,13 @@ setup:
   - do: #superuser
      cluster.health:
           index: test_f
-          wait_for_status: green
+          wait_for_status: yellow
+          wait_for_no_initializing_shards: true
+
+  # terms_enum returns 0 results if the search fails, so perform a search here so that any failures are picked up early
+  - do:
+      count:
+        index:  test_*
 
 ---
 teardown:
@@ -310,8 +317,8 @@ teardown:
 
 ---
 "Test basic term enumeration on doc value only field":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "terms enum support for doc value only keyword fields was added in 8.2.0"
 
   - do:
@@ -319,6 +326,38 @@ teardown:
         index:  test_*
         body:  {"field": "foo_non_indexed", "string":"b"}
   - length: {terms: 2}
+
+---
+"Test basic term enumeration on version field":
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
+      reason: "terms enum support for version fields was added in 8.8.0"
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"1"}
+  - length: {terms: 3}
+  - match: { terms: [ 1.2.1, 1.11.1, 11.1.1] }
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"2.0.0-B"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"2.0.0-B", "case_insensitive" : true}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "semver", "string":"1", "search_after" : "1.12.0"}
+  - length: {terms: 1}
+  - match: { terms: [ 11.1.1] }
 
 ---
 "Test case insensitivity":
@@ -354,8 +393,8 @@ teardown:
 
 ---
 "Test case insensitivity on doc value only field":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "terms enum support for doc value only keyword fields was added in 8.2.0"
 
   - do:
@@ -372,8 +411,8 @@ teardown:
 
 ---
 "Test null search string allowed":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason:  TODO remove this skip after PR 73144 is backported to 7.x
 
   - do:
@@ -410,8 +449,8 @@ teardown:
 
 ---
 "Test search after on doc value only keyword field":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "terms enum support for doc value only keyword fields was added in 8.2.0"
 
   - do:
@@ -492,8 +531,8 @@ teardown:
 
 ---
 "Test search after on unconfigured constant keyword field":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason:  bug fixed in 8.3.0
 
   - do:

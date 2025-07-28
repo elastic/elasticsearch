@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.profile;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,12 +28,6 @@ public class GetProfilesResponse extends ActionResponse implements ToXContentObj
         this.errors = Objects.requireNonNull(errors);
     }
 
-    public GetProfilesResponse(StreamInput in) throws IOException {
-        super(in);
-        this.profiles = in.readImmutableList(Profile::new);
-        this.errors = in.readMap(StreamInput::readString, StreamInput::readException);
-    }
-
     public List<Profile> getProfiles() {
         return profiles;
     }
@@ -45,8 +38,8 @@ public class GetProfilesResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(profiles);
-        out.writeMap(errors, StreamOutput::writeString, StreamOutput::writeException);
+        out.writeCollection(profiles);
+        out.writeMap(errors, StreamOutput::writeException);
     }
 
     @Override

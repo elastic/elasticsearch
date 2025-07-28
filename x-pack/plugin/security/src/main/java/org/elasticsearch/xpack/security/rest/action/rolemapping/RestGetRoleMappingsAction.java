@@ -8,17 +8,17 @@ package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,7 +28,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest endpoint to retrieve a role-mapping from the org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.INTERNAL)
+public class RestGetRoleMappingsAction extends NativeRoleMappingBaseRestHandler {
 
     public RestGetRoleMappingsAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
@@ -36,12 +37,7 @@ public class RestGetRoleMappingsAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_security/role_mapping/").replaces(GET, "/_xpack/security/role_mapping/", RestApiVersion.V_7).build(),
-            Route.builder(GET, "/_security/role_mapping/{name}")
-                .replaces(GET, "/_xpack/security/role_mapping/{name}", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(GET, "/_security/role_mapping/"), new Route(GET, "/_security/role_mapping/{name}"));
     }
 
     @Override

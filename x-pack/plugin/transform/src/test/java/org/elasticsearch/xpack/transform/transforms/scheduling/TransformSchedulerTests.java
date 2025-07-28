@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.transform.transforms.scheduling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.transform.Transform;
 import org.junit.After;
@@ -20,7 +20,6 @@ import org.junit.Before;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -29,14 +28,16 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class TransformSchedulerTests extends ESTestCase {
 
@@ -60,60 +61,73 @@ public class TransformSchedulerTests extends ESTestCase {
     }
 
     public void testScheduling() {
+        testScheduling(5, 0);
+    }
+
+    public void testScheduling_withMinFrequency() {
+        testScheduling(1, 5);
+    }
+
+    // Note: frequencySeconds and minFrequencySeconds together should lead to an expected frequency of 5 seconds.
+    private void testScheduling(int frequencySeconds, int minFreqencySeconds) {
         String transformId = "test-with-fake-clock";
-        int frequencySeconds = 5;
         TimeValue frequency = TimeValue.timeValueSeconds(frequencySeconds);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, Version.CURRENT, frequency, false);
+        TimeValue minFrequency = TimeValue.timeValueSeconds(minFreqencySeconds);
+        TimeValue fiveSeconds = TimeValue.timeValueSeconds(5);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, minFrequency);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(1)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
-            contains(new TransformScheduledTask(transformId, frequency, 0L, 0, 5000, listener))
+            contains(new TransformScheduledTask(transformId, fiveSeconds, 0L, 0, 5000, listener))
         );
         assertThat(events, hasSize(1));
 
-        for (int i = 0; i < frequencySeconds; ++i) {
+        for (int i = 0; i < 5; ++i) {
             transformScheduler.processScheduledTasks();
             assertThat(
                 transformScheduler.getTransformScheduledTasks(),
-                contains(new TransformScheduledTask(transformId, frequency, 0L, 0, 5000, listener))
+                contains(new TransformScheduledTask(transformId, fiveSeconds, 0L, 0, 5000, listener))
             );
             assertThat(events, hasSize(1));
             clock.advanceTimeBy(Duration.ofMillis(1001));
         }
-        assertThat(clock.currentTime, is(equalTo(Instant.ofEpochMilli(5005))));
+        assertThat(clock.instant(), is(equalTo(Instant.ofEpochMilli(5005))));
 
-        for (int i = 0; i < frequencySeconds; ++i) {
+        for (int i = 0; i < 5; ++i) {
             transformScheduler.processScheduledTasks();
             assertThat(
                 transformScheduler.getTransformScheduledTasks(),
-                contains(new TransformScheduledTask(transformId, frequency, 5005L, 0, 10005, listener))
+                contains(new TransformScheduledTask(transformId, fiveSeconds, 5005L, 0, 10005, listener))
             );
             assertThat(events, hasSize(2));
             clock.advanceTimeBy(Duration.ofMillis(1001));
         }
-        assertThat(clock.currentTime, is(equalTo(Instant.ofEpochMilli(10010))));
+        assertThat(clock.instant(), is(equalTo(Instant.ofEpochMilli(10010))));
 
-        for (int i = 0; i < frequencySeconds; ++i) {
+        for (int i = 0; i < 5; ++i) {
             transformScheduler.processScheduledTasks();
             assertThat(
                 transformScheduler.getTransformScheduledTasks(),
-                contains(new TransformScheduledTask(transformId, frequency, 10010L, 0, 15010, listener))
+                contains(new TransformScheduledTask(transformId, fiveSeconds, 10010L, 0, 15010, listener))
             );
             assertThat(events, hasSize(3));
             clock.advanceTimeBy(Duration.ofMillis(1001));
         }
-        assertThat(clock.currentTime, is(equalTo(Instant.ofEpochMilli(15015))));
+        assertThat(clock.instant(), is(equalTo(Instant.ofEpochMilli(15015))));
 
         assertThat(events.get(0), is(equalTo(new TransformScheduler.Event(transformId, 0, 0))));
         assertThat(events.get(1), is(equalTo(new TransformScheduler.Event(transformId, 5000, 5005))));
         assertThat(events.get(2), is(equalTo(new TransformScheduler.Event(transformId, 10005, 10010))));
 
         transformScheduler.deregisterTransform(transformId);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         assertThat(transformScheduler.getTransformScheduledTasks(), is(empty()));
 
         transformScheduler.stop();
@@ -122,13 +136,15 @@ public class TransformSchedulerTests extends ESTestCase {
     public void testSchedulingWithFailures() {
         String transformId = "test-failure-with-fake-clock";
         TimeValue frequency = TimeValue.timeValueHours(1);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(1)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(new TransformScheduledTask(transformId, frequency, 0L, 0, 60 * 60 * 1000, listener))
@@ -144,7 +160,7 @@ public class TransformSchedulerTests extends ESTestCase {
             assertThat(events, hasSize(1));
             clock.advanceTimeBy(Duration.ofMillis(TEST_SCHEDULER_FREQUENCY.millis()));
         }
-        assertThat(clock.currentTime, is(equalTo(Instant.ofEpochSecond(60))));
+        assertThat(clock.instant(), is(equalTo(Instant.ofEpochSecond(60))));
 
         transformScheduler.handleTransformFailureCountChanged(transformId, 1);
         assertThat(
@@ -166,6 +182,59 @@ public class TransformSchedulerTests extends ESTestCase {
         );
 
         transformScheduler.deregisterTransform(transformId);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
+        assertThat(transformScheduler.getTransformScheduledTasks(), is(empty()));
+
+        transformScheduler.stop();
+    }
+
+    public void testScheduleNow() {
+        String transformId = "test-schedule-now-with-fake-clock";
+        TimeValue frequency = TimeValue.timeValueHours(1);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
+        CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
+        TransformScheduler.Listener listener = events::add;
+
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
+        transformScheduler.registerTransform(transformTaskParams, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(1)));
+        assertThat(
+            transformScheduler.getTransformScheduledTasks(),
+            contains(new TransformScheduledTask(transformId, frequency, 0L, 0, 60 * 60 * 1000, listener))
+        );
+        assertThat(events, hasSize(1));
+
+        // Advance time by 30 minutes (half of the configured transform frequency).
+        clock.advanceTimeBy(Duration.ofMillis(frequency.millis() / 2));
+        assertThat(
+            transformScheduler.getTransformScheduledTasks(),
+            contains(new TransformScheduledTask(transformId, frequency, 0L, 0, 60 * 60 * 1000, listener))
+        );
+        assertThat(events, hasSize(1));
+
+        // Schedule the transform now even though it is half-way through between checkpoints.
+        transformScheduler.scheduleNow(transformId);
+        assertThat(
+            transformScheduler.getTransformScheduledTasks(),
+            contains(new TransformScheduledTask(transformId, frequency, 30 * 60 * 1000L, 0, 90 * 60 * 1000, listener))
+        );
+        assertThat(events, hasSize(2));
+
+        clock.advanceTimeBy(Duration.ofMinutes(1));
+        transformScheduler.scheduleNow(transformId);
+        assertThat(
+            transformScheduler.getTransformScheduledTasks(),
+            contains(new TransformScheduledTask(transformId, frequency, 31 * 60 * 1000L, 0, 91 * 60 * 1000, listener))
+        );
+        assertThat(events, hasSize(3));
+        assertThat(events.get(0), is(equalTo(new TransformScheduler.Event(transformId, 0, 0))));
+        assertThat(events.get(1), is(equalTo(new TransformScheduler.Event(transformId, 30 * 60 * 1000, 30 * 60 * 1000))));
+        assertThat(events.get(2), is(equalTo(new TransformScheduler.Event(transformId, 31 * 60 * 1000, 31 * 60 * 1000))));
+
+        transformScheduler.deregisterTransform(transformId);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         assertThat(transformScheduler.getTransformScheduledTasks(), is(empty()));
 
         transformScheduler.stop();
@@ -175,12 +244,12 @@ public class TransformSchedulerTests extends ESTestCase {
         String transformId = "test-with-fake-clock-concurrent";
         int frequencySeconds = 5;
         TimeValue frequency = TimeValue.timeValueSeconds(frequencySeconds);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
         transformScheduler.registerTransform(transformTaskParams, listener);
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
@@ -213,11 +282,11 @@ public class TransformSchedulerTests extends ESTestCase {
         String transformId = "test-with-fake-clock-concurrent";
         int frequencySeconds = 5;
         TimeValue frequency = TimeValue.timeValueSeconds(frequencySeconds);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
         TransformScheduler.Listener taskModifyingListener = new TransformScheduler.Listener() {
             private boolean firstTime = true;
 
@@ -252,14 +321,14 @@ public class TransformSchedulerTests extends ESTestCase {
         );
     }
 
-    public void testWithSystemClock() throws Exception {
+    public void testSchedulingWithSystemClock() throws Exception {
         String transformId = "test-with-system-clock";
         TimeValue frequency = TimeValue.timeValueSeconds(1);
-        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
         Clock clock = Clock.systemUTC();
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
         transformScheduler.start();
         transformScheduler.registerTransform(transformTaskParams, events::add);
         assertThat(events, hasSize(1));
@@ -272,6 +341,34 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(events.get(2).transformId(), is(equalTo(transformId)));
         assertThat(events.get(1).scheduledTime() - events.get(0).triggeredTime(), is(equalTo(frequency.millis())));
         assertThat(events.get(2).scheduledTime() - events.get(1).triggeredTime(), is(equalTo(frequency.millis())));
+
+        transformScheduler.deregisterTransform(transformId);
+        transformScheduler.stop();
+    }
+
+    public void testScheduleNowWithSystemClock() throws Exception {
+        String transformId = "test-schedule-now-with-system-clock";
+        TimeValue frequency = TimeValue.timeValueHours(1);  // Very long pause between checkpoints
+        TransformTaskParams transformTaskParams = new TransformTaskParams(transformId, TransformConfigVersion.CURRENT, frequency, false);
+        Clock clock = Clock.systemUTC();
+        CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
+
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        transformScheduler.start();
+        transformScheduler.registerTransform(transformTaskParams, events::add);
+        assertThat(events, hasSize(1));
+
+        Thread.sleep(5 * 1000L);
+        transformScheduler.scheduleNow(transformId);
+
+        // If we are unlucky, the scheduleNow call will trigger processing **exactly** in this small window of time in which processing is
+        // temporarily disallowed (as two concurrent invocations of the "TransformScheduler.processScheduledTasks" method are not allowed).
+        // Hence, we need to wait for the next processing cycle to happen (it will be TEST_SCHEDULER_FREQUENCY from now).
+        assertBusy(() -> assertThat(events, hasSize(2)), TEST_SCHEDULER_FREQUENCY.seconds() + 1, TimeUnit.SECONDS);
+
+        assertThat(events.get(0).transformId(), is(equalTo(transformId)));
+        assertThat(events.get(1).transformId(), is(equalTo(transformId)));
+        assertThat(events.get(1).scheduledTime() - events.get(0).triggeredTime(), is(allOf(greaterThan(4 * 1000L), lessThan(6 * 1000L))));
 
         transformScheduler.deregisterTransform(transformId);
         transformScheduler.stop();
@@ -306,17 +403,19 @@ public class TransformSchedulerTests extends ESTestCase {
         String transformId2 = "test-register-transforms-2";
         String transformId3 = "test-register-transforms-3";
         TimeValue frequency = TimeValue.timeValueSeconds(5);
-        TransformTaskParams transformTaskParams1 = new TransformTaskParams(transformId1, Version.CURRENT, frequency, false);
-        TransformTaskParams transformTaskParams2 = new TransformTaskParams(transformId2, Version.CURRENT, frequency, false);
-        TransformTaskParams transformTaskParams3 = new TransformTaskParams(transformId3, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams1 = new TransformTaskParams(transformId1, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams2 = new TransformTaskParams(transformId2, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams3 = new TransformTaskParams(transformId3, TransformConfigVersion.CURRENT, frequency, false);
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams1, listener);
         transformScheduler.registerTransform(transformTaskParams2, listener);
         transformScheduler.registerTransform(transformTaskParams3, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(3)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(
@@ -336,17 +435,19 @@ public class TransformSchedulerTests extends ESTestCase {
         String transformId2 = "test-register-transforms-2";
         String transformId3 = "test-register-transforms-3";
         TimeValue frequency = TimeValue.timeValueSeconds(5);
-        TransformTaskParams transformTaskParams1 = new TransformTaskParams(transformId1, Version.CURRENT, frequency, false);
-        TransformTaskParams transformTaskParams2 = new TransformTaskParams(transformId2, Version.CURRENT, frequency, false);
-        TransformTaskParams transformTaskParams3 = new TransformTaskParams(transformId3, Version.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams1 = new TransformTaskParams(transformId1, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams2 = new TransformTaskParams(transformId2, TransformConfigVersion.CURRENT, frequency, false);
+        TransformTaskParams transformTaskParams3 = new TransformTaskParams(transformId3, TransformConfigVersion.CURRENT, frequency, false);
         FakeClock clock = new FakeClock(Instant.ofEpochMilli(0));
         CopyOnWriteArrayList<TransformScheduler.Event> events = new CopyOnWriteArrayList<>();
         TransformScheduler.Listener listener = events::add;
 
-        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS);
+        TransformScheduler transformScheduler = new TransformScheduler(clock, threadPool, SETTINGS, TimeValue.ZERO);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(0)));
         transformScheduler.registerTransform(transformTaskParams1, listener);
         transformScheduler.registerTransform(transformTaskParams2, listener);
         transformScheduler.registerTransform(transformTaskParams3, listener);
+        assertThat(transformScheduler.getRegisteredTransformCount(), is(equalTo(3)));
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
             contains(
@@ -374,41 +475,5 @@ public class TransformSchedulerTests extends ESTestCase {
         assertThat(events.get(3).transformId(), is(equalTo(transformId1)));
         assertThat(events.get(4).transformId(), is(equalTo(transformId2)));
         assertThat(events.get(5).transformId(), is(equalTo(transformId3)));
-    }
-
-    private static class FakeClock extends Clock {
-
-        private Instant currentTime;
-
-        FakeClock(Instant time) {
-            assertThat(time, is(notNullValue()));
-            currentTime = time;
-        }
-
-        public void setCurrentTime(Instant time) {
-            // We cannot go back in time.
-            assertThat(time, is(greaterThanOrEqualTo(currentTime)));
-            currentTime = time;
-        }
-
-        public void advanceTimeBy(Duration duration) {
-            assertThat(duration, is(notNullValue()));
-            setCurrentTime(currentTime.plus(duration));
-        }
-
-        @Override
-        public Instant instant() {
-            return currentTime;
-        }
-
-        @Override
-        public ZoneId getZone() {
-            return ZoneId.systemDefault();
-        }
-
-        @Override
-        public Clock withZone(ZoneId zone) {
-            return this;
-        }
     }
 }

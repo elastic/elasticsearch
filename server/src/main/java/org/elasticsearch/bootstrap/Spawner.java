@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.plugins.PluginsUtils;
@@ -67,14 +69,14 @@ final class Spawner implements Closeable {
         if (spawned.compareAndSet(false, true) == false) {
             throw new IllegalStateException("native controllers already spawned");
         }
-        if (Files.exists(environment.modulesFile()) == false) {
-            throw new IllegalStateException("modules directory [" + environment.modulesFile() + "] not found");
+        if (Files.exists(environment.modulesDir()) == false) {
+            throw new IllegalStateException("modules directory [" + environment.modulesDir() + "] not found");
         }
         /*
          * For each module, attempt to spawn the controller daemon. Silently ignore any module that doesn't include a controller for the
          * correct platform.
          */
-        List<Path> paths = PluginsUtils.findPluginDirs(environment.modulesFile());
+        List<Path> paths = PluginsUtils.findPluginDirs(environment.modulesDir());
         for (final Path modules : paths) {
             final PluginDescriptor info = PluginDescriptor.readFromProperties(modules);
             final Path spawnPath = Platforms.nativeControllerPath(modules);
@@ -89,7 +91,7 @@ final class Spawner implements Closeable {
                 );
                 throw new IllegalArgumentException(message);
             }
-            final Process process = spawnNativeController(spawnPath, environment.tmpFile());
+            final Process process = spawnNativeController(spawnPath, environment.tmpDir());
             // The process _shouldn't_ write any output via its stdout or stderr, but if it does then
             // it will block if nothing is reading that output. To avoid this we can pipe the
             // outputs and create pump threads to write any messages there to the ES log.
@@ -133,7 +135,7 @@ final class Spawner implements Closeable {
              * http://hg.openjdk.java.net/jdk8/jdk8/jdk/file/687fd7c7986d/src/windows/native/java/lang/ProcessImpl_md.c#l319), this
              * limitation is in force. As such, we use the short name to avoid any such problems.
              */
-            command = Natives.getShortPathName(spawnPath.toString());
+            command = NativeAccess.instance().getWindowsFunctions().getShortPathName(spawnPath.toString());
         } else {
             command = spawnPath.toString();
         }

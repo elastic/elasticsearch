@@ -1,0 +1,6 @@
+pr: 125520
+summary: Add `FailedShardEntry` info to shard-failed task source string
+area: Allocation
+type: enhancement
+issues:
+ - 102606

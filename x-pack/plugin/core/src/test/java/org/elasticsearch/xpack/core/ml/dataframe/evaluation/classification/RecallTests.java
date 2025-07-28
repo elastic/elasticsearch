@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
@@ -43,6 +43,11 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
     }
 
     @Override
+    protected Recall mutateInstance(Recall instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Recall> instanceReader() {
         return Recall::new;
     }
@@ -57,7 +62,7 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
     }
 
     public void testProcess() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME),
                 mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123),
@@ -74,7 +79,7 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
 
     public void testProcess_GivenMissingAgg() {
         {
-            Aggregations aggs = new Aggregations(
+            InternalAggregations aggs = InternalAggregations.from(
                 Arrays.asList(mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME), mockSingleValue("some_other_single_metric_agg", 0.2377))
             );
             Recall recall = new Recall();
@@ -82,7 +87,7 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
             assertThat(recall.getResult(), isEmpty());
         }
         {
-            Aggregations aggs = new Aggregations(
+            InternalAggregations aggs = InternalAggregations.from(
                 Arrays.asList(mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123), mockSingleValue("some_other_single_metric_agg", 0.2377))
             );
             Recall recall = new Recall();
@@ -93,7 +98,7 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
 
     public void testProcess_GivenAggOfWrongType() {
         {
-            Aggregations aggs = new Aggregations(
+            InternalAggregations aggs = InternalAggregations.from(
                 Arrays.asList(mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME), mockTerms(Recall.AVG_RECALL_AGG_NAME))
             );
             Recall recall = new Recall();
@@ -101,7 +106,7 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
             assertThat(recall.getResult(), isEmpty());
         }
         {
-            Aggregations aggs = new Aggregations(
+            InternalAggregations aggs = InternalAggregations.from(
                 Arrays.asList(mockSingleValue(Recall.BY_ACTUAL_CLASS_AGG_NAME, 1.0), mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123))
             );
             Recall recall = new Recall();
@@ -111,7 +116,7 @@ public class RecallTests extends AbstractXContentSerializingTestCase<Recall> {
     }
 
     public void testProcess_GivenCardinalityTooHigh() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockTerms(Recall.BY_ACTUAL_CLASS_AGG_NAME, Collections.emptyList(), 1),
                 mockSingleValue(Recall.AVG_RECALL_AGG_NAME, 0.8123)

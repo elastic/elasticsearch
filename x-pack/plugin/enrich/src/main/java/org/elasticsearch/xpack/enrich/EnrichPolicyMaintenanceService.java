@@ -110,7 +110,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         if (isMaster) {
             try {
                 TimeValue waitTime = EnrichPlugin.ENRICH_CLEANUP_PERIOD.get(settings);
-                cancellable = threadPool.schedule(this::execute, waitTime, ThreadPool.Names.GENERIC);
+                cancellable = threadPool.schedule(this::execute, waitTime, threadPool.generic());
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug("Failed to schedule next [enrich] maintenance task; Shutting down", e);
@@ -151,9 +151,10 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         // list inflight list because it has already been promoted or because the policy execution failed.
         ClusterState clusterState = clusterService.state();
         Set<String> inflightPolicyExecutionIndices = enrichPolicyLocks.inflightPolicyIndices();
-        final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterState);
+        final Map<String, EnrichPolicy> policies = EnrichStore.getPolicies(clusterState.metadata().getProject());
         logger.debug(() -> "Working enrich indices excluded from maintenance [" + String.join(", ", inflightPolicyExecutionIndices) + "]");
         String[] removeIndices = clusterState.metadata()
+            .getProject()
             .indices()
             .values()
             .stream()
@@ -165,7 +166,11 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
         deleteIndices(removeIndices);
     }
 
-    private boolean indexUsedByPolicy(IndexMetadata indexMetadata, Map<String, EnrichPolicy> policies, Set<String> inflightPolicyIndices) {
+    private static boolean indexUsedByPolicy(
+        IndexMetadata indexMetadata,
+        Map<String, EnrichPolicy> policies,
+        Set<String> inflightPolicyIndices
+    ) {
         String indexName = indexMetadata.getIndex().getName();
         logger.debug("Checking if should remove enrich index [{}]", indexName);
         // First ignore the index entirely if it is in the inflightPolicyIndices set as it is actively being worked on

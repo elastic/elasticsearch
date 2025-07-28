@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.List;
 
 public class PhaseExecutionInfoTests extends AbstractXContentSerializingTestCase<PhaseExecutionInfo> {
 
@@ -54,7 +54,7 @@ public class PhaseExecutionInfoTests extends AbstractXContentSerializingTestCase
     }
 
     @Override
-    protected PhaseExecutionInfo mutateInstance(PhaseExecutionInfo instance) throws IOException {
+    protected PhaseExecutionInfo mutateInstance(PhaseExecutionInfo instance) {
         String policyName = instance.getPolicyName();
         Phase phase = instance.getPhase();
         long version = instance.getVersion();
@@ -71,7 +71,7 @@ public class PhaseExecutionInfoTests extends AbstractXContentSerializingTestCase
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
+            List.of(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
         );
     }
 

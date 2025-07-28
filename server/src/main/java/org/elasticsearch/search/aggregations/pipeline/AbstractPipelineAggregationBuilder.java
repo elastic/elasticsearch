@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.pipeline;
 
@@ -45,7 +46,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      */
     protected AbstractPipelineAggregationBuilder(StreamInput in, String type) throws IOException {
         this(in.readString(), type, in.readStringArray());
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
     }
 
     @Override
@@ -58,10 +59,6 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
-    public String type() {
-        return type;
-    }
-
     protected abstract PipelineAggregator createInternal(Map<String, Object> metadata);
 
     /**
@@ -71,8 +68,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
      */
     @Override
     public final PipelineAggregator create() {
-        PipelineAggregator aggregator = createInternal(this.metadata);
-        return aggregator;
+        return createInternal(this.metadata);
     }
 
     @SuppressWarnings("unchecked")
@@ -92,11 +88,7 @@ public abstract class AbstractPipelineAggregationBuilder<PAB extends AbstractPip
         builder.startObject(type);
 
         if (overrideBucketsPath() == false && bucketsPaths != null) {
-            builder.startArray(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName());
-            for (String path : bucketsPaths) {
-                builder.value(path);
-            }
-            builder.endArray();
+            builder.array(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName(), bucketsPaths);
         }
 
         internalXContent(builder, params);

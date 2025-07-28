@@ -16,6 +16,6 @@ public class SqlAsyncGetResultsAction extends ActionType<SqlQueryResponse> {
     public static final String NAME = SQL_ASYNC_GET_RESULT_ACTION_NAME;
 
     private SqlAsyncGetResultsAction() {
-        super(NAME, SqlQueryResponse::new);
+        super(NAME);
     }
 }

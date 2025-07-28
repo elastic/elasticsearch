@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -12,6 +13,7 @@ import org.elasticsearch.common.io.stream.AbstractStreamTests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
@@ -70,7 +72,7 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
         BytesStreamOutput out = new BytesStreamOutput();
         testData.writeTo(out);
 
-        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+        ReleasableBytesReference ref = wrapAsReleasable(out.bytes());
 
         try (IntArray in = IntArray.readFrom(ref.streamInput())) {
             ref.decRef();
@@ -89,7 +91,7 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
         BytesStreamOutput out = new BytesStreamOutput();
         testData.writeTo(out);
 
-        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+        ReleasableBytesReference ref = wrapAsReleasable(out.bytes());
 
         try (DoubleArray in = DoubleArray.readFrom(ref.streamInput())) {
             ref.decRef();
@@ -108,7 +110,7 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
         BytesStreamOutput out = new BytesStreamOutput();
         testData.writeTo(out);
 
-        ReleasableBytesReference ref = ReleasableBytesReference.wrap(out.bytes());
+        ReleasableBytesReference ref = wrapAsReleasable(out.bytes());
 
         try (LongArray in = LongArray.readFrom(ref.streamInput())) {
             ref.decRef();
@@ -120,4 +122,26 @@ public class ReleasableBytesReferenceStreamInputTests extends AbstractStreamTest
         assertThat(ref.hasReferences(), equalTo(false));
     }
 
+    public void testBigByteArrayLivesAfterReleasableIsDecremented() throws IOException {
+        ByteArray testData = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(1, false);
+        testData.set(0L, (byte) 1);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        testData.writeTo(out);
+
+        ReleasableBytesReference ref = wrapAsReleasable(out.bytes());
+
+        try (ByteArray in = ByteArray.readFrom(ref.streamInput())) {
+            ref.decRef();
+            assertThat(ref.hasReferences(), equalTo(true));
+
+            assertThat(in.size(), equalTo(testData.size()));
+            assertThat(in.get(0), equalTo((byte) 1));
+        }
+        assertThat(ref.hasReferences(), equalTo(false));
+    }
+
+    public static ReleasableBytesReference wrapAsReleasable(BytesReference bytesReference) {
+        return new ReleasableBytesReference(bytesReference, () -> {});
+    }
 }

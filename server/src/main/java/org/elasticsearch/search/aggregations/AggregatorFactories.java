@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -41,7 +42,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -274,7 +277,7 @@ public class AggregatorFactories {
      * A mutable collection of {@link AggregationBuilder}s and
      * {@link PipelineAggregationBuilder}s.
      */
-    public static class Builder implements Writeable, ToXContentObject {
+    public static final class Builder implements Writeable, ToXContentObject {
         private final Set<String> names = new HashSet<>();
 
         // Using LinkedHashSets to preserve the order of insertion, that makes the results
@@ -303,8 +306,8 @@ public class AggregatorFactories {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(this.aggregationBuilders, StreamOutput::writeNamedWriteable);
-            out.writeCollection(this.pipelineAggregatorBuilders, StreamOutput::writeNamedWriteable);
+            out.writeNamedWriteableCollection(this.aggregationBuilders);
+            out.writeNamedWriteableCollection(this.pipelineAggregatorBuilders);
         }
 
         public boolean mustVisitAllDocs() {
@@ -333,6 +336,60 @@ public class AggregatorFactories {
             return false;
         }
 
+        /**
+         * Return true if any of the builders is a terms aggregation with min_doc_count=0
+         */
+        public boolean hasZeroMinDocTermsAggregation() {
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
+                }
+                if (current instanceof TermsAggregationBuilder termsBuilder) {
+                    if (termsBuilder.minDocCount() == 0) {
+                        return true;
+                    }
+                }
+                queue.addAll(current.getSubAggregations());
+            }
+            return false;
+        }
+
+        /**
+         * Force all min_doc_count=0 terms aggregations to exclude deleted docs.
+         */
+        public void forceTermsAggsToExcludeDeletedDocs() {
+            assert hasZeroMinDocTermsAggregation();
+            final Queue<AggregationBuilder> queue = new LinkedList<>(aggregationBuilders);
+            while (queue.isEmpty() == false) {
+                final AggregationBuilder current = queue.poll();
+                if (current == null) {
+                    continue;
+                }
+                if (current instanceof TermsAggregationBuilder termsBuilder) {
+                    if (termsBuilder.minDocCount() == 0) {
+                        termsBuilder.excludeDeletedDocs(true);
+                    }
+                }
+                queue.addAll(current.getSubAggregations());
+            }
+        }
+
+        /**
+         * Return false if this aggregation or any of the child aggregations does not support parallel collection.
+         * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query
+         * phase.
+         */
+        public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder.supportsParallelCollection(fieldCardinalityResolver) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         public Builder addAggregator(AggregationBuilder factory) {
             if (names.add(factory.name) == false) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
@@ -352,7 +409,6 @@ public class AggregatorFactories {
         public ActionRequestValidationException validate(ActionRequestValidationException e) {
             PipelineAggregationBuilder.ValidationContext context = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
                 aggregationBuilders,
-                pipelineAggregatorBuilders,
                 e
             );
             validatePipelines(context);
@@ -389,7 +445,7 @@ public class AggregatorFactories {
 
         public AggregatorFactories build(AggregationContext context, AggregatorFactory parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
-                return EMPTY;
+                return AggregatorFactories.EMPTY;
             }
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
             int i = 0;

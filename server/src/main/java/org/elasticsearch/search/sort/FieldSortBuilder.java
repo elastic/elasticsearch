@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -15,8 +16,8 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
@@ -49,6 +50,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.Function;
@@ -60,7 +62,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 /**
  * A sort builder to sort based on a document field.
  */
-public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
+public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     public static final String NAME = "field_sort";
     public static final ParseField MISSING = new ParseField("missing");
@@ -132,7 +134,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      */
     public FieldSortBuilder(StreamInput in) throws IOException {
         fieldName = in.readString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
                 throw new IOException(
                     "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
@@ -144,18 +146,14 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
         unmappedType = in.readOptionalString();
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            numericType = in.readOptionalString();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-            format = in.readOptionalString();
-        }
+        numericType = in.readOptionalString();
+        format = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalNamedWriteable(null);
             out.writeOptionalString(null);
         }
@@ -164,16 +162,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         out.writeOptionalWriteable(sortMode);
         out.writeOptionalString(unmappedType);
         out.writeOptionalWriteable(nestedSort);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeOptionalString(numericType);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeOptionalString(format);
-        } else {
-            if (format != null) {
-                throw new IllegalArgumentException("Custom format for output of sort fields requires all nodes on 8.0 or later");
-            }
-        }
+        out.writeOptionalString(numericType);
+        out.writeOptionalString(format);
     }
 
     /** Returns the document field this sort should be based on. */
@@ -381,7 +371,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
             isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
-            field = fieldData.sortField(missing, localSortMode(), nested, reverse);
+            field = fieldData.sortField(context.indexVersionCreated(), missing, localSortMode(), nested, reverse);
             if (fieldData instanceof IndexNumericFieldData) {
                 isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
             }
@@ -554,10 +544,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * is an instance of this class, null otherwise.
      */
     public static FieldSortBuilder getPrimaryFieldSortOrNull(SearchSourceBuilder source) {
-        if (source == null || source.sorts() == null || source.sorts().isEmpty()) {
+        final List<SortBuilder<?>> sorts;
+        if (source == null || (sorts = source.sorts()) == null || sorts.isEmpty()) {
             return null;
         }
-        return source.sorts().get(0) instanceof FieldSortBuilder ? (FieldSortBuilder) source.sorts().get(0) : null;
+        return sorts.get(0) instanceof FieldSortBuilder fieldSortBuilder ? fieldSortBuilder : null;
     }
 
     /**
@@ -710,8 +701,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     /**
@@ -737,22 +728,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareObject(FieldSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
         PARSER.declareString(FieldSortBuilder::setNumericType, NUMERIC_TYPE);
         PARSER.declareString(FieldSortBuilder::setFormat, FORMAT);
-        PARSER.declareField(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_path] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_PATH_FIELD,
-            ValueType.STRING
-        );
-
-        PARSER.declareObject(
-            (b, v) -> {},
-            (p, c) -> {
-                throw new ParsingException(p.getTokenLocation(), "[nested_filter] has been removed in favour of the [nested] parameter", c);
-            },
-            NESTED_FILTER_FIELD
-        );
     }
 
     @Override
@@ -765,5 +740,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return this;
         }
         return new FieldSortBuilder(this).setNestedSort(rewrite);
+    }
+
+    @Override
+    public boolean supportsParallelCollection() {
+        // Disable parallel collection for sort by field.
+        // It is supported but not optimized on the Lucene side to share info across collectors, and can cause regressions.
+        return false;
     }
 }

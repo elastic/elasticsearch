@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -42,16 +40,11 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
         );
     }
 
-    public static TextSimilarityConfigUpdate mutateForVersion(TextSimilarityConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
+    public static TextSimilarityConfigUpdate mutateForVersion(TextSimilarityConfigUpdate instance, TransportVersion version) {
+        if (version.before(TransportVersions.V_8_1_0)) {
             return new TextSimilarityConfigUpdate(instance.getText(), instance.getResultsField(), null, null);
         }
         return instance;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override
@@ -70,7 +63,12 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
     }
 
     @Override
-    protected TextSimilarityConfigUpdate mutateInstanceForVersion(TextSimilarityConfigUpdate instance, Version version) {
+    protected TextSimilarityConfigUpdate mutateInstance(TextSimilarityConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected TextSimilarityConfigUpdate mutateInstanceForVersion(TextSimilarityConfigUpdate instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 
@@ -129,7 +127,7 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
                 originalConfig.getResultsField(),
                 originalConfig.getSpanScoreFunction()
             ),
-            equalTo(new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").build().apply(originalConfig))
+            equalTo(originalConfig.apply(new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").build()))
         );
         assertThat(
             new TextSimilarityConfig(
@@ -140,10 +138,9 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
                 originalConfig.getSpanScoreFunction()
             ),
             equalTo(
-                new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
-                    .setResultsField("updated-field")
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?").setResultsField("updated-field").build()
+                )
             )
         );
 
@@ -158,25 +155,16 @@ public class TextSimilarityConfigUpdateTests extends AbstractNlpConfigUpdateTest
                 originalConfig.getSpanScoreFunction()
             ),
             equalTo(
-                new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
-                    .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
-                    .build()
-                    .apply(originalConfig)
+                originalConfig.apply(
+                    new TextSimilarityConfigUpdate.Builder().setText("Are you my mother?")
+                        .setTokenizationUpdate(createTokenizationUpdate(originalConfig.getTokenization(), truncate, null))
+                        .build()
+                )
             )
         );
     }
 
     public static TextSimilarityConfigUpdate createRandom() {
         return randomUpdate();
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-    }
-
-    @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.scanners;
@@ -27,7 +28,7 @@ public class StablePluginsRegistry {
     effectively means that an interface which extends another interface marked with @Extensible is also extensible
     NameToPluginInfo map is a map of Name to PluginInfo
     i.e.
-    org.elasticsearch.plugin.analysis.api.TokenFilterFactory ->
+    org.elasticsearch.plugin.analysis.TokenFilterFactory ->
         {"nori" -> {nori, org.elasticserach.plugin.analysis.new_nori.NoriReadingFormFilterFactory, classloaderInstance}
      */
     private final Map<String /*Extensible */, NameToPluginInfo> namedComponents;

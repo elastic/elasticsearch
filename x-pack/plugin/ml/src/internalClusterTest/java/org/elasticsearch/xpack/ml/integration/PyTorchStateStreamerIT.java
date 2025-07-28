@@ -103,8 +103,7 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
         for (int i = 0; i < docs.size(); i++) {
             TrainedModelDefinitionDoc doc = docs.get(i);
             try (XContentBuilder xContentBuilder = doc.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-                IndexRequestBuilder indexRequestBuilder = client().prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME)
-                    .setSource(xContentBuilder)
+                IndexRequestBuilder indexRequestBuilder = prepareIndex(InferenceIndexConstants.LATEST_INDEX_NAME).setSource(xContentBuilder)
                     .setId(TrainedModelDefinitionDoc.docId(doc.getModelId(), i));
 
                 bulkRequestBuilder.add(indexRequestBuilder);

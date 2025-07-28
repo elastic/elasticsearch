@@ -28,6 +28,11 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
     }
 
     @Override
+    protected DeleteAction mutateInstance(DeleteAction instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<DeleteAction> instanceReader() {
         return DeleteAction::readFrom;
     }
@@ -42,31 +47,40 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
         {
             List<Step> steps = DeleteAction.WITH_SNAPSHOT_DELETE.toSteps(null, phase, nextStepKey);
             assertNotNull(steps);
-            assertEquals(3, steps.size());
+            assertEquals(4, steps.size());
             StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, WaitForNoFollowersStep.NAME);
-            StepKey expectedSecondStepKey = new StepKey(phase, DeleteAction.NAME, CleanupSnapshotStep.NAME);
-            StepKey expectedThirdKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
+            StepKey expectedSecondStepKey = new StepKey(phase, DeleteAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
+            StepKey expectedThirdKey = new StepKey(phase, DeleteAction.NAME, CleanupSnapshotStep.NAME);
+            StepKey expectedFourthKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
             WaitForNoFollowersStep firstStep = (WaitForNoFollowersStep) steps.get(0);
-            CleanupSnapshotStep secondStep = (CleanupSnapshotStep) steps.get(1);
-            DeleteStep thirdStep = (DeleteStep) steps.get(2);
+            WaitUntilTimeSeriesEndTimePassesStep secondStep = (WaitUntilTimeSeriesEndTimePassesStep) steps.get(1);
+            CleanupSnapshotStep thirdStep = (CleanupSnapshotStep) steps.get(2);
+            DeleteStep fourthStep = (DeleteStep) steps.get(3);
             assertEquals(expectedFirstStepKey, firstStep.getKey());
             assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
             assertEquals(expectedSecondStepKey, secondStep.getKey());
             assertEquals(expectedThirdKey, thirdStep.getKey());
-            assertEquals(nextStepKey, thirdStep.getNextStepKey());
+            assertEquals(expectedFourthKey, thirdStep.getNextStepKey());
+            assertEquals(expectedFourthKey, fourthStep.getKey());
+            assertEquals(nextStepKey, fourthStep.getNextStepKey());
         }
 
         {
             List<Step> steps = DeleteAction.NO_SNAPSHOT_DELETE.toSteps(null, phase, nextStepKey);
             StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, WaitForNoFollowersStep.NAME);
-            StepKey expectedSecondStepKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
-            assertEquals(2, steps.size());
+            StepKey expectedSecondStepKey = new StepKey(phase, DeleteAction.NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
+            StepKey expectedThirdStepKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
+            assertEquals(3, steps.size());
             assertNotNull(steps);
             WaitForNoFollowersStep firstStep = (WaitForNoFollowersStep) steps.get(0);
-            DeleteStep secondStep = (DeleteStep) steps.get(1);
+            WaitUntilTimeSeriesEndTimePassesStep secondStep = (WaitUntilTimeSeriesEndTimePassesStep) steps.get(1);
+            DeleteStep thirdStep = (DeleteStep) steps.get(2);
             assertEquals(expectedFirstStepKey, firstStep.getKey());
             assertEquals(expectedSecondStepKey, firstStep.getNextStepKey());
-            assertEquals(nextStepKey, secondStep.getNextStepKey());
+            assertEquals(expectedSecondStepKey, secondStep.getKey());
+            assertEquals(expectedThirdStepKey, secondStep.getNextStepKey());
+            assertEquals(expectedThirdStepKey, thirdStep.getKey());
+            assertEquals(nextStepKey, thirdStep.getNextStepKey());
         }
     }
 

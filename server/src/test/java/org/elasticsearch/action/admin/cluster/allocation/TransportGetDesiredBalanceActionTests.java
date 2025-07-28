@@ -1,41 +1,52 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoTests;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStats;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.util.HashMap;
 import java.util.List;
@@ -44,68 +55,106 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
+import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceStatsTests.randomDesiredBalanceStats;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TransportGetDesiredBalanceActionTests extends ESTestCase {
+public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase {
 
     private final DesiredBalanceShardsAllocator desiredBalanceShardsAllocator = mock(DesiredBalanceShardsAllocator.class);
-    private final ClusterState clusterState = mock(ClusterState.class);
-    private final Metadata metadata = mock(Metadata.class);
-    private final TransportGetDesiredBalanceAction transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
-        mock(TransportService.class),
-        mock(ClusterService.class),
-        mock(ThreadPool.class),
-        mock(ActionFilters.class),
-        mock(IndexNameExpressionResolver.class),
-        desiredBalanceShardsAllocator
-    );
-    @SuppressWarnings("unchecked")
-    private final ActionListener<DesiredBalanceResponse> listener = mock(ActionListener.class);
+    private final ClusterInfoService clusterInfoService = mock(ClusterInfoService.class);
+    private final ThreadPool threadPool = mock(ThreadPool.class);
+    private final TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+    private TransportGetDesiredBalanceAction transportGetDesiredBalanceAction;
 
     @Before
-    public void setUpMocks() throws Exception {
-        when(clusterState.metadata()).thenReturn(metadata);
+    public void initialize() {
+        transportGetDesiredBalanceAction = new TransportGetDesiredBalanceAction(
+            transportService,
+            mock(ClusterService.class),
+            threadPool,
+            mock(ActionFilters.class),
+            desiredBalanceShardsAllocator,
+            clusterInfoService,
+            TEST_WRITE_LOAD_FORECASTER
+        );
     }
 
-    public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() throws Exception {
-        when(metadata.settings()).thenReturn(Settings.builder().put("cluster.routing.allocation.type", "balanced").build());
+    private static SubscribableListener<DesiredBalanceResponse> execute(
+        TransportGetDesiredBalanceAction action,
+        ClusterState clusterState
+    ) {
+        return SubscribableListener.newForked(
+            listener -> action.masterOperation(
+                new Task(1, "test", TransportGetDesiredBalanceAction.TYPE.name(), "", TaskId.EMPTY_TASK_ID, Map.of()),
+                new DesiredBalanceRequest(TEST_REQUEST_TIMEOUT),
+                clusterState,
+                listener
+            )
+        );
+    }
 
-        new TransportGetDesiredBalanceAction(
-            mock(TransportService.class),
+    private SubscribableListener<DesiredBalanceResponse> executeAction(ClusterState clusterState) {
+        return execute(transportGetDesiredBalanceAction, clusterState);
+    }
+
+    public void testReturnsErrorIfAllocatorIsNotDesiredBalanced() {
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadataWithConfiguredAllocator(BALANCED_ALLOCATOR)).build();
+        final var action = new TransportGetDesiredBalanceAction(
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
-            mock(ShardsAllocator.class)
-        ).masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
+            mock(ShardsAllocator.class),
+            mock(ClusterInfoService.class),
+            mock(WriteLoadForecaster.class)
+        );
 
-        ArgumentCaptor<ResourceNotFoundException> exceptionArgumentCaptor = ArgumentCaptor.forClass(ResourceNotFoundException.class);
-        verify(listener).onFailure(exceptionArgumentCaptor.capture());
-
-        final var exception = exceptionArgumentCaptor.getValue();
+        final var exception = asInstanceOf(ResourceNotFoundException.class, safeAwaitFailure(execute(action, clusterState)));
         assertEquals("Desired balance allocator is not in use, no desired balance found", exception.getMessage());
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
     }
 
     public void testReturnsErrorIfDesiredBalanceIsNotAvailable() throws Exception {
-        when(metadata.settings()).thenReturn(Settings.builder().put("cluster.routing.allocation.type", "desired_balance").build());
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadataWithConfiguredAllocator(DESIRED_BALANCE_ALLOCATOR))
+            .build();
 
-        transportGetDesiredBalanceAction.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
-
-        ArgumentCaptor<ResourceNotFoundException> exceptionArgumentCaptor = ArgumentCaptor.forClass(ResourceNotFoundException.class);
-        verify(listener).onFailure(exceptionArgumentCaptor.capture());
-
-        assertEquals("Desired balance is not computed yet", exceptionArgumentCaptor.getValue().getMessage());
+        assertEquals(
+            "Desired balance is not computed yet",
+            asInstanceOf(ResourceNotFoundException.class, safeAwaitFailure(executeAction(clusterState))).getMessage()
+        );
     }
 
     public void testGetDesiredBalance() throws Exception {
         Set<String> nodeIds = randomUnique(() -> randomAlphaOfLength(8), randomIntBetween(1, 32));
+        DiscoveryNodes.Builder discoveryNodes = DiscoveryNodes.builder();
+        for (String nodeId : nodeIds) {
+            discoveryNodes.add(newNode(nodeId, Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        }
+        Metadata.Builder metadataBuilder = metadataWithConfiguredAllocator(DESIRED_BALANCE_ALLOCATOR);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < randomInt(8); i++) {
-            Index index = new Index(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
+            String indexName = randomAlphaOfLength(8);
+            Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0);
+            if (randomBoolean()) {
+                settings.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), randomFrom("data_hot", "data_warm", "data_cold"));
+            }
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName).settings(settings);
+            if (randomBoolean()) {
+                indexMetadataBuilder.indexWriteLoadForecast(randomDoubleBetween(0.0, 8.0, true));
+            }
+            if (randomBoolean()) {
+                indexMetadataBuilder.shardSizeInBytesForecast(randomLongBetween(0, 1024));
+            }
+            IndexMetadata indexMetadata = indexMetadataBuilder.build();
+            Index index = indexMetadata.getIndex();
+            metadataBuilder.put(indexMetadata, false);
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
             for (int j = 0; j < randomIntBetween(1, 16); j++) {
                 String nodeId = randomFrom(nodeIds);
@@ -127,10 +176,9 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
                                 )
                             );
                         }
-                        break;
                     }
                     case 2 -> indexRoutingTableBuilder.addShard(
-                        TestShardRouting.newShardRouting(new ShardId(index, j), null, false, ShardRoutingState.UNASSIGNED)
+                        TestShardRouting.newShardRouting(new ShardId(index, j), null, true, ShardRoutingState.UNASSIGNED)
                     );
                     case 3 -> {
                         ShardRouting shard = TestShardRouting.newShardRouting(
@@ -140,8 +188,7 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
                             ShardRoutingState.STARTED
                         );
                         if (nodeIds.size() > 1) {
-                            shard = TestShardRouting.relocate(
-                                shard,
+                            shard = shard.relocate(
                                 randomValueOtherThan(nodeId, () -> randomFrom(nodeIds)),
                                 ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
                             );
@@ -153,9 +200,8 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
         RoutingTable routingTable = routingTableBuilder.build();
-        when(clusterState.routingTable()).thenReturn(routingTable);
 
-        List<ShardId> shardIds = routingTable.allShards().stream().map(ShardRouting::shardId).toList();
+        List<ShardId> shardIds = routingTable.allShards().map(ShardRouting::shardId).toList();
         Map<String, Set<ShardId>> indexShards = shardIds.stream()
             .collect(Collectors.groupingBy(e -> e.getIndex().getName(), Collectors.toSet()));
         Map<ShardId, ShardAssignment> shardAssignments = new HashMap<>();
@@ -171,26 +217,33 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
         }
 
         when(desiredBalanceShardsAllocator.getDesiredBalance()).thenReturn(new DesiredBalance(randomInt(1024), shardAssignments));
-        DesiredBalanceStats desiredBalanceStats = new DesiredBalanceStats(
-            randomInt(Integer.MAX_VALUE),
-            randomBoolean(),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE),
-            randomInt(Integer.MAX_VALUE)
-        );
+        DesiredBalanceStats desiredBalanceStats = randomDesiredBalanceStats();
         when(desiredBalanceShardsAllocator.getStats()).thenReturn(desiredBalanceStats);
-        when(metadata.settings()).thenReturn(Settings.builder().put("cluster.routing.allocation.type", "desired_balance").build());
+        ClusterInfo clusterInfo = ClusterInfo.EMPTY;
+        when(clusterInfoService.getClusterInfo()).thenReturn(clusterInfo);
 
-        transportGetDesiredBalanceAction.masterOperation(mock(Task.class), mock(DesiredBalanceRequest.class), clusterState, listener);
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadataBuilder.build())
+            .nodes(discoveryNodes.build())
+            .routingTable(routingTable)
+            .build();
 
-        ArgumentCaptor<DesiredBalanceResponse> desiredBalanceResponseCaptor = ArgumentCaptor.forClass(DesiredBalanceResponse.class);
-        verify(listener).onResponse(desiredBalanceResponseCaptor.capture());
-        DesiredBalanceResponse desiredBalanceResponse = desiredBalanceResponseCaptor.getValue();
-        assertEquals(desiredBalanceStats, desiredBalanceResponse.getStats());
+        final var desiredBalanceResponse = safeAwait(executeAction(clusterState));
+        assertThat(desiredBalanceResponse.getStats(), equalTo(desiredBalanceStats));
+        assertThat(desiredBalanceResponse.getClusterBalanceStats(), notNullValue());
+        assertThat(desiredBalanceResponse.getClusterInfo(), equalTo(clusterInfo));
         assertEquals(indexShards.keySet(), desiredBalanceResponse.getRoutingTable().keySet());
+
+        assertEquals(desiredBalanceResponse, copyWriteable(desiredBalanceResponse, writableRegistry(), DesiredBalanceResponse::from));
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            desiredBalanceResponse,
+            response -> 3 + ClusterInfoTests.getChunkCount(response.getClusterInfo()) + response.getRoutingTable()
+                .values()
+                .stream()
+                .mapToInt(indexEntry -> 2 + indexEntry.values().stream().mapToInt(shardEntry -> 3 + shardEntry.current().size()).sum())
+                .sum()
+        );
+
         for (var e : desiredBalanceResponse.getRoutingTable().entrySet()) {
             String index = e.getKey();
             Map<Integer, DesiredBalanceResponse.DesiredShards> shardsMap = e.getValue();
@@ -198,7 +251,8 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
             for (var shardDesiredBalance : shardsMap.entrySet()) {
                 DesiredBalanceResponse.DesiredShards desiredShard = shardDesiredBalance.getValue();
                 int shardId = shardDesiredBalance.getKey();
-                IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(index, shardId);
+                IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
+                IndexShardRoutingTable indexShardRoutingTable = clusterState.getRoutingTable().shardRoutingTable(index, shardId);
                 for (int idx = 0; idx < indexShardRoutingTable.size(); idx++) {
                     ShardRouting shard = indexShardRoutingTable.shard(idx);
                     DesiredBalanceResponse.ShardView shardView = desiredShard.current().get(idx);
@@ -208,7 +262,13 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
                     assertEquals(shard.relocatingNodeId(), shardView.relocatingNode());
                     assertEquals(shard.index().getName(), shardView.index());
                     assertEquals(shard.shardId().id(), shardView.shardId());
-                    assertEquals(shard.allocationId(), shardView.allocationId());
+                    var forecastedWriteLoad = TEST_WRITE_LOAD_FORECASTER.getForecastedWriteLoad(indexMetadata);
+                    assertEquals(forecastedWriteLoad.isPresent() ? forecastedWriteLoad.getAsDouble() : null, shardView.forecastWriteLoad());
+                    var forecastedShardSizeInBytes = indexMetadata.getForecastedShardSizeInBytes();
+                    assertEquals(
+                        forecastedShardSizeInBytes.isPresent() ? forecastedShardSizeInBytes.getAsLong() : null,
+                        shardView.forecastShardSizeInBytes()
+                    );
                     Set<String> desiredNodeIds = Optional.ofNullable(shardAssignments.get(shard.shardId()))
                         .map(ShardAssignment::nodeIds)
                         .orElse(Set.of());
@@ -217,20 +277,25 @@ public class TransportGetDesiredBalanceActionTests extends ESTestCase {
                         shardView.nodeIsDesired()
                     );
                     assertEquals(
-                        shard.relocatingNodeId() != null && desiredNodeIds.contains(shard.relocatingNodeId()),
+                        shard.relocatingNodeId() != null ? desiredNodeIds.contains(shard.relocatingNodeId()) : null,
                         shardView.relocatingNodeIsDesired()
                     );
+                    assertEquals(indexMetadata.getTierPreference(), shardView.tierPreference());
                 }
-                Optional<ShardAssignment> shardAssignment = Optional.ofNullable(shardAssignments.get(indexShardRoutingTable.shardId()));
-                if (shardAssignment.isPresent()) {
-                    assertEquals(shardAssignment.get().nodeIds(), desiredShard.desired().nodeIds());
-                    assertEquals(shardAssignment.get().total(), desiredShard.desired().total());
-                    assertEquals(shardAssignment.get().unassigned(), desiredShard.desired().unassigned());
-                    assertEquals(shardAssignment.get().ignored(), desiredShard.desired().ignored());
+                final var shardAssignment = shardAssignments.get(indexShardRoutingTable.shardId());
+                if (shardAssignment == null) {
+                    assertSame(desiredShard.desired(), DesiredBalanceResponse.ShardAssignmentView.EMPTY);
                 } else {
-                    assertNull(desiredShard.desired());
+                    assertEquals(shardAssignment.nodeIds(), desiredShard.desired().nodeIds());
+                    assertEquals(shardAssignment.total(), desiredShard.desired().total());
+                    assertEquals(shardAssignment.unassigned(), desiredShard.desired().unassigned());
+                    assertEquals(shardAssignment.ignored(), desiredShard.desired().ignored());
                 }
             }
         }
+    }
+
+    private static Metadata.Builder metadataWithConfiguredAllocator(String allocator) {
+        return Metadata.builder().persistentSettings(Settings.builder().put(SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), allocator).build());
     }
 }

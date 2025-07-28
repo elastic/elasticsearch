@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis;
@@ -195,7 +196,11 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         entry("spanishpluralstem", Void.class),
         // LUCENE-10352
         entry("daitchmokotoffsoundex", Void.class),
-        entry("persianstem", Void.class)
+        entry("persianstem", Void.class),
+        // not exposed
+        entry("word2vecsynonym", Void.class),
+        // not exposed
+        entry("romaniannormalization", Void.class)
     );
 
     static final Map<String, Class<?>> KNOWN_CHARFILTERS = Map.of(

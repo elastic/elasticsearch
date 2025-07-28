@@ -1,5 +1,0 @@
-pr: 91701
-summary: "[Fleet] Added logs-elastic_agent* read privileges to `kibana_system`"
-area: Authorization
-type: enhancement
-issues: []

@@ -5,7 +5,6 @@ setup:
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             properties:
               double_field:
@@ -184,10 +183,12 @@ setup:
 
 ---
 "Multi weight field not allowed":
-  - skip:
-      features: close_to
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "Changed status code in 8.12"
+      test_runner_features: close_to
   - do:
-      catch: request
+      catch: bad_request
       search:
         body:
           aggs:

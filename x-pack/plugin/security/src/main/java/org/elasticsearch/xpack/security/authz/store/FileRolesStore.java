@@ -12,6 +12,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -36,6 +37,8 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.authz.FileRoleValidator;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -55,7 +58,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
@@ -64,9 +69,14 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
     private static final Logger logger = LogManager.getLogger(FileRolesStore.class);
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+        .allow2xFormat(true)
+        .allowDescription(true)
+        .build();
 
     private final Settings settings;
     private final Path file;
+    private final FileRoleValidator roleValidator;
     private final XPackLicenseState licenseState;
     private final NamedXContentRegistry xContentRegistry;
     private final List<Consumer<Set<String>>> listeners = new ArrayList<>();
@@ -78,9 +88,10 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         Environment env,
         ResourceWatcherService watcherService,
         XPackLicenseState licenseState,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FileRoleValidator roleValidator
     ) throws IOException {
-        this(settings, env, watcherService, null, licenseState, xContentRegistry);
+        this(settings, env, watcherService, null, roleValidator, licenseState, xContentRegistry);
     }
 
     FileRolesStore(
@@ -88,20 +99,22 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         Environment env,
         ResourceWatcherService watcherService,
         Consumer<Set<String>> listener,
+        FileRoleValidator roleValidator,
         XPackLicenseState licenseState,
         NamedXContentRegistry xContentRegistry
     ) throws IOException {
         this.settings = settings;
         this.file = resolveFile(env);
+        this.roleValidator = roleValidator;
         if (listener != null) {
             listeners.add(listener);
         }
         this.licenseState = licenseState;
         this.xContentRegistry = xContentRegistry;
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
-        permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
+        permissions = parseFile(file, logger, settings, licenseState, xContentRegistry, roleValidator);
     }
 
     @Override
@@ -121,6 +134,11 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         return descriptors;
     }
 
+    public boolean exists(String name) {
+        final Map<String, RoleDescriptor> localPermissions = permissions;
+        return localPermissions.containsKey(name);
+    }
+
     public Map<String, Object> usageStats() {
         final Map<String, RoleDescriptor> localPermissions = permissions;
         Map<String, Object> usageStats = Maps.newMapWithExpectedSize(3);
@@ -137,8 +155,11 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 break;
             }
         }
+
         usageStats.put("fls", fls);
         usageStats.put("dls", dls);
+        usageStats.put("remote_indices", localPermissions.values().stream().filter(RoleDescriptor::hasRemoteIndicesPrivileges).count());
+        usageStats.put("remote_cluster", localPermissions.values().stream().filter(RoleDescriptor::hasRemoteClusterPermissions).count());
 
         return usageStats;
     }
@@ -152,6 +173,14 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
 
     public Path getFile() {
         return file;
+    }
+
+    /**
+     * @return a map of all file role definitions. The returned map is unmodifiable.
+     */
+    public Map<String, RoleDescriptor> getAllRoleDescriptors() {
+        final Map<String, RoleDescriptor> localPermissions = permissions;
+        return Collections.unmodifiableMap(localPermissions);
     }
 
     // package private for testing
@@ -169,8 +198,36 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     }
 
     public static Set<String> parseFileForRoleNames(Path path, Logger logger) {
-        // EMPTY is safe here because we never use namedObject as we are just parsing role names
-        return parseRoleDescriptors(path, logger, false, Settings.EMPTY, NamedXContentRegistry.EMPTY).keySet();
+        if (logger == null) {
+            logger = NoOpLogger.INSTANCE;
+        }
+
+        Map<String, RoleDescriptor> roles = new HashMap<>();
+        logger.trace("attempting to read roles file located at [{}]", path.toAbsolutePath());
+        if (Files.exists(path)) {
+            try {
+                List<String> roleSegments = roleSegments(path);
+                for (String segment : roleSegments) {
+                    RoleDescriptor rd = parseRoleDescriptor(
+                        segment,
+                        path,
+                        logger,
+                        false,
+                        Settings.EMPTY,
+                        NamedXContentRegistry.EMPTY,
+                        new FileRoleValidator.Default()
+                    );
+                    if (rd != null) {
+                        roles.put(rd.getName(), rd);
+                    }
+                }
+            } catch (IOException ioe) {
+                logger.error(() -> format("failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
+                return emptySet();
+            }
+        }
+        return unmodifiableSet(roles.keySet());
+
     }
 
     public static Map<String, RoleDescriptor> parseFile(
@@ -178,18 +235,8 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         Logger logger,
         Settings settings,
         XPackLicenseState licenseState,
-        NamedXContentRegistry xContentRegistry
-    ) {
-        return parseFile(path, logger, true, settings, licenseState, xContentRegistry);
-    }
-
-    public static Map<String, RoleDescriptor> parseFile(
-        Path path,
-        Logger logger,
-        boolean resolvePermission,
-        Settings settings,
-        XPackLicenseState licenseState,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FileRoleValidator roleValidator
     ) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
@@ -203,7 +250,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
 
                 final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
                 for (String segment : roleSegments) {
-                    RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
+                    RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, true, settings, xContentRegistry, roleValidator);
                     if (descriptor != null) {
                         if (ReservedRolesStore.isReserved(descriptor.getName())) {
                             logger.warn(
@@ -236,36 +283,6 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         return unmodifiableMap(roles);
     }
 
-    public static Map<String, RoleDescriptor> parseRoleDescriptors(
-        Path path,
-        Logger logger,
-        boolean resolvePermission,
-        Settings settings,
-        NamedXContentRegistry xContentRegistry
-    ) {
-        if (logger == null) {
-            logger = NoOpLogger.INSTANCE;
-        }
-
-        Map<String, RoleDescriptor> roles = new HashMap<>();
-        logger.trace("attempting to read roles file located at [{}]", path.toAbsolutePath());
-        if (Files.exists(path)) {
-            try {
-                List<String> roleSegments = roleSegments(path);
-                for (String segment : roleSegments) {
-                    RoleDescriptor rd = parseRoleDescriptor(segment, path, logger, resolvePermission, settings, xContentRegistry);
-                    if (rd != null) {
-                        roles.put(rd.getName(), rd);
-                    }
-                }
-            } catch (IOException ioe) {
-                logger.error(() -> format("failed to read roles file [%s]. skipping all roles...", path.toAbsolutePath()), ioe);
-                return emptyMap();
-            }
-        }
-        return unmodifiableMap(roles);
-    }
-
     @Nullable
     static RoleDescriptor parseRoleDescriptor(
         String segment,
@@ -273,13 +290,13 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         Logger logger,
         boolean resolvePermissions,
         Settings settings,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FileRoleValidator roleValidator
     ) {
         String roleName = null;
         XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        try {
-            XContentParser parser = YamlXContent.yamlXContent.createParser(parserConfig, segment);
+        try (XContentParser parser = YamlXContent.yamlXContent.createParser(parserConfig, segment)) {
             XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.START_OBJECT) {
                 token = parser.nextToken();
@@ -288,7 +305,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     Validation.Error validationError = Validation.Roles.validateRoleName(roleName, false);
                     if (validationError != null) {
                         logger.error(
-                            "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role... ",
+                            "invalid role definition [{}] in roles file [{}]. invalid role name - {}. skipping role...",
                             roleName,
                             path.toAbsolutePath(),
                             validationError
@@ -302,10 +319,9 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
 
                     token = parser.nextToken();
                     if (token == XContentParser.Token.START_OBJECT) {
-                        // we pass true as last parameter because we do not want to reject files if field permissions
-                        // are given in 2.x syntax
-                        RoleDescriptor descriptor = RoleDescriptor.parse(roleName, parser, true);
-                        return checkDescriptor(descriptor, path, logger, settings, xContentRegistry);
+                        // we do not want to reject files if field permissions are given in 2.x syntax, hence why we allow2xFormat
+                        RoleDescriptor descriptor = ROLE_DESCRIPTOR_PARSER.parse(roleName, parser);
+                        return checkDescriptor(descriptor, path, logger, settings, xContentRegistry, roleValidator);
                     } else {
                         logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path.toAbsolutePath());
                         return null;
@@ -326,7 +342,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 final String finalRoleName = roleName;
                 logger.error(() -> format("invalid role definition [%s] in roles file [%s]. skipping role...", finalRoleName, path), e);
             } else {
-                logger.error((Supplier<?>) () -> "invalid role definition in roles file [" + path + "]. skipping role...", e);
+                logger.error(() -> format("invalid role definition [%s] in roles file [%s]. skipping role...", segment, path), e);
             }
         }
         return null;
@@ -338,7 +354,8 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         Path path,
         Logger logger,
         Settings settings,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        FileRoleValidator roleValidator
     ) {
         String roleName = descriptor.getName();
         // first check if FLS/DLS is enabled on the role...
@@ -367,6 +384,20 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     return null;
                 }
             }
+        }
+        ActionRequestValidationException ex = roleValidator.validatePredefinedRole(descriptor);
+        if (ex != null) {
+            throw ex;
+        }
+        Validation.Error validationError = Validation.Roles.validateRoleDescription(descriptor.getDescription());
+        if (validationError != null) {
+            logger.error(
+                "invalid role definition [{}] in roles file [{}]. invalid description - {}. skipping role...",
+                roleName,
+                path.toAbsolutePath(),
+                validationError
+            );
+            return null;
         }
         return descriptor;
     }
@@ -411,7 +442,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
             if (file.equals(FileRolesStore.this.file)) {
                 final Map<String, RoleDescriptor> previousPermissions = permissions;
                 try {
-                    permissions = parseFile(file, logger, settings, licenseState, xContentRegistry);
+                    permissions = parseFile(file, logger, settings, licenseState, xContentRegistry, roleValidator);
                 } catch (Exception e) {
                     logger.error(
                         () -> format("could not reload roles file [%s]. Current roles remain unmodified", file.toAbsolutePath()),
@@ -425,7 +456,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
                 final Set<String> addedRoles = Sets.difference(permissions.keySet(), previousPermissions.keySet());
-                final Set<String> changedRoles = Collections.unmodifiableSet(Sets.union(changedOrMissingRoles, addedRoles));
+                final Set<String> changedRoles = unmodifiableSet(Sets.union(changedOrMissingRoles, addedRoles));
                 if (changedRoles.isEmpty() == false) {
                     logger.info("updated roles (roles file [{}] {})", file.toAbsolutePath(), Files.exists(file) ? "changed" : "removed");
                     listeners.forEach(c -> c.accept(changedRoles));

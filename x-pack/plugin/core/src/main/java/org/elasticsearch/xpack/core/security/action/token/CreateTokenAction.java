@@ -17,6 +17,6 @@ public final class CreateTokenAction extends ActionType<CreateTokenResponse> {
     public static final CreateTokenAction INSTANCE = new CreateTokenAction();
 
     private CreateTokenAction() {
-        super(NAME, CreateTokenResponse::new);
+        super(NAME);
     }
 }

@@ -32,6 +32,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -58,6 +59,7 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
@@ -86,7 +88,8 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
-            RecoverySettings recoverySettings
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics
         ) {
             return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
         }
@@ -115,32 +118,18 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         boolean sourceHadDeletions = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
         assertMappings(sourceIdx, requireRouting, useNested);
-        SearchPhaseExecutionException e = expectThrows(
-            SearchPhaseExecutionException.class,
-            () -> {
-                client().prepareSearch(sourceIdx)
-                    .setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
-                    .get();
-            }
-        );
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get();
+        });
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
 
         // can-match phase pre-filters access to non-existing field
-        assertEquals(
-            0,
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value
-        );
+        assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")), 0);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                .get()
-        );
+        setReplicaCount(1, sourceIdx);
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
@@ -155,27 +144,16 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertMappings(sourceIdx, requireRouting, true);
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            () -> client().prepareSearch(sourceIdx)
-                .setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
-                .get()
+            prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
         );
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // can-match phase pre-filters access to non-existing field
-        assertEquals(
-            0,
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value
-        );
+        assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")), 0);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
+        expectThrows(ClusterBlockException.class, client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete));
         internalCluster().ensureAtLeastNumDataNodes(2);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1))
-                .get()
-        );
+        setReplicaCount(1, sourceIdx);
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, true);
     }
@@ -194,15 +172,15 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String indexName = "test-idx";
         createIndex(indexName);
-        client().prepareIndex(indexName).setSource("foo", "bar").get();
+        prepareIndex(indexName).setSource("foo", "bar").get();
         assertSuccessful(startFullSnapshot(repo, "snapshot-1"));
 
-        client().prepareIndex(indexName).setSource("foo", "baz").get();
+        prepareIndex(indexName).setSource("foo", "baz").get();
         assertSuccessful(startFullSnapshot(repo, "snapshot-2"));
 
         logger.info("--> randomly deleting files from the local _snapshot path to simulate corruption");
         Path snapshotShardPath = internalCluster().getInstance(IndicesService.class, dataNode)
-            .indexService(clusterService().state().metadata().index(indexName).getIndex())
+            .indexService(clusterService().state().metadata().getProject().index(indexName).getIndex())
             .getShard(0)
             .shardPath()
             .getDataPath()
@@ -219,7 +197,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, sourceIdx).get();
         MappingMetadata mapping = getMappingsResponse.getMappings().get(sourceIdx);
         String nested = useNested ? """
             ,"incorrect":{"type":"object"},"nested":{"type":"nested","properties":{"value":{"type":"long"}}}""" : "";
@@ -276,10 +254,6 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void assertHits(String index, int numDocsExpected, boolean sourceHadDeletions) {
-        SearchResponse searchResponse = client().prepareSearch(index)
-            .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
-            .setSize(numDocsExpected)
-            .get();
         BiConsumer<SearchResponse, Boolean> assertConsumer = (res, allowHoles) -> {
             SearchHits hits = res.getHits();
             long i = 0;
@@ -298,11 +272,12 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                 assertEquals("r" + id, hit.field("_routing").getValue());
             }
         };
-        assertConsumer.accept(searchResponse, sourceHadDeletions);
-        assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
-        searchResponse = client().prepareSearch(index)
-            .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
-            .setScroll("1m")
+        assertResponse(prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected), searchResponse -> {
+            assertConsumer.accept(searchResponse, sourceHadDeletions);
+            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value());
+        });
+        SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
+            .setScroll(TimeValue.timeValueMinutes(1))
             .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0, 1), 2))
             .setSize(randomIntBetween(1, 10))
             .get();
@@ -310,12 +285,14 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
             do {
                 // now do a scroll with a slice
                 assertConsumer.accept(searchResponse, true);
+                searchResponse.decRef();
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
             } while (searchResponse.getHits().getHits().length > 0);
         } finally {
             if (searchResponse.getScrollId() != null) {
                 client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
             }
+            searchResponse.decRef();
         }
     }
 
@@ -361,27 +338,37 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            builders[i] = client().prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
+            builders[i] = prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")).get(), 1);
+        assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")), 1);
 
         createSnapshot(repo, snapshot, Collections.singletonList(sourceIdx));
 
         logger.info("--> delete index and stop the data node");
         assertAcked(client().admin().indices().prepareDelete(sourceIdx).get());
         internalCluster().stopRandomDataNode();
-        assertFalse(client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("1").get().isTimedOut());
+        assertFalse(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForNodes("1")
+                .get()
+                .isTimedOut()
+        );
 
         final String newDataNode = internalCluster().startDataOnlyNode();
         logger.info("--> start a new data node " + newDataNode);
-        assertFalse(client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("2").get().isTimedOut());
+        assertFalse(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForNodes("2")
+                .get()
+                .isTimedOut()
+        );
 
         logger.info("--> restore the index and ensure all shards are allocated");
-        RestoreSnapshotResponse restoreResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repo, snapshot)
+        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot)
             .setWaitForCompletion(true)
             .setIndices(sourceIdx)
             .get();

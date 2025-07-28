@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
@@ -44,6 +46,18 @@ public interface IndexStorePlugin {
          * @throws IOException if an IOException occurs while opening the directory
          */
         Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException;
+
+        /**
+         * Creates a new directory per shard. This method is called once per shard on shard creation.
+         * @param indexSettings the shards index settings
+         * @param shardPath the path the shard is using
+         * @param shardRouting the {@link ShardRouting}
+         * @return a new lucene directory instance
+         * @throws IOException if an IOException occurs while opening the directory
+         */
+        default Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath, ShardRouting shardRouting) throws IOException {
+            return newDirectory(indexSettings, shardPath);
+        }
     }
 
     /**
@@ -89,8 +103,9 @@ public interface IndexStorePlugin {
          * @param index         the {@link Index} of the index whose folders are going to be deleted
          * @param indexSettings settings for the index whose folders are going to be deleted
          * @param indexPaths    the paths of the folders that are going to be deleted
+         * @param reason        the reason for the deletion
          */
-        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths);
+        void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths, IndexRemovalReason reason);
 
         /**
          * Invoked before the folders of a shard are deleted from disk. The list of folders contains {@link Path}s that may or may not
@@ -99,8 +114,9 @@ public interface IndexStorePlugin {
          * @param shardId       the {@link ShardId} of the shard whose folders are going to be deleted
          * @param indexSettings index settings of the shard whose folders are going to be deleted
          * @param shardPaths    the paths of the folders that are going to be deleted
+         * @param reason        the reason for the deletion
          */
-        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths);
+        void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths, IndexRemovalReason reason);
     }
 
     /**

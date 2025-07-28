@@ -1,6 +1,0 @@
-pr: 90835
-summary: "Make `extendedPlugins,` `HasNativeController` and `moduleName` optional\
-  \ in plugin descriptor"
-area: Infra/Plugins
-type: enhancement
-issues: []

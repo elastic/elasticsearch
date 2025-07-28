@@ -1,0 +1,183 @@
+{
+  "index_patterns": [".kibana-reporting*"],
+  "priority": 100,
+  "data_stream": {
+    "hidden": true
+  },
+  "allow_auto_create": true,
+  "composed_of": ["kibana-reporting@settings", "kibana-reporting@custom"],
+  "ignore_missing_component_templates": ["kibana-reporting@custom"],
+  "template": {
+    "lifecycle": {},
+    "mappings": {
+      "properties": {
+        "meta": {
+          "properties": {
+            "objectType": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "layout": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "isDeprecated": {
+              "type": "boolean"
+            }
+          }
+        },
+        "migration_version": {
+          "type": "keyword"
+        },
+        "jobtype": {
+          "type": "keyword"
+        },
+        "scheduled_report_id": {
+          "type": "keyword"
+        },
+        "payload": {
+          "type": "object",
+          "enabled": false
+        },
+        "priority": {
+          "type": "byte"
+        },
+        "timeout": {
+          "type": "long"
+        },
+        "process_expiration": {
+          "type": "date"
+        },
+        "created_by": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date"
+        },
+        "started_at": {
+          "type": "date"
+        },
+        "completed_at": {
+          "type": "date"
+        },
+        "attempts": {
+          "type": "short"
+        },
+        "max_attempts": {
+          "type": "short"
+        },
+        "kibana_name": {
+          "type": "keyword"
+        },
+        "kibana_id": {
+          "type": "keyword"
+        },
+        "status": {
+          "type": "keyword"
+        },
+        "space_id": {
+          "type": "keyword"
+        },
+        "parent_id": {
+          "type": "keyword"
+        },
+        "output": {
+          "type": "object",
+          "properties": {
+            "chunk": {
+              "type": "long"
+            },
+            "content": {
+              "type": "object",
+              "enabled": false
+            },
+            "content_type": {
+              "type": "keyword"
+            },
+            "csv_contains_formulas": {
+              "type": "boolean"
+            },
+            "error_code": {
+              "type": "keyword"
+            },
+            "max_size_reached": {
+              "type": "boolean"
+            },
+            "size": {
+              "type": "long"
+            },
+            "warnings": {
+              "type": "text"
+            }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "csv": {
+              "type": "object",
+              "properties": {
+                "rows": {
+                  "type": "long"
+                }
+              }
+            },
+            "pdf": {
+              "type": "object",
+              "properties": {
+                "pages": {
+                  "type": "long"
+                },
+                "cpu": {
+                  "type": "double"
+                },
+                "cpuInPercentage": {
+                  "type": "double"
+                },
+                "memory": {
+                  "type": "long"
+                },
+                "memoryInMegabytes": {
+                  "type": "double"
+                }
+              }
+            },
+            "png": {
+              "type": "object",
+              "properties": {
+                "cpu": {
+                  "type": "double"
+                },
+                "cpuInPercentage": {
+                  "type": "double"
+                },
+                "memory": {
+                  "type": "long"
+                },
+                "memoryInMegabytes": {
+                  "type": "double"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default kibana reporting template installed by elasticsearch",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

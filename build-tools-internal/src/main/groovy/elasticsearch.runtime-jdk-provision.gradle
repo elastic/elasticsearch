@@ -1,44 +1,48 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin
+import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask
+import org.elasticsearch.gradle.internal.test.rest.RestTestBasePlugin
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 // gradle has an open issue of failing applying plugins in
 // precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
 
-
 configure(allprojects) {
-    apply plugin: 'elasticsearch.jdk-download'
-
-    jdks {
-        provisioned_runtime {
-            vendor = VersionProperties.bundledJdkVendor
-            version = VersionProperties.bundledJdkVersion
-            platform = OS.current().name().toLowerCase()
-            architecture = Architecture.current().name().toLowerCase()
-        }
+    def launcher = javaToolchains.launcherFor {
+      languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
+      vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
+        JvmVendorSpec.ORACLE :
+        JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
     }
-    project.tasks.withType(Test).configureEach { Test test ->
-        if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            test.executable = "${BuildParams.runtimeJavaHome}/bin/java"
+  project.tasks.withType(Test).configureEach { Test test ->
+        if (buildParams.getIsRuntimeJavaHomeSet()) {
+            test.executable = "${buildParams.runtimeJavaHome.get()}/bin/java" +
+                    (OS.current() == OS.WINDOWS ? '.exe' : '')
         } else {
-            test.dependsOn(project.jdks.provisioned_runtime)
-            test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()
+            test.javaLauncher = javaToolchains.launcherFor {
+                languageVersion = JavaLanguageVersion.of(VersionProperties.bundledJdkMajorVersion)
+                vendor = VersionProperties.bundledJdkVendor == "openjdk" ?
+                        JvmVendorSpec.ORACLE :
+                        JvmVendorSpec.matching(VersionProperties.bundledJdkVendor)
+            }
         }
     }
     project.plugins.withId("elasticsearch.testclusters") { testClustersPlugin ->
         project.plugins.withId("elasticsearch.internal-testclusters") { internalPlugin ->
-            if (BuildParams.getIsRuntimeJavaHomeSet() == false) {
+            if (buildParams.getIsRuntimeJavaHomeSet() == false) {
                 // If no runtime java home is set, use the bundled JDK for test clusters
-                testClustersPlugin.setRuntimeJava(providers.provider(() -> file("${project.jdks.provisioned_runtime.javaHomePath}")))
+                testClustersPlugin.setRuntimeJava(launcher.map { it.metadata.installationPath.asFile })
             }
         }
     }

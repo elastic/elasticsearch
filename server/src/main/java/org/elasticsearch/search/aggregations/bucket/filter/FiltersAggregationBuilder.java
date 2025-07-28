@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,11 +44,13 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
     private static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
     private static final ParseField OTHER_BUCKET_KEY_FIELD = new ParseField("other_bucket_key");
+    private static final ParseField KEYED_FIELD = new ParseField("keyed");
 
     private final List<KeyedFilter> filters;
     private final boolean keyed;
     private boolean otherBucket = false;
     private String otherBucketKey = "_other_";
+    private boolean keyedBucket = true;
 
     /**
      * @param name
@@ -92,6 +96,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         this.keyed = clone.keyed;
         this.otherBucket = clone.otherBucket;
         this.otherBucketKey = clone.otherBucketKey;
+        this.keyedBucket = clone.keyedBucket;
     }
 
     @Override
@@ -123,14 +128,18 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         otherBucket = in.readBoolean();
         otherBucketKey = in.readString();
+        keyedBucket = in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readBoolean() : true;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        out.writeCollection(filters, keyed ? (o, v) -> v.writeTo(o) : (o, v) -> o.writeNamedWriteable(v.filter()));
+        out.writeCollection(filters, keyed ? StreamOutput::writeWriteable : (o, v) -> o.writeNamedWriteable(v.filter()));
         out.writeBoolean(otherBucket);
         out.writeString(otherBucketKey);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            out.writeBoolean(keyedBucket);
+        }
     }
 
     /**
@@ -182,6 +191,21 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         return otherBucketKey;
     }
 
+    /**
+     * Set whether to return keyed bucket in array
+     */
+    public FiltersAggregationBuilder keyedBucket(boolean keyedBucket) {
+        this.keyedBucket = keyedBucket;
+        return this;
+    }
+
+    /**
+     * Get whether to return keyed bucket in array
+     */
+    public boolean keyedBucket() {
+        return keyedBucket;
+    }
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
@@ -202,6 +226,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             FiltersAggregationBuilder rewritten = new FiltersAggregationBuilder(getName(), rewrittenFilters, this.keyed);
             rewritten.otherBucket(otherBucket);
             rewritten.otherBucketKey(otherBucketKey);
+            rewritten.keyedBucket(keyedBucket);
             return rewritten;
         } else {
             return this;
@@ -217,6 +242,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             keyed,
             otherBucket,
             otherBucketKey,
+            keyedBucket,
             context,
             parent,
             subFactoriesBuilder,
@@ -242,6 +268,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         }
         builder.field(FiltersAggregator.OTHER_BUCKET_FIELD.getPreferredName(), otherBucket);
         builder.field(FiltersAggregator.OTHER_BUCKET_KEY_FIELD.getPreferredName(), otherBucketKey);
+        builder.field(FiltersAggregator.KEYED_FIELD.getPreferredName(), keyedBucket);
         builder.endObject();
         return builder;
     }
@@ -254,6 +281,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         String currentFieldName = null;
         String otherBucketKey = null;
         Boolean otherBucket = null;
+        Boolean keyedBucket = null;
         boolean keyed = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -261,6 +289,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (OTHER_BUCKET_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucket = parser.booleanValue();
+                } else if (KEYED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    keyedBucket = parser.booleanValue();
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -334,6 +364,9 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         if (otherBucketKey != null) {
             factory.otherBucketKey(otherBucketKey);
         }
+        if (keyed && keyedBucket != null) {
+            factory.keyedBucket(keyedBucket);
+        }
         return factory;
     }
 
@@ -360,7 +393,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,19 +54,14 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String RUNNING_STATE = "running_state";
 
     private GetDatafeedsStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    // This needs to be a MasterNodeReadRequest even though the corresponding transport
-    // action is a HandledTransportAction so that in mixed version clusters it can be
-    // serialized to older nodes where the transport action was a MasterNodeReadAction.
-    // TODO: Make this a simple request in a future version where there is no possibility
-    // of this request being serialized to another node.
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LegacyActionRequest {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String datafeedId;
+        private final String datafeedId;
         private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
@@ -184,6 +179,10 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
 
             public DatafeedTimingStats getTimingStats() {
                 return timingStats;
+            }
+
+            public RunningState getRunningState() {
+                return runningState;
             }
 
             @Override
@@ -331,9 +330,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             private GetDatafeedRunningStateAction.Response datafeedRuntimeState;
 
             public Builder setDatafeedIds(Collection<String> datafeedIds) {
-                this.statsBuilders = datafeedIds.stream()
-                    .map(GetDatafeedsStatsAction.Response.DatafeedStats::builder)
-                    .collect(Collectors.toList());
+                this.statsBuilders = datafeedIds.stream().map(DatafeedStats::builder).collect(Collectors.toList());
                 return this;
             }
 

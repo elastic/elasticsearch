@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.BinaryDenseVectorScriptDocValuesTests;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 
@@ -68,9 +69,13 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(knn.cosineSimilarity(arrayQV), knn.cosineSimilarity(listQV), 0.001f);
         assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
-        for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
+        for (IndexVersion indexVersion : List.of(
+            IndexVersions.MINIMUM_READONLY_COMPATIBLE,
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersion.current()
+        )) {
             BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(docVector, ElementType.FLOAT, indexVersion);
-            BinaryDenseVector bdv = new BinaryDenseVector(value, dims, indexVersion);
+            BinaryDenseVector bdv = new BinaryDenseVector(docVector, value, dims, indexVersion);
 
             assertEquals(bdv.dotProduct(arrayQV), bdv.dotProduct(listQV), 0.001f);
             assertEquals(bdv.dotProduct((Object) listQV), bdv.dotProduct((Object) arrayQV), 0.001f);
@@ -101,7 +106,7 @@ public class DenseVectorTests extends ESTestCase {
             listQV.add(q);
         }
 
-        ByteKnnDenseVector knn = new ByteKnnDenseVector(new BytesRef(docVector));
+        ByteKnnDenseVector knn = new ByteKnnDenseVector(docVector);
         assertEquals(knn.dotProduct(arrayQV), knn.dotProduct(listQV), 0.001f);
         assertEquals(knn.dotProduct((Object) listQV), knn.dotProduct((Object) arrayQV), 0.001f);
 
@@ -114,8 +119,10 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(knn.cosineSimilarity(arrayQV), knn.cosineSimilarity(listQV), 0.001f);
         assertEquals(knn.cosineSimilarity((Object) listQV), knn.cosineSimilarity((Object) arrayQV), 0.001f);
 
-        BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(floatVector, ElementType.BYTE, Version.CURRENT);
-        ByteBinaryDenseVector bdv = new ByteBinaryDenseVector(value, dims);
+        BytesRef value = BinaryDenseVectorScriptDocValuesTests.mockEncodeDenseVector(floatVector, ElementType.BYTE, IndexVersion.current());
+        byte[] byteVectorValue = new byte[dims];
+        System.arraycopy(value.bytes, value.offset, byteVectorValue, 0, dims);
+        ByteBinaryDenseVector bdv = new ByteBinaryDenseVector(byteVectorValue, value, dims);
 
         assertEquals(bdv.dotProduct(arrayQV), bdv.dotProduct(listQV), 0.001f);
         assertEquals(bdv.dotProduct((Object) listQV), bdv.dotProduct((Object) arrayQV), 0.001f);
@@ -139,13 +146,8 @@ public class DenseVectorTests extends ESTestCase {
             queryVector[i] = randomByte();
         }
 
-        ByteKnnDenseVector knn = new ByteKnnDenseVector(new BytesRef(docVector));
+        ByteKnnDenseVector knn = new ByteKnnDenseVector(docVector);
         UnsupportedOperationException e;
-
-        e = expectThrows(UnsupportedOperationException.class, () -> knn.dotProduct(queryVector));
-        assertEquals(e.getMessage(), "use [int dotProduct(byte[] queryVector)] instead");
-        e = expectThrows(UnsupportedOperationException.class, () -> knn.dotProduct((Object) queryVector));
-        assertEquals(e.getMessage(), "use [int dotProduct(byte[] queryVector)] instead");
 
         e = expectThrows(UnsupportedOperationException.class, () -> knn.l1Norm(queryVector));
         assertEquals(e.getMessage(), "use [int l1Norm(byte[] queryVector)] instead");
@@ -157,17 +159,7 @@ public class DenseVectorTests extends ESTestCase {
         e = expectThrows(UnsupportedOperationException.class, () -> knn.l2Norm((Object) queryVector));
         assertEquals(e.getMessage(), "use [double l2Norm(byte[] queryVector)] instead");
 
-        e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity(queryVector));
-        assertEquals(e.getMessage(), "use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
-        e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity((Object) queryVector));
-        assertEquals(e.getMessage(), "use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
-
-        ByteBinaryDenseVector binary = new ByteBinaryDenseVector(new BytesRef(docVector), dims);
-
-        e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct(queryVector));
-        assertEquals(e.getMessage(), "use [int dotProduct(byte[] queryVector)] instead");
-        e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct((Object) queryVector));
-        assertEquals(e.getMessage(), "use [int dotProduct(byte[] queryVector)] instead");
+        ByteBinaryDenseVector binary = new ByteBinaryDenseVector(docVector, new BytesRef(docVector), dims);
 
         e = expectThrows(UnsupportedOperationException.class, () -> binary.l1Norm(queryVector));
         assertEquals(e.getMessage(), "use [int l1Norm(byte[] queryVector)] instead");
@@ -178,11 +170,6 @@ public class DenseVectorTests extends ESTestCase {
         assertEquals(e.getMessage(), "use [double l2Norm(byte[] queryVector)] instead");
         e = expectThrows(UnsupportedOperationException.class, () -> binary.l2Norm((Object) queryVector));
         assertEquals(e.getMessage(), "use [double l2Norm(byte[] queryVector)] instead");
-
-        e = expectThrows(UnsupportedOperationException.class, () -> binary.cosineSimilarity(queryVector));
-        assertEquals(e.getMessage(), "use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
-        e = expectThrows(UnsupportedOperationException.class, () -> binary.cosineSimilarity((Object) queryVector));
-        assertEquals(e.getMessage(), "use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead");
     }
 
     public void testFloatUnsupported() {
@@ -219,7 +206,7 @@ public class DenseVectorTests extends ESTestCase {
         e = expectThrows(UnsupportedOperationException.class, () -> knn.cosineSimilarity((Object) queryVector));
         assertEquals(e.getMessage(), "use [double cosineSimilarity(float[] queryVector, boolean normalizeQueryVector)] instead");
 
-        BinaryDenseVector binary = new BinaryDenseVector(new BytesRef(docBuffer.array()), dims, Version.CURRENT);
+        BinaryDenseVector binary = new BinaryDenseVector(docVector, new BytesRef(docBuffer.array()), dims, IndexVersion.current());
 
         e = expectThrows(UnsupportedOperationException.class, () -> binary.dotProduct(queryVector));
         assertEquals(e.getMessage(), "use [double dotProduct(float[] queryVector)] instead");

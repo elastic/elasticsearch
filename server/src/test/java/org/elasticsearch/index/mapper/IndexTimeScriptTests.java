@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -36,10 +37,9 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is some text")));
-        IndexableField[] lengthFields = doc.rootDoc().getFields("message_length");
-        assertEquals(2, lengthFields.length);
-        assertEquals("LongPoint <message_length:17>", lengthFields[0].toString());
-        assertEquals("docValuesType=SORTED_NUMERIC<message_length:17>", lengthFields[1].toString());
+        List<IndexableField> lengthFields = doc.rootDoc().getFields("message_length");
+        assertEquals(1, lengthFields.size());
+        assertEquals("LongField <message_length:17>", lengthFields.get(0).toString());
     }
 
     public void testDocAccess() throws IOException {
@@ -65,7 +65,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
         }));
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("double_field", 4.5)));
-        assertEquals(doc.rootDoc().getField("double_field_plus_two").numericValue(), 6.5);
+        assertEquals(doc.rootDoc().getField("double_field_plus_two").toString(), "DoubleField <double_field_plus_two:6.5>");
     }
 
     public void testCrossReferences() throws IOException {
@@ -85,9 +85,9 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.endObject();
         }));
         ParsedDocument doc = mapper.parse(source(b -> b.field("message", "this is a message")));
-        assertEquals(doc.rootDoc().getField("message_length_plus_two").numericValue(), 19L);
-        assertEquals(doc.rootDoc().getField("message_length").numericValue(), 17L);
-        assertEquals(doc.rootDoc().getField("message_length_plus_four").numericValue(), 21d);
+        assertEquals(doc.rootDoc().getField("message_length_plus_two").toString(), "LongField <message_length_plus_two:19>");
+        assertEquals(doc.rootDoc().getField("message_length").toString(), "LongField <message_length:17>");
+        assertEquals(doc.rootDoc().getField("message_length_plus_four").toString(), "DoubleField <message_length_plus_four:21.0>");
     }
 
     public void testLoopDetection() throws IOException {
@@ -96,7 +96,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.startObject("field2").field("type", "long").field("script", "field1_plus_two").endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("Error executing script on field [field1]", e.getMessage());
 
         Throwable root = e.getCause();
@@ -119,7 +119,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {})));
+        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source(b -> {})));
         assertEquals("Error executing script on field [index-field]", e.getMessage());
         assertEquals("No field found for [runtime-field] in mapping", e.getCause().getMessage());
     }

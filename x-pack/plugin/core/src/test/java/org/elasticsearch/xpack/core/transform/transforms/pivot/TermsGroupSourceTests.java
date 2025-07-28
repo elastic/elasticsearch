@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 
 import java.io.IOException;
 
@@ -24,38 +24,38 @@ import static org.hamcrest.Matchers.nullValue;
 public class TermsGroupSourceTests extends AbstractXContentSerializingTestCase<TermsGroupSource> {
 
     public static TermsGroupSource randomTermsGroupSource() {
-        return randomTermsGroupSource(Version.CURRENT);
+        return randomTermsGroupSource(TransformConfigVersion.CURRENT);
     }
 
     public static TermsGroupSource randomTermsGroupSourceNoScript() {
-        return randomTermsGroupSource(Version.CURRENT, false);
+        return randomTermsGroupSource(TransformConfigVersion.CURRENT, false);
     }
 
     public static TermsGroupSource randomTermsGroupSourceNoScript(String fieldPrefix) {
-        return randomTermsGroupSource(Version.CURRENT, false, fieldPrefix);
+        return randomTermsGroupSource(TransformConfigVersion.CURRENT, false, fieldPrefix);
     }
 
-    public static TermsGroupSource randomTermsGroupSource(Version version) {
-        return randomTermsGroupSource(Version.CURRENT, randomBoolean());
+    public static TermsGroupSource randomTermsGroupSource(TransformConfigVersion version) {
+        return randomTermsGroupSource(TransformConfigVersion.CURRENT, randomBoolean());
     }
 
-    public static TermsGroupSource randomTermsGroupSource(Version version, boolean withScript) {
-        return randomTermsGroupSource(Version.CURRENT, withScript, "");
+    public static TermsGroupSource randomTermsGroupSource(TransformConfigVersion version, boolean withScript) {
+        return randomTermsGroupSource(TransformConfigVersion.CURRENT, withScript, "");
     }
 
-    public static TermsGroupSource randomTermsGroupSource(Version version, boolean withScript, String fieldPrefix) {
+    public static TermsGroupSource randomTermsGroupSource(TransformConfigVersion version, boolean withScript, String fieldPrefix) {
         ScriptConfig scriptConfig = null;
         String field;
 
         // either a field or a script must be specified, it's possible to have both, but disallowed to have none
-        if (version.onOrAfter(Version.V_7_7_0) && withScript) {
+        if (version.onOrAfter(TransformConfigVersion.V_7_7_0) && withScript) {
             scriptConfig = ScriptConfigTests.randomScriptConfig();
             field = randomBoolean() ? null : fieldPrefix + randomAlphaOfLengthBetween(1, 20);
         } else {
             field = fieldPrefix + randomAlphaOfLengthBetween(1, 20);
         }
 
-        boolean missingBucket = version.onOrAfter(Version.V_7_10_0) ? randomBoolean() : false;
+        boolean missingBucket = version.onOrAfter(TransformConfigVersion.V_7_10_0) ? randomBoolean() : false;
         return new TermsGroupSource(field, scriptConfig, missingBucket);
     }
 
@@ -67,6 +67,11 @@ public class TermsGroupSourceTests extends AbstractXContentSerializingTestCase<T
     @Override
     protected TermsGroupSource createTestInstance() {
         return randomTermsGroupSource();
+    }
+
+    @Override
+    protected TermsGroupSource mutateInstance(TermsGroupSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

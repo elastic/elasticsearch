@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -19,13 +20,12 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -57,7 +57,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -164,7 +163,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
         if (false == objectMappers().isEmpty()) {
             return wrapInMockESDirectoryReader(reader);
         }
@@ -189,7 +188,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("keyword")),
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped"))),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Only aggregate on unmapped field, missing bucket => one null bucket with all values
@@ -216,7 +217,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 "name",
                 Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
             ).aggregateAfter(Collections.singletonMap("unmapped", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Mapped field first, then unmapped, no missing bucket => no results
@@ -230,7 +233,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped")
                 )
             ),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Mapped + unmapped, include missing => 3 buckets
@@ -284,7 +289,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
                 )
             ).aggregateAfter(Collections.singletonMap("unmapped", "cat")),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         // Unmapped field, number after key, unmapped sorts after, include unmapped => 1 bucket
@@ -315,7 +322,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true).missingOrder(MissingOrder.FIRST)
                 )
             ).aggregateAfter(Collections.singletonMap("unmapped", 42)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
     }
@@ -338,7 +347,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped")))
                 .aggregateAfter(Collections.singletonMap("unmapped", 42)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
     }
 
@@ -594,7 +605,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("long")),
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped"))),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -619,7 +632,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 "name",
                 Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
             ).aggregateAfter(Collections.singletonMap("unmapped", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -632,7 +647,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped")
                 )
             ),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -751,7 +768,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES));
+        },
+            new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES)
+                .withLogDocMergePolicy()
+        );
     }
 
     /**
@@ -760,7 +780,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testSubAggregationOfNested() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(
+            SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES
+        );
         final String leafNameField = "name";
         final String rootNameField = "name";
         TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);
@@ -777,13 +799,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             // Root docs
             LuceneDocument root;
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("1"), Field.Store.YES));
             sequenceIDFields.addFields(root);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("2"), Field.Store.YES));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
             sequenceIDFields.addFields(root);
             documents.add(root);
@@ -804,7 +826,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 builder,
                 new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            )
+            ).withLogDocMergePolicy()
         );
     }
 
@@ -814,7 +836,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     public void testSubAggregationOfNestedAggregateAfter() throws Exception {
         final String nestedPath = "sellers";
         objectMappers.add(nestedObject(nestedPath));
-        SeqNoFieldMapper.SequenceIDFields sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
+        var sequenceIDFields = SeqNoFieldMapper.SequenceIDFields.emptySeqID(SeqNoFieldMapper.SeqNoIndexOptions.POINTS_AND_DOC_VALUES);
         final String leafNameField = "name";
         final String rootNameField = "name";
         TermsValuesSourceBuilder terms = new TermsValuesSourceBuilder("keyword").field(nestedPath + "." + leafNameField);
@@ -836,13 +858,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             // Root docs
             LuceneDocument root;
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("1"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("1"), Field.Store.YES));
             sequenceIDFields.addFields(root);
             root.add(new StringField(rootNameField, new BytesRef("Ballpoint"), Field.Store.NO));
             documents.add(root);
 
             root = new LuceneDocument();
-            root.add(new Field(IdFieldMapper.NAME, Uid.encodeId("2"), ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
+            root.add(new StringField(IdFieldMapper.NAME, Uid.encodeId("2"), Field.Store.YES));
             root.add(new StringField(rootNameField, new BytesRef("Notebook"), Field.Store.NO));
             sequenceIDFields.addFields(root);
             documents.add(root);
@@ -859,7 +881,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 builder,
                 new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            )
+            ).withLogDocMergePolicy()
         );
     }
 
@@ -1608,7 +1630,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                         .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("keyword", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -1692,7 +1716,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                         .order(SortOrder.ASC)
                 )
             ).aggregateAfter(createAfterKey("hist", null)),
-            (InternalComposite result) -> { assertEquals(0, result.getBuckets().size()); }
+            (InternalComposite result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -2547,19 +2573,19 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 2);
-            assertEquals(topHits.getHits().getTotalHits().value, 2L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 2L);
             assertEquals("{keyword=c}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 2);
-            assertEquals(topHits.getHits().getTotalHits().value, 2L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 2L);
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
             topHits = result.getBuckets().get(2).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 1);
-            assertEquals(topHits.getHits().getTotalHits().value, 1L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 1L);
         });
 
         testSearchCase(Arrays.asList(new MatchAllDocsQuery(), new FieldExistsQuery("keyword")), dataset, () -> {
@@ -2574,13 +2600,13 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             TopHits topHits = result.getBuckets().get(0).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 2);
-            assertEquals(topHits.getHits().getTotalHits().value, 2L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 2L);
             assertEquals("{keyword=d}", result.getBuckets().get(1).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(1).getDocCount());
             topHits = result.getBuckets().get(1).getAggregations().get("top_hits");
             assertNotNull(topHits);
             assertEquals(topHits.getHits().getHits().length, 1);
-            assertEquals(topHits.getHits().getTotalHits().value, 1L);
+            assertEquals(topHits.getHits().getTotalHits().value(), 1L);
         });
     }
 
@@ -3076,17 +3102,16 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testParentFactoryValidation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 Document document = new Document();
                 document.clear();
                 addToDocument(0, document, createDocument("term-field", "a", "long", 100L));
                 indexWriter.addDocument(document);
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 try (
                     AggregationContext context = createAggregationContext(
-                        indexSearcher,
+                        indexReader,
                         new MatchAllDocsQuery(),
                         keywordField("term-field"),
                         longField("time")
@@ -3632,6 +3657,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
             if (forceMerge == false) {
                 config.setMergePolicy(NoMergePolicy.INSTANCE);
+            } else {
+                // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order.
+                config.setMergePolicy(new LogDocMergePolicy());
             }
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 Document document = new Document();
@@ -3659,11 +3687,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
                 }
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 for (int i = 0; i < create.size(); i++) {
                     verify.get(i)
-                        .accept(searchAndReduce(indexSearcher, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
+                        .accept(searchAndReduce(indexReader, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
                 }
             }
         }
@@ -3750,8 +3777,8 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     private Document createNestedDocument(String id, String nestedPath, Object... rawFields) {
         assert rawFields.length % 2 == 0;
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
-        doc.add(new Field(NestedPathFieldMapper.NAME, nestedPath, NestedPathFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
+        doc.add(new StringField(NestedPathFieldMapper.NAME, nestedPath, Field.Store.NO));
         Object[] fields = new Object[rawFields.length];
         for (int i = 0; i < fields.length; i += 2) {
             assert rawFields[i] instanceof String;

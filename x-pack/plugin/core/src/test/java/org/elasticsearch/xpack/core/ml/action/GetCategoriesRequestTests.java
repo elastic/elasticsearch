@@ -31,13 +31,13 @@ public class GetCategoriesRequestTests extends AbstractXContentSerializingTestCa
     }
 
     @Override
-    protected Writeable.Reader<GetCategoriesAction.Request> instanceReader() {
-        return GetCategoriesAction.Request::new;
+    protected GetCategoriesAction.Request mutateInstance(GetCategoriesAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected boolean supportsUnknownFields() {
-        return false;
+    protected Writeable.Reader<GetCategoriesAction.Request> instanceReader() {
+        return GetCategoriesAction.Request::new;
     }
 
     @Override

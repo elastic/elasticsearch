@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -299,13 +299,6 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_7_11_0)) {
-                throw new IllegalArgumentException(
-                    "versions of Elasticsearch before 7.11.0 can't handle non-numeric sort values and attempted to send to ["
-                        + out.getVersion()
-                        + "]"
-                );
-            }
             out.writeBytesRef(key);
         }
 
@@ -369,7 +362,6 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
         public static final String NAME = "empty";
         private static final String EMPTY_STRING = "";
-        private int sortValue = 0;
 
         private EmptySortValue() {}
 
@@ -381,7 +373,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) {}
 
         @Override
         public Object getKey() {
@@ -394,7 +386,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
-        protected XContentBuilder rawToXContent(XContentBuilder builder) throws IOException {
+        protected XContentBuilder rawToXContent(XContentBuilder builder) {
             return builder;
         }
 
@@ -420,7 +412,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
         @Override
         public int typeComparisonKey() {
-            return sortValue;
+            return 0;
         }
 
         @Override

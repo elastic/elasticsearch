@@ -1,0 +1,3026 @@
+###############################################
+# Tests for GEO_POINT type
+###############################################
+
+convertFromStringQuantize
+
+row wkt = "POINT(42.97109629958868 14.7552534006536)"
+| eval pt = to_geopoint(wkt);
+
+wkt:keyword           |pt:geo_point
+POINT(42.97109629958868 14.7552534006536) |POINT(42.97109629958868 14.7552534006536)
+;
+
+convertFromString
+required_capability: spatial_points_from_source
+
+// tag::to_geopoint-str[]
+ROW wkt = "POINT(42.97109630194 14.7552534413725)"
+| EVAL pt = TO_GEOPOINT(wkt)
+// end::to_geopoint-str[]
+;
+
+// tag::to_geopoint-str-result[]
+wkt:keyword                              |pt:geo_point
+"POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
+// end::to_geopoint-str-result[]
+;
+
+convertFromStringArray
+required_capability: spatial_points_from_source
+
+row wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| eval pt = to_geopoint(wkt);
+
+wkt:keyword                                                                           |pt:geo_point
+["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
+;
+
+centroidFromStringNested
+required_capability: st_centroid_agg
+
+row wkt = "POINT(42.97109629958868 14.7552534006536)"
+| STATS c = ST_CENTROID_AGG(TO_GEOPOINT(wkt));
+
+c:geo_point
+POINT(42.97109629958868 14.7552534006536)
+;
+
+centroidFromString1
+required_capability: st_centroid_agg
+
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID_AGG(pt);
+
+c:geo_point
+POINT(42.97109629958868 14.7552534006536)
+;
+
+centroidFromString2
+required_capability: st_centroid_agg
+
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID_AGG(pt);
+
+c:geo_point
+POINT(59.390193899162114 18.741501288022846)
+;
+
+centroidFromString3
+required_capability: st_centroid_agg
+
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID_AGG(pt);
+
+c:geo_point
+POINT(39.58327988510707 20.619513023697994)
+;
+
+centroidFromString4
+required_capability: st_x_y
+
+ROW wkt = ["POINT(42.97109629958868 14.7552534006536)", "POINT(75.80929149873555 22.72774917539209)", "POINT(-0.030548143003023033 24.37553649504829)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| STATS c = ST_CENTROID_AGG(pt)
+| EVAL x = ST_X(c), y = ST_Y(c);
+
+c:geo_point                                 | x:double          | y:double
+POINT(39.58327988510707 20.619513023697994) | 39.58327988510707 | 20.619513023697994
+;
+
+stXFromString
+required_capability: st_x_y
+
+// tag::st_x_y[]
+ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
+| EVAL x =  ST_X(point), y = ST_Y(point)
+// end::st_x_y[]
+;
+
+// tag::st_x_y-result[]
+point:geo_point                            | x:double          | y:double
+POINT(42.97109629958868 14.7552534006536)  | 42.97109629958868 | 14.7552534006536
+// end::st_x_y-result[]
+;
+
+simpleLoad
+required_capability: spatial_points_from_source
+
+FROM airports | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
+
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k   
+CJJ             |  Cheongju        |  POINT(127.4833 36.6333) |  South Korea      |  POINT(127.495916124681 36.7220227766673)   |  Cheongju Int'l               |  9            |  major 
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid   
+IDR             |  Indore          |  POINT(75.8472 22.7167)  |  India            |  POINT(75.8092915005895 22.727749187571)    |  Devi Ahilyabai Holkar Int'l  |  9            |  mid   
+IXC             |  Chandīgarh      |  POINT(76.78 30.75)      |  India            |  POINT(76.8017261105242 30.6707248949667)   |  Chandigarh Int'l             |  9            |  [major, military] 
+LYP             |  Faisalabad      |  POINT(73.0911 31.4167)  |  Pakistan         |  POINT(72.9878190922305 31.3627435480862)   |  Faisalabad Int'l             |  9            |  [mid, military]   
+MLG             |  Malang          |  POINT(112.62 -7.98)     |  Indonesia        |  POINT(112.711418617258 -7.92998002840567)  |  Abdul Rachman Saleh          |  9            |  [mid, military] 
+OMS             |  Omsk            |  POINT(73.3833 54.9667)  |  Russia           |  POINT(73.3163595376585 54.9576482934059)   |  Omsk Tsentralny              |  9            |  mid 
+OVB             |  Novosibirsk     |  POINT(82.9167 55.0333)  |  Russia           |  POINT(82.6671524525865 55.0095847136264)   |  Novosibirsk Tolmachev        |  9            |  mid 
+OZH             |  Zaporizhzhia    |  POINT(35.1175 47.85)    |  Ukraine          |  POINT(35.3018728575279 47.8732635579023)   |  Zaporozhye Int'l             |  9            |  [mid, military] 
+TRZ             |  Trichinopoly    |  POINT(78.7047 10.7903)  |  India            |  POINT(78.7089578747476 10.7603571306554)   |  Tiruchirappalli              |  9            |  mid 
+WIIT            |  Bandar Lampung  |  POINT(105.2667 -5.45)   |  Indonesia        |  POINT(105.176060419161 -5.242566777132)    |  Radin Inten II               |  9            |  mid 
+ZAH             |  Zāhedān         |  POINT(60.8628 29.4964)  |  Iran             |  POINT(60.900708564915 29.4752941956573)    |  Zahedan Int'l                |  9            |  mid 
+;
+
+stXFromAirportsSupportsNull
+required_capability: st_x_y
+
+FROM airports
+| EVAL x = FLOOR(ABS(ST_X(city_location))/200), y = FLOOR(ABS(ST_Y(city_location))/100)
+| STATS c = count(*) BY x, y
+| SORT c DESC
+;
+
+c:long  | x:double  | y:double
+872     | 0.0       | 0.0
+19      | null      | null
+;
+
+values
+required_capability: agg_values_spatial
+
+FROM airports
+| WHERE scalerank == 9
+| STATS locations=VALUES(location)
+| EVAL locations = MV_SORT(TO_STRING(locations))
+;
+
+locations:keyword
+[POINT (101.446569298441 0.464600872998505), POINT (105.176060419161 -5.242566777132), POINT (112.711418617258 -7.92998002840567), POINT (126.810839481226 35.1400051390198), POINT (127.495916124681 36.7220227766673), POINT (128.637537699933 35.8999277969087), POINT (129.355731047528 35.5928957527107), POINT (145.243980298582 14.1717712971216), POINT (35.3018728575279 47.8732635579023), POINT (42.97109630194 14.7552534413725), POINT (48.7471065435931 31.3431585560757), POINT (60.900708564915 29.4752941956573), POINT (61.5122589740201 55.2977919496055), POINT (63.0279333519181 25.988794590011), POINT (66.9487311480949 30.249043186181), POINT (72.9878190922305 31.3627435480862), POINT (73.0320498392002 33.5614146278861), POINT (73.3163595376585 54.9576482934059), POINT (73.4084964764375 61.3401672194481), POINT (73.8105674924689 19.9660205672806), POINT (75.3958432922005 19.8672969621082), POINT (75.7584828456005 31.4329422397715), POINT (75.8092915005895 22.727749187571), POINT (75.9330597710755 17.625415183635), POINT (75.9570722403652 30.8503598561702), POINT (76.8017261105242 30.6707248949667), POINT (78.2172186546348 26.285487697937), POINT (78.7089578747476 10.7603571306554), POINT (79.452002687657 28.4218087161144), POINT (81.7317271462187 25.443522027821), POINT (82.6671524525865 55.0095847136264), POINT (83.5504532124038 53.3633850813046), POINT (85.3235970368767 23.3177245989962)]
+;
+
+valuesGrouped
+required_capability: agg_values_spatial
+
+FROM airports
+| WHERE scalerank == 9
+| EVAL first_letter = SUBSTRING(abbrev, 0, 1)
+| STATS locations=VALUES(location) BY first_letter
+| EVAL locations = MV_SORT(TO_STRING(locations))
+| SORT first_letter
+| KEEP first_letter, locations
+;
+
+first_letter:keyword | locations:keyword
+A                    | POINT (48.7471065435931 31.3431585560757)                                                                                                                                                                                                                       
+B                    | POINT (83.5504532124038 53.3633850813046)                                                                                                                                                                                                                       
+C                    | [POINT (127.495916124681 36.7220227766673), POINT (61.5122589740201 55.2977919496055)]                                                                                                                                                                          
+G                    | POINT (78.2172186546348 26.285487697937)                                                                                                                                                                                                                        
+H                    | POINT (42.97109630194 14.7552534413725)                                                                                                                                                                                                                         
+I                    | [POINT (73.8105674924689 19.9660205672806), POINT (75.3958432922005 19.8672969621082), POINT (75.8092915005895 22.727749187571), POINT (76.8017261105242 30.6707248949667), POINT (81.7317271462187 25.443522027821), POINT (85.3235970368767 23.3177245989962)]
+K                    | POINT (126.810839481226 35.1400051390198)                                                                                                                                                                                                                       
+L                    | [POINT (72.9878190922305 31.3627435480862), POINT (75.9570722403652 30.8503598561702)]                                                                                                                                                                          
+M                    | POINT (112.711418617258 -7.92998002840567)                                                                                                                                                                                                                      
+O                    | [POINT (35.3018728575279 47.8732635579023), POINT (73.0320498392002 33.5614146278861), POINT (73.3163595376585 54.9576482934059), POINT (82.6671524525865 55.0095847136264)]                                                                                    
+P                    | POINT (101.446569298441 0.464600872998505)                                                                                                                                                                                                                      
+R                    | POINT (145.243980298582 14.1717712971216)                                                                                                                                                                                                                       
+S                    | [POINT (73.4084964764375 61.3401672194481), POINT (75.9330597710755 17.625415183635)]                                                                                                                                                                           
+T                    | [POINT (128.637537699933 35.8999277969087), POINT (63.0279333519181 25.988794590011), POINT (78.7089578747476 10.7603571306554)]                                                                                                                                
+U                    | [POINT (129.355731047528 35.5928957527107), POINT (66.9487311480949 30.249043186181)]                                                                                                                                                                           
+V                    | [POINT (75.7584828456005 31.4329422397715), POINT (79.452002687657 28.4218087161144)]                                                                                                                                                                           
+W                    | POINT (105.176060419161 -5.242566777132)                                                                                                                                                                                                                        
+Z                    | POINT (60.900708564915 29.4752941956573)             
+;
+
+valuesGroupedByOrdinals
+required_capability: agg_values_spatial
+
+FROM airports
+| WHERE scalerank == 9
+| STATS locations=VALUES(location) BY type
+| EVAL locations = MV_SORT(TO_STRING(locations))
+| SORT type
+| KEEP type, locations
+;
+
+type:keyword | locations:keyword
+major        | [POINT (127.495916124681 36.7220227766673), POINT (76.8017261105242 30.6707248949667)]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+mid          | [POINT (101.446569298441 0.464600872998505), POINT (105.176060419161 -5.242566777132), POINT (112.711418617258 -7.92998002840567), POINT (126.810839481226 35.1400051390198), POINT (128.637537699933 35.8999277969087), POINT (129.355731047528 35.5928957527107), POINT (145.243980298582 14.1717712971216), POINT (35.3018728575279 47.8732635579023), POINT (42.97109630194 14.7552534413725), POINT (48.7471065435931 31.3431585560757), POINT (60.900708564915 29.4752941956573), POINT (61.5122589740201 55.2977919496055), POINT (63.0279333519181 25.988794590011), POINT (66.9487311480949 30.249043186181), POINT (72.9878190922305 31.3627435480862), POINT (73.3163595376585 54.9576482934059), POINT (73.4084964764375 61.3401672194481), POINT (73.8105674924689 19.9660205672806), POINT (75.3958432922005 19.8672969621082), POINT (75.7584828456005 31.4329422397715), POINT (75.8092915005895 22.727749187571), POINT (75.9330597710755 17.625415183635), POINT (78.2172186546348 26.285487697937), POINT (78.7089578747476 10.7603571306554), POINT (82.6671524525865 55.0095847136264), POINT (83.5504532124038 53.3633850813046), POINT (85.3235970368767 23.3177245989962)]
+military     | [POINT (112.711418617258 -7.92998002840567), POINT (126.810839481226 35.1400051390198), POINT (35.3018728575279 47.8732635579023), POINT (72.9878190922305 31.3627435480862), POINT (75.7584828456005 31.4329422397715), POINT (76.8017261105242 30.6707248949667), POINT (78.2172186546348 26.285487697937), POINT (79.452002687657 28.4218087161144), POINT (81.7317271462187 25.443522027821)]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
+small        | [POINT (73.0320498392002 33.5614146278861), POINT (75.9570722403652 30.8503598561702)]                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+;
+
+###############################################
+# Tests for ST_CENTROID_AGG on GEO_POINT type
+
+centroidFromAirports
+required_capability: st_centroid_agg
+
+// tag::st_centroid_agg-airports[]
+FROM airports
+| STATS centroid=ST_CENTROID_AGG(location)
+// end::st_centroid_agg-airports[]
+;
+
+// tag::st_centroid_agg-airports-result[]
+centroid:geo_point
+POINT(-0.030548143003023033 24.37553649504829)
+// end::st_centroid_agg-airports-result[]
+;
+
+centroidFromAirportsNested
+required_capability: st_centroid_agg
+
+FROM airports
+| STATS centroid=ST_CENTROID_AGG(TO_GEOPOINT(location))
+;
+
+centroid:geo_point
+POINT (-0.030548143003023033 24.37553649504829)
+;
+
+centroidFromAirportsCount
+required_capability: st_centroid_agg
+
+FROM airports
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                             | count:long
+POINT(-0.030548143003023033 24.37553649504829) | 891
+;
+
+centroidFromAirportsCountGrouped
+required_capability: st_centroid_agg
+
+FROM airports
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+| SORT scalerank DESC
+;
+
+centroid:geo_point                            | count:long | scalerank:i
+POINT(83.27726172452623 28.99289782286029)    | 33         | 9
+POINT(-12.330427954750142 29.554613442537242) | 247        | 8
+POINT(19.934784222002094 13.864835376774234)  | 133        | 7
+POINT(-10.861430599274028 28.170889387807705) | 151        | 6
+POINT(9.394940837974781 28.953888530174837)   | 46         | 5
+POINT(-3.118828632340757 17.868389564340685)  | 194        | 4
+POINT(-26.976065734634176 42.907839377294295) | 24         | 3
+POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
+;
+
+centroidFromAirportsFiltered
+required_capability: st_centroid_agg
+
+FROM airports
+| WHERE scalerank == 9
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                         | count:long
+POINT(83.27726172452623 28.99289782286029) | 33
+;
+
+centroidFromAirportsCountGroupedCentroid
+required_capability: st_centroid_agg
+
+FROM airports
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID_AGG(centroid), count=SUM(count)
+;
+
+centroid:geo_point                           | count:long
+POINT (7.572387259169772 26.836561792945492) | 891
+;
+
+centroidFromAirportsCountCityLocations
+required_capability: st_centroid_agg
+
+FROM airports
+| STATS centroid=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (1.3965610809060276 24.127649406297987) | 891
+;
+
+centroidFromAirportsCountGroupedCountry
+required_capability: st_centroid_agg
+
+FROM airports
+| STATS centroid=ST_CENTROID_AGG(city_location), count=COUNT() BY country
+| SORT count DESC, country ASC
+| WHERE count >= 10
+;
+
+centroid:geo_point                             | count:long | country:k
+POINT (-97.3333946136801 38.07953176370194)    | 129        | United States
+POINT (78.42264595516026 21.91585598140955)    | 50         | India
+POINT (-102.37784670852125 24.268197756260633) | 45         | Mexico
+POINT (112.92023897966052 32.982985347554816)  | 41         | China
+POINT (-94.40291355867443 50.70210267953273)   | 37         | Canada
+POINT (-47.3366032685003 -15.80931615144495)   | 31         | Brazil
+POINT (57.30444226807986 55.01281536452902)    | 26         | Russia
+null                                           | 19         | null
+POINT (140.68777053945644 -27.688147084349218) | 17         | Australia
+POINT (-2.594152985359816 54.359511745107525)  | 17         | United Kingdom
+POINT (-64.19630772720735 -34.977900019058815) | 13         | Argentina
+POINT (3.710366631858051 46.890841646818444)   | 12         | France
+POINT (107.94202494900674 -4.528175020823255)  | 12         | Indonesia
+POINT (10.15085451220247 50.663009069605984)   | 11         | Germany
+POINT (11.015199956230141 43.04051815532148)   | 11         | Italy
+POINT (6.725663595240224 9.201645437966693)    | 11         | Nigeria
+POINT (70.7946499697864 30.69746997440234)     | 10         | Pakistan
+;
+
+centroidFromAirportsFilteredCountry
+required_capability: st_centroid_agg
+
+FROM airports
+| WHERE country == "United States"
+| STATS centroid=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+centroid:geo_point                          | count:long
+POINT (-97.3333946136801 38.07953176370194) | 129
+;
+
+centroidFromAirportsCountGroupedCountryCentroid
+required_capability: st_centroid_agg
+
+FROM airports
+| STATS centroid=ST_CENTROID_AGG(city_location), count=COUNT() BY country
+| STATS centroid=ST_CENTROID_AGG(centroid), count=SUM(count)
+;
+
+centroid:geo_point                            | count:long
+POINT (17.55538044598613 18.185558743854063)  | 891
+;
+
+centroidFromAirportsCountryCount
+required_capability: st_centroid_agg
+
+FROM airports
+| STATS airports=ST_CENTROID_AGG(location), cities=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+airports:geo_point                             | cities:geo_point                              | count:long
+POINT(-0.030548143003023033 24.37553649504829) | POINT (1.3965610809060276 24.127649406297987) | 891
+;
+
+centroidFromAirportsFilteredAndSorted
+required_capability: st_centroid_agg
+
+FROM airports
+| WHERE scalerank == 9
+| SORT abbrev
+| WHERE length(name) > 12
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                          | count:long
+POINT(78.73736493755132 26.761841227998957) | 12
+;
+
+centroidFromAirportsAfterMvExpand
+required_capability: st_centroid_agg
+
+FROM airports
+| MV_EXPAND type
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                          | count:long
+POINT(2.121611400672094 24.559172889205755) | 933
+;
+
+centroidFromAirportsGroupedAfterMvExpand
+required_capability: st_centroid_agg
+
+FROM airports
+| MV_EXPAND type
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+| SORT scalerank DESC
+;
+
+centroid:geo_point                            | count:long | scalerank:i
+POINT(83.16847535921261 28.79002037679311)    | 40         | 9
+POINT(-9.579701727760353 29.651473146404623)  | 266        | 8
+POINT(21.64429362312379 14.766539423726499)   | 142        | 7
+POINT(-9.082370867592193 28.242454005495436)  | 155        | 6
+POINT(9.394940837974781 28.953888530174837)   | 46         | 5
+POINT(-1.6692755030477562 17.78088210212057)  | 197        | 4
+POINT(-26.976065734634176 42.907839377294295) | 24         | 3
+POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
+;
+
+centroidFromAirportsGroupedAfterMvExpandFiltered
+required_capability: st_centroid_agg
+
+FROM airports
+| WHERE scalerank == 9
+| MV_EXPAND type
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+;
+
+centroid:geo_point                            | count:long | scalerank:i
+POINT(83.16847535921261 28.79002037679311)    | 40         | 9
+;
+
+centroidFromAirportsAfterMvExpandFiltered
+required_capability: st_centroid_agg
+
+FROM airports
+| WHERE scalerank == 9
+| MV_EXPAND type
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT(83.16847535921261 28.79002037679311)    | 40
+;
+
+centroidFromAirportsAfterKeywordPredicateCountryUK
+required_capability: st_centroid_agg
+
+FROM airports
+| WHERE country == "United Kingdom"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                              | count:long
+POINT (-2.597342072712148 54.33551226578214)    | 17
+;
+
+centroidFromAirportsAfterIntersectsPredicateCountryUK
+required_capability: st_intersects
+
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                              | count:long
+POINT (-2.597342072712148 54.33551226578214)    | 17
+;
+
+centroidFromAirportsAfterContainsPredicateCountryUK
+required_capability: st_contains_within
+
+FROM airports
+| WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"), location)
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                              | count:long
+POINT (-2.597342072712148 54.33551226578214)    | 17
+;
+
+centroidFromAirportsAfterWithinPredicateCountryUK
+required_capability: st_contains_within
+
+FROM airports
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                              | count:long
+POINT (-2.597342072712148 54.33551226578214)    | 17
+;
+
+intersectsAfterCentroidFromAirportsAfterKeywordPredicateCountryUK
+required_capability: st_intersects
+
+FROM airports
+| WHERE country == "United Kingdom"
+| STATS centroid = ST_CENTROID_AGG(location), count=COUNT()
+| EVAL centroid_in_uk = ST_INTERSECTS(centroid, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL centroid_in_iceland = ST_INTERSECTS(centroid, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
+| EVAL centroid_within_uk = ST_WITHIN(centroid, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL centroid_within_iceland = ST_WITHIN(centroid, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
+| EVAL centroid_contains_uk = ST_CONTAINS(centroid, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL centroid_contains_iceland = ST_CONTAINS(centroid, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
+| KEEP centroid, count, centroid_in_uk, centroid_in_iceland, centroid_within_uk, centroid_within_iceland, centroid_contains_uk, centroid_contains_iceland
+;
+
+centroid:geo_point                              | count:long | centroid_in_uk:boolean | centroid_in_iceland:boolean | centroid_within_uk:boolean | centroid_within_iceland:boolean | centroid_contains_uk:boolean | centroid_contains_iceland:boolean
+POINT (-2.597342072712148 54.33551226578214)    | 17         | true                   | false                       | true                       | false                           | false                        | false
+;
+
+centroidFromAirportsAfterIntersectsEvalExpression
+required_capability: st_intersects
+
+FROM airports
+| EVAL in_uk = ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL in_iceland = ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
+| EVAL within_uk = ST_WITHIN(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL within_iceland = ST_WITHIN(location, TO_GEOSHAPE("POLYGON ((-25.4883 65.5312, -23.4668 66.7746, -18.4131 67.4749, -13.0957 66.2669, -12.3926 64.4159, -20.1270 62.7346, -24.7852 63.3718, -25.4883 65.5312))"))
+| STATS centroid = ST_CENTROID_AGG(location), count=COUNT() BY in_uk, in_iceland, within_uk, within_iceland
+| SORT count ASC
+;
+
+centroid:geo_point                             |  count:long  |  in_uk:boolean  |  in_iceland:boolean  |  within_uk:boolean  |  within_iceland:boolean
+POINT (-21.946634463965893 64.13187285885215)  |  1           |  false          |  true                |  false              |  true
+POINT (-2.597342072712148 54.33551226578214)   |  17          |  true           |  false               |  true               |  false
+POINT (0.04453958108176276 23.74658354606057)  |  873         |  false          |  false               |  false              |  false
+;
+
+centroidFromAirportsAfterIntersectsPredicate
+required_capability: st_intersects
+
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicate
+required_capability: st_intersects
+
+FROM airports
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues
+required_capability: st_intersects
+
+FROM airports_no_doc_values
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues
+required_capability: st_intersects
+
+FROM airports_not_indexed_nor_doc_values
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexed
+required_capability: st_intersects
+
+FROM airports_not_indexed
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+###############################################
+# Tests for ST_EXTENT_AGG on GEO_POINT type
+
+stExtentSingleGeoPoint
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
+| STATS extent = ST_EXTENT_AGG(point)
+;
+
+extent:geo_shape
+BBOX(42.97109629958868, 42.97109629958868, 14.7552534006536, 14.7552534006536)
+;
+
+stExtentMultipleGeoPoints
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+// tag::st_extent_agg-airports[]
+FROM airports
+| WHERE country == "India"
+| STATS extent = ST_EXTENT_AGG(location)
+// end::st_extent_agg-airports[]
+;
+
+// tag::st_extent_agg-airports-result[]
+extent:geo_shape
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
+// end::st_extent_agg-airports-result[]
+;
+
+stExtentMultipleGeoPointsCount
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airports
+| WHERE country == "India"
+| STATS extent = ST_EXTENT_AGG(location), count = COUNT()
+;
+
+extent:geo_shape                                                               | count:long
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405) | 50
+;
+
+stExtentMultipleGeoPointsCountNoDocValues
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airports_no_doc_values
+| WHERE country == "India"
+| STATS extent = ST_EXTENT_AGG(location), count = COUNT()
+;
+
+extent:geo_shape                                                               | count:long
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405) | 50
+;
+
+stExtentMultipleGeoPointGrouping
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airports
+| STATS extent = ST_EXTENT_AGG(location), count = COUNT() BY country
+| SORT count DESC, country ASC
+| LIMIT 5
+;
+
+extent:geo_shape                                                                       | count:long | country:keyword
+BBOX (-159.34908430092037, -71.01640669628978, 64.81809809803963, 19.71479767933488)   | 129        | United States
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)         | 50         | India
+BBOX (-117.19751106575131, -86.87441730871797, 32.833958650007844, 14.791128113865852) | 45         | Mexico
+BBOX (76.01301474496722, 130.45620465651155, 46.84301500674337, 18.309095981530845)    | 41         | China
+BBOX (-135.07621010765433, -52.743333745747805, 63.751152316108346, 43.163360520266)   | 37         | Canada
+;
+
+stExtentGeoShapes
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| STATS extent = ST_EXTENT_AGG(city_boundary)
+;
+
+extent:geo_shape
+BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
+;
+
+stExtentGeoPoints
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| STATS extent = ST_EXTENT_AGG(city_location)
+;
+
+extent:geo_shape
+BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+;
+
+stExtentGeoShapesAndPoints
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| STATS extent_shapes = ST_EXTENT_AGG(city_boundary), extent_points = ST_EXTENT_AGG(city_location)
+;
+
+extent_shapes:geo_shape | extent_points:geo_shape
+BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321) | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+;
+
+stExtentGeoShapesGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_boundary) BY prefix
+| KEEP prefix, extent
+| SORT prefix ASC
+;
+
+prefix:keyword | extent:geo_shape
+E              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
+J              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
+L              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
+;
+
+stExtentGeoPointsGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent
+| SORT prefix ASC
+;
+
+prefix:keyword | extent:geo_shape
+E              | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+J              | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+L              | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+;
+
+stExtentGeoShapesAndPointsGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| WHERE region == "City of New York"
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent_shapes = ST_EXTENT_AGG(city_boundary), extent_points = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent_shapes, extent_points
+| SORT prefix ASC
+;
+
+prefix:keyword | extent_shapes:geo_shape                                                             | extent_points:geo_shape
+E              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321) | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+J              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321) | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+L              | BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321) | BBOX (-73.92490002326667, -73.92490002326667, 40.69429999217391, 40.69429999217391)
+;
+
+stExtentManyGeoShapesGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_boundary) BY prefix
+| KEEP prefix, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent:geo_shape
+A              | BBOX (-171.91890003159642, 175.90319998562336, 64.61419996339828, -37.36450002528727)
+B              | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132)
+C              | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521)
+;
+
+stExtentManyGeoPointsGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent:geo_shape
+A              | BBOX (-171.75000007264316, 174.73999994806945, 64.54999999143183, -36.84060002211481)
+B              | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
+C              | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+;
+
+stExtentManyGeoShapesAndPointsGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airport_city_boundaries
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent_shapes = ST_EXTENT_AGG(city_boundary), extent_points = ST_EXTENT_AGG(city_location) BY prefix
+| KEEP prefix, extent_shapes, extent_points
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent_shapes:geo_shape                                                               | extent_points:geo_shape
+A              | BBOX (-171.91890003159642, 175.90319998562336, 64.61419996339828, -37.36450002528727) | BBOX (-171.75000007264316, 174.73999994806945, 64.54999999143183, -36.84060002211481)
+B              | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132) | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
+C              | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521) | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+;
+
+stExtentManyGeoShapesGroupedEnrich
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: enrich_load
+
+FROM airports
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_boundary), count = COUNT() BY prefix
+| KEEP prefix, count, extent
+| SORT count DESC, prefix ASC
+| LIMIT 3
+;
+
+prefix:keyword | count:long | extent:geo_shape
+S              | 77         | BBOX (-136.45440001040697, 178.8686999771744, 61.38089996762574, -33.92440003808588)
+C              | 75         | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521)
+B              | 69         | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132)
+;
+
+stExtentManyGeoPointsGroupedEnrich
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: enrich_load
+
+FROM airports
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent = ST_EXTENT_AGG(city_location), count = COUNT() BY prefix
+| KEEP prefix, count, extent
+| SORT count DESC, prefix ASC
+| LIMIT 3
+;
+
+prefix:keyword | count:long | extent:geo_shape
+S              | 77         | BBOX (-135.3152000438422, 178.54539999738336, 69.21669997740537, -33.8678000215441)
+C              | 75         | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+B              | 69         | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
+;
+
+stExtentManyGeoShapesAndPointsGroupedEnrich
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: enrich_load
+
+FROM airports
+| ENRICH city_boundaries ON city_location WITH airport, region, city_boundary
+| EVAL prefix = SUBSTRING(abbrev, 1, 1)
+| STATS extent_shapes = ST_EXTENT_AGG(city_boundary), extent_points = ST_EXTENT_AGG(city_location), count = COUNT() BY prefix
+| KEEP prefix, count, extent_shapes, extent_points
+| SORT count DESC, prefix ASC
+| LIMIT 3
+;
+
+prefix:keyword | count:long | extent_shapes:geo_shape                                                               | extent_points:geo_shape
+S              | 77         | BBOX (-136.45440001040697, 178.8686999771744, 61.38089996762574, -33.92440003808588)  | BBOX (-135.3152000438422, 178.54539999738336, 69.21669997740537, -33.8678000215441)
+C              | 75         | BBOX (-107.51820000819862, 172.6055999379605, 55.732699991203845, -43.90400002710521) | BBOX (-107.39390007220209, 172.38329996354878, 55.676099974662066, -43.58330002985895)
+B              | 69         | BBOX (-116.51340007781982, 153.2021999359131, 60.631899973377585, -41.20620000176132) | BBOX (-116.23080002143979, 153.02809992805123, 60.46669999603182, -41.1500000115484)
+;
+
+###############################################
+# Tests for ST_INTERSECTS on GEO_POINT type
+
+literalGeoPointIntersectsLiteralPolygon
+required_capability: st_intersects
+
+ROW pt = TO_GEOPOINT("POINT(0 85)"), polygon = TO_GEOSHAPE("POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70))")
+| EVAL intersects = ST_INTERSECTS(pt, polygon)
+;
+
+pt:geo_point  | polygon:geo_shape                               | intersects:boolean
+POINT(0 85)   | POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70)) | true
+;
+
+pointIntersectsLiteralPolygon
+required_capability: st_intersects
+
+// tag::st_intersects-airports[]
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+// end::st_intersects-airports[]
+;
+
+// tag::st_intersects-airports-result[]
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+// end::st_intersects-airports-result[]
+;
+
+pointIntersectsLiteralPolygonReversed
+required_capability: st_intersects
+
+FROM airports
+| WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+;
+
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+;
+
+literalPointIntersectsLiteralPolygon
+required_capability: st_intersects
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_INTERSECTS(pt, TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+literalPointIntersectsLiteralPolygonReversed
+required_capability: st_intersects
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+literalPointIntersectsLiteralPolygonOneRow
+required_capability: st_intersects
+
+ROW intersects = ST_INTERSECTS(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+intersects:boolean
+true
+;
+
+cityInCityBoundary
+required_capability: st_intersects
+
+FROM airport_city_boundaries
+| EVAL in_city = ST_INTERSECTS(city_location, city_boundary)
+| STATS count=COUNT(*) BY in_city
+| SORT count ASC
+| EVAL cardinality = CASE(count < 10, "very few", count < 100, "few", "many")
+| KEEP cardinality, in_city
+;
+
+cardinality:k  |  in_city:boolean
+"few"          |  false
+"many"         |  true
+;
+
+cityNotInCityBoundaryBiggest
+required_capability: st_intersects
+
+FROM airport_city_boundaries
+| WHERE NOT ST_INTERSECTS(city_location, city_boundary)
+| EVAL boundary_wkt_length = LENGTH(TO_STRING(city_boundary))
+| SORT boundary_wkt_length DESC
+| KEEP abbrev, airport, city, city_location, boundary_wkt_length, city_boundary
+| LIMIT 1
+;
+
+abbrev:keyword  |  airport:text         | city:keyword  |  city_location:geo_point |  boundary_wkt_length:integer | city_boundary:geo_shape
+SYX             |  Sanya Phoenix Int'l  |  Sanya        |  POINT(109.5036 18.2533) |  598                         | POLYGON((109.1802 18.4609, 109.2304 18.4483, 109.2311 18.4261, 109.2696 18.411, 109.2602 18.3581, 109.2273 18.348, 109.2286 18.2638, 109.2842 18.2665, 109.3518 18.2166, 109.4508 18.1936, 109.4895 18.2281, 109.5137 18.2283, 109.4914 18.2781, 109.5041 18.2948, 109.4809 18.3034, 109.5029 18.3422, 109.5249 18.3375, 109.4993 18.3632, 109.535 18.4007, 109.5104 18.4374, 109.5231 18.4474, 109.5321 18.53, 109.4992 18.5568, 109.4192 18.5646, 109.4029 18.6302, 109.3286 18.5772, 109.309 18.5191, 109.2913 18.5141, 109.2434 18.5607, 109.2022 18.5572, 109.1815 18.5163, 109.1908 18.4711, 109.1802 18.4609)))
+;
+
+airportCityLocationPointIntersection
+required_capability: st_intersects
+
+FROM airports_mp
+| WHERE ST_INTERSECTS(location, city_location)
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point  |  name:text       |  scalerank:i  |  type:k
+XXX             |  Atlantis      |  POINT(0 0)              |  Atlantis         |  POINT(0 0)          |  Atlantis Int'l  |  1            |  mid
+;
+
+airportCityLocationPointIntersectionCentroid
+required_capability: st_intersects
+
+FROM airports_mp
+| WHERE ST_INTERSECTS(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+location:geo_point  | city_location:geo_point  |  count:long
+POINT (0 0)         | POINT (0 0)              |  1
+;
+
+airportCityLocationPointIntersectionCentroidGroups
+required_capability: st_intersects
+
+FROM airports_mp
+| WHERE ST_INTERSECTS(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT() BY country
+;
+
+location:geo_point  | city_location:geo_point  |  count:long | country:k
+POINT (0 0)         | POINT (0 0)              |  1          | Atlantis
+;
+
+airportCityLocationPointIntersectionNullCentroid
+required_capability: st_intersects
+required_capability: spatial_centroid_no_records
+
+FROM airports
+| WHERE ST_INTERSECTS(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+location:geo_point  | city_location:geo_point  |  count:long
+null                | null                     |  0
+;
+
+airportCityLocationPointIntersectionNullCentroidGroups
+required_capability: st_intersects
+
+FROM airports
+| WHERE ST_INTERSECTS(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT() BY country
+;
+
+location:geo_point  | city_location:geo_point  |  count:long | country:k
+;
+
+###############################################
+# Tests for ST_DISJOINT on GEO_POINT type
+
+literalPolygonDisjointLiteralPoint
+required_capability: st_disjoint
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_DISJOINT(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(-1 -1)"  | POINT(-1 -1)
+"POINT(-1 1)" | POINT(-1 1)
+;
+
+literalPointDisjointLiteralPolygon
+required_capability: st_disjoint
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_DISJOINT(pt, TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(-1 -1)"  | POINT(-1 -1)
+"POINT(-1 1)" | POINT(-1 1)
+;
+
+literalPolygonDisjointLiteralPointOneRow
+required_capability: st_disjoint
+
+ROW disjoint = ST_DISJOINT(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
+;
+
+disjoint:boolean
+false
+;
+
+literalPointDisjointLiteralPolygonOneRow
+required_capability: st_disjoint
+
+ROW disjoint = ST_DISJOINT(TO_GEOPOINT("POINT(-1 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+disjoint:boolean
+true
+;
+
+pointDisjointLiteralPolygon
+required_capability: st_disjoint
+
+FROM airports
+| WHERE ST_DISJOINT(location, TO_GEOSHAPE("POLYGON((-10 -60, 120 -60, 120 60, -10 60, -10 -60))"))
+| EVAL x = ST_X(location), y = ST_Y(location)
+| EVAL x = FLOOR(x / 100), y = FLOOR(y / 100)
+| STATS count=COUNT() BY x, y
+| KEEP x, y, count
+| SORT x ASC, y ASC
+;
+
+x:double  |  y:double  |  count:long
+-2        |  -1        |  8
+-2        |  0         |  94
+-1        |  -1        |  67
+-1        |  0         |  201
+0         |  0         |  15
+1         |  -1        |  33
+1         |  0         |  53
+;
+
+airportCityLocationPointDisjointCentroid
+required_capability: st_disjoint
+
+FROM airports_mp
+| WHERE ST_DISJOINT(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+location:geo_point                         | city_location:geo_point                      |  count:long
+POINT (67.8581917192787 24.02956652920693) | POINT (67.81638333333332 24.048999999999996) |  6
+;
+
+###############################################
+# Tests for ST_CONTAINS on GEO_POINT type
+
+literalPolygonContainsLiteralPoint
+required_capability: st_contains_within
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+literalPointDoesNotContainLiteralPolygon
+required_capability: st_contains_within
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_CONTAINS(pt, TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:geo_point
+;
+
+literalPolygonContainsLiteralPointOneRow
+required_capability: st_contains_within
+
+ROW contains = ST_CONTAINS(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
+;
+
+contains:boolean
+true
+;
+
+literalPointDoesNotContainLiteralPolygonOneRow
+required_capability: st_contains_within
+
+ROW contains = ST_CONTAINS(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+contains:boolean
+false
+;
+
+pointContainsLiteralPolygon
+required_capability: st_contains_within
+
+FROM airports
+| WHERE ST_CONTAINS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+;
+
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+;
+
+pointContainedInLiteralPolygon
+required_capability: st_contains_within
+
+FROM airports
+| WHERE ST_CONTAINS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), location)
+;
+
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+;
+
+airportCityLocationPointContains
+required_capability: st_contains_within
+
+FROM airports_mp
+| WHERE ST_CONTAINS(location, city_location)
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point  |  name:text       |  scalerank:i  |  type:k
+XXX             |  Atlantis      |  POINT(0 0)              |  Atlantis         |  POINT(0 0)          |  Atlantis Int'l  |  1            |  mid
+;
+
+airportCityLocationPointContainsCentroid
+required_capability: st_contains_within
+
+FROM airports_mp
+| WHERE ST_CONTAINS(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+location:geo_point  | city_location:geo_point  |  count:long
+POINT (0 0)         | POINT (0 0)              |  1
+;
+
+###############################################
+# Tests for ST_WITHIN on GEO_POINT type
+
+literalPolygonNotWithinLiteralPoint
+required_capability: st_contains_within
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_WITHIN(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword   | pt:geo_point
+;
+
+literalPointWithinLiteralPolygon
+required_capability: st_contains_within
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| WHERE ST_WITHIN(pt, TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:geo_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+literalPolygonNotWithinLiteralPointOneRow
+required_capability: st_contains_within
+
+ROW within = ST_WITHIN(TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_GEOPOINT("POINT(0 0)"))
+;
+
+within:boolean
+false
+;
+
+literalPointWithinLiteralPolygonOneRow
+required_capability: st_contains_within
+
+ROW within = ST_WITHIN(TO_GEOPOINT("POINT(0 0)"), TO_GEOSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+within:boolean
+true
+;
+
+pointWithinLiteralPolygon
+required_capability: st_contains_within
+
+// tag::st_within-airports[]
+FROM airports
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
+// end::st_within-airports[]
+;
+
+// tag::st_within-airports-result[]
+abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
+HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
+// end::st_within-airports-result[]
+;
+
+airportCityLocationPointWithin
+required_capability: st_contains_within
+
+FROM airports_mp
+| WHERE ST_WITHIN(location, city_location)
+;
+
+abbrev:keyword  |  city:keyword  |  city_location:geo_point |  country:keyword  |  location:geo_point  |  name:text       |  scalerank:i  |  type:k
+XXX             |  Atlantis      |  POINT(0 0)              |  Atlantis         |  POINT(0 0)          |  Atlantis Int'l  |  1            |  mid
+;
+
+airportCityLocationPointWithinCentroid
+required_capability: st_contains_within
+
+FROM airports_mp
+| WHERE ST_WITHIN(location, city_location)
+| STATS location=ST_CENTROID_AGG(location), city_location=ST_CENTROID_AGG(city_location), count=COUNT()
+;
+
+location:geo_point  | city_location:geo_point  |  count:long
+POINT (0 0)         | POINT (0 0)              |  1
+;
+
+###############################################
+# Tests for ST_DISTANCE with GEO_POINT
+
+literalGeoPointDistanceLiteralPoint
+required_capability: st_distance
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_GEOPOINT("POINT(0 0)"))
+;
+
+wkt:keyword    | pt:geo_point  | distance:double
+"POINT(1 1)"   | POINT(1 1)    | 157249.5916907891
+"POINT(-1 -1)" | POINT(-1 -1)  | 157249.6015756357
+"POINT(-1 1)"  | POINT(-1 1)   | 157249.5982806869
+"POINT(1 -1)"  | POINT(1 -1)   | 157249.59498573805
+;
+
+literalGeoPointDistanceOneDegree
+required_capability: st_distance
+
+ROW wkt = ["POINT(1 0)", "POINT(-1 0)", "POINT(0 1)", "POINT(0 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_GEOPOINT("POINT(0 0)"))
+;
+
+wkt:keyword    | pt:geo_point  | distance:double
+"POINT(1 0)"   | POINT(1 0)    | 111195.07310665186
+"POINT(-1 0)"  | POINT(-1 0)   | 111195.08242688453
+"POINT(0 1)"   | POINT(0 1)    | 111195.07776676829
+"POINT(0 -1)"  | POINT(0 -1)   | 111195.08242688453
+;
+
+twoCitiesPointDistanceGeo
+required_capability: st_distance
+required_capability: spatial_functions_fix_crstype_folding
+
+ROW p1 = TO_GEOPOINT("POINT(-90.82814 29.79511)"), p2 = TO_GEOPOINT("POINT(-90.79731509999999 29.8835389)")
+| EVAL d = ST_DISTANCE(p1, p2)
+;
+
+p1:geo_point                | p2:geo_point                           | d:double
+POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 10272.529272836206
+;
+
+airportCityLocationPointDistance
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, city_location)
+| STATS distance=AVG(distance), count=COUNT()
+;
+
+distance:double    | count:long
+15869.9876282387   | 891
+;
+
+airportDistanceToCityCopenhagen
+required_capability: st_distance
+
+// tag::st_distance-airports[]
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL distance = ST_DISTANCE(location, city_location)
+| KEEP abbrev, name, location, city_location, distance
+// end::st_distance-airports[]
+;
+
+// tag::st_distance-airports-result[]
+abbrev:k | name:text   | location:geo_point                       | city_location:geo_point | distance:d
+CPH      | Copenhagen  | POINT(12.6493508684508 55.6285017221528) | POINT(12.5683 55.6761)  | 7339.573896618216
+// end::st_distance-airports-result[]
+;
+
+airportsWithinPolygonDistanceFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((12 40, 14 40, 14 60, 12 60, 12 40))"))
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+CPH      | Copenhagen              | POINT(12.6493508684508 55.6285017221528) | Denmark   | Copenhagen      | POINT(12.5683 55.6761)  | 7.24       | 0.4
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg      | POINT(11.9675 57.7075)  | 224.42     | 229.15
+TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf | POINT(13.2833 52.6667)  | 349.97     | 337.53
+DRS      | Dresden                 | POINT(13.7649671440047 51.1250912428871) | Germany   | Dresden         | POINT(13.74 51.05)      | 511.9      | 519.91
+VCE      | Venice Marco Polo       | POINT(12.3410673004369 45.5048477588455) | Italy     | Mestre          | POINT(12.2381 45.4906)  | 1130.76    | 1132.46
+FCO      | Leonardo da Vinci Int'l | POINT(12.2501008973638 41.7950786307394) | Italy     | Fiumicino       | POINT(12.2333 41.7667)  | 1543.33    | 1546.5
+;
+
+airportsWithinDistanceFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 600000
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+CPH      | Copenhagen              | POINT(12.6493508684508 55.6285017221528) | Denmark   | Copenhagen      | POINT(12.5683 55.6761)  | 7.24       | 0.4
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg      | POINT(11.9675 57.7075)  | 224.42     | 229.15
+HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt     | POINT(10.0103 53.7064)  | 280.34     | 273.42
+TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf | POINT(13.2833 52.6667)  | 349.97     | 337.53
+BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | Germany   | Bremen          | POINT(8.8 53.0833)      | 380.5      | 377.22
+NRK      | Norrköping Airport      | POINT(16.2339407695814 58.5833805017541) | Sweden    | Norrköping      | POINT(16.2 58.6)        | 392.0      | 392.35
+GDN      | Gdansk Lech Walesa      | POINT(18.4684422165911 54.3807025352925) | Poland    | Gdańsk          | POINT(18.6453 54.3475)  | 402.61     | 414.59
+NYO      | Stockholm-Skavsta       | POINT(16.9216055584254 58.7851041303448) | Sweden    | Nyköping        | POINT(17.0086 58.7531)  | 433.99     | 434.43
+OSL      | Oslo Gardermoen         | POINT(11.0991032762581 60.1935783171386) | Norway    | Oslo            | POINT(10.7389 59.9133)  | 510.03     | 483.71
+DRS      | Dresden                 | POINT(13.7649671440047 51.1250912428871) | Germany   | Dresden         | POINT(13.74 51.05)      | 511.9      | 519.91
+BMA      | Bromma                  | POINT(17.9456175406145 59.3555902065112) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 520.18     | 522.54
+PLQ      | Palanga Int'l           | POINT(21.0974463986251 55.9713426235358) | Lithuania | Klaipėda        | POINT(21.1667 55.75)    | 533.67     | 538.56
+ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 545.09     | 522.54
+SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
+;
+
+airportsWithinDistanceBandFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 600000
+    AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 400000
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+GDN      | Gdansk Lech Walesa      | POINT(18.4684422165911 54.3807025352925) | Poland    | Gdańsk          | POINT(18.6453 54.3475)  | 402.61     | 414.59
+NYO      | Stockholm-Skavsta       | POINT(16.9216055584254 58.7851041303448) | Sweden    | Nyköping        | POINT(17.0086 58.7531)  | 433.99     | 434.43
+OSL      | Oslo Gardermoen         | POINT(11.0991032762581 60.1935783171386) | Norway    | Oslo            | POINT(10.7389 59.9133)  | 510.03     | 483.71
+DRS      | Dresden                 | POINT(13.7649671440047 51.1250912428871) | Germany   | Dresden         | POINT(13.74 51.05)      | 511.9      | 519.91
+BMA      | Bromma                  | POINT(17.9456175406145 59.3555902065112) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 520.18     | 522.54
+PLQ      | Palanga Int'l           | POINT(21.0974463986251 55.9713426235358) | Lithuania | Klaipėda        | POINT(21.1667 55.75)    | 533.67     | 538.56
+ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 545.09     | 522.54
+SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
+;
+
+airportsWithComplexDistancePredicateFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+      AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000)
+      OR
+        (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 300000
+      AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 200000)
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg      | POINT(11.9675 57.7075)  | 224.42     | 229.15
+HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt     | POINT(10.0103 53.7064)  | 280.34     | 273.42
+GDN      | Gdansk Lech Walesa      | POINT(18.4684422165911 54.3807025352925) | Poland    | Gdańsk          | POINT(18.6453 54.3475)  | 402.61     | 414.59
+NYO      | Stockholm-Skavsta       | POINT(16.9216055584254 58.7851041303448) | Sweden    | Nyköping        | POINT(17.0086 58.7531)  | 433.99     | 434.43
+OSL      | Oslo Gardermoen         | POINT(11.0991032762581 60.1935783171386) | Norway    | Oslo            | POINT(10.7389 59.9133)  | 510.03     | 483.71
+DRS      | Dresden                 | POINT(13.7649671440047 51.1250912428871) | Germany   | Dresden         | POINT(13.74 51.05)      | 511.9      | 519.91
+BMA      | Bromma                  | POINT(17.9456175406145 59.3555902065112) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 520.18     | 522.54
+PLQ      | Palanga Int'l           | POINT(21.0974463986251 55.9713426235358) | Lithuania | Klaipėda        | POINT(21.1667 55.75)    | 533.67     | 538.56
+ARN      | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 545.09     | 522.54
+SVG      | Stavanger Sola          | POINT (5.6298103297218 58.8821564842185) | Norway    | Sandnes         | POINT (5.7361 58.8517)  | 548.26     | 541.35
+;
+
+airportsWithVeryComplexDistancePredicateFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE ((ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) <= 600000
+      AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) >= 400000
+      AND NOT (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 500000
+           AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 430000))
+      OR
+         (ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 300000
+      AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 200000))
+    AND NOT abbrev == "PLQ"
+    AND scalerank < 6
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, scalerank, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | scalerank:i | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+HAM      | 3           | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt     | POINT(10.0103 53.7064)  | 280.34     | 273.42
+OSL      | 2           | Oslo Gardermoen         | POINT(11.0991032762581 60.1935783171386) | Norway    | Oslo            | POINT(10.7389 59.9133)  | 510.03     | 483.71
+BMA      | 5           | Bromma                  | POINT(17.9456175406145 59.3555902065112) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 520.18     | 522.54
+ARN      | 2           | Arlanda                 | POINT(17.9307299016916 59.6511203397372) | Sweden    | Stockholm       | POINT(18.0686 59.3294)  | 545.09     | 522.54
+;
+
+airportsWithinDistanceCopenhagenTrainStationCount
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 500000
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+
+count:long | country:k
+3          | Germany
+3          | Sweden
+1          | Denmark
+1          | Poland
+;
+
+airportsWithinDistanceBandCopenhagenTrainStationCount
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) < 600000
+    AND ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) > 400000
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+
+count:long | country:k
+3          | Sweden
+2          | Norway
+1          | Germany
+1          | Lithuania
+1          | Poland
+;
+
+airportsWithinEvalDistanceBandCopenhagenTrainStationCount
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+| WHERE distance < 600000 AND distance > 400000
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+
+count:long | country:k
+3          | Sweden
+2          | Norway
+1          | Germany
+1          | Lithuania
+1          | Poland
+;
+
+airportsWithinEvalDistanceBandCopenhagenTrainStationKeepDistance
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), importance = 10 - scalerank
+| WHERE distance < 500000 AND distance > 400000
+| STATS count=COUNT() BY distance, importance
+| SORT distance ASC, importance DESC, count DESC
+;
+
+count:long | distance:double   | importance:integer
+1          | 402611.1308019835 | 4
+1          | 433987.3301951482 | 3
+;
+
+airportsWithinEvalDistanceBandCopenhagenTrainStationCountNonPushableEval
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), position = location::keyword
+| WHERE distance < 600000 AND distance > 400000 AND SUBSTRING(position, 1, 5) == "POINT"
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+
+count:long | country:k
+3          | Sweden
+2          | Norway
+1          | Germany
+1          | Lithuania
+1          | Poland
+;
+
+airportsWithinEvalDistanceBandCopenhagenTrainStationCountNonPushableWhereConjunctive
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+| WHERE distance < 500000 AND 0.5*distance < 300000
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+
+count:long | country:k
+3          | Germany
+3          | Sweden
+1          | Denmark
+1          | Poland
+;
+
+airportsWithinEvalDistanceBandCopenhagenTrainStationCountNonPushableWhereDisjunctive
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+| WHERE distance < 500000 OR 0.5*distance < 300000
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+
+count:long | country:k
+5          | Sweden
+4          | Germany
+2          | Norway
+1          | Denmark
+1          | Lithuania
+1          | Poland
+;
+
+airportsSortCityName#[skip:-8.13.3, reason:fixed in 8.13]
+FROM airports
+| SORT abbrev
+| LIMIT 5
+| KEEP abbrev, name, location, country, city
+;
+
+abbrev:keyword  |  name:text                     |  location:geo_point                          |  country:keyword  |  city:keyword
+ABJ             |  Abidjan Port Bouet            |  POINT(-3.93221929167636 5.2543984451492)    |  Côte d'Ivoire    |  Abidjan
+ABQ             |  Albuquerque Int'l             |  POINT(-106.6166851616 35.0491578018276)     |  United States    |  Albuquerque
+ABV             |  Abuja Int'l                   |  POINT(7.27025993974356 9.00437659781094)    |  Nigeria          |  Abuja
+ACA             |  General Juan N Alvarez Int'l  |  POINT(-99.7545085619681 16.76196735278)     |  Mexico           |  Acapulco de Juárez
+ACC             |  Kotoka Int'l                  |  POINT(-0.171402855660817 5.60698152381193)  |  Ghana            |  Accra
+;
+
+airportsSortDistanceFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+| SORT distance ASC
+| LIMIT 5
+| KEEP abbrev, name, location, country, city
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k    
+CPH      | Copenhagen              | POINT(12.6493508684508 55.6285017221528) | Denmark   | Copenhagen
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg
+HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt
+TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf
+BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | Germany   | Bremen
+;
+
+airportsSortDistanceFromCopenhagenTrainStationInline
+required_capability: st_distance
+required_capability: spatial_distance_pushdown_enhancements
+
+FROM airports
+| SORT ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")) ASC
+| LIMIT 5
+| KEEP abbrev, name, location, country, city
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k    
+CPH      | Copenhagen              | POINT(12.6493508684508 55.6285017221528) | Denmark   | Copenhagen
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg
+HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt
+TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf
+BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | Germany   | Bremen
+;
+
+airportsSortDistanceFromCopenhagenTrainStationDetails
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))
+| SORT distance ASC
+| LIMIT 5
+| EVAL distance = ROUND(distance/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+CPH      | Copenhagen              | POINT(12.6493508684508 55.6285017221528) | Denmark   | Copenhagen      | POINT(12.5683 55.6761)  | 7.24       | 0.4
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg      | POINT(11.9675 57.7075)  | 224.42     | 229.15
+HAM      | Hamburg                 | POINT(10.005647830925 53.6320011640866)  | Germany   | Norderstedt     | POINT(10.0103 53.7064)  | 280.34     | 273.42
+TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf | POINT(13.2833 52.6667)  | 349.97     | 337.53
+BRE      | Bremen                  | POINT(8.7858617703132 53.052287104156)   | Germany   | Bremen          | POINT(8.8 53.0833)      | 380.5      | 377.22
+;
+
+airportsSortDistanceFromCopenhagenTrainStationDetailsAndNonPushableEval
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)")), position = location::keyword
+| WHERE distance < 600000 AND SUBSTRING(position, 1, 5) == "POINT"
+| SORT distance ASC
+| LIMIT 5
+| EVAL distance = ROUND(distance/1000,2)
+| KEEP abbrev, name, position, distance
+;
+
+abbrev:k | name:text               | position:keyword                          | distance:d
+CPH      | Copenhagen              | POINT (12.6493508684508 55.6285017221528) | 7.24
+GOT      | Gothenburg              | POINT (12.2938269092573 57.6857493534879) | 224.42
+HAM      | Hamburg                 | POINT (10.005647830925 53.6320011640866)  | 280.34
+TXL      | Berlin-Tegel Int'l      | POINT (13.2903090925074 52.5544287044101) | 349.97
+BRE      | Bremen                  | POINT (8.7858617703132 53.052287104156)   | 380.5
+;
+
+airportsSortDistanceFromAirportToCity
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, city_location)
+| SORT distance ASC
+| LIMIT 5
+| KEEP abbrev, name, location, country, city, city_location, distance
+;
+
+abbrev:k | name:text               | location:geo_point                        | country:k    | city:k                  | city_location:geo_point  | distance:d    
+TRD      | Trondheim Vaernes       | POINT(10.9168095241445 63.472029381717)   | Norway       | Stjørdalshalsen         | POINT(10.9189 63.4712)   | 138.86985803478004
+DHA      | King Abdulaziz AB       | POINT(50.1477245727844 26.2703680854768)  | Saudi Arabia | Dhahran                 | POINT(50.15 26.2667)     | 466.7321285739462
+NDB      | Nouadhibou Int'l        | POINT(-17.0334398691538 20.9290523064387) | Mauritania   | Nouadhibou              | POINT(-17.0333 20.9333)  | 472.54642026512636
+ESE      | Ensenada                | POINT(-116.595724400418 31.7977139760569) | Mexico       | Rodolfo Sánchez Taboada | POINT(-116.5911 31.7958) | 486.1022373716486
+INU      | Nauru Int'l             | POINT(166.91613965882 -0.545037226856384) | Nauru        | Yaren                   | POINT(166.9209 -0.5477)  | 606.4899254580574
+;
+
+distancesNearQuantizationBoundary
+required_capability: st_distance
+
+FROM distances
+| EVAL d = ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)"))
+| EVAL delta = ABS(distance - d)
+| WHERE delta > 0
+| KEEP distance, d, delta, location
+;
+
+distance:double  |  d:double  |  delta:double | location:geo_point  
+;
+
+distancesNearQuantizationBoundaryStats
+required_capability: st_distance
+
+FROM distances
+| EVAL d = ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)"))
+| STATS count=COUNT(*) BY d
+| SORT d ASC
+;
+
+count:long  | d:double
+12          | 0.2685179415497728
+3           | 0.26851794154977293
+30          | 0.2848062860101459
+15          | 0.2848062860101461
+30          | 0.30021218524180354
+3           | 3.258374219844941
+6           | 3.2597569375901188
+6           | 3.262520615015394
+12          | 3.2625206150153967
+;
+
+distancesNearQuantizationBoundaryFilterStatsA
+required_capability: st_distance
+
+FROM distances
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)")) == 0.2848062860101461
+| STATS count=COUNT(*)
+;
+
+count:long
+15
+;
+
+distancesNearQuantizationBoundaryFilterStatsB
+required_capability: st_distance
+
+FROM distances
+| WHERE ST_DISTANCE(location, TO_GEOPOINT("POINT(0 0)")) == 3.2625206150153967
+| STATS count=COUNT(*)
+;
+
+count:long
+12
+;
+
+airportsDistanceLessThanInvalidPoint
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(-28.6359 153.5906)"))
+| KEEP distance, location, name, scalerank
+| WHERE distance < 500000 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:41: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:41: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsDistanceLessThanInvalidPoint2
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(TO_GEOPOINT("POINT(-28.6359 153.5906)"), location)
+| KEEP distance, location, name, scalerank
+| WHERE distance < 500000 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsDistanceGreaterThanInvalidPoint
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, TO_GEOPOINT("POINT(-28.6359 153.5906)"))
+| KEEP distance, location, name, scalerank
+| WHERE distance > 500 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:41: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:41: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+airportsDistanceGreaterThanInvalidPoint2
+required_capability: st_distance
+required_capability: geo_validation
+
+FROM airports
+| EVAL distance = ST_DISTANCE(TO_GEOPOINT("POINT(-28.6359 153.5906)"), location)
+| KEEP distance, location, name, scalerank
+| WHERE distance > 500 AND scalerank < 6
+| STATS count = COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_GEOPOINT(\"POINT(-28.6359 153.5906)\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: invalid latitude 153.5906; must be between -90.0 and 90.0
+
+count:l
+0
+;
+
+###############################################
+# Tests for Equality and casting with GEO_POINT
+
+geoPointEquals
+required_capability: spatial_points_from_source
+
+// tag::to_geopoint-equals[]
+ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geopoint(wkt)
+| WHERE pt == to_geopoint("POINT(42.97109630194 14.7552534413725)")
+// end::to_geopoint-equals[]
+;
+
+// tag::to_geopoint-equals-result[]
+wkt:keyword                              |pt:geo_point
+"POINT(42.97109630194 14.7552534413725)" |POINT(42.97109630194 14.7552534413725)
+// end::to_geopoint-equals-result[]
+;
+
+geoPointNotEquals
+required_capability: spatial_points_from_source
+
+// tag::to_geopoint-not-equals[]
+ROW wkt = ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"]
+| MV_EXPAND wkt
+| EVAL pt = to_geopoint(wkt)
+| WHERE pt != to_geopoint("POINT(42.97109630194 14.7552534413725)")
+// end::to_geopoint-not-equals[]
+;
+
+// tag::to_geopoint-not-equals-result[]
+wkt:keyword                               |pt:geo_point
+"POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
+// end::to_geopoint-not-equals-result[]
+;
+
+convertFromStringParseError
+required_capability: spatial_points_from_source
+
+// tag::to_geopoint-str-parse-error[]
+row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)", "POINT(111)"]
+| mv_expand wkt
+| eval pt = to_geopoint(wkt)
+// end::to_geopoint-str-parse-error[]
+;
+
+// tag::to_geopoint-str-parse-error-warning[]
+warning:Line 3:13: evaluation of [to_geopoint(wkt)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+// end::to_geopoint-str-parse-error-warning[]
+
+// tag::to_geopoint-str-parse-error-result[]
+wkt:keyword                               |pt:geo_point
+"POINTX(42.97109630194 14.7552534413725)" |null
+"POINT(75.8092915005895 22.727749187571)" |POINT(75.8092915005895 22.727749187571)
+"POINT(111)"                              |null
+// end::to_geopoint-str-parse-error-result[]
+;
+
+###############################################
+# Tests for CARTESIAN_POINT type
+###############################################
+
+convertCartesianFromString
+required_capability: spatial_points_from_source
+
+// tag::to_cartesianpoint-str[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+// end::to_cartesianpoint-str[]
+;
+
+// tag::to_cartesianpoint-str-result[]
+wkt:keyword               |pt:cartesian_point 
+"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
+"POINT(7580.93 2272.77)"  |POINT(7580.93 2272.77)
+// end::to_cartesianpoint-str-result[]
+;
+
+convertCartesianFromStringArray
+required_capability: spatial_points_from_source
+
+row wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| eval pt = to_cartesianpoint(wkt);
+
+wkt:keyword                                           |pt:cartesian_point
+["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] |[POINT(4297.11 -1475.53), POINT(7580.93 2272.77)]
+;
+
+centroidCartesianFromStringNested
+required_capability: st_centroid_agg
+
+row wkt = "POINT(4297.10986328125 -1475.530029296875)"
+| STATS c = ST_CENTROID_AGG(TO_CARTESIANPOINT(wkt));
+
+c:cartesian_point
+POINT(4297.10986328125 -1475.530029296875)
+;
+
+centroidFromCartesianString1
+required_capability: st_centroid_agg
+
+ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| STATS c = ST_CENTROID_AGG(pt);
+
+c:cartesian_point
+POINT(4297.10986328125 -1475.530029296875)
+;
+
+centroidFromCartesianString2
+required_capability: st_centroid_agg
+
+ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| STATS c = ST_CENTROID_AGG(pt);
+
+c:cartesian_point
+POINT(5939.02001953125 398.6199951171875)
+;
+
+centroidFromCartesianString3
+required_capability: st_centroid_agg
+
+ROW wkt = ["POINT(4297.10986328125 -1475.530029296875)", "POINT(7580.93017578125 2272.77001953125)", "POINT(-30.548143003023033 2437.553649504829)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| STATS c = ST_CENTROID_AGG(pt);
+
+c:cartesian_point
+POINT(3949.163965353159 1078.2645465797348)
+;
+
+stXFromCartesianString
+required_capability: st_x_y
+
+ROW point = TO_CARTESIANPOINT("POINT(4297.10986328125 -1475.530029296875)")
+| EVAL x =  ST_X(point), y = ST_Y(point)
+;
+
+point:cartesian_point                       | x:double          | y:double
+POINT(4297.10986328125 -1475.530029296875)  | 4297.10986328125 | -1475.530029296875
+;
+
+simpleCartesianLoad
+required_capability: spatial_points_from_source
+
+FROM airports_web | WHERE scalerank == 9 | SORT abbrev | WHERE length(name) > 12;
+
+abbrev:keyword | location:cartesian_point                      | name:text                   | scalerank:i | type:k
+CJJ            | POINT (14192780.461221408 4400430.851323913)  | Cheongju Int'l              | 9           | major
+HOD            | POINT (4783520.559160681 1661010.0197476079)  | Hodeidah Int'l              | 9           | mid
+IDR            | POINT (8439051.727244465 2599127.5424638605)  | Devi Ahilyabai Holkar Int'l | 9           | mid
+OMS            | POINT (8161539.810548711 7353650.845101996)   | Omsk Tsentralny             | 9           | mid
+OVB            | POINT (9202465.316351846 7363726.532780712)   | Novosibirsk Tolmachev       | 9           | mid
+TRZ            | POINT (8761841.111486122 1204941.537981898)   | Tiruchirappalli             | 9           | mid
+WIIT           | POINT (11708145.489503577 -584415.9142832769) | Radin Inten II              | 9           | mid
+ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l               | 9           | mid
+;
+
+###############################################
+# Tests for ST_CENTROID_AGG on CARTESIAN_POINT type
+
+cartesianCentroidFromAirports
+required_capability: st_centroid_agg
+
+FROM airports_web
+| STATS centroid=ST_CENTROID_AGG(location);
+
+centroid:cartesian_point
+POINT(-266681.67563861894 3053301.5120195406)
+;
+
+cartesianCentroidFromAirportsNested
+required_capability: st_centroid_agg
+required_capability: st_centroid_agg_optimized
+
+FROM airports_web
+| STATS centroid=ST_CENTROID_AGG(TO_CARTESIANPOINT(location));
+
+centroid:cartesian_point
+POINT (-266681.67563861894 3053301.5120195406)
+;
+
+cartesianCentroidFromAirportsCount
+required_capability: st_centroid_agg
+
+FROM airports_web
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point                      | count:long
+POINT(-266681.67563861894 3053301.5120195406) | 849
+;
+
+cartesianCentroidFromAirportsCountGrouped
+required_capability: st_centroid_agg
+
+FROM airports_web
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+| SORT scalerank DESC
+;
+
+centroid:cartesian_point                      | count:long | scalerank:i
+POINT(9289013.153846154 3615537.0533353365)   | 26         | 9
+POINT(-1729861.3231565242 3781377.2572642546) | 228        | 8
+POINT(2001203.8796622984 1588548.3963268648)  | 124        | 7
+POINT(-1417910.8585910928 3496034.7206865167) | 147        | 6
+POINT(1045839.9891304348 3582296.444293478)   | 46         | 5
+POINT(-513618.93804196664 2279874.075660586)  | 191        | 4
+POINT(-3002961.9270833335 5451641.91796875)   | 24         | 3
+POINT(140136.12878224207 3081220.7881944445)  | 63         | 2
+;
+
+cartesianCentroidFromAirportsFiltered
+required_capability: st_centroid_agg
+
+FROM airports_web
+| WHERE scalerank == 9
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point                    | count:long
+POINT(9289013.153846154 3615537.0533353365) | 26
+;
+
+cartesianCentroidFromAirportsFilteredAndSorted
+required_capability: st_centroid_agg
+
+FROM airports_web
+| WHERE scalerank == 9
+| SORT abbrev
+| WHERE length(name) > 12
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point            | count:long
+POINT(9003597.4375 3429344.0078125) | 8
+;
+
+cartesianCentroidFromAirportsCountGroupedCentroid
+required_capability: st_centroid_agg
+
+FROM airports_web
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT() BY scalerank
+| STATS centroid=ST_CENTROID_AGG(centroid), count=SUM(count)
+;
+
+centroid:cartesian_point                    | count:long
+POINT (726480.0130685265 3359566.331716279) | 849
+;
+
+###############################################
+# Tests for ST_EXTENT_AGG on CARTESIAN_POINT type
+
+stExtentSingleCartesianPoint
+required_capability: st_extent_agg
+ROW point = TO_CARTESIANPOINT("POINT(429.7109629958868 147.552534006536)")
+| STATS extent = ST_EXTENT_AGG(point)
+;
+
+extent:cartesian_shape
+BBOX (429.7109680175781, 429.7109680175781, 147.5525360107422, 147.5525360107422)
+;
+
+stExtentMultipleCartesianPoints
+required_capability: st_extent_agg
+FROM airports_web | WHERE scalerank == 9 | STATS extent = ST_EXTENT_AGG(location)
+;
+
+extent:cartesian_shape
+BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)
+;
+
+stExtentMultipleCartesianPointsCount
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM airports_web
+| STATS extent = ST_EXTENT_AGG(location), count = COUNT()
+;
+
+extent:cartesian_shape                                   | count:long
+BBOX (-1.949601E7, 1.9947946E7, 1.4502138E7, -7128878.5) | 849
+;
+
+stExtentMultipleCartesianPointGrouping
+required_capability: st_extent_agg
+FROM airports_web | STATS extent = ST_EXTENT_AGG(location) BY scalerank | SORT scalerank DESC | LIMIT 3
+;
+
+extent:cartesian_shape                                    | scalerank:integer
+BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)    | 9
+BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25) | 8
+BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)    | 7
+;
+
+stExtentCartesianShapes
+required_capability: st_extent_agg
+FROM cartesian_multipolygons | STATS extent = ST_EXTENT_AGG(shape)
+;
+
+extent:cartesian_shape
+BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentCartesianShapesGrouping
+required_capability: st_extent_agg
+
+FROM cartesian_multipolygons
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
+8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
+4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentCartesianShapesNoDocValues
+required_capability: st_extent_agg
+FROM cartesian_multipolygons_no_doc_values | STATS extent = ST_EXTENT_AGG(shape)
+;
+
+extent:cartesian_shape
+BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentCartesianShapesGroupingNoDocValues
+required_capability: st_extent_agg
+
+FROM cartesian_multipolygons_no_doc_values
+| EVAL key = SUBSTRING(name,1,3)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY key
+| KEEP count, key, extent
+| SORT count DESC, key ASC
+;
+
+count:long | key:keyword | extent:cartesian_shape
+8          | Bot         | BBOX (0.0, 3.0, 1.0, 0.0)
+8          | Top         | BBOX (0.0, 3.0, 3.0, 2.0)
+4          | Fou         | BBOX (0.0, 3.0, 3.0, 0.0)
+;
+
+stExtentManyCartesianShapesGrouped
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM countries_bbox_web
+| EVAL prefix = SUBSTRING(id, 1, 1)
+| STATS extent = ST_EXTENT_AGG(shape) BY prefix
+| KEEP prefix, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | extent:cartesian_shape
+A              | BBOX (-2.0037508E7, 2.0037508E7, 6278042.5, -4.748140544E9)
+B              | BBOX (-9931524.0, 1.2841846E7, 7591831.0, -3994093.25)
+C              | BBOX (-1.8462154E7, 1.5002357E7, 1.7926778E7, -7538976.5)
+;
+
+stExtentManyCartesianShapesGroupedCount
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+
+FROM countries_bbox_web
+| EVAL prefix = SUBSTRING(id, 1, 1)
+| STATS extent = ST_EXTENT_AGG(shape), count = COUNT() BY prefix
+| KEEP prefix, count, extent
+| SORT prefix
+| LIMIT 3
+;
+
+prefix:keyword | count:long | extent:cartesian_shape
+A              | 17         | BBOX (-2.0037508E7, 2.0037508E7, 6278042.5, -4.748140544E9)
+B              | 18         | BBOX (-9931524.0, 1.2841846E7, 7591831.0, -3994093.25)
+C              | 19         | BBOX (-1.8462154E7, 1.5002357E7, 1.7926778E7, -7538976.5)
+;
+
+###############################################
+# Tests for ST_INTERSECTS on CARTESIAN_POINT type
+
+literalCartesianPointIntersectsLiteralPolygon
+required_capability: st_intersects
+
+ROW pt = TO_CARTESIANPOINT("POINT(0 85)"), polygon = TO_CARTESIANSHAPE("POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70))")
+| EVAL intersects = ST_INTERSECTS(pt, polygon)
+;
+
+pt:cartesian_point  | polygon:cartesian_shape                         | intersects:boolean
+POINT(0 85)         | POLYGON((-10 70, 10 70, 10 85, -10 85, -10 70)) | true
+;
+
+cartesianCentroidFromAirportsAfterIntersectsPredicate
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point     | count:long
+POINT (4783520.5 1661010.0)  | 1
+;
+
+cartesianPointIntersectsPolygon
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+literalCartesianPointIntersectsPolygon
+required_capability: st_intersects
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_INTERSECTS(pt, TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:cartesian_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+cartesianPointIntersectsPointShape
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointIntersectsPoint
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointIntersectsMultiPoint
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("MULTIPOINT(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+;
+
+cartesianPointIntersectsLineString
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("LINESTRING(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+;
+
+cartesianPointIntersectsMultiLineString
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("MULTILINESTRING((4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096),(1408119.2975413958 7484813.53657096, 1996039.722208033 8322469.9470024165))"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+ARN            | POINT(1996039.722208033 8322469.9470024165)  | Arlanda        | 2             | major
+;
+
+cartesianPointIntersectsPointShapeWithCentroid
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
+cartesianPointIntersectsPointWithCentroid
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
+cartesianPointIntersectsLiteralPolygonCount
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| STATS count=COUNT()
+;
+
+count:long
+444
+;
+
+###############################################
+# Tests for ST_DISJOINT on CARTESIAN_POINT type
+
+literalPolygonDisjointLiteralCartesianPoint
+required_capability: st_disjoint
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_DISJOINT(TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword     | pt:cartesian_point
+"POINT(-1 -1)"  | POINT(-1 -1)
+"POINT(-1 1)"   | POINT(-1 1)
+;
+
+literalCartesianPointDisjointLiteralPolygon
+required_capability: st_disjoint
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_DISJOINT(pt, TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword     | pt:cartesian_point
+"POINT(-1 -1)"  | POINT(-1 -1)
+"POINT(-1 1)"   | POINT(-1 1)
+;
+
+literalPolygonDisjointLiteralCartesianPointOneRow
+required_capability: st_disjoint
+
+ROW disjoint = ST_DISJOINT(TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), TO_CARTESIANPOINT("POINT(0 0)"))
+;
+
+disjoint:boolean
+false
+;
+
+literalCartesianPointDisjointLiteralPolygonOneRow
+required_capability: st_disjoint
+
+ROW disjoint = ST_DISJOINT(TO_CARTESIANPOINT("POINT(-1 0)"), TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+disjoint:boolean
+true
+;
+
+cartesianPointDisjointLiteralPolygonCount
+required_capability: st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| STATS count=COUNT()
+;
+
+count:long
+405
+;
+
+cartesianPointIntersectsDisjointLiteralPolygonCount
+required_capability: st_disjoint
+
+FROM airports_web
+| EVAL intersects = ST_INTERSECTS(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| EVAL disjoint = ST_DISJOINT(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| STATS count=COUNT() BY intersects, disjoint
+| SORT intersects DESC, disjoint DESC
+| KEEP intersects, disjoint, count
+;
+
+intersects:boolean  |  disjoint:boolean  |  count:long
+true                |  false             |  444
+false               |  true              |  405
+;
+
+cartesianPointDisjointLiteralPolygon
+required_capability: st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("POLYGON((0 -60000000, 120000000 -60000000, 120000000 60000000, 0 60000000, 0 -60000000))"))
+| EVAL x = ST_X(location), y = ST_Y(location)
+| EVAL x = FLOOR(x / 10000000), y = FLOOR(y / 10000000)
+| STATS count=COUNT() BY x, y
+| KEEP x, y, count
+| SORT x ASC, y ASC
+;
+
+x:double  |  y:double  |  count:long
+-2        |  -1        |  8
+-2        |  0         |  136
+-2        |  1         |  3
+-1        |  -1        |  64
+-1        |  0         |  192
+-1        |  1         |  2
+;
+
+cartesianPointDisjointEmptyGeometry
+required_capability: st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("LINESTRING()"))
+| STATS count=COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_CARTESIANSHAPE(\"LINESTRING()\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+count:long
+0
+;
+
+cartesianPointDisjointInvalidGeometry
+required_capability: st_disjoint
+
+FROM airports_web
+| WHERE ST_DISJOINT(location, TO_CARTESIANSHAPE("Invalid Geometry"))
+| STATS count=COUNT()
+;
+
+warning:Line 2:31: evaluation of [TO_CARTESIANSHAPE(\"Invalid Geometry\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:31: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: invalid
+
+count:long
+0
+;
+
+###############################################
+# Tests for ST_CONTAINS on CARTESIAN_POINT type
+
+cartesianCentroidFromAirportsAfterPolygonContainsPointPredicate
+required_capability: st_contains_within
+
+FROM airports_web
+| WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"), location)
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point     | count:long
+POINT (4783520.5 1661010.0)  | 1
+;
+
+cartesianPolygonContainsPointPredicate
+required_capability: st_contains_within
+
+FROM airports_web
+| WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"), location)
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+literalCartesianPolygonContainsPointPredicate
+required_capability: st_contains_within
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_CONTAINS(TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"), pt)
+;
+
+wkt:keyword   | pt:cartesian_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+cartesianCentroidFromAirportsAfterPointContainsPolygonPredicate
+required_capability: st_contains_within
+required_capability: spatial_centroid_no_records
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point | count:long
+null                     | 0
+;
+
+cartesianPointContainsPolygonPredicate
+required_capability: st_contains_within
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
+;
+
+abbrev:keyword | location:cartesian_point                     |  name:text     |  scalerank:i  |  type:k
+;
+
+literalCartesianPointContainsPolygonPredicate
+required_capability: st_contains_within
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_CONTAINS(pt, TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:cartesian_point
+;
+
+cartesianPointContainsPointShape
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointContainsPoint
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointContainsMultiPoint
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("MULTIPOINT(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+;
+
+cartesianPointContainsLineString
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("LINESTRING(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+;
+
+cartesianPointContainsMultiLineString
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("MULTILINESTRING((4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096),(1408119.2975413958 7484813.53657096, 1996039.722208033 8322469.9470024165))"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+;
+
+cartesianPointContainsPointShapeWithCentroid
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
+cartesianPointContainsPointWithCentroid
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_CONTAINS(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
+###############################################
+# Tests for ST_WITHIN on CARTESIAN_POINT type
+
+cartesianCentroidFromAirportsAfterWithinPredicate
+required_capability: st_contains_within
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point     | count:long
+POINT (4783520.5 1661010.0)  | 1
+;
+
+cartesianPointWithinPolygon
+required_capability: st_contains_within
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POLYGON((4700000 1600000, 4800000 1600000, 4800000 1700000, 4700000 1700000, 4700000 1600000))"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+literalCartesianPointWithinPolygon
+required_capability: st_contains_within
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| WHERE ST_WITHIN(pt, TO_CARTESIANSHAPE("POLYGON((0 -1, 1 -1, 1 1, 0 1, 0 -1))"))
+;
+
+wkt:keyword   | pt:cartesian_point
+"POINT(1 1)"  | POINT(1 1)
+"POINT(1 -1)" | POINT(1 -1)
+;
+
+cartesianPointWithinPointShape
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointWithinPoint
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+;
+
+cartesianPointWithinMultiPoint
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("MULTIPOINT(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+;
+
+cartesianPointWithinLineString
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("LINESTRING(4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096)"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+;
+
+cartesianPointWithinMultiLineString
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("MULTILINESTRING((4783520.559160681 1661010.0197476079, 1408119.2975413958 7484813.53657096),(1408119.2975413958 7484813.53657096, 1996039.722208033 8322469.9470024165))"))
+| SORT abbrev DESC
+;
+
+abbrev:keyword | location:cartesian_point                     | name:text      | scalerank:i   | type:k
+HOD            | POINT (4783520.559160681 1661010.0197476079) | Hodeidah Int'l | 9             | mid
+CPH            | POINT (1408119.2975413958 7484813.53657096)  | Copenhagen     | 3             | major
+ARN            | POINT(1996039.722208033 8322469.9470024165)  | Arlanda        | 2             | major
+;
+
+cartesianPointWithinPointShapeWithCentroid
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANSHAPE("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
+cartesianPointWithinPointWithCentroid
+required_capability: st_intersects
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANPOINT("POINT(4783520.559160681 1661010.0197476079)"))
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:cartesian_point    | count:long
+POINT (4783520.5 1661010.0) | 1
+;
+
+###############################################
+# Tests for ST_DISTANCE with CARTESIAN_POINT
+
+literalCartesianPointDistanceLiteralPoint
+required_capability: st_distance
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_CARTESIANPOINT("POINT(0 0)"))
+;
+
+wkt:keyword    | pt:cartesian_point  | distance:double
+"POINT(1 1)"   | POINT(1 1)          | 1.4142135623730951
+"POINT(-1 -1)" | POINT(-1 -1)        | 1.4142135623730951
+"POINT(-1 1)"  | POINT(-1 1)         | 1.4142135623730951
+"POINT(1 -1)"  | POINT(1 -1)         | 1.4142135623730951
+;
+
+literalCartesianPointDistanceOneUnit
+required_capability: st_distance
+
+ROW wkt = ["POINT(1 0)", "POINT(-1 0)", "POINT(0 1)", "POINT(0 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_CARTESIANPOINT("POINT(0 0)"))
+;
+
+wkt:keyword    | pt:cartesian_point  | distance:double
+"POINT(1 0)"   | POINT(1 0)          | 1.0
+"POINT(-1 0)"  | POINT(-1 0)         | 1.0
+"POINT(0 1)"   | POINT(0 1)          | 1.0
+"POINT(0 -1)"  | POINT(0 -1)         | 1.0
+;
+
+twoCitiesPointDistanceCartesian
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+ROW p1 = TO_CARTESIANPOINT("POINT(-90.82814 29.79511)"), p2 = TO_CARTESIANPOINT("POINT(-90.79731509999999 29.8835389)")
+| EVAL d = ST_DISTANCE(p1, p2)
+;
+
+p1:cartesian_point          | p2:cartesian_point                     | d:double
+POINT (-90.82814 29.79511)  | POINT (-90.79731509999999 29.8835389)  | 0.09364636296011444
+;
+
+airportCartesianCityLocationPointDistance
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+FROM airports_web
+| EVAL distance = ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))
+| WHERE distance < 1000000
+| STATS distance=AVG(distance), min=min(distance), max=max(distance), count=COUNT()
+;
+
+distance:double    | min:double        | max:double        | count:long
+676858.3629952326  | 7358.012830411482 | 971113.1663946278 | 12
+;
+
+airportCartesianDistanceToCityCopenhagen
+required_capability: st_distance
+required_capability: spatial_distance_supports_multivalues
+
+// tag::st_distance-airports_web[]
+FROM airports_web
+| WHERE abbrev == "CPH"
+| EVAL distance = ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))
+| KEEP abbrev, name, location, distance
+// end::st_distance-airports_web[]
+;
+
+// tag::st_distance-airports_web-result[]
+abbrev:k | name:text   | location:cartesian_point                   | distance:d
+CPH      | Copenhagen  | POINT(1408119.2975413958 7484813.53657096) | 7358.012830411482
+// end::st_distance-airports_web-result[]
+;
+
+airportsWithinPolygonCartesianDistanceFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANPOINT("POLYGON((1300000 5000000, 1550000 5000000, 1550000 8000000, 1300000 8000000, 1300000 5000000))"))
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))/1000,2)
+| KEEP abbrev, name, location, distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:cartesian_point                    | distance:d    
+CPH      | Copenhagen              | POINT(1408119.2975413958 7484813.53657096)  | 7.36
+GOT      | Gothenburg              | POINT(1368542.5514391668 7901590.990691348) | 413.02
+TXL      | Berlin-Tegel Int'l      | POINT(1479470.4406631375 6901000.847325224) | 593.96
+DRS      | Dresden                 | POINT(1532309.1332567444 6643450.815136505) | 856.38
+MUC      | Franz-Josef-Strauss     | POINT(1312241.1393453805 6165923.947863139) | 1327.18
+MUCf     | Munich Freight Terminal | POINT(1310172.8388047176 6165247.042460089) | 1327.99
+VCE      | Venice Marco Polo       | POINT(1373801.3277301549 5701352.694091503) | 1788.88
+FCO      | Leonardo da Vinci Int'l | POINT(1363674.994060762 5130332.471894705)  | 2359.99
+;
+
+airportsWithinDistanceFromCopenhagenTrainStationCartesian
+required_capability: st_distance
+
+FROM airports_web
+| WHERE ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)")) < 1000000
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))/1000,2)
+| KEEP abbrev, name, location, distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:cartesian_point                    | distance:d
+CPH      | Copenhagen              | POINT(1408119.2975413958 7484813.53657096)  | 7.36
+GOT      | Gothenburg              | POINT(1368542.5514391668 7901590.990691348) | 413.02
+HAM      | Hamburg                 | POINT(1113823.6215953932 7100767.499507231) | 484.84
+TXL      | Berlin-Tegel Int'l      | POINT(1479470.4406631375 6901000.847325224) | 593.96
+BRE      | Bremen                  | POINT(978037.6584513546 6992675.481947904)  | 654.09
+GDN      | Gdansk Lech Walesa      | POINT(2055897.583295918 7242589.051225524)  | 698.3
+NRK      | Norrköping Airport      | POINT(1807154.0200379654 8090879.147781534) | 724.21
+NYO      | Stockholm-Skavsta       | POINT(1883704.5141685435 8134083.898609498) | 803.75
+DRS      | Dresden                 | POINT(1532309.1332567444 6643450.815136505) | 856.38
+PLQ      | Palanga Int'l           | POINT(2348556.9901333293 7552712.896849933) | 947.73
+OSL      | Oslo Gardermoen         | POINT(1235546.524975006 8442962.64811417)   | 967.55
+BMA      | Bromma                  | POINT(1997697.0065920444 8257643.750388128) | 971.11
+;
+
+airportsWithinDistanceCopenhagenTrainStationCountCartesian
+required_capability: st_distance
+
+FROM airports_web
+| WHERE ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)")) < 1000000
+| STATS count=COUNT()
+| SORT count DESC
+;
+
+count:long
+12
+;
+
+airportsSortDistanceFromCopenhagenTrainStationCartesian
+required_capability: st_distance
+
+FROM airports_web
+| EVAL distance = ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))
+| SORT distance ASC
+| LIMIT 5
+| EVAL distance = ROUND(distance/1000,2)
+| KEEP abbrev, name, location, distance
+;
+
+abbrev:k | name:text               | location:cartesian_point                    | distance:d
+CPH      | Copenhagen              | POINT(1408119.2975413958 7484813.53657096)  | 7.36
+GOT      | Gothenburg              | POINT(1368542.5514391668 7901590.990691348) | 413.02
+HAM      | Hamburg                 | POINT(1113823.6215953932 7100767.499507231) | 484.84
+TXL      | Berlin-Tegel Int'l      | POINT(1479470.4406631375 6901000.847325224) | 593.96
+BRE      | Bremen                  | POINT(978037.6584513546 6992675.481947904)  | 654.09
+;
+
+###############################################
+# Tests for Equality and casting with CARTESIAN_POINT
+
+cartesianPointEquals
+required_capability: spatial_points_from_source
+
+// tag::to_cartesianpoint-equals[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = to_cartesianpoint(wkt)
+| WHERE pt == to_cartesianpoint("POINT(4297.11 -1475.53)")
+// end::to_cartesianpoint-equals[]
+;
+
+// tag::to_cartesianpoint-equals-result[]
+wkt:keyword               |pt:cartesian_point
+"POINT(4297.11 -1475.53)" |POINT(4297.11 -1475.53)
+// end::to_cartesianpoint-equals-result[]
+;
+
+cartesianPointNotEquals
+required_capability: spatial_points_from_source
+
+// tag::to_cartesianpoint-not-equals[]
+ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"]
+| MV_EXPAND wkt
+| EVAL pt = to_cartesianpoint(wkt)
+| WHERE pt != to_cartesianpoint("POINT(4297.11 -1475.53)")
+// end::to_cartesianpoint-not-equals[]
+;
+
+// tag::to_cartesianpoint-not-equals-result[]
+wkt:keyword              |pt:cartesian_point
+"POINT(7580.93 2272.77)" |POINT(7580.93 2272.77)
+// end::to_cartesianpoint-not-equals-result[]
+;
+
+convertCartesianFromStringParseError
+required_capability: spatial_points_from_source
+
+// tag::to_cartesianpoint-str-parse-error[]
+row wkt = ["POINTX(4297.11 -1475.53)", "POINT(7580.93 2272.77)", "POINT(111)"]
+| mv_expand wkt
+| eval pt = to_cartesianpoint(wkt)
+// end::to_cartesianpoint-str-parse-error[]
+;
+
+// tag::to_cartesianpoint-str-parse-error-warning[]
+warning:Line 3:13: evaluation of [to_cartesianpoint(wkt)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: Unknown geometry type: pointx
+warning:Line 3:13: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+// end::to_cartesianpoint-str-parse-error-warning[]
+
+// tag::to_cartesianpoint-str-parse-error-result[]
+wkt:keyword                |pt:cartesian_point
+"POINTX(4297.11 -1475.53)" |null
+"POINT(7580.93 2272.77)"   |POINT(7580.93 2272.77)
+"POINT(111)"               |null
+// end::to_cartesianpoint-str-parse-error-result[]
+;

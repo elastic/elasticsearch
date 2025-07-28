@@ -11,12 +11,14 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 
 import java.util.Arrays;
@@ -26,6 +28,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
+import static org.elasticsearch.repositories.ProjectRepo.projectRepoString;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -49,16 +52,13 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
         );
 
-        final TotalHits totalHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits();
+        final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true)
+        );
 
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final int nbMountedIndices = 1;
         randomIntBetween(1, 5);
@@ -68,12 +68,12 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             Storage storage = randomFrom(Storage.values());
             String restoredIndexName = (storage == Storage.FULL_COPY ? "fully-mounted-" : "partially-mounted-") + indexName + '-' + i;
             mountSnapshot(repositoryName, snapshotName, indexName, restoredIndexName, Settings.EMPTY, storage);
-            assertHitCount(client().prepareSearch(restoredIndexName).setTrackTotalHits(true).get(), totalHits.value);
+            assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value());
             mountedIndices[i] = restoredIndexName;
         }
 
         assertAcked(
-            clusterAdmin().preparePutRepository(repositoryName)
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName)
                 .setType(FsRepository.TYPE)
                 .setSettings(
                     Settings.builder()
@@ -87,13 +87,14 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         if (randomBoolean()) {
             final String snapshotWithMountedIndices = snapshotName + "-with-mounted-indices";
             createSnapshot(repositoryName, snapshotWithMountedIndices, Arrays.asList(mountedIndices));
-            assertAcked(client().admin().indices().prepareDelete(mountedIndices));
-            assertAcked(clusterAdmin().prepareDeleteRepository(repositoryName));
+            assertAcked(indicesAdmin().prepareDelete(mountedIndices));
+            assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repositoryName));
 
             updatedRepositoryName = repositoryName + "-with-mounted-indices";
             createRepository(updatedRepositoryName, FsRepository.TYPE, repositorySettings, randomBoolean());
 
             final RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(
+                TEST_REQUEST_TIMEOUT,
                 updatedRepositoryName,
                 snapshotWithMountedIndices
             ).setWaitForCompletion(true).setIndices(mountedIndices).get();
@@ -105,7 +106,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         for (int i = 0; i < nbMountedIndices; i++) {
             RepositoryConflictException exception = expectThrows(
                 RepositoryConflictException.class,
-                () -> clusterAdmin().prepareDeleteRepository(updatedRepositoryName).get()
+                () -> clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, updatedRepositoryName).get()
             );
             assertThat(
                 exception.getMessage(),
@@ -117,10 +118,10 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                         + " searchable snapshots indices that use the repository:"
                 )
             );
-            assertAcked(client().admin().indices().prepareDelete(mountedIndices[i]));
+            assertAcked(indicesAdmin().prepareDelete(mountedIndices[i]));
         }
 
-        assertAcked(clusterAdmin().prepareDeleteRepository(updatedRepositoryName));
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, updatedRepositoryName));
     }
 
     public void testMountIndexWithDeletionOfSnapshotFailsIfNotSingleIndexSnapshot() throws Exception {
@@ -137,7 +138,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
 
         final String snapshot = "snapshot";
         createFullSnapshot(repository, snapshot);
-        assertAcked(client().admin().indices().prepareDelete("index-*"));
+        assertAcked(indicesAdmin().prepareDelete("index-*"));
 
         final String index = "index-" + randomInt(nbIndices - 1);
         final String mountedIndex = "mounted-" + index;
@@ -164,11 +165,13 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         final String index = "index";
         createAndPopulateIndex(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
 
-        final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
+        final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(index).setTrackTotalHits(true)
+        );
 
         final String snapshot = "snapshot";
         createSnapshot(repository, snapshot, List.of(index));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
 
         final boolean deleteSnapshot = randomBoolean();
         final String mounted = "mounted-with-setting-" + deleteSnapshot;
@@ -182,7 +185,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 ? equalTo(Boolean.toString(deleteSnapshot))
                 : nullValue()
         );
-        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(mounted).setTrackTotalHits(true), totalHits.value());
 
         final String mountedAgain = randomValueOtherThan(mounted, () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
         final SnapshotRestoreException exception = expectThrows(
@@ -207,10 +210,10 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 ? equalTo(Boolean.toString(deleteSnapshot))
                 : nullValue()
         );
-        assertHitCount(client().prepareSearch(mountedAgain).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(mountedAgain).setTrackTotalHits(true), totalHits.value());
 
-        assertAcked(client().admin().indices().prepareDelete(mountedAgain));
-        assertAcked(client().admin().indices().prepareDelete(mounted));
+        assertAcked(indicesAdmin().prepareDelete(mountedAgain));
+        assertAcked(indicesAdmin().prepareDelete(mounted));
     }
 
     public void testDeletionOfSnapshotSettingCannotBeUpdated() throws Exception {
@@ -220,11 +223,13 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         final String index = "index";
         createAndPopulateIndex(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
 
-        final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
+        final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(index).setTrackTotalHits(true)
+        );
 
         final String snapshot = "snapshot";
         createSnapshot(repository, snapshot, List.of(index));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
 
         final String mounted = "mounted-" + index;
         final boolean deleteSnapshot = randomBoolean();
@@ -237,26 +242,22 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 ? equalTo(Boolean.toString(deleteSnapshot))
                 : nullValue()
         );
-        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(mounted).setTrackTotalHits(true), totalHits.value());
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose(mounted));
+            assertAcked(indicesAdmin().prepareClose(mounted));
         }
 
         final IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareUpdateSettings(mounted)
-                .setSettings(deleteSnapshotIndexSettings(deleteSnapshot == false))
-                .get()
+            () -> indicesAdmin().prepareUpdateSettings(mounted).setSettings(deleteSnapshotIndexSettings(deleteSnapshot == false)).get()
         );
         assertThat(
             exception.getMessage(),
             containsString("can not update private setting [index.store.snapshot.delete_searchable_snapshot]; ")
         );
 
-        assertAcked(client().admin().indices().prepareDelete(mounted));
+        assertAcked(indicesAdmin().prepareDelete(mounted));
     }
 
     public void testRestoreSearchableSnapshotIndexConflicts() throws Exception {
@@ -268,7 +269,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
 
         final String snapshotOfIndex = "snapshot-of-index";
         createSnapshot(repository, snapshotOfIndex, List.of(indexName));
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final String mountedIndex = "mounted-index";
         final boolean deleteSnapshot = randomBoolean();
@@ -284,7 +285,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
 
         final String snapshotOfMountedIndex = "snapshot-of-mounted-index";
         createSnapshot(repository, snapshotOfMountedIndex, List.of(mountedIndex));
-        assertAcked(client().admin().indices().prepareDelete(mountedIndex));
+        assertAcked(indicesAdmin().prepareDelete(mountedIndex));
 
         final String mountedIndexAgain = "mounted-index-again";
         final boolean deleteSnapshotAgain = deleteSnapshot == false;
@@ -301,9 +302,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         logger.info("--> restoring snapshot of searchable snapshot index [{}] should be conflicting", mountedIndex);
         final SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareRestoreSnapshot(repository, snapshotOfMountedIndex)
+            () -> clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshotOfMountedIndex)
                 .setIndices(mountedIndex)
                 .setWaitForCompletion(true)
                 .get()
@@ -318,7 +317,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 containsString("is mounted with [index.store.snapshot.delete_searchable_snapshot: " + deleteSnapshotAgain + "].")
             )
         );
-        assertAcked(client().admin().indices().prepareDelete("mounted-*"));
+        assertAcked(indicesAdmin().prepareDelete("mounted-*"));
     }
 
     public void testRestoreSearchableSnapshotIndexWithDifferentSettingsConflicts() throws Exception {
@@ -351,7 +350,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                     : nullValue()
             );
             if (randomBoolean()) {
-                assertAcked(client().admin().indices().prepareClose(mountedIndex));
+                assertAcked(indicesAdmin().prepareClose(mountedIndex));
             }
             mountedIndices.add(mountedIndex);
         }
@@ -364,9 +363,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             : randomSubsetOf(randomIntBetween(1, nbMountedIndices), mountedIndices);
         final SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareRestoreSnapshot(repository, snapshotOfMountedIndices)
+            () -> clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshotOfMountedIndices)
                 .setIndices(restorables.toArray(String[]::new))
                 .setIndexSettings(deleteSnapshotIndexSettings(deleteSnapshot == false))
                 .setRenameReplacement("restored-with-different-setting-$1")
@@ -379,16 +376,18 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             exception.getMessage(),
             containsString(
                 "cannot change value of [index.store.snapshot.delete_searchable_snapshot] when restoring searchable snapshot ["
-                    + repository
+                    + projectRepoString(ProjectId.DEFAULT, repository)
                     + ':'
                     + snapshotOfMountedIndices
                     + "] as index [mounted-"
             )
         );
 
-        final RestoreSnapshotResponse restoreResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot(repository, snapshotOfMountedIndices)
+        final RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            repository,
+            snapshotOfMountedIndices
+        )
             .setIndices(restorables.toArray(String[]::new))
             .setIndexSettings(indexSettings)
             .setRenameReplacement("restored-with-same-setting-$1")
@@ -398,8 +397,8 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         assertThat(restoreResponse.getRestoreInfo().totalShards(), greaterThan(0));
         assertThat(restoreResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        assertAcked(client().admin().indices().prepareDelete("mounted-*"));
-        assertAcked(client().admin().indices().prepareDelete("restored-with-same-setting-*"));
+        assertAcked(indicesAdmin().prepareDelete("mounted-*"));
+        assertAcked(indicesAdmin().prepareDelete("restored-with-same-setting-*"));
     }
 
     private static Settings deleteSnapshotIndexSettings(boolean value) {
@@ -418,7 +417,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
 
     @Nullable
     private static String getDeleteSnapshotIndexSetting(String indexName) {
-        final GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
+        final GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get();
         return getSettingsResponse.getSetting(indexName, SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION);
     }
 }

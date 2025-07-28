@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io;
@@ -136,22 +137,6 @@ public abstract class Streams {
         return out.toString();
     }
 
-    public static int readFully(InputStream reader, byte[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
     /**
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
@@ -250,6 +235,11 @@ public abstract class Streams {
         public BytesReference bytes() {
             return delegate.bytes();
         }
+
+        @Override
+        public void seek(long position) {
+            delegate.seek(position);
+        }
     }
 
     /**
@@ -303,11 +293,6 @@ public abstract class Streams {
         @Override
         public int available() throws IOException {
             return Math.toIntExact(Math.min(in.available(), currentLimit));
-        }
-
-        @Override
-        public void close() throws IOException {
-            in.close();
         }
 
         @Override

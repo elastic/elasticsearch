@@ -1,47 +1,66 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse.RemoteClusterStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.CancellableFanOut;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeService;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.RemoteClusterConnection;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.usage.SearchUsageHolder;
@@ -49,16 +68,25 @@ import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 
+/**
+ * Transport action implementing _cluster/stats API.
+ */
 public class TransportClusterStatsAction extends TransportNodesAction<
     ClusterStatsRequest,
     ClusterStatsResponse,
     TransportClusterStatsAction.ClusterStatsNodeRequest,
-    ClusterStatsNodeResponse> {
+    ClusterStatsNodeResponse,
+    SubscribableListener<TransportClusterStatsAction.AdditionalStats>> {
+
+    public static final ActionType<ClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats");
 
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(
         CommonStatsFlags.Flag.Docs,
@@ -66,49 +94,85 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         CommonStatsFlags.Flag.FieldData,
         CommonStatsFlags.Flag.QueryCache,
         CommonStatsFlags.Flag.Completion,
-        CommonStatsFlags.Flag.Segments
+        CommonStatsFlags.Flag.Segments,
+        CommonStatsFlags.Flag.DenseVector,
+        CommonStatsFlags.Flag.SparseVector
     );
+    private static final Logger logger = LogManager.getLogger(TransportClusterStatsAction.class);
 
+    private final Settings settings;
     private final NodeService nodeService;
     private final IndicesService indicesService;
+    private final RepositoriesService repositoriesService;
+    private final ProjectResolver projectResolver;
     private final SearchUsageHolder searchUsageHolder;
+    private final CCSUsageTelemetry ccsUsageHolder;
+    private final CCSUsageTelemetry esqlUsageHolder;
 
+    private final Executor clusterStateStatsExecutor;
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     public TransportClusterStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
+        Client client,
         NodeService nodeService,
         IndicesService indicesService,
+        RepositoriesService repositoriesService,
+        ProjectResolver projectResolver,
         UsageService usageService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        Settings settings
     ) {
         super(
-            ClusterStatsAction.NAME,
-            threadPool,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            ClusterStatsRequest::new,
             ClusterStatsNodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.MANAGEMENT,
-            ClusterStatsNodeResponse.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
+        this.repositoriesService = repositoriesService;
+        this.projectResolver = projectResolver;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
+        this.ccsUsageHolder = usageService.getCcsUsageHolder();
+        this.esqlUsageHolder = usageService.getEsqlUsageHolder();
+        this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
+        this.remoteClusterService = transportService.getRemoteClusterService();
+        this.settings = settings;
+
+        // register remote-cluster action with transport service only and not as a local-node Action that the Client can invoke
+        new TransportRemoteClusterStatsAction(client, transportService, actionFilters);
+    }
+
+    @Override
+    protected SubscribableListener<AdditionalStats> createActionContext(Task task, ClusterStatsRequest request) {
+        assert task instanceof CancellableTask;
+        final var cancellableTask = (CancellableTask) task;
+        if (request.isRemoteStats() == false) {
+            final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
+            final AdditionalStats additionalStats = new AdditionalStats();
+            additionalStats.compute(cancellableTask, request, additionalStatsListener);
+            return additionalStatsListener;
+        } else {
+            // For remote stats request, we don't need to compute anything
+            return SubscribableListener.nullSuccess();
+        }
     }
 
     @Override
     protected void newResponseAsync(
         final Task task,
         final ClusterStatsRequest request,
+        final SubscribableListener<AdditionalStats> additionalStatsListener,
         final List<ClusterStatsNodeResponse> responses,
         final List<FailedNodeException> failures,
         final ActionListener<ClusterStatsResponse> listener
@@ -118,34 +182,35 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                 + "the cluster state that are too slow for a transport thread"
         );
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
-        assert task instanceof CancellableTask;
-        final CancellableTask cancellableTask = (CancellableTask) task;
-        final ClusterState state = clusterService.state();
-        final Metadata metadata = state.metadata();
 
-        final StepListener<MappingStats> mappingStatsStep = new StepListener<>();
-        final StepListener<AnalysisStats> analysisStatsStep = new StepListener<>();
-        mappingStatsCache.get(metadata, cancellableTask::isCancelled, mappingStatsStep);
-        analysisStatsCache.get(metadata, cancellableTask::isCancelled, analysisStatsStep);
-        mappingStatsStep.whenComplete(
-            mappingStats -> analysisStatsStep.whenComplete(
-                analysisStats -> ActionListener.completeWith(
-                    listener,
-                    () -> new ClusterStatsResponse(
-                        System.currentTimeMillis(),
-                        metadata.clusterUUID(),
-                        clusterService.getClusterName(),
-                        responses,
-                        failures,
-                        mappingStats,
-                        analysisStats,
-                        VersionStats.of(metadata, responses)
-                    )
-                ),
-                listener::onFailure
-            ),
-            listener::onFailure
-        );
+        additionalStatsListener.andThenApply(
+            additionalStats -> request.isRemoteStats()
+                // Return stripped down stats for remote clusters
+                ? new ClusterStatsResponse(
+                    System.currentTimeMillis(),
+                    clusterService.state().metadata().clusterUUID(),
+                    clusterService.getClusterName(),
+                    responses,
+                    List.of(),
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of()
+                )
+                : new ClusterStatsResponse(
+                    System.currentTimeMillis(),
+                    additionalStats.clusterUUID(),
+                    clusterService.getClusterName(),
+                    responses,
+                    failures,
+                    additionalStats.mappingStats(),
+                    additionalStats.analysisStats(),
+                    VersionStats.of(clusterService.state().metadata(), responses),
+                    additionalStats.clusterSnapshotStats(),
+                    additionalStats.getRemoteStats()
+                )
+        ).addListener(listener);
     }
 
     @Override
@@ -160,7 +225,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     @Override
     protected ClusterStatsNodeRequest newNodeRequest(ClusterStatsRequest request) {
-        return new ClusterStatsNodeRequest(request);
+        return new ClusterStatsNodeRequest();
     }
 
     @Override
@@ -172,20 +237,22 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest, Task task) {
         assert task instanceof CancellableTask;
         final CancellableTask cancellableTask = (CancellableTask) task;
-        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false);
+        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, false, true, false, false, false);
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
-            true,
-            true,
-            true,
             false,
             true,
+            true,
+            true,
+            false,
+            true,
             false,
             false,
             false,
             false,
             false,
             true,
+            false,
             false,
             false,
             false
@@ -216,19 +283,28 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                             CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS),
                             commitStats,
                             seqNoStats,
-                            retentionLeaseStats
+                            retentionLeaseStats,
+                            indexShard.isSearchIdle(),
+                            indexShard.searchIdleTime()
                         )
                     );
                 }
             }
         }
 
-        ClusterHealthStatus clusterStatus = null;
-        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
-        }
+        final ClusterState clusterState = clusterService.state();
 
-        SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+        @FixForMultiProject(description = "Should it be possible to execute this against the cluster rather than a specific project?")
+        final ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
+        final ClusterHealthStatus clusterStatus = clusterState.nodes().isLocalNodeElectedMaster()
+            ? new ClusterStateHealth(clusterState, project.getConcreteAllIndices(), project.id()).getStatus()
+            : null;
+
+        final SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+
+        final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
+        final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
+        final CCSTelemetrySnapshot esqlTelemetry = esqlUsageHolder.getCCSTelemetrySnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -236,32 +312,24 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             nodeInfo,
             nodeStats,
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
-            searchUsageStats
+            searchUsageStats,
+            repositoryUsageStats,
+            ccsTelemetry,
+            esqlTelemetry
         );
     }
 
-    public static class ClusterStatsNodeRequest extends TransportRequest {
+    public static class ClusterStatsNodeRequest extends AbstractTransportRequest {
 
-        ClusterStatsRequest request;
+        ClusterStatsNodeRequest() {}
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {
             super(in);
-            request = new ClusterStatsRequest(in);
-        }
-
-        ClusterStatsNodeRequest(ClusterStatsRequest request) {
-            this.request = request;
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "", parentTaskId, headers);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            request.writeTo(out);
         }
     }
 
@@ -293,4 +361,150 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             return newKey <= currentKey;
         }
     }
+
+    public final class AdditionalStats {
+
+        private String clusterUUID;
+        private MappingStats mappingStats;
+        private AnalysisStats analysisStats;
+        private ClusterSnapshotStats clusterSnapshotStats;
+        private Map<String, RemoteClusterStats> remoteStats;
+
+        void compute(CancellableTask task, ClusterStatsRequest request, ActionListener<AdditionalStats> listener) {
+            clusterStateStatsExecutor.execute(ActionRunnable.wrap(listener, l -> {
+                task.ensureNotCancelled();
+                internalCompute(
+                    task,
+                    request,
+                    clusterService.state(),
+                    mappingStatsCache,
+                    analysisStatsCache,
+                    task::isCancelled,
+                    clusterService.threadPool().absoluteTimeInMillis(),
+                    l.map(ignored -> this)
+                );
+            }));
+        }
+
+        private void internalCompute(
+            CancellableTask task,
+            ClusterStatsRequest request,
+            ClusterState clusterState,
+            MetadataStatsCache<MappingStats> mappingStatsCache,
+            MetadataStatsCache<AnalysisStats> analysisStatsCache,
+            BooleanSupplier isCancelledSupplier,
+            long absoluteTimeInMillis,
+            ActionListener<Void> listener
+        ) {
+            try (var listeners = new RefCountingListener(listener)) {
+                final var metadata = clusterState.metadata();
+                clusterUUID = metadata.clusterUUID();
+                mappingStatsCache.get(metadata, isCancelledSupplier, listeners.acquire(s -> mappingStats = s));
+                analysisStatsCache.get(metadata, isCancelledSupplier, listeners.acquire(s -> analysisStats = s));
+                clusterSnapshotStats = ClusterSnapshotStats.of(clusterState, absoluteTimeInMillis);
+                if (doRemotes(request)) {
+                    var remotes = remoteClusterService.getRegisteredRemoteClusterNames();
+                    if (remotes.isEmpty()) {
+                        remoteStats = Map.of();
+                    } else {
+                        new RemoteStatsFanout(task, transportService.getThreadPool().executor(ThreadPool.Names.SEARCH_COORDINATION)).start(
+                            task,
+                            remotes,
+                            listeners.acquire(s -> remoteStats = s)
+                        );
+                    }
+                }
+            }
+        }
+
+        String clusterUUID() {
+            return clusterUUID;
+        }
+
+        MappingStats mappingStats() {
+            return mappingStats;
+        }
+
+        AnalysisStats analysisStats() {
+            return analysisStats;
+        }
+
+        ClusterSnapshotStats clusterSnapshotStats() {
+            return clusterSnapshotStats;
+        }
+
+        public Map<String, RemoteClusterStats> getRemoteStats() {
+            return remoteStats;
+        }
+    }
+
+    private boolean doRemotes(ClusterStatsRequest request) {
+        return SearchService.CCS_COLLECT_TELEMETRY.get(settings) && request.doRemotes();
+    }
+
+    private class RemoteStatsFanout extends CancellableFanOut<String, RemoteClusterStatsResponse, Map<String, RemoteClusterStats>> {
+        private final Executor requestExecutor;
+        private final TaskId taskId;
+        private Map<String, RemoteClusterStats> remoteClustersStats;
+
+        RemoteStatsFanout(Task task, Executor requestExecutor) {
+            this.requestExecutor = requestExecutor;
+            this.taskId = new TaskId(clusterService.getNodeName(), task.getId());
+        }
+
+        @Override
+        protected void sendItemRequest(String clusterAlias, ActionListener<RemoteClusterStatsResponse> listener) {
+            var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
+                clusterAlias,
+                requestExecutor,
+                RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+            );
+            var remoteRequest = new RemoteClusterStatsRequest();
+            remoteRequest.setParentTask(taskId);
+            remoteClusterClient.getConnection(remoteRequest, listener.delegateFailureAndWrap((responseListener, connection) -> {
+                if (connection.getTransportVersion().before(TransportVersions.V_8_16_0)) {
+                    responseListener.onResponse(null);
+                } else {
+                    remoteClusterClient.execute(connection, TransportRemoteClusterStatsAction.REMOTE_TYPE, remoteRequest, responseListener);
+                }
+            }));
+        }
+
+        @Override
+        protected void onItemResponse(String clusterAlias, RemoteClusterStatsResponse response) {
+            if (response != null) {
+                remoteClustersStats.computeIfPresent(clusterAlias, (k, v) -> v.acceptResponse(response));
+            }
+        }
+
+        @Override
+        protected void onItemFailure(String clusterAlias, Exception e) {
+            logger.warn("Failed to get remote cluster stats for [{}]: {}", clusterAlias, e);
+        }
+
+        void start(Task task, Collection<String> remotes, ActionListener<Map<String, RemoteClusterStats>> listener) {
+            this.remoteClustersStats = remotes.stream().collect(Collectors.toConcurrentMap(r -> r, this::makeRemoteClusterStats));
+            super.run(task, remotes.iterator(), listener);
+        }
+
+        /**
+         * Create static portion of RemoteClusterStats for a given cluster alias.
+         */
+        RemoteClusterStats makeRemoteClusterStats(String clusterAlias) {
+            RemoteClusterConnection remoteConnection = remoteClusterService.getRemoteClusterConnection(clusterAlias);
+            RemoteConnectionInfo remoteConnectionInfo = remoteConnection.getConnectionInfo();
+            var compression = RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            return new RemoteClusterStats(
+                remoteConnectionInfo.getModeInfo().modeName(),
+                remoteConnection.isSkipUnavailable(),
+                compression.toString()
+            );
+        }
+
+        @Override
+        protected Map<String, RemoteClusterStats> onCompletion() {
+            return remoteClustersStats;
+        }
+    }
+
 }

@@ -10,25 +10,17 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
-import java.util.Arrays;
 import java.util.Map;
-
-import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
-    private final ClusterService clusterService;
-
-    public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, ClusterService clusterService) {
+    public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
         super(threadPool.getThreadContext(), licenseState);
-        this.clusterService = clusterService;
     }
 
     @Override
@@ -38,21 +30,15 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
         ActionListener<Void> listener
     ) {
         final SearchRequest request = (SearchRequest) indicesRequest;
-        if (hasRemoteIndices(request)) {
-            request.requestCache(false);
-        }
-
-        final SearchSourceBuilder source = request.source();
-
         if (indexAccessControlByIndex.values().stream().anyMatch(iac -> iac.getDocumentPermissions().hasDocumentLevelPermissions())) {
-            if (source != null && source.suggest() != null) {
+            if (hasSuggest(request)) {
                 listener.onFailure(
                     new ElasticsearchSecurityException(
                         "Suggest isn't supported if document level security is enabled",
                         RestStatus.BAD_REQUEST
                     )
                 );
-            } else if (source != null && source.profile()) {
+            } else if (hasProfile(request)) {
                 listener.onFailure(
                     new ElasticsearchSecurityException(
                         "A search request cannot be profiled if document level security " + "is enabled",
@@ -60,6 +46,11 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
                     )
                 );
             } else {
+                if (hasZeroMinDocTermsAggregation(request)) {
+                    assert request.source() != null && request.source().aggregations() != null;
+                    request.source().aggregations().forceTermsAggsToExcludeDeletedDocs();
+                }
+
                 listener.onResponse(null);
             }
         } else {
@@ -69,11 +60,25 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
 
     @Override
     public boolean supports(IndicesRequest request) {
-        return request instanceof SearchRequest;
+        if (request instanceof SearchRequest searchRequest) {
+            return hasSuggest(searchRequest) || hasProfile(searchRequest) || hasZeroMinDocTermsAggregation(searchRequest);
+        } else {
+            return false;
+        }
     }
 
-    // package private for test
-    static boolean hasRemoteIndices(SearchRequest request) {
-        return Arrays.stream(request.indices()).anyMatch(name -> name.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0);
+    private static boolean hasSuggest(SearchRequest searchRequest) {
+        return searchRequest.source() != null && searchRequest.source().suggest() != null;
     }
+
+    private static boolean hasProfile(SearchRequest searchRequest) {
+        return searchRequest.source() != null && searchRequest.source().profile();
+    }
+
+    private static boolean hasZeroMinDocTermsAggregation(SearchRequest searchRequest) {
+        return searchRequest.source() != null
+            && searchRequest.source().aggregations() != null
+            && searchRequest.source().aggregations().hasZeroMinDocTermsAggregation();
+    }
+
 }

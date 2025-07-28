@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -19,8 +20,8 @@ public class RobertaTokenizationTests extends AbstractBWCSerializationTestCase<R
 
     private boolean lenient;
 
-    public static RobertaTokenization mutateForVersion(RobertaTokenization instance, Version version) {
-        if (version.before(Version.V_8_2_0)) {
+    public static RobertaTokenization mutateForVersion(RobertaTokenization instance, TransportVersion version) {
+        if (version.before(TransportVersions.V_8_2_0)) {
             return new RobertaTokenization(
                 instance.withSpecialTokens,
                 instance.isAddPrefixSpace(),
@@ -53,8 +54,20 @@ public class RobertaTokenizationTests extends AbstractBWCSerializationTestCase<R
     }
 
     @Override
-    protected RobertaTokenization mutateInstanceForVersion(RobertaTokenization instance, Version version) {
+    protected RobertaTokenization mutateInstance(RobertaTokenization instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected RobertaTokenization mutateInstanceForVersion(RobertaTokenization instance, TransportVersion version) {
         return mutateForVersion(instance, version);
+    }
+
+    public void testsBuildUpdatedTokenization() {
+        var update = new RobertaTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1).buildWindowingTokenization(50, 20);
+        assertEquals(Tokenization.Truncate.NONE, update.getTruncate());
+        assertEquals(50, update.maxSequenceLength());
+        assertEquals(20, update.getSpan());
     }
 
     public static RobertaTokenization createRandom() {

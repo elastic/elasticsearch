@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +37,11 @@ public final class SingleResultDeduplicator<T> {
      * up here once done.
      */
     private List<ActionListener<T>> waitingListeners;
+    /**
+     * The threadContext associated with the first listener in the waitingListeners. This context will be restored right before
+     * we perform the {@code executeAction}.
+     */
+    private ThreadContext.StoredContext waitingStoredContext;
 
     private final Consumer<ActionListener<T>> executeAction;
 
@@ -45,7 +52,9 @@ public final class SingleResultDeduplicator<T> {
 
     /**
      * Execute the action for the given {@code listener}.
-     * @param listener listener to resolve with execution result
+     * @param listener listener to resolve with execution result. The listener always has its threadContext preserved, i.e.
+     *                 when the listener is invoked, it will see its original threadContext plus any response headers generated
+     *                 by performing the {@code executeAction}.
      */
     public void execute(ActionListener<T> listener) {
         synchronized (this) {
@@ -53,46 +62,64 @@ public final class SingleResultDeduplicator<T> {
                 // no queued up listeners, just execute this one directly without deduplication and instantiate the list so that
                 // subsequent executions will wait
                 waitingListeners = new ArrayList<>();
+                waitingStoredContext = null;
             } else {
                 // already running an execution, queue this one up
+                if (waitingListeners.isEmpty()) {
+                    // Only the first listener in queue needs the stored context which is used for running executeAction
+                    assert waitingStoredContext == null;
+                    waitingStoredContext = threadContext.newStoredContext();
+                }
                 waitingListeners.add(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
                 return;
             }
         }
-        doExecute(listener);
+        doExecute(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext), null);
     }
 
-    private void doExecute(ActionListener<T> listener) {
+    private void doExecute(ActionListener<T> listener, @Nullable ThreadContext.StoredContext storedContext) {
         final ActionListener<T> wrappedListener = ActionListener.runBefore(listener, () -> {
             final List<ActionListener<T>> listeners;
+            final ThreadContext.StoredContext thisStoredContext;
             synchronized (this) {
                 if (waitingListeners.isEmpty()) {
                     // no listeners were queued up while this execution ran, so we just reset the state to not having a running execution
                     waitingListeners = null;
+                    waitingStoredContext = null;
                     return;
                 } else {
                     // we have queued up listeners, so we create a fresh list for the next execution and execute once to handle the
                     // listeners currently queued up
                     listeners = waitingListeners;
+                    thisStoredContext = waitingStoredContext;
+                    // This batch of listeners will use the context of the first listener in this batch for the work execution
+                    assert thisStoredContext != null : "stored context must not be null for the first listener in a batch";
                     waitingListeners = new ArrayList<>();
+                    waitingStoredContext = null;
                 }
             }
-            doExecute(new ActionListener<>() {
-                @Override
-                public void onResponse(T response) {
-                    ActionListener.onResponse(listeners, response);
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    ActionListener.onFailure(listeners, e);
-                }
-            });
+            // Create a child threadContext so that the parent context remains unchanged when the child execution ends.
+            // This ensures the parent does not see response headers from the child execution.
+            try (var ignore = threadContext.newStoredContext()) {
+                doExecute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(T response) {
+                        ActionListener.onResponse(listeners, response);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        ActionListener.onFailure(listeners, e);
+                    }
+                }, thisStoredContext);
+            }
         });
-        try {
-            executeAction.accept(wrappedListener);
-        } catch (Exception e) {
-            wrappedListener.onFailure(e);
+        // Restore the given threadContext before proceed with the work execution.
+        // This ensures all executions begin execution with their own context.
+        if (storedContext != null) {
+            storedContext.restore();
         }
+        ActionListener.run(wrappedListener, executeAction::accept);
     }
 }

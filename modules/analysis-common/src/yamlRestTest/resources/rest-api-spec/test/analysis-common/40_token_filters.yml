@@ -242,6 +242,52 @@
     - length: { tokens: 2 }
     - match:  { tokens.0.token: Foo }
     - match:  { tokens.1.token: Bar! }
+---
+"unique only_on_same_pos":
+  - do:
+      indices.analyze:
+        body:
+          text:      ll l o
+          tokenizer: whitespace
+          filter:    [{type: "ngram", "max_gram": 1}, {type: "unique", "only_on_same_position": true}]
+  - length: { tokens: 3 }
+  - match:  { tokens.0.token: l }
+  - match:  { tokens.1.token: l }
+  - match:  { tokens.2.token: o }
+
+  - do:
+      indices.analyze:
+        body:
+          text:      ll l o
+          tokenizer: whitespace
+          filter:    [{type: "ngram", "max_gram": 1}, {type: "unique", "only_on_same_position": false}]
+  - length: { tokens: 2 }
+  - match:  { tokens.0.token: l }
+  - match:  { tokens.1.token: o }
+---
+"unique test position correction":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: 'position fix for unique filter is available since 8.15.0'
+  - do:
+      indices.analyze:
+        body:
+          text:      "los angeles leadership academy"
+          tokenizer: whitespace
+          filter:    [{type: "edge_ngram", "max_gram": 2}, "unique"]
+  - length: { tokens: 6 }
+  - match:  { tokens.0.token: l }
+  - match:  { tokens.0.position: 0 }
+  - match:  { tokens.1.token: lo }
+  - match:  { tokens.1.position: 0 }
+  - match:  { tokens.2.token: a }
+  - match:  { tokens.2.position: 1 }
+  - match:  { tokens.3.token: an }
+  - match:  { tokens.3.position: 1 }
+  - match:  { tokens.4.token: le }
+  - match:  { tokens.4.position: 2 }
+  - match:  { tokens.5.token: ac }
+  - match:  { tokens.5.position: 3 }
 
 ---
 "synonym":
@@ -502,7 +548,27 @@
     - match:  { tokens.1.token: foob }
     - match:  { tokens.2.token: fooba }
     - match:  { tokens.3.token: foobar }
+---
+"edge_ngram side deprecated":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: 'side parameter is deprecated since 8.16.0'
+      test_runner_features: warnings
 
+  - do:
+      warnings:
+        - "The [side] parameter is deprecated and will be removed. Use a [reverse] before and after the [edge_ngram] instead."
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              filter:
+                my_edge_ngram:
+                  type: edge_ngram
+                  min_gram: 3
+                  side: front
+                  max_gram: 6
 ---
 "kstem":
     - do:
@@ -661,6 +727,23 @@
     - length: { tokens: 2 }
     - match:  { tokens.0.token: baz }
     - match:  { tokens.1.token: baz }
+
+---
+"stemmer_override file access":
+    - do:
+        catch: bad_request
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_stemmer_override:
+                    type: stemmer_override
+                    rules_path: "jvm.options"
+    - match: { status: 400 }
+    - match: { error.type: illegal_argument_exception }
+    - match: { error.reason: "/Access.denied.trying.to.read.file.rules_path.*/" }
 
 ---
 "decompounder":
@@ -1683,3 +1766,44 @@
     - length: { tokens: 6 }
     - match: { tokens.0.token: the }
     - match: { tokens.1.token: THE }
+
+---
+"pattern_replace_filter":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              normalizer:
+                my_normalizer:
+                  type: custom
+                  filter: ["replace_zeros"]
+              filter:
+                replace_zeros:
+                  type: pattern_replace
+                  pattern: "0+"
+                  replacement: ""
+                  all: true
+          mappings:
+            properties:
+              pagerank:
+                type: keyword
+                normalizer: my_normalizer
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:   { pagerank: "000000111"}
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        q: pagerank:111
+
+  - match: {hits.total.value: 1}

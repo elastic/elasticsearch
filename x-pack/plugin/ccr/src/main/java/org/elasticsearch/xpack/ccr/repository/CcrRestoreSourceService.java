@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.CombinedRateLimiter;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
@@ -42,6 +42,7 @@ import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.LongConsumer;
 
@@ -103,7 +104,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 if (indexShard.state() == IndexShardState.CLOSED) {
                     throw new IndexShardClosedException(indexShard.shardId(), "cannot open ccr restore session if shard closed");
                 }
-                restore = new RestoreSession(sessionUUID, indexShard, indexShard.acquireSafeIndexCommit(), scheduleTimeout(sessionUUID));
+                final Engine.IndexCommitRef commitRef = indexShard.acquireSafeIndexCommit();
+                final Set<String> fileNames = Set.copyOf(commitRef.getIndexCommit().getFileNames());
+                restore = new RestoreSession(sessionUUID, indexShard, commitRef, fileNames, scheduleTimeout(sessionUUID));
                 onGoingRestores.put(sessionUUID, restore);
                 HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) -> new HashSet<>());
                 sessions.add(sessionUUID);
@@ -118,6 +121,32 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                     restore.decRef();
                 }
             }
+        }
+    }
+
+    public void ensureSessionShardIdConsistency(String sessionUUID, ShardId shardId) {
+        final RestoreSession restore = onGoingRestores.get(sessionUUID);
+        if (restore == null) {
+            logger.debug("could not get session [{}] because session not found", sessionUUID);
+            throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+        }
+        final ShardId sessionShardId = restore.indexShard.shardId();
+        if (false == sessionShardId.equals(shardId)) {
+            throw new IllegalArgumentException(
+                "session [" + sessionUUID + "] shardId [" + sessionShardId + "] does not match requested shardId [" + shardId + "]"
+            );
+        }
+    }
+
+    public void ensureFileNameIsKnownToSession(String sessionUUID, String fileName) {
+        final RestoreSession restore = onGoingRestores.get(sessionUUID);
+        if (restore == null) {
+            logger.debug("could not get session [{}] because session not found", sessionUUID);
+            throw new IllegalArgumentException("session [" + sessionUUID + "] not found");
+        }
+        // Ensure no file system traversal is possible by only allowing file names known to the restore session
+        if (false == restore.fileNames.contains(fileName)) {
+            throw new IllegalArgumentException("invalid file name [" + fileName + "]");
         }
     }
 
@@ -162,7 +191,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
 
     private Scheduler.Cancellable scheduleTimeout(String sessionUUID) {
         TimeValue idleTimeout = ccrSettings.getRecoveryActivityTimeout();
-        return threadPool.scheduleWithFixedDelay(() -> maybeTimeout(sessionUUID), idleTimeout, ThreadPool.Names.GENERIC);
+        return threadPool.scheduleWithFixedDelay(() -> maybeTimeout(sessionUUID), idleTimeout, threadPool.generic());
     }
 
     private void maybeTimeout(String sessionUUID) {
@@ -185,6 +214,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         private final String sessionUUID;
         private final IndexShard indexShard;
         private final Engine.IndexCommitRef commitRef;
+        private final Set<String> fileNames;
         private final Scheduler.Cancellable timeoutTask;
         private final KeyedLock<String> keyedLock = new KeyedLock<>();
         private final Map<String, IndexInput> cachedInputs = new ConcurrentHashMap<>();
@@ -194,11 +224,13 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             String sessionUUID,
             IndexShard indexShard,
             Engine.IndexCommitRef commitRef,
+            Set<String> fileNames,
             Scheduler.Cancellable timeoutTask
         ) {
             this.sessionUUID = sessionUUID;
             this.indexShard = indexShard;
             this.commitRef = commitRef;
+            this.fileNames = fileNames;
             this.timeoutTask = timeoutTask;
         }
 
@@ -211,25 +243,22 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             }
         }
 
-        private long readFileBytes(String fileName, BytesReference reference) throws IOException {
+        private long readFileBytes(String fileName, ByteArray reference) throws IOException {
             try (Releasable ignored = keyedLock.acquire(fileName)) {
+                var context = fileName.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : IOContext.DEFAULT;
                 final IndexInput indexInput = cachedInputs.computeIfAbsent(fileName, f -> {
                     try {
-                        return commitRef.getIndexCommit().getDirectory().openInput(fileName, IOContext.READONCE);
+                        return commitRef.getIndexCommit().getDirectory().openInput(fileName, context);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 });
 
-                BytesRefIterator refIterator = reference.iterator();
-                BytesRef ref;
-                while ((ref = refIterator.next()) != null) {
-                    indexInput.readBytes(ref.bytes, ref.offset, ref.length);
-                }
+                reference.fillWith(new InputStreamIndexInput(indexInput, reference.size()));
 
                 long offsetAfterRead = indexInput.getFilePointer();
 
-                if (offsetAfterRead == indexInput.length()) {
+                if (offsetAfterRead == indexInput.length() || context == IOContext.READONCE) {
                     cachedInputs.remove(fileName);
                     IOUtils.close(indexInput);
                 }
@@ -270,9 +299,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
          * @return the offset of the file after the read is complete
          * @throws IOException if the read fails
          */
-        public long readFileBytes(String fileName, BytesReference reference) throws IOException {
+        public long readFileBytes(String fileName, ByteArray reference) throws IOException {
             CombinedRateLimiter rateLimiter = ccrSettings.getRateLimiter();
-            long throttleTime = rateLimiter.maybePause(reference.length());
+            long throttleTime = rateLimiter.maybePause(Math.toIntExact(reference.size()));
             throttleListener.accept(throttleTime);
             return restoreSession.readFileBytes(fileName, reference);
         }

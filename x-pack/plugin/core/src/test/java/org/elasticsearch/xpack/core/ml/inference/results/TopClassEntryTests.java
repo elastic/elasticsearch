@@ -41,4 +41,9 @@ public class TopClassEntryTests extends AbstractXContentSerializingTestCase<TopC
     protected TopClassEntry createTestInstance() {
         return createRandomTopClassEntry();
     }
+
+    @Override
+    protected TopClassEntry mutateInstance(TopClassEntry instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

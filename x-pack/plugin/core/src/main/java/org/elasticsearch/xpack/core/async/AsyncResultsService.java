@@ -14,7 +14,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
@@ -28,13 +29,13 @@ import static org.elasticsearch.core.Strings.format;
  * is still running and AsyncTaskIndexService if task results already stored there.
  */
 public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncResponse<Response>> {
-    private final Logger logger = LogManager.getLogger(AsyncResultsService.class);
+    private static final Logger logger = LogManager.getLogger(AsyncResultsService.class);
     private final Class<? extends Task> asyncTaskClass;
     private final TaskManager taskManager;
     private final ClusterService clusterService;
     private final AsyncTaskIndexService<Response> store;
     private final boolean updateInitialResultsInStore;
-    private final TriConsumer<Task, ActionListener<Response>, TimeValue> addCompletionListener;
+    private final TriFunction<Task, ActionListener<Response>, TimeValue, Boolean> addCompletionListener;
 
     /**
      * Creates async results service
@@ -50,7 +51,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
         AsyncTaskIndexService<Response> store,
         boolean updateInitialResultsInStore,
         Class<? extends Task> asyncTaskClass,
-        TriConsumer<Task, ActionListener<Response>, TimeValue> addCompletionListener,
+        TriFunction<Task, ActionListener<Response>, TimeValue, Boolean> addCompletionListener,
         TaskManager taskManager,
         ClusterService clusterService
     ) {
@@ -120,24 +121,24 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
     ) {
         try {
             final Task task = store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass);
-            if (task == null) {
+            if (task == null || (updateInitialResultsInStore && task.isCancelled())) {
                 getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
-                return;
-            }
-
-            if (task.isCancelled()) {
-                listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                 return;
             }
 
             if (expirationTimeMillis != -1) {
                 task.setExpirationTime(expirationTimeMillis);
             }
-            addCompletionListener.apply(
+            boolean added = addCompletionListener.apply(
                 task,
                 listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)),
                 request.getWaitForCompletionTimeout()
             );
+            if (added == false) {
+                // the task must have completed, since we cannot add a completion listener
+                assert store.getTaskAndCheckAuthentication(taskManager, searchId, asyncTaskClass) == null;
+                getSearchResponseFromIndex(searchId, request, nowInMillis, listener);
+            }
         } catch (Exception exc) {
             listener.onFailure(exc);
         }
@@ -149,7 +150,17 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
         long nowInMillis,
         ActionListener<Response> listener
     ) {
-        store.getResponse(searchId, true, listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)));
+        store.getResponse(searchId, true, listener.delegateFailure((l, response) -> {
+            try {
+                sendFinalResponse(request, response, nowInMillis, l);
+            } finally {
+                if (response instanceof StoredAsyncResponse<?> storedAsyncResponse
+                    && storedAsyncResponse.getResponse() instanceof RefCounted refCounted) {
+                    refCounted.decRef();
+                }
+            }
+
+        }));
     }
 
     private void sendFinalResponse(GetAsyncResultRequest request, Response response, long nowInMillis, ActionListener<Response> listener) {

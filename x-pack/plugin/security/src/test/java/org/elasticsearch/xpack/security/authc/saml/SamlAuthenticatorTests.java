@@ -10,11 +10,10 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -40,6 +39,7 @@ import org.opensaml.saml.saml2.core.Subject;
 import org.opensaml.saml.saml2.core.SubjectConfirmation;
 import org.opensaml.saml.saml2.core.SubjectConfirmationData;
 import org.opensaml.saml.saml2.core.impl.AuthnStatementBuilder;
+import org.opensaml.saml.saml2.core.impl.IssuerBuilder;
 import org.opensaml.saml.saml2.encryption.Encrypter;
 import org.opensaml.security.credential.BasicCredential;
 import org.opensaml.security.credential.Credential;
@@ -84,7 +84,9 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
@@ -107,6 +109,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "Attributes with a name clash may prevent authentication or interfere will role mapping. "
             + "Change your IdP configuration to use a different attribute *"
             + " that will not clash with any of [*]";
+    private static final String SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE = "The XML Signature of this SAML message cannot be validated. "
+        + "Please verify that the saml realm uses the correct SAML metadata file/URL for this Identity Provider. "
+        + "The issuer included in the SAML message was [https://idp.saml.elastic.test/]";
 
     private SamlAuthenticator authenticator;
 
@@ -129,7 +134,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final List<X509Credential> spEncryptionCredentials = buildOpenSamlCredential(spEncryptionCertificatePairs).stream()
             .map((cred) -> (X509Credential) cred)
             .collect(Collectors.<X509Credential>toList());
-        final SpConfiguration sp = new SpConfiguration(
+        final SpConfiguration sp = new SingleSamlSpConfiguration(
             SP_ENTITY_ID,
             SP_ACS_URL,
             null,
@@ -216,13 +221,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             .add(getAttribute(attributeName, attributeFriendlyName, null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "attribute name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
@@ -231,10 +232,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             );
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -247,17 +245,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertion.getAttributeStatements().get(0).getAttributes().add(getAttribute(UID_OID, "friendly", null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -274,20 +265,17 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         SamlToken token = token(signResponse(response));
 
         final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "attribute name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
                     SPECIAL_ATTRIBUTE_LOG_MESSAGE
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "attribute friendly name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
@@ -296,10 +284,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             );
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -613,17 +598,23 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     public void testExpiredAuthnStatementSessionIsRejected() throws Exception {
-        Instant now = clock.instant();
-        String xml = getSimpleResponseAsString(now);
+        final Instant now = clock.instant();
+        final int sessionExpirySeconds = 60;
+        final Instant subjectConfirmationValidUntil = now.plusSeconds(500);
+        final Instant sessionValidUntil = now.plusSeconds(sessionExpirySeconds);
+        final String xml = SamlUtils.getXmlContent(
+            getSimpleResponse(now, randomId(), randomId(), subjectConfirmationValidUntil, sessionValidUntil),
+            false
+        );
         SamlToken token = token(signResponse(xml));
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // and still valid if we advance partway through the session expiry time
-        clock.fastForwardSeconds(30);
+        clock.fastForwardSeconds(sessionExpirySeconds / 2);
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // and still valid if we advance past the expiry time, but allow for clock skew
-        clock.fastForwardSeconds((int) (30 + maxSkew.seconds() / 2));
+        clock.fastForwardSeconds((int) (sessionExpirySeconds / 2 + maxSkew.seconds() / 2));
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // but fails once we get past the clock skew allowance
@@ -756,16 +747,29 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         // check that the content is valid when signed by the correct key-pair
         assertThat(authenticator.authenticate(token(signer.transform(xml, idpSigningCertificatePair))), notNullValue());
 
-        // check is rejected when signed by a different key-pair
-        final Tuple<X509Certificate, PrivateKey> wrongKey = readKeyPair("RSA_4096_updated");
-        final ElasticsearchSecurityException exception = expectThrows(
-            ElasticsearchSecurityException.class,
-            () -> authenticator.authenticate(token(signer.transform(xml, wrongKey)))
-        );
-        assertThat(exception.getMessage(), containsString("SAML Signature"));
-        assertThat(exception.getMessage(), containsString("could not be validated"));
-        assertThat(exception.getCause(), nullValue());
-        assertThat(SamlUtils.isSamlException(exception), is(true));
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Invalid Signature",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE
+                )
+            );
+
+            // check is rejected when signed by a different key-pair
+            final Tuple<X509Certificate, PrivateKey> wrongKey = readKeyPair("RSA_4096_updated");
+            final ElasticsearchSecurityException exception = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> authenticator.authenticate(token(signer.transform(xml, wrongKey)))
+            );
+            assertThat(exception.getMessage(), containsString("SAML Signature"));
+            assertThat(exception.getMessage(), containsString("could not be validated"));
+            assertThat(exception.getCause(), nullValue());
+            assertThat(SamlUtils.isSamlException(exception), is(true));
+
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testSigningKeyIsReloadedForEachRequest() throws Exception {
@@ -884,14 +888,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         String xml = SamlUtils.getXmlContent(response, false);
         final SamlToken token = token(signResponse(xml));
 
-        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
-
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "similar audience",
                     authenticator.getClass().getName(),
                     Level.INFO,
@@ -904,8 +903,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                         + "] [:80/] vs [/])"
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "not similar audience",
                     authenticator.getClass().getName(),
                     Level.INFO,
@@ -914,10 +913,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             );
             final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
             assertThat(exception.getMessage(), containsString("required audience"));
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1324,24 +1320,80 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         authenticator = buildAuthenticator(() -> emptyList(), emptyList());
         final String xml = getSimpleResponseAsString(clock.instant());
         final SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
-        assertThat(exception.getCause(), nullValue());
-        assertThat(exception.getMessage(), containsString("SAML Signature"));
-        assertThat(exception.getMessage(), containsString("could not be validated"));
-        // Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
+
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Invalid signature",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE
+                )
+            );
+
+            final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+            assertThat(exception.getCause(), nullValue());
+            assertThat(exception.getMessage(), containsString("SAML Signature"));
+            assertThat(exception.getMessage(), containsString("could not be validated"));
+
+            mockLog.awaitAllExpectationsMatched();
+        }
     }
 
     public void testFailureWhenIdPCredentialsAreNull() throws Exception {
         authenticator = buildAuthenticator(() -> singletonList(null), emptyList());
         final String xml = getSimpleResponseAsString(clock.instant());
         final SamlToken token = token(signResponse(xml));
-        final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
-        assertThat(exception.getCause(), nullValue());
-        assertThat(exception.getMessage(), containsString("SAML Signature"));
-        assertThat(exception.getMessage(), containsString("could not be validated"));
-        // Restore the authenticator with credentials for the rest of the test cases
-        authenticator = buildAuthenticator(() -> buildOpenSamlCredential(idpSigningCertificatePair), emptyList());
+
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Invalid signature",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    SIGNATURE_VALIDATION_FAILED_LOG_MESSAGE
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Null credentials",
+                    authenticator.getClass().getName(),
+                    Level.WARN,
+                    "Exception while attempting to validate SAML Signature. "
+                        + "The issuer included in the SAML message was [https://idp.saml.elastic.test/]"
+                )
+            );
+
+            final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
+            assertThat(exception.getCause(), nullValue());
+            assertThat(exception.getMessage(), containsString("SAML Signature"));
+            assertThat(exception.getMessage(), containsString("could not be validated"));
+
+            mockLog.awaitAllExpectationsMatched();
+        }
+    }
+
+    public void testDescribeNullIssuer() {
+        final Issuer issuer = randomFrom(new IssuerBuilder().buildObject(), null);
+        assertThat(SamlAuthenticator.describeIssuer(issuer), equalTo(""));
+    }
+
+    public void testDescribeIssuer() {
+        final Issuer issuer = new IssuerBuilder().buildObject();
+        issuer.setValue("https://idp.saml.elastic.test/");
+        assertThat(
+            SamlAuthenticator.describeIssuer(issuer),
+            equalTo(" The issuer included in the SAML message was [https://idp.saml.elastic.test/]")
+        );
+    }
+
+    public void testDescribeVeryLongIssuer() {
+        final Issuer issuer = new IssuerBuilder().buildObject();
+        issuer.setValue("https://idp.saml.elastic.test/" + randomAlphaOfLength(512));
+
+        final String description = SamlAuthenticator.describeIssuer(issuer);
+        assertThat(description, hasLength(562));
+        assertThat(description, endsWith("..."));
     }
 
     private interface CryptoTransform {
@@ -1417,9 +1469,14 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final Credential keyEncryptionCredential = new BasicCredential(keyPair.v1().getPublicKey(), keyPair.v2());
         KeyEncryptionParameters keyEncryptionParameters = new KeyEncryptionParameters();
         keyEncryptionParameters.setEncryptionCredential(keyEncryptionCredential);
-        keyEncryptionParameters.setAlgorithm(
-            randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP, EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15)
-        );
+        if (inFipsJvm()) {
+            // RSA v1.5 is not allowed when running in FIPS mode
+            keyEncryptionParameters.setAlgorithm(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP);
+        } else {
+            keyEncryptionParameters.setAlgorithm(
+                randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP, EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15)
+            );
+        }
 
         final Encrypter samlEncrypter = new Encrypter(encryptionParameters, keyEncryptionParameters);
         samlEncrypter.setKeyPlacement(Encrypter.KeyPlacement.INLINE);
@@ -1466,8 +1523,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     private Response getSimpleResponse(Instant now, String nameId, String sessionindex) {
-        Instant subjectConfirmationValidUntil = now.plusSeconds(120);
-        Instant sessionValidUntil = now.plusSeconds(60);
+        Instant subjectConfirmationValidUntil = now.plusSeconds(500);
+        Instant sessionValidUntil = now.plusSeconds(300);
         return getSimpleResponse(now, nameId, sessionindex, subjectConfirmationValidUntil, sessionValidUntil);
     }
 
@@ -1589,7 +1646,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         String nameId,
         String sessionindex
     ) {
-        Instant validUntil = now.plusSeconds(30);
+        Instant validUntil = now.plusSeconds(300);
         String xml = "<proto:Response"
             + "    Destination='%(SP_ACS_URL)'"
             + "    ID='%(randomId)'"

@@ -1,6 +1,0 @@
-pr: 91515
-summary: Use chunked encoding for `RestGetHealthAction`
-area: Health
-type: feature
-issues:
- - 90223

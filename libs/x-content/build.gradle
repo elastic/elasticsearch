@@ -1,50 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
-
-import org.elasticsearch.gradle.transform.UnzipTransform
-import org.gradle.api.internal.artifacts.ArtifactAttributes
-
-import java.util.stream.Collectors
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.embedded-providers'
 
-def isImplAttr = Attribute.of("is.impl", Boolean)
-
-configurations {
-  providerImpl {
-    attributes.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-    attributes.attribute(isImplAttr, true)
-  }
+embeddedProviders {
+  impl 'x-content', project(':libs:x-content:impl')
 }
 
 dependencies {
-  registerTransform(
-    UnzipTransform.class, transformSpec -> {
-    transformSpec.getFrom()
-      .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.JAR_TYPE)
-      .attribute(isImplAttr, true)
-    transformSpec.getTo()
-      .attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
-      .attribute(isImplAttr, true)
-    transformSpec.parameters(parameters -> {
-      parameters.includeArtifactName.set(true)
-    })
-
-  })
-
-  api project(':libs:elasticsearch-core')
-
-  providerImpl project(':libs:elasticsearch-x-content:impl')
+  api project(':libs:core')
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+    exclude group: 'org.elasticsearch', module: 'x-content'
   }
 }
 
@@ -65,24 +40,3 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
-
-File generatedResourcesDir = new File(buildDir, 'generated-resources')
-def generateProviderManifest = tasks.register("generateProviderManifest") {
-  File manifestFile = new File(generatedResourcesDir, "LISTING.TXT")
-  inputs.property('jars', configurations.providerImpl)
-  outputs.file(manifestFile)
-  doLast {
-    manifestFile.parentFile.mkdirs()
-    manifestFile.setText(configurations.providerImpl.files.stream()
-      .map(f -> f.name).sorted().collect(Collectors.joining('\n')), 'UTF-8')
-  }
-}
-
-def generateProviderImpl = tasks.register("generateProviderImpl", Sync) {
-  destinationDir = new File(generatedResourcesDir, "impl")
-  into("IMPL-JARS/x-content") {
-    from(configurations.providerImpl)
-    from(generateProviderManifest)
-  }
-}
-sourceSets.main.output.dir(generateProviderImpl)

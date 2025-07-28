@@ -16,7 +16,17 @@ public class DataFrameAnalyticsTaskStateTests extends AbstractXContentSerializin
 
     @Override
     protected DataFrameAnalyticsTaskState createTestInstance() {
-        return new DataFrameAnalyticsTaskState(randomFrom(DataFrameAnalyticsState.values()), randomLong(), randomAlphaOfLength(10));
+        return new DataFrameAnalyticsTaskState(
+            randomFrom(DataFrameAnalyticsState.values()),
+            randomLong(),
+            randomAlphaOfLength(10),
+            randomInstant()
+        );
+    }
+
+    @Override
+    protected DataFrameAnalyticsTaskState mutateInstance(DataFrameAnalyticsTaskState instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

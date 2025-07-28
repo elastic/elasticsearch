@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -34,59 +35,46 @@ public class DesiredNodeSerializationTests extends AbstractXContentSerializingTe
     }
 
     @Override
-    protected DesiredNode mutateInstance(DesiredNode instance) throws IOException {
+    protected DesiredNode mutateInstance(DesiredNode instance) {
         return mutateDesiredNode(instance);
     }
 
     public static DesiredNode mutateDesiredNode(DesiredNode instance) {
-        final var mutationBranch = randomInt(5);
+        final var mutationBranch = randomInt(4);
         return switch (mutationBranch) {
             case 0 -> new DesiredNode(
                 Settings.builder().put(instance.settings()).put(randomAlphaOfLength(10), randomInt()).build(),
                 instance.processors(),
                 instance.processorsRange(),
                 instance.memory(),
-                instance.storage(),
-                instance.version()
+                instance.storage()
             );
             case 1 -> new DesiredNode(
                 instance.settings(),
                 randomValueOtherThan(instance.processors(), () -> Processors.of(randomDouble() + randomIntBetween(1, 128))),
                 null,
                 instance.memory(),
-                instance.storage(),
-                instance.version()
+                instance.storage()
             );
             case 2 -> new DesiredNode(
                 instance.settings(),
                 randomValueOtherThan(instance.processorsRange(), DesiredNodesTestCase::randomProcessorRange),
                 instance.memory(),
-                instance.storage(),
-                instance.version()
+                instance.storage()
             );
             case 3 -> new DesiredNode(
                 instance.settings(),
                 instance.processors(),
                 instance.processorsRange(),
                 ByteSizeValue.ofGb(randomValueOtherThan(instance.memory().getGb(), () -> (long) randomIntBetween(1, 128))),
-                instance.storage(),
-                instance.version()
+                instance.storage()
             );
             case 4 -> new DesiredNode(
                 instance.settings(),
                 instance.processors(),
                 instance.processorsRange(),
                 instance.memory(),
-                ByteSizeValue.ofGb(randomValueOtherThan(instance.storage().getGb(), () -> (long) randomIntBetween(1, 128))),
-                instance.version()
-            );
-            case 5 -> new DesiredNode(
-                instance.settings(),
-                instance.processors(),
-                instance.processorsRange(),
-                instance.memory(),
-                instance.storage(),
-                instance.version().previousMajor()
+                ByteSizeValue.ofGb(randomValueOtherThan(instance.storage().getGb(), () -> (long) randomIntBetween(1, 128)))
             );
             default -> throw new IllegalStateException("Unexpected value: " + mutationBranch);
         };

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -17,8 +18,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
  */
 public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchRequest, MultiSearchResponse> {
 
-    public MultiSearchRequestBuilder(ElasticsearchClient client, MultiSearchAction action) {
-        super(client, action, new MultiSearchRequest());
+    public MultiSearchRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportMultiSearchAction.TYPE, new MultiSearchRequest());
     }
 
     /**
@@ -63,11 +64,4 @@ public class MultiSearchRequestBuilder extends ActionRequestBuilder<MultiSearchR
         return this;
     }
 
-    /**
-     * Sets how many search requests specified in this multi search requests are allowed to be ran concurrently.
-     */
-    public MultiSearchRequestBuilder setMaxConcurrentSearchRequests(int maxConcurrentSearchRequests) {
-        request().maxConcurrentSearchRequests(maxConcurrentSearchRequests);
-        return this;
-    }
 }

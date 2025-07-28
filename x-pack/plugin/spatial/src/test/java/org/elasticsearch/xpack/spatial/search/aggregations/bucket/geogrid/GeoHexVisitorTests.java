@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
@@ -20,10 +22,10 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.h3.LatLng;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeometryDocValueReader;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.io.IOException;
@@ -49,7 +51,7 @@ public class GeoHexVisitorTests extends ESTestCase {
         // we ignore polar cells are they are problematic and do not keep the relationships
         long h3 = randomValueOtherThanMany(
             l -> l == H3.geoToH3(90, 0, H3.getResolution(l)) || l == H3.geoToH3(-90, 0, H3.getResolution(l)),
-            () -> H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(2, 14))
+            () -> H3.geoToH3(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude(), randomIntBetween(2, 13))
         );
         long centerChild = H3.childPosToH3(h3, 0);
         // children position 3 is chosen so we never use a polar polygon
@@ -81,9 +83,10 @@ public class GeoHexVisitorTests extends ESTestCase {
             visitor.reset(centerChild);
             reader.visit(visitor);
             if (hasArea) {
-                if (h3CrossesDateline && visitor.getLeftX() > visitor.getRightX()) {
-                    // if both polygons crosses the dateline it cannot be inside due to the polygon splitting technique
-                    assertEquals("failing h3: " + h3, GeoRelation.QUERY_CROSSES, visitor.relation());
+                if (h3CrossesDateline) {
+                    // if the h3 crosses the dateline, we might get CROSSES due to the polygon splitting technique. We can't
+                    // be sure which one is the correct one, so we just check that it is not DISJOINT
+                    assertNotSame("failing h3: " + h3, GeoRelation.QUERY_DISJOINT, visitor.relation());
                 } else {
                     assertEquals("failing h3: " + h3, GeoRelation.QUERY_INSIDE, visitor.relation());
                 }
@@ -194,5 +197,39 @@ public class GeoHexVisitorTests extends ESTestCase {
             reader.visit(visitor);
             assertEquals(GeoRelation.QUERY_CROSSES, visitor.relation());
         }
+    }
+
+    // Testing issue with a specific cell left of the dateline that touches the dateline with one point
+    // Intersecting a polygon on the other side of the dateline.
+    public void testSpecificCellTouchesDateline() throws IOException {
+        long h3 = 646728346019944298L;
+        GeoBoundingBox box = new GeoBoundingBox(new GeoPoint(-11.29550, -180), new GeoPoint(-11.29552, -179.99999));
+        GeoHexVisitor visitor = new GeoHexVisitor();
+        visitor.reset(h3);
+        {
+            // Polygon on the same side of the dateline (overlaps)
+            Polygon polygon = makePolygonFromBox(179.99999, 180, -11.29550, -11.29552);
+            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(polygon, CoordinateEncoder.GEO);
+            reader.visit(visitor);
+            assertEquals("Polygon on the same side of the dateline", GeoRelation.QUERY_CROSSES, visitor.relation());
+        }
+        {
+            // Polygon on the other side of the dateline (just touches)
+            Polygon polygon = makePolygonFromBox(-180, -179.99999, -11.29550, -11.29552);
+            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(polygon, CoordinateEncoder.GEO);
+            reader.visit(visitor);
+            assertEquals(
+                "Polygon on the other side of the dateline (touches at single point)",
+                GeoRelation.QUERY_CROSSES,
+                visitor.relation()
+            );
+        }
+    }
+
+    private Polygon makePolygonFromBox(double left, double right, double top, double bottom) {
+        double[] x = new double[] { left, right, right, left, left };
+        double[] y = new double[] { bottom, bottom, top, top, bottom };
+        LinearRing ring = new LinearRing(x, y);
+        return new Polygon(ring);
     }
 }

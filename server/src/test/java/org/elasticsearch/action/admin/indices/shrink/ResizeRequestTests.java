@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.shrink;
@@ -66,7 +67,7 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
         }
         {
             ResizeRequest request = new ResizeRequest("target", "source");
-            request.setMaxPrimaryShardSize(new ByteSizeValue(100, ByteSizeUnit.MB));
+            request.setMaxPrimaryShardSize(ByteSizeValue.of(100, ByteSizeUnit.MB));
             String actualRequestBody = Strings.toString(request);
             assertEquals("""
                 {"settings":{},"aliases":{},"max_primary_shard_size":"100mb"}""", actualRequestBody);
@@ -170,5 +171,10 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
             resizeRequest.setMaxPrimaryShardSize(ByteSizeValue.ofBytes(randomIntBetween(1, 100)));
         }
         return resizeRequest;
+    }
+
+    @Override
+    protected ResizeRequest mutateInstance(ResizeRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

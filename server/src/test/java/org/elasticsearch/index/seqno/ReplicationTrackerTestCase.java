@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -12,7 +13,6 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,6 +24,7 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class ReplicationTrackerTestCase extends ESTestCase {
@@ -54,14 +55,9 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase {
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final AllocationId primaryId) {
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        final ShardRouting primaryShard = TestShardRouting.newShardRouting(
-            shardId,
-            nodeIdFromAllocationId(primaryId),
-            null,
-            true,
-            ShardRoutingState.STARTED,
-            primaryId
-        );
+        final ShardRouting primaryShard = shardRoutingBuilder(shardId, nodeIdFromAllocationId(primaryId), true, ShardRoutingState.STARTED)
+            .withAllocationId(primaryId)
+            .build();
         return routingTable(initializingIds, primaryShard);
     }
 
@@ -71,14 +67,9 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase {
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
         for (final AllocationId initializingId : initializingIds) {
             builder.addShard(
-                TestShardRouting.newShardRouting(
-                    shardId,
-                    nodeIdFromAllocationId(initializingId),
-                    null,
-                    false,
-                    ShardRoutingState.INITIALIZING,
-                    initializingId
-                )
+                shardRoutingBuilder(shardId, nodeIdFromAllocationId(initializingId), false, ShardRoutingState.INITIALIZING)
+                    .withAllocationId(initializingId)
+                    .build()
             );
         }
 

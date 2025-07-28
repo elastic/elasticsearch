@@ -1,0 +1,290 @@
+---
+"Enrich fields includes match field":
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "enrich match field was mistakenly excluded in 8.11"
+  - do:
+      indices.create:
+        index: departments
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              employees:
+                type: integer
+
+  - do:
+      bulk:
+        index: departments
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "name": "engineering", "employees": 1024 }
+          - { "index": { } }
+          - { "name": "marketing", "employees": 56 }
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+
+  - do:
+      enrich.put_policy:
+        name: departments-policy
+        body:
+          match:
+            indices: [ "departments" ]
+            match_field: "name"
+            enrich_fields: [ "name", "employees" ]
+
+  - do:
+      enrich.execute_policy:
+        name: departments-policy
+  - do:
+      esql.query:
+        body:
+          query: 'ROW name="engineering" | ENRICH departments-policy | LIMIT 10 | KEEP name, employees'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "employees" }
+  - match: { columns.1.type: "integer" }
+
+  - length: { values: 1 }
+  - match: { values.0.0: "engineering" }
+  - match: { values.0.1: 1024 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'ROW name="sales" | ENRICH departments-policy ON name WITH department=name | WHERE name==department | KEEP name, department | LIMIT 10'
+
+  - match: { columns.0.name: "name" }
+  - match: { columns.0.type: "keyword" }
+  - match: { columns.1.name: "department" }
+  - match: { columns.1.type: "keyword" }
+  - length: { values: 0 }
+
+  - do:
+      enrich.delete_policy:
+        name: departments-policy
+
+---
+movies:
+  # This is a subset of a demo that we use for ESQL's ENRICH command.
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "there's a bug in sub-fields in 8.12"
+  - do:
+      indices.create:
+        index: elastiflix-movies
+        body:
+          mappings:
+            properties:
+              adult:
+                type: boolean
+              backdrop_path:
+                type: keyword
+              belongs_to_collection:
+                properties:
+                  backdrop_path:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                        ignore_above: 256
+                  id:
+                    type: long
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                        ignore_above: 256
+                  poster_path:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                        ignore_above: 256
+              budget:
+                type: long
+              cast:
+                type: keyword
+              genres:
+                type: keyword
+              homepage:
+                type: keyword
+              id:
+                type: long
+              imdb_id:
+                type: keyword
+              keywords:
+                properties:
+                  id:
+                    type: long
+                  name:
+                    type: text
+                    fields:
+                      keyword:
+                        type: keyword
+                        ignore_above: 256
+              original_language:
+                type: text
+              original_title:
+                type: text
+              overview:
+                type: text
+              popularity:
+                type: long
+              poster_path:
+                type: keyword
+              production_companies:
+                type: keyword
+              production_countries:
+                type: keyword
+              rating:
+                type: keyword
+              release_date:
+                type: date
+              revenue:
+                type: long
+              runtime:
+                type: long
+              spoken_languages:
+                type: keyword
+              status:
+                type: keyword
+              tagline:
+                type: text
+              title:
+                type: text
+                fields:
+                  completion:
+                    type: completion
+                    analyzer: simple
+                    preserve_separators: true
+                    preserve_position_increments: true
+                    max_input_length: 50
+              user_score:
+                type: long
+              video:
+                type: boolean
+              vote_average:
+                type: long
+              vote_count:
+                type: long
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 1
+
+  - do:
+      bulk:
+        index: elastiflix-movies
+        refresh: true
+        body:
+          # This test data comes from https://developer.themoviedb.org/docs/faq#what-are-the-attribution-requirements . Elasticsearch's distribution doesn't include this data.
+          - { "index": { } }
+          - { "adult": false,"backdrop_path": "/Ab8mkHmkYADjU7wQiOkia9BzGvS.jpg","belongs_to_collection": null,"budget": 19000000,"genres": [ "Animation","Family","Fantasy" ],"homepage": "http://movies.disney.com/spirited-away","id": 129,"imdb_id": "tt0245429","original_language": "ja","original_title": "千と千尋の神隠し","overview": "A young girl, Chihiro, becomes trapped in a strange new world of spirits. When her parents undergo a mysterious transformation, she must call upon the courage she never knew she had to free her family.","popularity": 90.865,"poster_path": "/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg","production_companies": [ "Studio Ghibli" ],"production_countries": [ "Japan" ],"release_date": "2001-07-20","revenue": 274925095,"runtime": 125,"spoken_languages": [ "日本語" ],"status": "Released","tagline": "","title": "Spirited Away","video": false,"vote_average": 8.54,"vote_count": 13662,"rating": "PG","cast": [ "Rumi Hiiragi","Miyu Irino","Mari Natsuki","Takashi Naito","Yasuko Sawaguchi","Tatsuya Gashûin","Yumi Tamai","Yo Oizumi","Koba Hayashi","Tsunehiko Kamijô","Takehiko Ono","Ryunosuke Kamiki","Bunta Sugawara","Akio Nakamura","Ken Yasuda","Shirō Saitō","Michiko Yamamoto","Kaori Yamagata","Shigeyuki Totsugi" ],"keywords": [ { "id": 616,"name": "witch" },{ "id": 970,"name": "parent child relationship" },{ "id": 2343,"name": "magic" },{ "id": 3762,"name": "darkness" },{ "id": 4652,"name": "bath house" },{ "id": 13153,"name": "spirit" },{ "id": 33465,"name": "parallel world" },{ "id": 155582,"name": "amusement park" },{ "id": 196509,"name": "youkai" },{ "id": 207695,"name": "japanese mythology" },{ "id": 210024,"name": "anime" } ] }
+          - { "index": { } }
+          - { "adult": false,"backdrop_path": "/lXhgCODAbBXL5buk9yEmTpOoOgR.jpg","belongs_to_collection": { "id": 119,"name": "The Lord of the Rings Collection","poster_path": "/nSNle6UJNNuEbglNvXt67m1a1Yn.jpg","backdrop_path": "/bccR2CGTWVVSZAG0yqmy3DIvhTX.jpg" },"budget": 94000000,"genres": [ "Adventure","Fantasy","Action" ],"homepage": "http://www.lordoftherings.net","id": 122,"imdb_id": "tt0167260","original_language": "en","original_title": "The Lord of the Rings: The Return of the King","overview": "Aragorn is revealed as the heir to the ancient kings as he, Gandalf and the other members of the broken fellowship struggle to save Gondor from Sauron's forces. Meanwhile, Frodo and Sam take the ring closer to the heart of Mordor, the dark lord's realm.","popularity": 80.309,"poster_path": "/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg","production_companies": [ "WingNut Films","New Line Cinema","The Saul Zaentz Company" ],"production_countries": [ "New Zealand","United States of America" ],"release_date": "2003-12-01","revenue": 1118888979,"runtime": 201,"spoken_languages": [ "English" ],"status": "Released","tagline": "The eye of the enemy is moving.","title": "The Lord of the Rings: The Return of the King","video": false,"vote_average": 8.471,"vote_count": 20702,"rating": "PG-13","cast": [ "Elijah Wood","Ian McKellen","Viggo Mortensen","Liv Tyler","Orlando Bloom","John Rhys-Davies","Sean Astin","Billy Boyd","Dominic Monaghan","Andy Serkis","Hugo Weaving","Ian Holm","Bernard Hill","Miranda Otto","David Wenham","Karl Urban","John Noble","Cate Blanchett","Lawrence Makoare","Paul Norell","Thomas Robins","Sarah McLeod","Sean Bean","Marton Csokas","Christopher Lee","David Aston","Sadwyn Brophy","Alistair Browning","Ian Hughes" ],"keywords": [ { "id": 603,"name": "elves" },{ "id": 604,"name": "dwarf" },{ "id": 606,"name": "orcs" },{ "id": 818,"name": "based on novel or book" },{ "id": 3301,"name": "suspicion" },{ "id": 3347,"name": "volcano" },{ "id": 3930,"name": "bravery" },{ "id": 6782,"name": "addiction" },{ "id": 9812,"name": "honor" },{ "id": 9920,"name": "royalty" },{ "id": 11173,"name": "troll" },{ "id": 14707,"name": "brutality" },{ "id": 162846,"name": "ghost" },{ "id": 177912,"name": "wizard" },{ "id": 207372,"name": "quest" },{ "id": 209220,"name": "live action and animation" },{ "id": 234213,"name": "sword and sorcery" } ] }
+          - { "index": { } }
+          - { "adult": false,"backdrop_path": "/vXzqV2RtJlT9WhNEM4NYWCEC6ZI.jpg","belongs_to_collection": null,"budget": 14000000,"genres": [ "Drama","Romance" ],"homepage": "http://www.brokebackmountain.com","id": 142,"imdb_id": "tt0388795","original_language": "en","original_title": "Brokeback Mountain","overview": "Two modern-day cowboys meet on a shepherding job in the summer of '63, the two share a raw and powerful summer together that turns into a lifelong relationship conflict","popularity": 26.731,"poster_path": "/fsbzfe9eLOEl5rJX04nPEr1eoAi.jpg","production_companies": [ "River Road Entertainment","Alberta Film Entertainment","Focus Features","Good Machine" ],"production_countries": [ "Canada","United States of America" ],"release_date": "2005-09-10","revenue": 178043761,"runtime": 134,"spoken_languages": [ "English" ],"status": "Released","tagline": "Love is a force of nature","title": "Brokeback Mountain","video": false,"vote_average": 7.805,"vote_count": 6003,"rating": "R","cast": [ "Heath Ledger","Jake Gyllenhaal","Randy Quaid","Michelle Williams","Anne Hathaway","Larry Reese","Valerie Planche","Marty Antonini","Linda Cardellini","Anna Faris","David Harbour","Peter McRobbie","Kate Mara","Dave Trimble","Roberta Maxwell" ],"keywords": [ { "id": 548,"name": "countryside" },{ "id": 1013,"name": "homophobia" },{ "id": 1016,"name": "wyoming, usa" },{ "id": 3010,"name": "intolerance" },{ "id": 5809,"name": "marriage crisis" },{ "id": 7879,"name": "secret love" },{ "id": 11524,"name": "in the closet" },{ "id": 13088,"name": "summer" },{ "id": 155291,"name": "cowboy" },{ "id": 158718,"name": "lgbt" },{ "id": 165086,"name": "star crossed lovers" },{ "id": 208992,"name": "1960s" },{ "id": 239239,"name": "closeted homosexual" },{ "id": 240305,"name": "gay love" },{ "id": 258533,"name": "gay theme" },{ "id": 264384,"name": "gay" },{ "id": 265777,"name": "gay relationship" } ] }
+          - { "index": { } }
+          - { "adult": false,"backdrop_path": "/3h1JZGDhZ8nzxdgvkxha0qBqi05.jpg","belongs_to_collection": null,"budget": 55000000,"genres": [ "Comedy","Drama","Romance" ],"homepage": "https://www.paramountmovies.com/movies/forrest-gump","id": 13,"imdb_id": "tt0109830","original_language": "en","original_title": "Forrest Gump","overview": "A man with a low IQ has accomplished great things in his life and been present during significant historic events—in each case, far exceeding what anyone imagined he could do. But despite all he has achieved, his one true love eludes him.","popularity": 56.904,"poster_path": "/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg","production_companies": [ "Paramount","Wendy Finerman Productions","The Steve Tisch Company" ],"production_countries": [ "United States of America" ],"release_date": "1994-06-23","revenue": 677387716,"runtime": 142,"spoken_languages": [ "English" ],"status": "Released","tagline": "The world will never be the same once you've seen it through the eyes of Forrest Gump.","title": "Forrest Gump","video": false,"vote_average": 8.5,"vote_count": 23748,"rating": "PG-13","cast": [ "Tom Hanks","Robin Wright","Gary Sinise","Mykelti Williamson","Sally Field","Michael Conner Humphreys","Hanna Hall","Haley Joel Osment","Siobhan Fallon","Afemo Omilami","Peter Dobson","Sonny Shroyer","George Kelly","Sam Anderson","Margo Moorer","Christopher Jones","Kevin Mangan","Brett Rice","Daniel C. Striepeke","David Brisbin","Kirk Ward","Marlena Smalls","Kitty K. Green","Mark Matheisen","Al Harrington","Jed Gillin","Don Fischer","Matt Wallace","Mike Jolly","Michael Kemmerling","John Voldstad","Daniel J. Gillooly","Michael Burgess","Steven Griffith","Michael McFall","Michael McFall","Byron Minns","Stephen Bridgewater","John William Galt","Isabel Rose","Richard D'Alessandro","Michael Jace","Geoffrey Blake","Vanessa Roth","Dick Cavett","Tiffany Salerno","Tiffany Salerno","Joe Alaskey","Lazarus Jackson","Lazarus Jackson","Nora Dunfee","Hallie D'Amore","Michael Mattison","Charles Boswell","Timothy McNeil","Bob Penny","Greg Brown","Troy Christian","Bryan Hanna","Zach Hanner","Aaron Michael Lacey","Jacqueline Lovell","Brendan Shanahan","William Shipman","Robb Skyler","Mary Ellen Trainor" ],"keywords": [ { "id": 422,"name": "vietnam veteran" },{ "id": 458,"name": "hippie" },{ "id": 478,"name": "china" },{ "id": 521,"name": "washington dc, usa" },{ "id": 641,"name": "single parent" },{ "id": 791,"name": "mentally disabled" },{ "id": 818,"name": "based on novel or book" },{ "id": 828,"name": "waitress" },{ "id": 840,"name": "usa president" },{ "id": 895,"name": "optimism" },{ "id": 970,"name": "parent child relationship" },{ "id": 1228,"name": "1970s" },{ "id": 1646,"name": "autism" },{ "id": 1803,"name": "drug addiction" },{ "id": 2075,"name": "alabama" },{ "id": 2957,"name": "vietnam war" },{ "id": 4170,"name": "john f. kennedy" },{ "id": 4243,"name": "black panther party" },{ "id": 5526,"name": "ping pong" },{ "id": 5709,"name": "bus stop" },{ "id": 6054,"name": "friendship" },{ "id": 6593,"name": "stripper" },{ "id": 6733,"name": "bullying" },{ "id": 7422,"name": "moon landing" },{ "id": 8646,"name": "ronald reagan" },{ "id": 9376,"name": "richard nixon" },{ "id": 10163,"name": "cancer" },{ "id": 10229,"name": "singer" },{ "id": 10235,"name": "family relationships" },{ "id": 13095,"name": "death of lover" },{ "id": 34079,"name": "death" },{ "id": 40895,"name": "illness" },{ "id": 41372,"name": "leg brace" },{ "id": 155794,"name": "physical abuse" },{ "id": 155882,"name": "dying mother" },{ "id": 156872,"name": "ill mother" },{ "id": 157213,"name": "death of mother" },{ "id": 159289,"name": "historical event" },{ "id": 162365,"name": "military" },{ "id": 162735,"name": "disability" },{ "id": 166980,"name": "shrimping" },{ "id": 181557,"name": "anti war protest" },{ "id": 187300,"name": "low iq" },{ "id": 190532,"name": "false history" },{ "id": 191600,"name": "assassination attempt" },{ "id": 192793,"name": "vietnam flashback" },{ "id": 194413,"name": "intellectual disability" },{ "id": 208992,"name": "1960s" },{ "id": 240237,"name": "mother son relationship" },{ "id": 260132,"name": "monument valley" },{ "id": 264551,"name": "child sexual abuse" },{ "id": 272720,"name": "dying in arms" },{ "id": 278807,"name": "ptsd" },{ "id": 285587,"name": "elvis presley" },{ "id": 292050,"name": "single mom" },{ "id": 308359,"name": "disabled veteran" },{ "id": 308360,"name": "war rally" },{ "id": 308361,"name": "lyndon b. johnson" },{ "id": 308363,"name": "dick cavett" },{ "id": 308365,"name": "single dad" },{ "id": 308366,"name": "ping pong diplomacy" },{ "id": 308367,"name": "college football" },{ "id": 308404,"name": "slow-witted" },{ "id": 308417,"name": "bob hope" },{ "id": 308418,"name": "neil armstrong" },{ "id": 308419,"name": "gerald ford" },{ "id": 308420,"name": "robert f. kennedy" } ] }
+          - { "index": { } }
+          - { "adult": false,"backdrop_path": "/9B4198IzCI0POkUIVu5yQ2s7Pzr.jpg","belongs_to_collection": null,"budget": 5000000,"genres": [ "Drama","Comedy","Music" ],"homepage": "","id": 71,"imdb_id": "tt0249462","original_language": "en","original_title": "Billy Elliot","overview": "County Durham England 1984 the miners strike has started and the police have started coming up from Bethnal Green starting a class war with the lower classes suffering caught in the middle of the conflict is 11-year old Billy Elliot who after leaving his boxing club for the day stubbles upon a ballet class and finds out that he's naturally talented. He practices with his teacher Mrs Wilkinson for an upcoming audition in Newcastle-upon Tyne the audition is for the royal Ballet school in London.","popularity": 23.85,"poster_path": "/nOr5diUZxphmAD3li9aiILyI28F.jpg","production_companies": [ "BBC Film","Tiger Aspect Productions","StudioCanal","Arts Council of England","Working Title Films","WT2 Productions" ],"production_countries": [ "France","United Kingdom" ],"release_date": "2000-09-28","revenue": 109280263,"runtime": 110,"spoken_languages": [ "English" ],"status": "Released","tagline": "Inside every one of us is a special talent waiting to come out. The trick is finding it.","title": "Billy Elliot","video": false,"vote_average": 7.588,"vote_count": 3351,"rating": "PG-13","cast": [ "Jamie Bell","Julie Walters","Jean Heywood","Jamie Draven","Gary Lewis","Stephen Mangan","Patrick Malahide","Stuart Wells","Tracey Wilkinson","Zoë Bell","Nicola Blackwell","Janine Birkett","Joe Renton","Colin MacLachlan","Trevor Fox","Charlie Hardwick","Barbara Leigh-Hunt" ],"keywords": [ { "id": 246,"name": "dancing" },{ "id": 1013,"name": "homophobia" },{ "id": 1310,"name": "mentor" },{ "id": 1566,"name": "dream" },{ "id": 1647,"name": "sadness" },{ "id": 1682,"name": "workers' quarter" },{ "id": 1773,"name": "socialism" },{ "id": 2086,"name": "youngster" },{ "id": 2684,"name": "dancing class" },{ "id": 3344,"name": "letter" },{ "id": 3929,"name": "hope" },{ "id": 4112,"name": "strike" },{ "id": 4118,"name": "ballet dancer" },{ "id": 5215,"name": "northern england" },{ "id": 5290,"name": "small person" },{ "id": 5397,"name": "street riots" },{ "id": 6054,"name": "friendship" },{ "id": 10551,"name": "ballet" },{ "id": 10683,"name": "coming of age" },{ "id": 11336,"name": "young boy" },{ "id": 12544,"name": "crying" },{ "id": 33479,"name": "single father" },{ "id": 33928,"name": "audition" },{ "id": 33940,"name": "dance class" },{ "id": 34118,"name": "retrospective" },{ "id": 162845,"name": "revolt" },{ "id": 165244,"name": "ballet school" },{ "id": 169333,"name": "emotional vulnerability" },{ "id": 181052,"name": "helping children" },{ "id": 183141,"name": "smart kid" },{ "id": 193430,"name": "street kid" },{ "id": 201554,"name": "crossdressing" },{ "id": 207010,"name": "dance teacher" },{ "id": 208289,"name": "1980s" },{ "id": 222478,"name": "miners strike" },{ "id": 240119,"name": "father son relationship" },{ "id": 243262,"name": "80s throwback" },{ "id": 246028,"name": "ballet dancing" },{ "id": 264384,"name": "gay" },{ "id": 298896,"name": "late 20th century" },{ "id": 298897,"name": "teen playing kid" },{ "id": 298898,"name": "ya" },{ "id": 302839,"name": "generational divide" } ] }
+          - { "index": { } }
+          - { "adult": false,"backdrop_path": "/pIESejTZpHXvc6SF0LuQWpJIUD2.jpg","belongs_to_collection": null,"budget": 2000000,"genres": [ "Thriller","Crime","Drama" ],"homepage": "http://wip.warnerbros.com/paradisenow/","id": 67,"imdb_id": "tt0445620","original_language": "en","original_title": "Paradise Now","overview": "Two childhood friends are recruited for a suicide bombing in Tel Aviv.","popularity": 9.424,"poster_path": "/qWZkYa8VdcDZk8uzRB2PfhpM9IL.jpg","production_companies": [ "Lama Films","Augustus Film","Lama Productions","Lumer Films","ARTE France Cinéma","Filmstiftung Nordrhein-Westfalen","Medienboard Berlin-Brandenburg","Razor Film Produktion","Eurimages","Nederlands Fonds voor de Film","Hazazah Pictures" ],"production_countries": [ "France","Germany","Netherlands","Palestinian Territory" ],"release_date": "2005-09-07","revenue": 3395627,"runtime": 90,"spoken_languages": [ "English","العربية" ],"status": "Released","tagline": "From the most unexpected place, come a  new call for peace","title": "Paradise Now","video": false,"vote_average": 6.9,"vote_count": 204,"rating": "PG-13","cast": [ "Ali Soliman","Amer Hlehel","Hiam Abbass","Ashraf Barhom","Mohamed Bustami","Lobna Azabal","Qais Nashif" ],"keywords": [ { "id": 30,"name": "individual" },{ "id": 393,"name": "civil war" },{ "id": 536,"name": "israel" },{ "id": 537,"name": "palestine" },{ "id": 539,"name": "middle east" },{ "id": 789,"name": "muslim" },{ "id": 5907,"name": "palestinian-israeli conflict" },{ "id": 6054,"name": "friendship" },{ "id": 12993,"name": "suicide mission" },{ "id": 156052,"name": "unemployment" } ] }
+          - { "index": { } }
+          - { "adult": false,"backdrop_path": "/r8pUcom5Mw8igtBpj3AHSAUvH0R.jpg","belongs_to_collection": null,"budget": 1300000,"genres": [ "Drama","Science Fiction" ],"homepage": "","id": 19,"imdb_id": "tt0017136","original_language": "de","original_title": "Metropolis","overview": "In a futuristic city sharply divided between the rich and the poor, the son of the city's mastermind meets a prophet who predicts the coming of a savior to mediate their differences.","popularity": 22.996,"poster_path": "/hUK9rewffKGqtXynH5SW3v9hzcu.jpg","production_companies": [ "UFA" ],"production_countries": [ "Germany" ],"release_date": "1927-02-06","revenue": 650422,"runtime": 149,"spoken_languages": [ "No Language" ],"status": "Released","tagline": "There can be no understanding between the hands and the brain unless the heart acts as mediator.","title": "Metropolis","video": false,"vote_average": 8.171,"vote_count": 2207,"rating": "NR","cast": [ "Brigitte Helm","Alfred Abel","Gustav Fröhlich","Rudolf Klein-Rogge","Fritz Rasp","Theodor Loos","Erwin Biswanger","Heinrich George","Olaf Storm","Helene Weigel","Margarete Lanner","Hanns Leo Reich","Fritz Alberti","Heinrich Gotho","Grete Berger","Curt Siodmak","Rolf von Goth","Helen von Münchofen","Georg John","Arthur Reinhardt","Henrietta Siodmak" ],"keywords": [ { "id": 312,"name": "man vs machine" },{ "id": 818,"name": "based on novel or book" },{ "id": 1001,"name": "underground world" },{ "id": 1436,"name": "inventor" },{ "id": 1761,"name": "metropolis" },{ "id": 2964,"name": "future" },{ "id": 4034,"name": "class society" },{ "id": 4565,"name": "dystopia" },{ "id": 5966,"name": "tower of babel" },{ "id": 6662,"name": "delirium" },{ "id": 10028,"name": "steampunk" },{ "id": 10125,"name": "mad scientist" },{ "id": 11222,"name": "prophet" },{ "id": 14544,"name": "robot" },{ "id": 14796,"name": "destruction" },{ "id": 154802,"name": "silent film" },{ "id": 179874,"name": "expressionism" },{ "id": 185459,"name": "seven deadly sins" },{ "id": 201028,"name": "depravity" },{ "id": 232988,"name": "mob justice" },{ "id": 234109,"name": "downtrodden" },{ "id": 234110,"name": "saviour" },{ "id": 239175,"name": "social unrest" },{ "id": 244516,"name": "german expressionism" },{ "id": 255786,"name": "mediator" },{ "id": 285268,"name": "2020s" } ] }
+  - do:
+      cluster.health:
+        wait_for_no_initializing_shards: true
+        wait_for_events: languid
+
+  - do:
+      enrich.put_policy:
+        name: movies
+        body:
+          match:
+            indices: [ "elastiflix-movies" ]
+            match_field: "id"
+            enrich_fields: [ "title" ]
+
+  - do:
+      enrich.execute_policy:
+        name: movies
+
+  - do:
+      bulk:
+        index: esql-movie-logs-1
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","cloud_google_com/gke-os-distribution": "cos","topology_kubernetes_io/zone": "us-central1-c","topology_kubernetes_io/region": "us-central1","topology_gke_io/zone": "us-central1-c","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-provisioning": "standard","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","kubernetes_io/os": "linux","cloud_google_com/private-node": "false","cloud_google_com/gke-logging-variant": "DEFAULT","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "8da7ca75-372d-465d-81c7-11bcea409868","ip": "10.16.0.63","name": "python-favorite-otel-auto-f8dd869f7-nkrgr" },"namespace": "elastiflix","annotations": { },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","replicaset": { "name": "python-favorite-otel-auto-f8dd869f7" },"namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"deployment": { "name": "python-favorite-otel-auto" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "f8dd869f7" } },"message": "Added movie 67 to favorites for user 1","@timestamp": "2023-10-31T07:03:36.848Z" }
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","cloud_google_com/gke-os-distribution": "cos","topology_gke_io/zone": "us-central1-c","topology_kubernetes_io/zone": "us-central1-c","topology_kubernetes_io/region": "us-central1","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","cloud_google_com/gke-provisioning": "standard","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","kubernetes_io/os": "linux","cloud_google_com/gke-logging-variant": "DEFAULT","cloud_google_com/private-node": "false","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "8da7ca75-372d-465d-81c7-11bcea409868","ip": "10.16.0.63","name": "python-favorite-otel-auto-f8dd869f7-nkrgr" },"namespace": "elastiflix","annotations": { },"replicaset": { "name": "python-favorite-otel-auto-f8dd869f7" },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "f8dd869f7" },"deployment": { "name": "python-favorite-otel-auto" } },"message": "Added movie 71 to favorites for user 1","@timestamp": "2023-10-31T07:03:38.013Z" }
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","cloud_google_com/gke-os-distribution": "cos","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","topology_kubernetes_io/zone": "us-central1-c","topology_kubernetes_io/region": "us-central1","topology_gke_io/zone": "us-central1-c","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-provisioning": "standard","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","kubernetes_io/os": "linux","cloud_google_com/gke-logging-variant": "DEFAULT","cloud_google_com/private-node": "false","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "fdde1a89-d405-4fe0-bd05-f79206b61ea2","ip": "10.16.0.31","name": "python-favorite-otel-auto-588746564f-pj4dl" },"namespace": "elastiflix","annotations": { },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","replicaset": { "name": "python-favorite-otel-auto-588746564f" },"namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"deployment": { "name": "python-favorite-otel-auto" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "588746564f" } },"message": "Added movie 142 to favorites for user 1","@timestamp": "2023-10-22T04:40:37.320Z" }
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","cloud_google_com/gke-os-distribution": "cos","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","topology_kubernetes_io/region": "us-central1","topology_gke_io/zone": "us-central1-c","topology_kubernetes_io/zone": "us-central1-c","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","cloud_google_com/gke-provisioning": "standard","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","kubernetes_io/os": "linux","cloud_google_com/gke-logging-variant": "DEFAULT","cloud_google_com/private-node": "false","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "fdde1a89-d405-4fe0-bd05-f79206b61ea2","ip": "10.16.0.31","name": "python-favorite-otel-auto-588746564f-pj4dl" },"namespace": "elastiflix","annotations": { },"replicaset": { "name": "python-favorite-otel-auto-588746564f" },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"deployment": { "name": "python-favorite-otel-auto" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "588746564f" } },"message": "Added movie 13 to favorites for user 1","@timestamp": "2023-10-22T04:40:37.902Z" }
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","cloud_google_com/gke-os-distribution": "cos","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","topology_gke_io/zone": "us-central1-c","topology_kubernetes_io/zone": "us-central1-c","topology_kubernetes_io/region": "us-central1","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","cloud_google_com/gke-provisioning": "standard","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","cloud_google_com/gke-logging-variant": "DEFAULT","cloud_google_com/private-node": "false","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "fdde1a89-d405-4fe0-bd05-f79206b61ea2","ip": "10.16.0.31","name": "python-favorite-otel-auto-588746564f-pj4dl" },"namespace": "elastiflix","annotations": { },"replicaset": { "name": "python-favorite-otel-auto-588746564f" },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "588746564f" },"deployment": { "name": "python-favorite-otel-auto" } },"message": "Added movie 122 to favorites for user 1","@timestamp": "2023-10-22T04:40:38.032Z" }
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","cloud_google_com/gke-os-distribution": "cos","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","topology_kubernetes_io/zone": "us-central1-c","topology_kubernetes_io/region": "us-central1","topology_gke_io/zone": "us-central1-c","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","cloud_google_com/gke-provisioning": "standard","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","kubernetes_io/os": "linux","cloud_google_com/gke-logging-variant": "DEFAULT","cloud_google_com/private-node": "false","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "fdde1a89-d405-4fe0-bd05-f79206b61ea2","ip": "10.16.0.31","name": "python-favorite-otel-auto-588746564f-pj4dl" },"namespace": "elastiflix","annotations": { },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","replicaset": { "name": "python-favorite-otel-auto-588746564f" },"namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "588746564f" },"deployment": { "name": "python-favorite-otel-auto" } },"message": "Added movie 129 to favorites for user 1","@timestamp": "2023-10-22T04:40:38.045Z" }
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","cloud_google_com/gke-os-distribution": "cos","topology_kubernetes_io/zone": "us-central1-c","topology_gke_io/zone": "us-central1-c","topology_kubernetes_io/region": "us-central1","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","cloud_google_com/gke-provisioning": "standard","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","cloud_google_com/private-node": "false","cloud_google_com/gke-logging-variant": "DEFAULT","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "fdde1a89-d405-4fe0-bd05-f79206b61ea2","ip": "10.16.0.31","name": "python-favorite-otel-auto-588746564f-pj4dl" },"namespace": "elastiflix","annotations": { },"replicaset": { "name": "python-favorite-otel-auto-588746564f" },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "588746564f" },"deployment": { "name": "python-favorite-otel-auto" } },"message": "Added movie 143 to favorites for user 1","@timestamp": "2023-10-22T04:40:38.603Z" }
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","cloud_google_com/gke-os-distribution": "cos","topology_kubernetes_io/region": "us-central1","topology_kubernetes_io/zone": "us-central1-c","topology_gke_io/zone": "us-central1-c","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-provisioning": "standard","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","cloud_google_com/private-node": "false","cloud_google_com/gke-logging-variant": "DEFAULT","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "fdde1a89-d405-4fe0-bd05-f79206b61ea2","ip": "10.16.0.31","name": "python-favorite-otel-auto-588746564f-pj4dl" },"namespace": "elastiflix","annotations": { },"replicaset": { "name": "python-favorite-otel-auto-588746564f" },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"deployment": { "name": "python-favorite-otel-auto" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "588746564f" } },"message": "Added movie 19 to favorites for user 1","@timestamp": "2023-10-22T04:40:38.843Z" }
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","cloud_google_com/gke-os-distribution": "cos","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","topology_gke_io/zone": "us-central1-c","topology_kubernetes_io/zone": "us-central1-c","topology_kubernetes_io/region": "us-central1","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","cloud_google_com/gke-provisioning": "standard","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","cloud_google_com/private-node": "false","cloud_google_com/gke-logging-variant": "DEFAULT","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "8da7ca75-372d-465d-81c7-11bcea409868","ip": "10.16.0.63","name": "python-favorite-otel-auto-f8dd869f7-nkrgr" },"namespace": "elastiflix","annotations": { },"replicaset": { "name": "python-favorite-otel-auto-f8dd869f7" },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"deployment": { "name": "python-favorite-otel-auto" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "f8dd869f7" } },"message": "Added movie 62 to favorites for user 1","@timestamp": "2023-10-31T07:03:54.309Z" }
+          - { "index": { } }
+          - { "kubernetes": { "container": { "name": "python-favorite-otel-auto" },"node": { "uid": "ed11e0fd-fdbe-430b-85ec-950c949f7e5e","hostname": "gke-conf-1-default-pool-f9d21bc1-594p","name": "gke-conf-1-default-pool-f9d21bc1-594p","labels": { "cloud_google_com/machine-family": "e2","cloud_google_com/gke-nodepool": "default-pool","cloud_google_com/gke-os-distribution": "cos","kubernetes_io/hostname": "gke-conf-1-default-pool-f9d21bc1-594p","topology_kubernetes_io/region": "us-central1","topology_gke_io/zone": "us-central1-c","topology_kubernetes_io/zone": "us-central1-c","kubernetes_io/arch": "amd64","cloud_google_com/gke-cpu-scaling-level": "2","cloud_google_com/gke-provisioning": "standard","failure-domain_beta_kubernetes_io/region": "us-central1","cloud_google_com/gke-max-pods-per-node": "110","cloud_google_com/gke-container-runtime": "containerd","beta_kubernetes_io/instance-type": "e2-medium","failure-domain_beta_kubernetes_io/zone": "us-central1-c","node_kubernetes_io/instance-type": "e2-medium","cloud_google_com/gke-stack-type": "IPV4","beta_kubernetes_io/os": "linux","cloud_google_com/gke-boot-disk": "pd-balanced","kubernetes_io/os": "linux","cloud_google_com/gke-logging-variant": "DEFAULT","cloud_google_com/private-node": "false","beta_kubernetes_io/arch": "amd64" } },"pod": { "uid": "8da7ca75-372d-465d-81c7-11bcea409868","ip": "10.16.0.63","name": "python-favorite-otel-auto-f8dd869f7-nkrgr" },"namespace": "elastiflix","annotations": { },"namespace_uid": "97330530-b6f3-45a8-8317-be8fbf6ef6be","replicaset": { "name": "python-favorite-otel-auto-f8dd869f7" },"namespace_labels": { "kubernetes_io/metadata_name": "elastiflix","name": "elastiflix" },"labels": { "app": "elastiflix","service": "favorite","pod-template-hash": "f8dd869f7" },"deployment": { "name": "python-favorite-otel-auto" } },"message": "Added movie 102 to favorites for user 1","@timestamp": "2023-10-31T07:04:07.412Z" }
+
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM esql-movie-logs-* |
+            WHERE kubernetes.pod.name LIKE "*python*" |
+            WHERE message LIKE "Added*" |
+            KEEP @timestamp, message |
+            GROK message "%{NUMBER:id}" |
+            STATS total = count(id) BY id |
+            ENRICH movies ON id |
+            SORT total DESC, title ASC |
+            KEEP total, title |
+            LIMIT 10
+
+  - match: { columns.0.name: "total" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "title" }
+  - match: { columns.1.type: "text" }
+
+  - length: { values: 10 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: Billy Elliot }
+  - match: { values.1.0: 1 }
+  - match: { values.1.1: Brokeback Mountain }
+  - match: { values.2.0: 1 }
+  - match: { values.2.1: Forrest Gump }
+  - match: { values.3.0: 1 }
+  - match: { values.3.1: Metropolis }
+  - match: { values.4.0: 1 }
+  - match: { values.4.1: Paradise Now }
+  - match: { values.5.0: 1 }
+  - match: { values.5.1: Spirited Away }
+  - match: { values.6.0: 1 }
+  - match: { values.6.1: "The Lord of the Rings: The Return of the King" }
+  - match: { values.7.0: 1 }
+  - is_false: values.7.1
+  - match: { values.8.0: 1 }
+  - is_false: values.8.1
+  - match: { values.9.0: 1 }
+  - is_false: values.9.1
+
+  - do:
+      enrich.delete_policy:
+        name: movies

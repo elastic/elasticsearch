@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.jwt;
 
+import org.elasticsearch.common.settings.RotatableSecret;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
@@ -28,7 +29,7 @@ public class JwtUtilTests extends JwtTestCase {
             clientAuthenticationTypeKey,
             JwtRealmSettings.ClientAuthenticationType.NONE,
             clientAuthenticationSharedSecretKey,
-            sharedSecretNullOrEmpty
+            new RotatableSecret(sharedSecretNullOrEmpty)
         );
         // If type is None, verify non-empty is rejected
         final Exception exception1 = expectThrows(
@@ -37,7 +38,7 @@ public class JwtUtilTests extends JwtTestCase {
                 clientAuthenticationTypeKey,
                 JwtRealmSettings.ClientAuthenticationType.NONE,
                 clientAuthenticationSharedSecretKey,
-                sharedSecretNonEmpty
+                new RotatableSecret(sharedSecretNonEmpty)
             )
         );
         assertThat(
@@ -60,7 +61,7 @@ public class JwtUtilTests extends JwtTestCase {
             clientAuthenticationTypeKey,
             JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET,
             clientAuthenticationSharedSecretKey,
-            sharedSecretNonEmpty
+            new RotatableSecret(sharedSecretNonEmpty)
         );
         // If type is SharedSecret, verify null or empty is rejected
         final Exception exception2 = expectThrows(
@@ -69,7 +70,7 @@ public class JwtUtilTests extends JwtTestCase {
                 clientAuthenticationTypeKey,
                 JwtRealmSettings.ClientAuthenticationType.SHARED_SECRET,
                 clientAuthenticationSharedSecretKey,
-                sharedSecretNullOrEmpty
+                new RotatableSecret(sharedSecretNullOrEmpty)
             )
         );
         assertThat(
@@ -90,17 +91,17 @@ public class JwtUtilTests extends JwtTestCase {
 
     public void testParseHttpsUriAllowsFilesPassThrough() {
         // Invalid null or empty values should be rejected
-        assertThat(JwtUtil.parseHttpsUri(null), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUri(""), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUri(null), nullValue());
+        assertThat(JwtUtil.parseHttpsUri(""), nullValue());
         // Valid Windows local file paths should be rejected
-        assertThat(JwtUtil.parseHttpsUri("C:"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUri("C:/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUri("C:/jwkset.json"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUri("C:"), nullValue());
+        assertThat(JwtUtil.parseHttpsUri("C:/"), nullValue());
+        assertThat(JwtUtil.parseHttpsUri("C:/jwkset.json"), nullValue());
         // Valid Linux local file paths should be rejected
-        assertThat(JwtUtil.parseHttpsUri("/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUri("/tmp"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUri("/tmp/"), is(nullValue()));
-        assertThat(JwtUtil.parseHttpsUri("/tmp/jwkset.json"), is(nullValue()));
+        assertThat(JwtUtil.parseHttpsUri("/"), nullValue());
+        assertThat(JwtUtil.parseHttpsUri("/tmp"), nullValue());
+        assertThat(JwtUtil.parseHttpsUri("/tmp/"), nullValue());
+        assertThat(JwtUtil.parseHttpsUri("/tmp/jwkset.json"), nullValue());
     }
 
     public void testParseHttpUriAllRejected() {
@@ -141,22 +142,20 @@ public class JwtUtilTests extends JwtTestCase {
 
     public void testParseHttpsUriAccepted() {
         // Accept HTTPS URIs if parse succeeds
-        assertThat(JwtUtil.parseHttpsUri("https://example.com"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:443"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com/path/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/path/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/path/"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com/jwkset.json"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/jwkset.json"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/jwkset.json"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com/path/jwkset.json"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/path/jwkset.json"), is(notNullValue()));
-        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/path/jwkset.json"), is(notNullValue()));
+        assertThat(JwtUtil.parseHttpsUri("https://example.com"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com/"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:443"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com/path/"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/path/"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/path/"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com/jwkset.json"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/jwkset.json"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/jwkset.json"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com/path/jwkset.json"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:443/path/jwkset.json"), notNullValue());
+        assertThat(JwtUtil.parseHttpsUri("https://example.com:8443/path/jwkset.json"), notNullValue());
     }
-
-    public void testParseHttpsUri() {}
 }

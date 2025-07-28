@@ -44,7 +44,7 @@ public final class SecuritySettings {
         if (settings.get(authHeaderSettingName) == null) {
             Optional<String> userOptional = SecurityField.USER_SETTING.get(settings); // TODO migrate to securesetting!
             userOptional.ifPresent(userSetting -> {
-                final int i = userSetting.indexOf(":");
+                final int i = userSetting.indexOf(':');
                 if (i < 0 || i == userSetting.length() - 1) {
                     throw new IllegalArgumentException(
                         "invalid [" + SecurityField.USER_SETTING.getKey() + "] setting. must be in the form of \"<username>:<password>\""

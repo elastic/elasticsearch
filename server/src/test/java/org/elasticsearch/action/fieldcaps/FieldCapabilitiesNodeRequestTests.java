@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -20,11 +21,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTestCase<FieldCapabilitiesNodeRequest> {
 
@@ -51,7 +53,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
             originalIndices,
             indexFilter,
             nowInMillis,
-            runtimeFields
+            runtimeFields,
+            true
         );
     }
 
@@ -92,8 +95,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
     }
 
     @Override
-    protected FieldCapabilitiesNodeRequest mutateInstance(FieldCapabilitiesNodeRequest instance) throws IOException {
-        switch (random().nextInt(7)) {
+    protected FieldCapabilitiesNodeRequest mutateInstance(FieldCapabilitiesNodeRequest instance) {
+        switch (random().nextInt(8)) {
             case 0 -> {
                 List<ShardId> shardIds = randomShardIds(instance.shardIds().size() + 1);
                 return new FieldCapabilitiesNodeRequest(
@@ -104,7 +107,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.originalIndices(),
                     instance.indexFilter(),
                     instance.nowInMillis(),
-                    instance.runtimeFields()
+                    instance.runtimeFields(),
+                    true
                 );
             }
             case 1 -> {
@@ -117,7 +121,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.originalIndices(),
                     instance.indexFilter(),
                     instance.nowInMillis(),
-                    instance.runtimeFields()
+                    instance.runtimeFields(),
+                    true
                 );
             }
             case 2 -> {
@@ -130,7 +135,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     originalIndices,
                     instance.indexFilter(),
                     instance.nowInMillis(),
-                    instance.runtimeFields()
+                    instance.runtimeFields(),
+                    true
                 );
             }
             case 3 -> {
@@ -143,7 +149,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.originalIndices(),
                     indexFilter,
                     instance.nowInMillis(),
-                    instance.runtimeFields()
+                    instance.runtimeFields(),
+                    true
                 );
             }
             case 4 -> {
@@ -156,7 +163,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.originalIndices(),
                     instance.indexFilter(),
                     nowInMillis,
-                    instance.runtimeFields()
+                    instance.runtimeFields(),
+                    true
                 );
             }
             case 5 -> {
@@ -171,7 +179,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.originalIndices(),
                     instance.indexFilter(),
                     instance.nowInMillis(),
-                    runtimeFields
+                    runtimeFields,
+                    true
                 );
             }
             case 6 -> {
@@ -184,7 +193,8 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.originalIndices(),
                     instance.indexFilter(),
                     instance.nowInMillis(),
-                    instance.runtimeFields()
+                    instance.runtimeFields(),
+                    true
                 );
             }
             case 7 -> {
@@ -197,10 +207,58 @@ public class FieldCapabilitiesNodeRequestTests extends AbstractWireSerializingTe
                     instance.originalIndices(),
                     instance.indexFilter(),
                     instance.nowInMillis(),
-                    instance.runtimeFields()
+                    instance.runtimeFields(),
+                    true
                 );
             }
-            default -> throw new IllegalStateException("The test should only allow 7 parameters mutated");
+            case 8 -> {
+                return new FieldCapabilitiesNodeRequest(
+                    instance.shardIds(),
+                    instance.fields(),
+                    instance.filters(),
+                    instance.allowedTypes(),
+                    instance.originalIndices(),
+                    instance.indexFilter(),
+                    instance.nowInMillis(),
+                    instance.runtimeFields(),
+                    false
+                );
+            }
+            default -> throw new IllegalStateException("The test should only allow 8 parameters mutated");
         }
+    }
+
+    public void testDescription() {
+        FieldCapabilitiesNodeRequest r1 = new FieldCapabilitiesNodeRequest(
+            List.of(new ShardId("index-1", "n/a", 0), new ShardId("index-2", "n/a", 3)),
+            new String[] { "field-1", "field-2" },
+            Strings.EMPTY_ARRAY,
+            Strings.EMPTY_ARRAY,
+            randomOriginalIndices(1),
+            null,
+            randomNonNegativeLong(),
+            Map.of(),
+            true
+        );
+        assertThat(
+            r1.getDescription(),
+            equalTo("shards[[index-1][0],[index-2][3]], fields[field-1,field-2], filters[], types[], includeEmptyFields[true]")
+        );
+
+        FieldCapabilitiesNodeRequest r2 = new FieldCapabilitiesNodeRequest(
+            List.of(new ShardId("index-1", "n/a", 0)),
+            new String[] { "*" },
+            new String[] { "-nested", "-metadata" },
+            Strings.EMPTY_ARRAY,
+            randomOriginalIndices(1),
+            null,
+            randomNonNegativeLong(),
+            Map.of(),
+            false
+        );
+        assertThat(
+            r2.getDescription(),
+            equalTo("shards[[index-1][0]], fields[*], filters[-nested,-metadata], types[], includeEmptyFields[false]")
+        );
     }
 }

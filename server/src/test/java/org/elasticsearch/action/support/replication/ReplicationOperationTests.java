@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -45,6 +47,7 @@ import org.elasticsearch.transport.SendRequestTransportException;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,7 +68,6 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ReplicationOperationTests extends ESTestCase {
@@ -89,7 +91,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
         ClusterState initialState = stateWithActivePrimary(index, true, randomInt(5));
-        IndexMetadata indexMetadata = initialState.getMetadata().index(index);
+        IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
         final long primaryTerm = indexMetadata.primaryTerm(0);
         final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
@@ -163,7 +165,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
         ClusterState initialState = stateWithActivePrimary(index, true, randomInt(5));
-        IndexMetadata indexMetadata = initialState.getMetadata().index(index);
+        IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
         final long primaryTerm = indexMetadata.primaryTerm(0);
         final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
@@ -201,7 +203,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 exception = new RemoteTransportException("remote", cause);
             } else {
                 TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
-                DiscoveryNode node = new DiscoveryNode("replica", address, Version.CURRENT);
+                DiscoveryNode node = DiscoveryNodeUtils.create("replica", address);
                 cause = new ConnectTransportException(node, "broken");
                 exception = cause;
             }
@@ -275,7 +277,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
         ClusterState initialState = stateWithActivePrimary(index, true, 1 + randomInt(2), randomInt(2));
-        IndexMetadata indexMetadata = initialState.getMetadata().index(index);
+        IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
         final long primaryTerm = indexMetadata.primaryTerm(0);
         final IndexShardRoutingTable indexShardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
@@ -309,9 +311,9 @@ public class ReplicationOperationTests extends ESTestCase {
         final boolean testPrimaryDemotedOnStaleShardCopies = randomBoolean();
         final Exception shardActionFailure;
         if (randomBoolean()) {
-            shardActionFailure = new NodeClosedException(new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT));
+            shardActionFailure = new NodeClosedException(DiscoveryNodeUtils.create("foo"));
         } else if (randomBoolean()) {
-            DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode node = DiscoveryNodeUtils.create("foo");
             shardActionFailure = new SendRequestTransportException(
                 node,
                 ShardStateAction.SHARD_FAILED_ACTION_NAME,
@@ -382,7 +384,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         final ClusterState initialState = stateWithActivePrimary(index, true, 0);
-        Set<String> inSyncAllocationIds = initialState.metadata().index(index).inSyncAllocationIds(0);
+        Set<String> inSyncAllocationIds = initialState.metadata().getProject().index(index).inSyncAllocationIds(0);
         IndexShardRoutingTable shardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
@@ -400,7 +402,7 @@ public class ReplicationOperationTests extends ESTestCase {
             stateWithAddedReplicas = state(index, true, ShardRoutingState.RELOCATING);
         }
 
-        inSyncAllocationIds = stateWithAddedReplicas.metadata().index(index).inSyncAllocationIds(0);
+        inSyncAllocationIds = stateWithAddedReplicas.metadata().getProject().index(index).inSyncAllocationIds(0);
         shardRoutingTable = stateWithAddedReplicas.getRoutingTable().shardRoutingTable(shardId);
         trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
@@ -409,7 +411,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final AtomicReference<ReplicationGroup> replicationGroup = new AtomicReference<>(initialReplicationGroup);
         logger.debug("--> using initial replicationGroup:\n{}", replicationGroup.get());
-        final long primaryTerm = initialState.getMetadata().index(shardId.getIndexName()).primaryTerm(shardId.id());
+        final long primaryTerm = initialState.getMetadata().getProject().index(shardId.getIndexName()).primaryTerm(shardId.id());
         final ShardRouting primaryShard = updatedReplicationGroup.getRoutingTable().primaryShard();
         final TestPrimary primary = new TestPrimary(primaryShard, replicationGroup::get, threadPool) {
             @Override
@@ -439,10 +441,17 @@ public class ReplicationOperationTests extends ESTestCase {
         final int unassignedReplicas = randomInt(2);
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
         final int activeShardCount = randomIntBetween(0, totalShards);
+        final boolean unpromotableReplicas = randomBoolean();
         Request request = new Request(shardId).waitForActiveShards(
             activeShardCount == totalShards ? ActiveShardCount.ALL : ActiveShardCount.from(activeShardCount)
         );
-        final boolean passesActiveShardCheck = activeShardCount <= assignedReplicas + 1;
+        // In the case of unpromotables, only the search/replica assigned shards are calculated as active shards. But in other cases, or
+        // when the wait is for ALL active shards, ReplicationOperation#checkActiveShardCount() takes into account the primary shard as
+        // well, and that is why we need to increment the assigned replicas by 1 when calculating the actual active shards.
+        final int actualActiveShards = assignedReplicas + ((unpromotableReplicas && request.waitForActiveShards() != ActiveShardCount.ALL)
+            ? 0
+            : 1);
+        final boolean passesActiveShardCheck = activeShardCount <= actualActiveShards;
 
         ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
         for (int i = 0; i < assignedReplicas; i++) {
@@ -452,19 +461,33 @@ public class ReplicationOperationTests extends ESTestCase {
             replicaStates[i] = ShardRoutingState.UNASSIGNED;
         }
 
-        final ClusterState state = state(index, true, ShardRoutingState.STARTED, replicaStates);
+        final ClusterState state = state(
+            index,
+            true,
+            ShardRoutingState.STARTED,
+            unpromotableReplicas ? ShardRouting.Role.INDEX_ONLY : ShardRouting.Role.DEFAULT,
+            Arrays.stream(replicaStates)
+                .map(
+                    shardRoutingState -> new Tuple<>(
+                        shardRoutingState,
+                        unpromotableReplicas ? ShardRouting.Role.SEARCH_ONLY : ShardRouting.Role.DEFAULT
+                    )
+                )
+                .toList()
+        );
         logger.debug(
-            "using active shard count of [{}], assigned shards [{}], total shards [{}]." + " expecting op to [{}]. using state: \n{}",
+            "using active shards [{}], assigned shards [{}], total shards [{}]. unpromotable [{}]. expecting op to [{}]. state: \n{}",
             request.waitForActiveShards(),
             1 + assignedReplicas,
             1 + assignedReplicas + unassignedReplicas,
+            unpromotableReplicas,
             passesActiveShardCheck ? "succeed" : "retry",
             state
         );
-        final long primaryTerm = state.metadata().index(index).primaryTerm(shardId.id());
+        final long primaryTerm = state.metadata().getProject().index(index).primaryTerm(shardId.id());
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
 
-        final Set<String> inSyncAllocationIds = state.metadata().index(index).inSyncAllocationIds(0);
+        final Set<String> inSyncAllocationIds = state.metadata().getProject().index(index).inSyncAllocationIds(0);
         Set<String> trackedShards = new HashSet<>();
         addTrackingInfo(shardRoutingTable, null, trackedShards, new HashSet<>());
         final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
@@ -487,7 +510,18 @@ public class ReplicationOperationTests extends ESTestCase {
             op.execute();
             assertTrue("operations should have been performed, active shard count is met", request.processedOnPrimary.get());
         } else {
-            assertThat(op.checkActiveShardCount(), notNullValue());
+            assertThat(
+                op.checkActiveShardCount(),
+                equalTo(
+                    "Not enough active copies to meet shard count of ["
+                        + request.waitForActiveShards()
+                        + "] (have "
+                        + actualActiveShards
+                        + ", needed "
+                        + activeShardCount
+                        + ")."
+                )
+            );
             op.execute();
             assertFalse("operations should not have been perform, active shard count is *NOT* met", request.processedOnPrimary.get());
             assertListenerThrows("should throw exception to trigger retry", listener, UnavailableShardsException.class);
@@ -501,13 +535,13 @@ public class ReplicationOperationTests extends ESTestCase {
         final Request request = new Request(shardId);
 
         final ClusterState state = stateWithActivePrimary(index, true, 1, 0);
-        final IndexMetadata indexMetadata = state.getMetadata().index(index);
+        final IndexMetadata indexMetadata = state.getMetadata().getProject().index(index);
         final long primaryTerm = indexMetadata.primaryTerm(0);
         final ShardRouting primaryRouting = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
 
         final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(0);
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
-        final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
+        final Set<String> trackedShards = shardRoutingTable.getPromotableAllocationIds();
         final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
         final Thread testThread = Thread.currentThread();

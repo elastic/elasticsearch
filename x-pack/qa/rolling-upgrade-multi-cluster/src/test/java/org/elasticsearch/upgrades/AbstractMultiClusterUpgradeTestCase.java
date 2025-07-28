@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
@@ -110,7 +111,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         if (leaderRemoteClusterSeed != null) {
             logger.info("Configuring leader remote cluster [{}]", leaderRemoteClusterSeed);
             Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {
                   "persistent": {
                     "cluster.remote.leader.seeds": "%s"
@@ -130,7 +131,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
         if (followerRemoteClusterSeed != null) {
             logger.info("Configuring follower remote cluster [{}]", followerRemoteClusterSeed);
             Request request = new Request("PUT", "/_cluster/settings");
-            request.setJsonEntity(formatted("""
+            request.setJsonEntity(Strings.format("""
                 {
                   "persistent": {
                     "cluster.remote.follower.seeds": "%s"

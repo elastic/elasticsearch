@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -28,7 +29,7 @@ public class ExecutorSelectorTests extends ESTestCase {
                     new SystemIndices.Feature(
                         "normal",
                         "normal system index",
-                        Collections.singletonList(new SystemIndexDescriptor(".non-critical-system-index*", "test index"))
+                        Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(".non-critical-system-index*", "test index"))
                     )
                 )
             )
@@ -77,17 +78,13 @@ public class ExecutorSelectorTests extends ESTestCase {
                                 ".test-data-stream",
                                 "a data stream for testing",
                                 SystemDataStreamDescriptor.Type.INTERNAL,
-                                new ComposableIndexTemplate(
-                                    List.of(".system-data-stream"),
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    new ComposableIndexTemplate.DataStreamTemplate()
-                                ),
+                                ComposableIndexTemplate.builder()
+                                    .indexPatterns(List.of(".system-data-stream"))
+                                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                                    .build(),
                                 Map.of(),
                                 Collections.singletonList("test"),
+                                "test",
                                 null
                             )
                         )
@@ -114,17 +111,13 @@ public class ExecutorSelectorTests extends ESTestCase {
                                 ".test-data-stream",
                                 "a data stream for testing",
                                 SystemDataStreamDescriptor.Type.INTERNAL,
-                                new ComposableIndexTemplate(
-                                    List.of(".system-data-stream"),
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    new ComposableIndexTemplate.DataStreamTemplate()
-                                ),
+                                ComposableIndexTemplate.builder()
+                                    .indexPatterns(List.of(".system-data-stream"))
+                                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                                    .build(),
                                 Map.of(),
                                 Collections.singletonList("test"),
+                                "test",
                                 new ExecutorNames(
                                     ThreadPool.Names.SYSTEM_CRITICAL_READ,
                                     ThreadPool.Names.SYSTEM_READ,

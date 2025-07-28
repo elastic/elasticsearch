@@ -1,0 +1,8 @@
+unprivileged_secrets:
+  cluster:
+    - monitor
+  indices:
+    - names: [
+      ".fleet-secrets*",
+    ]
+      privileges: [ "write", "read" ]

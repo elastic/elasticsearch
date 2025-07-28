@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -16,7 +17,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.script.Metadata.LongField;
+import static org.elasticsearch.script.Metadata.VERSION;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CtxMapTests extends ESTestCase {
     CtxMap<?> map;
@@ -25,7 +29,38 @@ public class CtxMapTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        map = new CtxMap<>(new HashMap<>(), new Metadata(new HashMap<>(), new HashMap<>()));
+        map = new CtxMap<>(new HashMap<>(), new Metadata(Map.of(), Map.of()));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetOrDefault() {
+        {
+            map = new CtxMap<>(Map.of("foo", "bar"), new Metadata(Map.of("_version", 5L), Map.of(VERSION, LongField.withWritable())));
+
+            // it does the expected thing for fields that are present
+            assertThat(map.getOrDefault("_version", -1L), equalTo(5L));
+            assertThat(((Map<String, Object>) map.getOrDefault("_source", Map.of())).getOrDefault("foo", "wat"), equalTo("bar"));
+
+            // it does the expected thing for fields that are not present
+            assertThat(map.getOrDefault("_version_type", "something"), equalTo("something"));
+            assertThat(map.getOrDefault("baz", "quux"), equalTo("quux"));
+        }
+        {
+            map = new CtxMap<>(Map.of("foo", "bar"), new Metadata(Map.of("_version", 5L), Map.of(VERSION, LongField.withWritable()))) {
+                @Override
+                protected boolean directSourceAccess() {
+                    return true;
+                }
+            };
+
+            // it does the expected thing for fields that are present
+            assertThat(map.getOrDefault("_version", -1L), equalTo(5L));
+            assertThat(map.getOrDefault("foo", "wat"), equalTo("bar"));
+
+            // it does the expected thing for fields that are not present
+            assertThat(map.getOrDefault("_version_type", "something"), equalTo("something"));
+            assertThat(map.getOrDefault("baz", "quux"), equalTo("quux"));
+        }
     }
 
     public void testAddingJunkToCtx() {

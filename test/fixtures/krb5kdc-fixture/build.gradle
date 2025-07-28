@@ -1,57 +1,47 @@
+import org.gradle.api.services.internal.BuildServiceProvider
+import org.gradle.api.services.internal.BuildServiceRegistryInternal
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.deploy-test-fixtures'
 
-List<String> services = ["peppa", "hdfs"]
-
-tasks.named("preProcessFixture").configure {
-  doLast {
-    // We need to create these up-front because if docker creates them they will be owned by root and we won't be
-    // able to clean them up
-    services.each { file("${testFixturesDir}/shared/${it}").mkdirs() }
+dockerFixtures {
+  krb5dc {
+    dockerContext = projectDir
+    version = "1.1"
+    baseImages = ["alpine:3.21.0"]
   }
 }
-
-tasks.named("postProcessFixture").configure {
-  inputs.dir("${testFixturesDir}/shared")
-  services.each { service ->
-    File confTemplate = file("${testFixturesDir}/shared/${service}/krb5.conf.template")
-    File confFile = file("${testFixturesDir}/shared/${service}/krb5.conf")
-    outputs.file(confFile)
-    doLast {
-      assert confTemplate.exists()
-      String confContents = confTemplate.text
-        .replace("\${MAPPED_PORT}", "${ext."test.fixtures.${service}.udp.88"}")
-      confFile.text = confContents
-    }
-  }
-}
-
-
-project.ext.krb5Conf = { service -> file("$testFixturesDir/shared/${service}/krb5.conf") }
-project.ext.krb5Keytabs = { service, fileName -> file("$testFixturesDir/shared/${service}/keytabs/${fileName}") }
 
 configurations {
-  krb5ConfHdfsFile {
-    canBeConsumed = true
-    canBeResolved = false
-  }
-  krb5KeytabsHdfsDir {
-    canBeConsumed = true
-    canBeResolved = false
+  all {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
 }
 
-artifacts {
-  krb5ConfHdfsFile(krb5Conf('hdfs')) {
-    builtBy("postProcessFixture")
+dependencies {
+  testImplementation project(':test:framework')
+  api "junit:junit:${versions.junit}"
+  api project(':test:fixtures:testcontainer-utils')
+  api("org.testcontainers:testcontainers:${versions.testcontainer}") {
+    transitive = false
   }
-  krb5KeytabsHdfsDir(file("$testFixturesDir/shared/hdfs/keytabs/")) {
-    builtBy("preProcessFixture")
+  implementation("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"){
+    transitive = false
   }
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+ // implementation "com.github.docker-java:docker-java-api:${versions.dockerJava}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
+  // ensure we have proper logging during when used in tests
+  runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  runtimeOnly "org.hamcrest:hamcrest:${versions.hamcrest}"
 }

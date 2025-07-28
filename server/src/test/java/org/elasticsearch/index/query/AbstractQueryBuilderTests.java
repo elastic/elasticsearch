@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
@@ -22,6 +25,7 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.hamcrest.Matchers.containsString;
 
 public class AbstractQueryBuilderTests extends ESTestCase {
 
@@ -82,6 +86,33 @@ public class AbstractQueryBuilderTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
+    }
+
+    public void testMaybeConvertToBytesRefLongTerm() {
+        String longTerm = "a".repeat(IndexWriter.MAX_TERM_LENGTH + 1);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> AbstractQueryBuilder.maybeConvertToBytesRef(longTerm));
+        assertThat(e.getMessage(), containsString("term starting with [aaaaa"));
+    }
+
+    public void testMaybeConvertToBytesRefStringCorrectSize() {
+        int capacity = randomIntBetween(20, 40);
+        StringBuilder termBuilder = new StringBuilder(capacity);
+        int correctSize = 0;
+        for (int i = 0; i < capacity; i++) {
+            if (i < capacity / 3) {
+                termBuilder.append((char) randomIntBetween(0, 127));
+                ++correctSize; // use only one byte for char < 128
+            } else if (i < 2 * capacity / 3) {
+                termBuilder.append((char) randomIntBetween(128, 2047));
+                correctSize += 2; // use two bytes for char < 2048
+            } else {
+                termBuilder.append((char) randomIntBetween(2048, 4092));
+                correctSize += 3; // use three bytes for char >= 2048
+            }
+        }
+        BytesRef bytesRef = (BytesRef) AbstractQueryBuilder.maybeConvertToBytesRef(termBuilder.toString());
+        assertEquals(correctSize, bytesRef.bytes.length);
+        assertEquals(correctSize, bytesRef.length);
     }
 
 }

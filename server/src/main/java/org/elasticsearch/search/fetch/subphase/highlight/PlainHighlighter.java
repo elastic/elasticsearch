@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -23,11 +24,12 @@ import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
 import org.apache.lucene.search.highlight.TextFragment;
 import org.apache.lucene.util.BytesRefHash;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +39,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.MAX_ANALYZED_OFFSET_FIELD;
-import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
+import static org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter.convertFieldValue;
 
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
@@ -106,24 +108,23 @@ public class PlainHighlighter implements Highlighter {
         ArrayList<OrderedTextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
         final int maxAnalyzedOffset = context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
-        Integer queryMaxAnalyzedOffset = fieldContext.field.fieldOptions().maxAnalyzedOffset();
+        QueryMaxAnalyzedOffset queryMaxAnalyzedOffset = QueryMaxAnalyzedOffset.create(
+            fieldContext.field.fieldOptions().maxAnalyzedOffset(),
+            maxAnalyzedOffset
+        );
         Analyzer analyzer = wrapAnalyzer(
             context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
             queryMaxAnalyzedOffset
         );
 
-        textsToHighlight = HighlightUtils.loadFieldValues(
-            fieldType,
-            context.getSearchExecutionContext(),
-            hitContext,
-            fieldContext.forceSource
-        );
+        textsToHighlight = HighlightUtils.loadFieldValues(fieldType, context.getSearchExecutionContext(), hitContext);
 
         int fragNumBase = 0;
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) && (textLength > maxAnalyzedOffset)) {
+            if ((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset.getNotNull() > maxAnalyzedOffset)
+                && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
                     "The length ["
                         + textLength
@@ -223,6 +224,9 @@ public class PlainHighlighter implements Highlighter {
                 // Can't split on term boundaries without offsets
                 return -1;
             }
+            if (contents.length() <= noMatchSize) {
+                return contents.length();
+            }
             int end = -1;
             tokenStream.reset();
             while (tokenStream.incrementToken()) {
@@ -242,9 +246,9 @@ public class PlainHighlighter implements Highlighter {
         }
     }
 
-    private static Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+    private static Analyzer wrapAnalyzer(Analyzer analyzer, QueryMaxAnalyzedOffset maxAnalyzedOffset) {
         if (maxAnalyzedOffset != null) {
-            return new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset);
+            return new LimitTokenOffsetAnalyzer(analyzer, maxAnalyzedOffset.getNotNull());
         }
         return analyzer;
     }

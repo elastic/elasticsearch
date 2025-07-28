@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rerun.executer;
@@ -12,6 +13,7 @@ import org.gradle.api.internal.tasks.testing.TestCompleteEvent;
 import org.gradle.api.internal.tasks.testing.TestDescriptorInternal;
 import org.gradle.api.internal.tasks.testing.TestResultProcessor;
 import org.gradle.api.internal.tasks.testing.TestStartEvent;
+import org.gradle.api.tasks.testing.TestFailure;
 import org.gradle.api.tasks.testing.TestOutputEvent;
 
 import java.util.ArrayList;
@@ -89,11 +91,11 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     }
 
     @Override
-    public void failure(Object testId, Throwable throwable) {
+    public void failure(Object testId, TestFailure result) {
         if (activeDescriptorsById.containsKey(testId)) {
             activeDescriptorsById.remove(testId);
             try {
-                delegate.failure(testId, throwable);
+                delegate.failure(testId, result);
             } catch (IllegalArgumentException illegalArgumentException) {
                 logTracing(testId, illegalArgumentException);
             }

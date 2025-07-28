@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -16,14 +15,18 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
+import org.elasticsearch.xpack.core.action.XPackInfoFeatureResponse;
 import org.mockito.Mockito;
 
 import java.nio.file.Path;
@@ -64,27 +67,64 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         return new WaitForNoFollowersStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    public void testConditionMet() {
+    public void testConditionMetWhenCCREnabled() {
         WaitForNoFollowersStep step = createRandomInstance();
 
         String indexName = randomAlphaOfLengthBetween(5, 10);
 
         int numberOfShards = randomIntBetween(1, 100);
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
 
+        mockXPackInfo(true, true);
         mockIndexStatsCall(indexName, randomIndexStats(false, numberOfShards));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("onFailure should not be called in this test, called with exception: " + e.getMessage());
+            }
+        }, MASTER_TIMEOUT);
+
+        assertTrue(conditionMetHolder.get());
+        assertNull(stepInfoHolder.get());
+    }
+
+    public void testConditionMetWhenCCRDisabled() {
+        WaitForNoFollowersStep step = createRandomInstance();
+
+        String indexName = randomAlphaOfLengthBetween(5, 10);
+
+        int numberOfShards = randomIntBetween(1, 100);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(randomIntBetween(1, 10))
+            .build();
+
+        mockXPackInfo(false, false);
+        mockIndexStatsCall(indexName, randomIndexStats(false, numberOfShards));
+
+        final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
+        final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+            @Override
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                conditionMetHolder.set(conditionMet);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -104,20 +144,22 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         int numberOfShards = randomIntBetween(1, 100);
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
 
+        mockXPackInfo(true, true);
         mockIndexStatsCall(indexName, randomIndexStats(true, numberOfShards));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -140,23 +182,26 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         int numberOfShards = randomIntBetween(1, 100);
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
 
-        ShardStats sStats = new ShardStats(null, mockShardPath(), null, null, null, null);
+        ShardStats sStats = new ShardStats(null, mockShardPath(), null, null, null, null, false, 0);
         ShardStats[] shardStats = new ShardStats[1];
         shardStats[0] = sStats;
+
+        mockXPackInfo(true, true);
         mockIndexStatsCall(indexName, new IndexStats(indexName, "uuid", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, shardStats));
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();
         final SetOnce<ToXContentObject> stepInfoHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 conditionMetHolder.set(conditionMet);
-                stepInfoHolder.set(infomationContext);
+                stepInfoHolder.set(informationContext);
             }
 
             @Override
@@ -176,13 +221,14 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         int numberOfShards = randomIntBetween(1, 100);
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numberOfShards)
             .numberOfReplicas(randomIntBetween(1, 10))
             .build();
 
         final Exception expectedException = new RuntimeException(randomAlphaOfLength(5));
 
+        mockXPackInfo(true, true);
         Mockito.doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             ActionListener<IndicesStatsResponse> listener = (ActionListener<IndicesStatsResponse>) invocationOnMock.getArguments()[1];
@@ -191,14 +237,15 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         }).when(indicesClient).stats(any(), any());
 
         final SetOnce<Exception> exceptionHolder = new SetOnce<>();
-        step.evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
+        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
             @Override
-            public void onResponse(boolean conditionMet, ToXContentObject infomationContext) {
+            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
                 fail(
                     "onResponse should not be called in this test, called with conditionMet: "
                         + conditionMet
                         + " and stepInfo: "
-                        + Strings.toString(infomationContext)
+                        + Strings.toString(informationContext)
                 );
             }
 
@@ -209,6 +256,19 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         }, MASTER_TIMEOUT);
 
         assertThat(exceptionHolder.get(), equalTo(expectedException));
+    }
+
+    private void mockXPackInfo(boolean available, boolean enabled) {
+        Mockito.doAnswer(invocationOnMock -> {
+
+            @SuppressWarnings("unchecked")
+            ActionListener<XPackInfoFeatureResponse> listener = (ActionListener<XPackInfoFeatureResponse>) invocationOnMock
+                .getArguments()[2];
+            var featureSet = new XPackInfoResponse.FeatureSetsInfo.FeatureSet("ccr", available, enabled);
+            XPackInfoFeatureResponse xPackInfoFeatureResponse = new XPackInfoFeatureResponse(featureSet);
+            listener.onResponse(xPackInfoFeatureResponse);
+            return null;
+        }).when(client).execute(Mockito.same(XPackInfoFeatureAction.CCR), Mockito.any(), Mockito.any());
     }
 
     private void mockIndexStatsCall(String expectedIndexName, IndexStats indexStats) {
@@ -238,7 +298,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
     }
 
     private ShardStats randomShardStats(boolean isLeaderIndex) {
-        return new ShardStats(null, mockShardPath(), null, null, null, randomRetentionLeaseStats(isLeaderIndex));
+        return new ShardStats(null, mockShardPath(), null, null, null, randomRetentionLeaseStats(isLeaderIndex), false, 0);
     }
 
     private RetentionLeaseStats randomRetentionLeaseStats(boolean isLeaderIndex) {

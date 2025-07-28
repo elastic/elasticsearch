@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -38,7 +39,6 @@ import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_TABLE;
 import static org.elasticsearch.xpack.ql.index.IndexResolver.SQL_VIEW;
 import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
@@ -406,6 +406,6 @@ public class SysTablesTests extends ESTestCase {
             return Void.TYPE;
         }).when(resolver).resolveNames(any(), any(), any(), any(), any());
 
-        tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
+        tuple.v1().execute(tuple.v2(), ActionTestUtils.assertNoFailureListener(p -> consumer.accept((SchemaRowSet) p.rowSet())));
     }
 }

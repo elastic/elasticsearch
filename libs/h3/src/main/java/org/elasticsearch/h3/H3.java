@@ -30,8 +30,19 @@ import static java.lang.Math.toRadians;
  * Defines the public API of the H3 library.
  */
 public final class H3 {
+    /**
+     * max H3 resolution; H3 version 1 has 16 resolutions, numbered 0 through 15
+     */
+    public static final int MAX_H3_RES = 15;
 
-    public static int MAX_H3_RES = Constants.MAX_H3_RES;
+    private static final long[] NORTH = new long[MAX_H3_RES + 1];
+    private static final long[] SOUTH = new long[MAX_H3_RES + 1];
+    static {
+        for (int res = 0; res <= H3.MAX_H3_RES; res++) {
+            NORTH[res] = H3.geoToH3(90, 0, res);
+            SOUTH[res] = H3.geoToH3(-90, 0, res);
+        }
+    }
 
     /**
      * Converts from <code>long</code> representation of an index to <code>String</code> representation.
@@ -88,7 +99,7 @@ public final class H3 {
         }
 
         int res = H3Index.H3_get_resolution(h3);
-        if (res < 0 || res > Constants.MAX_H3_RES) {  // LCOV_EXCL_BR_LINE
+        if (res < 0 || res > MAX_H3_RES) {  // LCOV_EXCL_BR_LINE
             // Resolutions less than zero can not be represented in an index
             return false;
         }
@@ -109,7 +120,7 @@ public final class H3 {
             }
         }
 
-        for (int r = res + 1; r <= Constants.MAX_H3_RES; r++) {
+        for (int r = res + 1; r <= MAX_H3_RES; r++) {
             int digit = H3Index.H3_get_index_digit(h3, r);
             if (digit != CoordIJK.Direction.INVALID_DIGIT.digit()) {
                 return false;
@@ -163,11 +174,11 @@ public final class H3 {
      * Find the cell {@link CellBoundary} coordinates for the cell
      */
     public static CellBoundary h3ToGeoBoundary(long h3) {
-        FaceIJK fijk = H3Index.h3ToFaceIjk(h3);
+        final FaceIJK fijk = H3Index.h3ToFaceIjk(h3);
         if (H3Index.H3_is_pentagon(h3)) {
-            return fijk.faceIjkPentToCellBoundary(H3Index.H3_get_resolution(h3), 0, Constants.NUM_PENT_VERTS);
+            return fijk.faceIjkPentToCellBoundary(H3Index.H3_get_resolution(h3));
         } else {
-            return fijk.faceIjkToCellBoundary(H3Index.H3_get_resolution(h3), 0, Constants.NUM_HEX_VERTS);
+            return fijk.faceIjkToCellBoundary(H3Index.H3_get_resolution(h3));
         }
     }
 
@@ -351,7 +362,59 @@ public final class H3 {
      * @return All neighbor indexes from the origin
      */
     public static long[] hexRing(long h3) {
-        return HexRing.hexRing(h3);
+        final long[] ring = new long[hexRingSize(h3)];
+        for (int i = 0; i < ring.length; i++) {
+            ring[i] = hexRingPosToH3(h3, i);
+            assert ring[i] >= 0;
+        }
+        return ring;
+    }
+
+    /**
+     * Returns the number of neighbor indexes.
+     *
+     * @param h3 Origin index
+     * @return the number of neighbor indexes from the origin
+     */
+    public static int hexRingSize(long h3) {
+        return H3Index.H3_is_pentagon(h3) ? 5 : 6;
+    }
+
+    /**
+     * Returns the number of neighbor indexes.
+     *
+     * @param h3Address Origin index
+     * @return the number of neighbor indexes from the origin
+     */
+    public static int hexRingSize(String h3Address) {
+        return hexRingSize(stringToH3(h3Address));
+    }
+
+    /**
+     * Returns the neighbor index at the given position.
+     *
+     * @param h3 Origin index
+     * @param ringPos position of the neighbour index
+     * @return the actual neighbour at the given position
+     */
+    public static long hexRingPosToH3(long h3, int ringPos) {
+        // for pentagons, we skip direction at position 2
+        final int pos = H3Index.H3_is_pentagon(h3) && ringPos >= 2 ? ringPos + 1 : ringPos;
+        if (pos < 0 || pos > 5) {
+            throw new IllegalArgumentException("invalid ring position");
+        }
+        return HexRing.h3NeighborInDirection(h3, HexRing.DIRECTIONS[pos].digit());
+    }
+
+    /**
+     * Returns the neighbor index at the given position.
+     *
+     * @param h3Address Origin index
+     * @param ringPos position of the neighbour index
+     * @return the actual neighbour at the given position
+     */
+    public static String hexRingPosToH3(String h3Address, int ringPos) {
+        return h3ToString(hexRingPosToH3(stringToH3(h3Address), ringPos));
     }
 
     /**
@@ -466,6 +529,52 @@ public final class H3 {
     }
 
     /**
+     * Find the h3 index containing the North Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 index containing the North Pole.
+     */
+    public static long northPolarH3(int res) {
+        checkResolution(res);
+        return NORTH[res];
+    }
+
+    /**
+     * Find the h3 address containing the North Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 address containing the North Pole.
+     */
+    public static String northPolarH3Address(int res) {
+        return h3ToString(northPolarH3(res));
+    }
+
+    /**
+     * Find the h3 index containing the South Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 index containing the South Pole.
+     */
+    public static long southPolarH3(int res) {
+        checkResolution(res);
+        return SOUTH[res];
+    }
+
+    /**
+     * Find the h3 address containing the South Pole at the given resolution.
+     *
+     * @param res the provided resolution.
+     *
+     * @return the h3 address containing the South Pole.
+     */
+    public static String southPolarH3Address(int res) {
+        return h3ToString(southPolarH3(res));
+    }
+
+    /**
      * _ipow does integer exponentiation efficiently. Taken from StackOverflow.
      *
      * @param base the integer base (can be positive or negative)
@@ -494,7 +603,7 @@ public final class H3 {
      * @throws IllegalArgumentException <code>res</code> is not a valid H3 resolution.
      */
     private static void checkResolution(int res) {
-        if (res < 0 || res > Constants.MAX_H3_RES) {
+        if (res < 0 || res > MAX_H3_RES) {
             throw new IllegalArgumentException("resolution [" + res + "]  is out of range (must be 0 <= res <= 15)");
         }
     }

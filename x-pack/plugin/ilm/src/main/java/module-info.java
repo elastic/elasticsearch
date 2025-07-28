@@ -1,3 +1,5 @@
+import org.elasticsearch.reservedstate.ReservedStateHandlerProvider;
+
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -14,10 +16,6 @@ module org.elasticsearch.ilm {
 
     exports org.elasticsearch.xpack.ilm.action to org.elasticsearch.server;
     exports org.elasticsearch.xpack.ilm;
-    exports org.elasticsearch.xpack.slm.action to org.elasticsearch.server;
-    exports org.elasticsearch.xpack.slm to org.elasticsearch.server;
 
-    provides org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider
-        with
-            org.elasticsearch.xpack.ilm.ReservedLifecycleStateHandlerProvider;
+    provides ReservedStateHandlerProvider with org.elasticsearch.xpack.ilm.ReservedLifecycleStateHandlerProvider;
 }

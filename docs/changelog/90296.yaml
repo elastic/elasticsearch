@@ -1,5 +1,0 @@
-pr: 90296
-summary: Limit shard realocation retries
-area: Allocation
-type: enhancement
-issues: []

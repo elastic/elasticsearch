@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -28,30 +27,6 @@ public class GetUsersResponse extends ActionResponse implements ToXContentObject
     private final User[] users;
     @Nullable
     private final Map<String, String> profileUidLookup;
-
-    public GetUsersResponse(StreamInput in) throws IOException {
-        super(in);
-        int size = in.readVInt();
-        if (size < 0) {
-            users = null;
-        } else {
-            users = new User[size];
-            for (int i = 0; i < size; i++) {
-                final User user = Authentication.AuthenticationSerializationHelper.readUserFrom(in);
-                assert false == User.isInternal(user) : "should not get internal users";
-                users[i] = user;
-            }
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
-            if (in.readBoolean()) {
-                profileUidLookup = in.readMap(StreamInput::readString, StreamInput::readString);
-            } else {
-                profileUidLookup = null;
-            }
-        } else {
-            profileUidLookup = null;
-        }
-    }
 
     public GetUsersResponse(Collection<User> users) {
         this(users, null);
@@ -82,10 +57,10 @@ public class GetUsersResponse extends ActionResponse implements ToXContentObject
                 Authentication.AuthenticationSerializationHelper.writeUserTo(user, out);
             }
         }
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_5_0)) {
             if (profileUidLookup != null) {
                 out.writeBoolean(true);
-                out.writeMap(profileUidLookup, StreamOutput::writeString, StreamOutput::writeString);
+                out.writeMap(profileUidLookup, StreamOutput::writeString);
             } else {
                 out.writeBoolean(false);
             }

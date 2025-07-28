@@ -7,27 +7,26 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.io.IOException;
+public class NodesDeprecationCheckRequestTests extends ESTestCase {
 
-public class NodesDeprecationCheckRequestTests extends AbstractWireSerializingTestCase<NodesDeprecationCheckRequest> {
-
-    @Override
-    protected Writeable.Reader<NodesDeprecationCheckRequest> instanceReader() {
-        return NodesDeprecationCheckRequest::new;
+    public void testEqualsAndHashCode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            createTestInstance(),
+            i -> new NodesDeprecationCheckRequest(i.nodesIds()),
+            this::mutateInstance
+        );
     }
 
-    @Override
-    protected NodesDeprecationCheckRequest mutateInstance(NodesDeprecationCheckRequest instance) throws IOException {
+    private NodesDeprecationCheckRequest mutateInstance(NodesDeprecationCheckRequest instance) {
         int newSize = randomValueOtherThan(instance.nodesIds().length, () -> randomIntBetween(0, 10));
         String[] newNodeIds = randomArray(newSize, newSize, String[]::new, () -> randomAlphaOfLengthBetween(5, 10));
         return new NodesDeprecationCheckRequest(newNodeIds);
     }
 
-    @Override
-    protected NodesDeprecationCheckRequest createTestInstance() {
+    private NodesDeprecationCheckRequest createTestInstance() {
         return new NodesDeprecationCheckRequest(randomArray(0, 10, String[]::new, () -> randomAlphaOfLengthBetween(5, 10)));
     }
 }

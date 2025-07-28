@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -22,18 +23,23 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.ExplanationHolder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptTermStats;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.IntSupplier;
 
 /**
  * A query that uses a script to compute documents' scores.
@@ -46,7 +52,7 @@ public class ScriptScoreQuery extends Query {
     private final Float minScore;
     private final String indexName;
     private final int shardId;
-    private final Version indexVersion;
+    private final IndexVersion indexVersion;
 
     public ScriptScoreQuery(
         Query subQuery,
@@ -56,7 +62,7 @@ public class ScriptScoreQuery extends Query {
         Float minScore,
         String indexName,
         int shardId,
-        Version indexVersion
+        IndexVersion indexVersion
     ) {
         this.subQuery = subQuery;
         this.script = script;
@@ -68,13 +74,17 @@ public class ScriptScoreQuery extends Query {
         this.indexVersion = indexVersion;
     }
 
+    public Query getSubQuery() {
+        return subQuery;
+    }
+
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query newQ = subQuery.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query newQ = subQuery.rewrite(searcher);
         if (newQ != subQuery) {
             return new ScriptScoreQuery(newQ, script, scriptBuilder, lookup, minScore, indexName, shardId, indexVersion);
         }
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     @Override
@@ -83,34 +93,53 @@ public class ScriptScoreQuery extends Query {
             return subQuery.createWeight(searcher, scoreMode, boost);
         }
         boolean needsScore = scriptBuilder.needs_score();
-        ScoreMode subQueryScoreMode = needsScore ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        boolean needsTermStatistics = scriptBuilder.needs_termStats();
+
+        ScoreMode subQueryScoreMode = needsScore || needsTermStatistics ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, 1.0f);
 
+        // We collect the different terms used in the child query.
+        final Set<Term> terms = new HashSet<>();
+
+        if (needsTermStatistics) {
+            this.visit(QueryVisitor.termCollector(terms));
+        }
+
         return new Weight(this) {
-            @Override
-            public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                if (minScore == null) {
-                    final BulkScorer subQueryBulkScorer = subQueryWeight.bulkScorer(context);
-                    if (subQueryBulkScorer == null) {
-                        return null;
-                    }
-                    return new ScriptScoreBulkScorer(subQueryBulkScorer, subQueryScoreMode, makeScoreScript(context), boost);
-                } else {
-                    return super.bulkScorer(context);
-                }
-            }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                Scorer subQueryScorer = subQueryWeight.scorer(context);
-                if (subQueryScorer == null) {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                ScorerSupplier subQueryScorerSupplier = subQueryWeight.scorerSupplier(context);
+                if (subQueryScorerSupplier == null) {
                     return null;
                 }
-                Scorer scriptScorer = new ScriptScorer(this, makeScoreScript(context), subQueryScorer, subQueryScoreMode, boost, null);
-                if (minScore != null) {
-                    scriptScorer = new MinScoreScorer(this, scriptScorer, minScore);
-                }
-                return scriptScorer;
+
+                return new ScorerSupplier() {
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        Scorer subQueryScorer = subQueryScorerSupplier.get(leadCost);
+                        Scorer scriptScorer = new ScriptScorer(makeScoreScript(context), subQueryScorer, subQueryScoreMode, boost, null);
+                        if (minScore != null) {
+                            scriptScorer = new MinScoreScorer(scriptScorer, minScore);
+                        }
+                        return scriptScorer;
+                    }
+
+                    @Override
+                    public BulkScorer bulkScorer() throws IOException {
+                        if (minScore == null) {
+                            final BulkScorer subQueryBulkScorer = subQueryScorerSupplier.bulkScorer();
+                            return new ScriptScoreBulkScorer(subQueryBulkScorer, subQueryScoreMode, makeScoreScript(context), boost);
+                        } else {
+                            return super.bulkScorer();
+                        }
+                    }
+
+                    @Override
+                    public long cost() {
+                        return subQueryScorerSupplier.cost();
+                    }
+                };
             }
 
             @Override
@@ -121,7 +150,6 @@ public class ScriptScoreQuery extends Query {
                 }
                 ExplanationHolder explanationHolder = new ExplanationHolder();
                 Scorer scorer = new ScriptScorer(
-                    this,
                     makeScoreScript(context),
                     subQueryWeight.scorer(context),
                     subQueryScoreMode,
@@ -164,6 +192,9 @@ public class ScriptScoreQuery extends Query {
                 final ScoreScript scoreScript = scriptBuilder.newInstance(new DocValuesDocReader(lookup, context));
                 scoreScript._setIndexName(indexName);
                 scoreScript._setShard(shardId);
+                if (needsTermStatistics) {
+                    scoreScript._setTermStats(new ScriptTermStats(searcher, context, scoreScript::_getDocId, terms));
+                }
                 return scoreScript;
             }
 
@@ -211,14 +242,12 @@ public class ScriptScoreQuery extends Query {
         private final ExplanationHolder explanation;
 
         ScriptScorer(
-            Weight weight,
             ScoreScript scoreScript,
             Scorer subQueryScorer,
             ScoreMode subQueryScoreMode,
             float boost,
             ExplanationHolder explanation
         ) {
-            super(weight);
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
                 scoreScript.setScorer(subQueryScorer);
@@ -272,19 +301,27 @@ public class ScriptScoreQuery extends Query {
         private final ScoreScript scoreScript;
         private final Scorable subQueryScorer;
         private final float boost;
+        private final IntSupplier docIDSupplier;
 
-        ScriptScorable(ScoreScript scoreScript, Scorable subQueryScorer, ScoreMode subQueryScoreMode, float boost) {
+        ScriptScorable(
+            ScoreScript scoreScript,
+            Scorable subQueryScorer,
+            ScoreMode subQueryScoreMode,
+            float boost,
+            IntSupplier docIDSupplier
+        ) {
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
                 scoreScript.setScorer(subQueryScorer);
             }
             this.subQueryScorer = subQueryScorer;
             this.boost = boost;
+            this.docIDSupplier = docIDSupplier;
         }
 
         @Override
         public float score() throws IOException {
-            int docId = docID();
+            int docId = docIDSupplier.getAsInt();
             scoreScript.setDocument(docId);
             float score = (float) scoreScript.execute(null);
             if (score < 0f || Float.isNaN(score)) {
@@ -300,10 +337,6 @@ public class ScriptScoreQuery extends Query {
             return score * boost;
         }
 
-        @Override
-        public int docID() {
-            return subQueryScorer.docID();
-        }
     }
 
     /**
@@ -330,9 +363,18 @@ public class ScriptScoreQuery extends Query {
 
         private LeafCollector wrapCollector(LeafCollector collector) {
             return new FilterLeafCollector(collector) {
+
+                private int docID;
+
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
-                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost));
+                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost, () -> docID));
+                }
+
+                @Override
+                public void collect(int doc) throws IOException {
+                    this.docID = doc;
+                    super.collect(doc);
                 }
             };
         }

@@ -500,8 +500,8 @@
 
 ---
 "Script Score With Highlight":
-  - skip:
-      version: " - 7.4.0"
+  - requires:
+      cluster_features: ["gte_v7.4.1"]
       reason: "highlight for script_score was introduced in 7.4.1"
 
   - do:

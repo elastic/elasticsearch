@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
@@ -11,9 +12,7 @@ package org.elasticsearch.action.admin.cluster.node.shutdown;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
-import static org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequestSerializationTests.createSetMutation;
+import static org.elasticsearch.action.admin.cluster.node.shutdown.PrevalidateShardPathRequestSerializationTestUtils.createSetMutation;
 
 public class NodePrevalidateShardPathRequestSerializationTests extends AbstractWireSerializingTestCase<NodePrevalidateShardPathRequest> {
 
@@ -24,13 +23,13 @@ public class NodePrevalidateShardPathRequestSerializationTests extends AbstractW
 
     @Override
     protected NodePrevalidateShardPathRequest createTestInstance() {
-        return new NodePrevalidateShardPathRequest(randomSet(0, 50, PrevalidateShardPathRequestSerializationTests::randomShardId));
+        return new NodePrevalidateShardPathRequest(randomSet(0, 50, PrevalidateShardPathRequestSerializationTestUtils::randomShardId));
     }
 
     @Override
-    protected NodePrevalidateShardPathRequest mutateInstance(NodePrevalidateShardPathRequest request) throws IOException {
+    protected NodePrevalidateShardPathRequest mutateInstance(NodePrevalidateShardPathRequest request) {
         return new NodePrevalidateShardPathRequest(
-            createSetMutation(request.getShardIds(), PrevalidateShardPathRequestSerializationTests::randomShardId)
+            createSetMutation(request.getShardIds(), PrevalidateShardPathRequestSerializationTestUtils::randomShardId)
         );
     }
 }

@@ -60,4 +60,9 @@ public class JobWrapperSerializingTests extends AbstractXContentSerializingTestC
             new RollupJobStatus(state, Collections.emptyMap())
         );
     }
+
+    @Override
+    protected GetRollupJobsAction.JobWrapper mutateInstance(GetRollupJobsAction.JobWrapper instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

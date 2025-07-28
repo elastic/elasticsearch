@@ -1,0 +1,56 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "metricset": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "k8s": {
+      "properties": {
+        "pod": {
+          "properties": {
+            "uid": {
+              "type": "keyword",
+              "time_series_dimension": true
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "cpu": {
+              "properties": {
+                "limit": {
+                  "type": "scaled_float",
+                  "scaling_factor": 1000.0,
+                  "time_series_metric": "gauge"
+                },
+                "nanocores": {
+                  "type": "long",
+                  "time_series_metric": "gauge"
+                },
+                "node": {
+                  "type": "scaled_float",
+                  "scaling_factor": 1000.0,
+                  "time_series_metric": "gauge"
+                }
+              }
+            },
+            "network": {
+              "properties": {
+                "rx": {
+                  "type": "long",
+                  "time_series_metric": "gauge"
+                },
+                "tx": {
+                  "type": "long",
+                  "time_series_metric": "gauge"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

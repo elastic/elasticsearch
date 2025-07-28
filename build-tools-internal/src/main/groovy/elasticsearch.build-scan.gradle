@@ -1,123 +1,142 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+import java.lang.management.ManagementFactory;
+import java.time.LocalDateTime;
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.gradle.initialization.BuildRequestMetaData
-import org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin
-import java.util.concurrent.TimeUnit
+import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
-long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime()
+import java.lang.management.ManagementFactory
+import java.time.LocalDateTime
 
-buildScan {
-  URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+// Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
+def taskNames = gradle.startParameter.taskNames.join(' ')
 
-  // Automatically publish scans from Elasticsearch CI
-  if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
-    publishAlways()
-    buildScan.server = 'https://gradle-enterprise.elastic.co'
-  }
+develocity {
 
-  background {
-    String buildNumber = System.getenv('BUILD_NUMBER')
-    String buildUrl = System.getenv('BUILD_URL')
-    String jobName = System.getenv('JOB_NAME')
-    String nodeName = System.getenv('NODE_NAME')
-    String jobBranch = System.getenv('ghprbTargetBranch') ?: System.getenv('JOB_BRANCH')
+  buildScan {
 
-    tag OS.current().name()
-    tag Architecture.current().name()
+    def onCI = System.getenv('CI') ? Boolean.parseBoolean(System.getenv('CI')) : false
 
-    // Tag if this build is run in FIPS mode
-    if (BuildParams.inFipsJvm) {
-      tag 'FIPS'
-    }
+    // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+    uploadInBackground = onCI == false
 
-    // Link to Jenkins worker logs and system metrics
-    if (nodeName) {
-      link 'System logs', "https://ci-stats.elastic.co/app/infra#/logs?" +
-        "&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
-      buildFinished {
-        link 'System metrics', "https://ci-stats.elastic.co/app/metrics/detail/host/" +
-          "${nodeName}?_g=()&metricTime=(autoReload:!f,refreshInterval:5000," +
-          "time:(from:${startTime - TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)},interval:%3E%3D1m," +
-          "to:${System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)}))"
+    // Automatically publish scans from Elasticsearch CI
+    if (onCI) {
+      publishing.onlyIf { true }
+      if(server.isPresent() == false) {
+        server = 'https://gradle-enterprise.elastic.co'
       }
+    } else if( server.isPresent() == false) {
+      publishing.onlyIf { false }
     }
 
-    // Jenkins-specific build scan metadata
-    if (jenkinsUrl) {
-      // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
-      uploadInBackground = false
+    def fips = buildParams.inFipsJvm
+    def gitRevision = buildParams.gitRevision
 
-      // Parse job name in the case of matrix builds
-      // Matrix job names come in the form of "base-job-name/matrix_param1=value1,matrix_param2=value2"
-      def splitJobName = jobName.split('/')
-      if (splitJobName.length > 1 && splitJobName.last() ==~ /^([a-zA-Z0-9_\-]+=[a-zA-Z0-9_\-&\.]+,?)+$/) {
-        def baseJobName = splitJobName.dropRight(1).join('/')
-        tag baseJobName
-        tag splitJobName.last()
-        value 'Job Name', baseJobName
-        def matrixParams = splitJobName.last().split(',')
-        matrixParams.collect { it.split('=') }.each { param ->
-          value "MATRIX_${param[0].toUpperCase()}", param[1]
+    background {
+      tag OS.current().name()
+      tag Architecture.current().name()
+
+      // Tag if this build is run in FIPS mode
+      if (fips) {
+        tag 'FIPS'
+      }
+
+      if (onCI) { //Buildkite-specific build scan metadata
+        String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL')
+        def branch = System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH') ?: System.getenv('BUILDKITE_BRANCH')
+        def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/
+        def repository = repoMatcher.matches() ? repoMatcher.group(2) : "<unknown>"
+        def jobLabel = System.getenv('BUILDKITE_LABEL') ?: ''
+        def jobName = safeName(jobLabel)
+
+        tag 'CI'
+        link 'CI Build', "${buildKiteUrl}#${System.getenv('BUILDKITE_JOB_ID')}"
+        value 'Job Number', System.getenv('BUILDKITE_BUILD_NUMBER')
+        value 'Build ID', System.getenv('BUILDKITE_BUILD_ID')
+        value 'Job ID', System.getenv('BUILDKITE_JOB_ID')
+
+        value 'Pipeline', System.getenv('BUILDKITE_PIPELINE_SLUG')
+        tag System.getenv('BUILDKITE_PIPELINE_SLUG')
+
+        value 'Job Name', jobName
+        tag jobName
+        if (jobLabel.contains("/")) {
+          jobLabel.split("/").collect { safeName(it) }.each { matrix ->
+            tag matrix
+          }
+        }
+
+        def uptime = ManagementFactory.getRuntimeMXBean().getUptime() / 1000;
+        def metricsStartTime = LocalDateTime.now().minusSeconds(uptime.longValue()).minusMinutes(15).toString()
+        def metricsEndTime = LocalDateTime.now().plusMinutes(15).toString()
+
+        link 'Agent Metrics',
+          "https://es-buildkite-agents.elastic.dev/app/metrics/detail/host/${System.getenv('BUILDKITE_AGENT_NAME')}?_a=(time:(from:%27${metricsStartTime}Z%27,interval:%3E%3D1m,to:%27${metricsEndTime}Z%27))"
+        link 'Agent Logs',
+          "https://es-buildkite-agents.elastic.dev/app/logs/stream?logFilter=(filters:!(),query:(language:kuery,query:%27host.name:%20${System.getenv('BUILDKITE_AGENT_NAME')}%27),timeRange:(from:%27${metricsStartTime}Z%27,to:%27${metricsEndTime}Z%27))"
+
+        if (branch) {
+          tag branch
+          value 'Git Branch', branch
+        }
+
+        // Add SCM information
+        def prId = System.getenv('BUILDKITE_PULL_REQUEST')
+        if (prId != 'false') {
+          def prBaseUrl = (System.getenv('BUILDKITE_PULL_REQUEST_REPO') - ".git").replaceFirst("git://", "https://")
+          value 'Git Commit ID', System.getenv('BUILDKITE_COMMIT')
+          tag "pr/${prId}"
+          tag 'pull-request'
+          link 'Source', "${prBaseUrl}/tree/${System.getenv('BUILDKITE_COMMIT')}"
+          link 'Pull Request', "https://github.com/${repository}/pull/${prId}"
+        } else {
+          value 'Git Commit ID', gitRevision.get()
+          link 'Source', "https://github.com/${repository}/tree/${gitRevision.get()}"
+        }
+
+        buildFinished { result ->
+
+          buildScanPublished { scan
+            ->
+            // Attach build scan link as build metadata
+            // See: https://buildkite.com/docs/pipelines/build-meta-data
+            new ProcessBuilder('buildkite-agent', 'meta-data', 'set', "build-scan-${System.getenv('BUILDKITE_JOB_ID')}", "${scan.buildScanUri}")
+              .start()
+              .waitFor()
+
+            // Add a build annotation
+            // See: https://buildkite.com/docs/agent/v3/cli-annotate
+            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
+            def process = [
+              'buildkite-agent',
+              'annotate',
+              '--context',
+              result.failures ? 'gradle-build-scans-failed' : 'gradle-build-scans',
+              '--append',
+              '--style',
+              result.failures ? 'error' : 'info'
+            ].execute()
+            process.withWriter { it.write(body) }
+            // passing the body in as an argument has issues on Windows, so let's use stdin of the process instead
+            process.waitFor()
+          }
         }
       } else {
-        tag jobName
-        value 'Job Name', jobName
+        tag 'LOCAL'
+        if (System.getProperty('idea.active') == 'true') {
+          tag 'IDEA'
+        }
       }
-
-      tag 'CI'
-      link 'CI Build', buildUrl
-      link 'GCP Upload', "https://console.cloud.google.com/storage/browser/_details/elasticsearch-ci-artifacts/jobs/${URLEncoder.encode(jobName, "UTF-8")}/build/${buildNumber}.tar.bz2"
-      value 'Job Number', buildNumber
-      if (jobBranch) {
-        tag jobBranch
-        value 'Git Branch', jobBranch
-      }
-
-      System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {
-        value 'Jenkins Worker Label', it
-      }
-
-      // Add SCM information
-      def isPrBuild = System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') != null
-      if (isPrBuild) {
-        value 'Git Commit ID', System.getenv('ghprbActualCommit')
-        tag "pr/${System.getenv('ghprbPullId')}"
-        tag 'pull-request'
-        link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
-        link 'Pull Request', System.getenv('ghprbPullLink')
-      } else {
-        value 'Git Commit ID', BuildParams.gitRevision
-        link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
-      }
-    } else {
-      tag 'LOCAL'
     }
-  }
-}
-
-subprojects {
-  project.getPlugins().withType(TestRerunPlugin) {
-    tasks.withType(Test).configureEach(new Action<Test>() {
-      @Override
-      void execute(Test test) {
-        test.doLast(new Action<Test>() {
-          @Override
-          void execute(Test t) {
-            if(t.rerun.didRerun.get() == true) {
-              buildScan.tag 'unexpected-test-jvm-exit'
-            }
-          }
-        })
-      }
-    })
   }
 }

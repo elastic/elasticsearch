@@ -1,8 +1,7 @@
 ## Smoke tests for char filters included in the analysis-common module
 
-#todo this can be expanded with parameters once settings support is added
 ---
-"Stable char_filter plugin. Replace # with 3":
+"Stable char_filter plugin. Replace char with number":
   - do:
       indices.analyze:
         body:
@@ -10,22 +9,65 @@
           tokenizer: standard
           char_filter:
             - type: example_char_filter
+              old_char: "#"
+              new_number: 3
   - length: { tokens: 1 }
   - match:  { tokens.0.token: "t3st" }
 
   - do:
       indices.analyze:
         body:
-          text: t#st
+          text: t st
           explain: true
           tokenizer: standard
           char_filter:
             - type: example_char_filter
   - match:  { detail.custom_analyzer: true }
   - length: { detail.charfilters.0.filtered_text: 1 }
-  - match:  { detail.charfilters.0.filtered_text.0: "t3st" }
+  - match:  { detail.charfilters.0.filtered_text.0: "t0st" }
   - length: { detail.tokenizer.tokens: 1 }
-  - match:  { detail.tokenizer.tokens.0.token: "t3st" }
+  - match:  { detail.tokenizer.tokens.0.token: "t0st" }
   - match:  { detail.tokenizer.tokens.0.start_offset: 0 }
   - match:  { detail.tokenizer.tokens.0.end_offset: 4 }
   - match:  { detail.tokenizer.tokens.0.position: 0 }
+
+---
+"Index and search with stable plugin char filter":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              char_filter:
+                my_char_filter:
+                  type: example_char_filter
+                  old_char: "#"
+                  new_number: 4
+              analyzer:
+                my_analyzer:
+                  tokenizer: standard
+                  char_filter: ["my_char_filter"
+                  ]
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: my_analyzer
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "text": "t#st" }
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              text: t4st
+  - match: { hits.total: 1 }

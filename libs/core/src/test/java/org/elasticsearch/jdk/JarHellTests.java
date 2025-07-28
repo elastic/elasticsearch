@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.jdk;
@@ -121,7 +122,7 @@ public class JarHellTests extends ESTestCase {
     public void testNonJDKModuleURLs() throws Throwable {
         var bootLayer = ModuleLayer.boot();
 
-        Path fooDir = createTempDir(getTestName());
+        Path fooDir = createTempDir();
         Path fooJar = PathUtils.get(makeJar(fooDir, "foo.jar", null, "p/Foo.class").toURI());
         var fooConfiguration = bootLayer.configuration().resolve(ModuleFinder.of(), ModuleFinder.of(fooJar), List.of("foo"));
         Set<URL> urls = JarHell.nonJDKModuleURLs(fooConfiguration).collect(Collectors.toSet());

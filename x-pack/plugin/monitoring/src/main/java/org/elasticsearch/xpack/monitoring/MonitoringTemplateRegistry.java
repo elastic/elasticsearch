@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -50,7 +49,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
      * continue to use the release version number in this registry, even though this is not standard practice for template
      * registries.
      */
-    public static final int REGISTRY_VERSION = Version.V_8_7_0.id;
+    public static final int REGISTRY_VERSION = 8_12_00_99;
     private static final String REGISTRY_VERSION_VARIABLE = "xpack.monitoring.template.release.version";
 
     /**
@@ -78,7 +77,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
      * writes monitoring data in ECS format as of 8.0. These templates define the ECS schema as well as alias fields for the old monitoring
      * mappings that point to the corresponding ECS fields.
      */
-    public static final int STACK_MONITORING_REGISTRY_VERSION = Version.V_8_0_0.id + 4;
+    public static final int STACK_MONITORING_REGISTRY_VERSION = 8_00_00_99 + 21;
     private static final String STACK_MONITORING_REGISTRY_VERSION_VARIABLE = "xpack.stack.monitoring.template.release.version";
     private static final String STACK_TEMPLATE_VERSION = "8";
     private static final String STACK_TEMPLATE_VERSION_VARIABLE = "xpack.stack.monitoring.template.version";
@@ -239,8 +238,6 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             .orElseThrow(() -> new IllegalArgumentException("Invalid system [" + system + "]"));
     }
 
-    private final List<LifecyclePolicy> ilmPolicies;
-
     public MonitoringTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -251,13 +248,13 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
         this.monitoringTemplatesEnabled = MONITORING_TEMPLATES_ENABLED.get(nodeSettings);
-        this.ilmPolicies = loadPolicies(nodeSettings);
     }
 
-    private List<LifecyclePolicy> loadPolicies(Settings nodeSettings) {
+    @Override
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
         Map<String, String> templateVars = new HashMap<>();
-        if (HISTORY_DURATION.exists(nodeSettings)) {
-            templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(nodeSettings).getStringRep());
+        if (HISTORY_DURATION.exists(settings)) {
+            templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, HISTORY_DURATION.get(settings).getStringRep());
             templateVars.put(
                 MONITORING_POLICY_RETENTION_REASON_VARIABLE,
                 "the value of the [" + HISTORY_DURATION.getKey() + "] setting at node startup"
@@ -266,9 +263,12 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
             templateVars.put(MONITORING_POLICY_RETENTION_VARIABLE, MONITORING_POLICY_DEFAULT_RETENTION);
             templateVars.put(MONITORING_POLICY_RETENTION_REASON_VARIABLE, "the monitoring plugin default");
         }
-        LifecyclePolicy monitoringPolicy = new LifecyclePolicyConfig(MONITORING_POLICY_NAME, "/monitoring-mb-ilm-policy.json", templateVars)
-            .load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY);
-        return Collections.singletonList(monitoringPolicy);
+        LifecyclePolicyConfig monitoringPolicy = new LifecyclePolicyConfig(
+            MONITORING_POLICY_NAME,
+            "/monitoring-mb-ilm-policy.json",
+            templateVars
+        );
+        return List.of(monitoringPolicy);
     }
 
     @Override
@@ -318,9 +318,9 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
         if (monitoringTemplatesEnabled) {
-            return ilmPolicies;
+            return lifecyclePolicies;
         } else {
             return Collections.emptyList();
         }

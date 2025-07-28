@@ -1,0 +1,6 @@
+pr: 121920
+summary: Account for the `SearchHit` source in circuit breaker
+area: Search
+type: enhancement
+issues:
+ - 89656

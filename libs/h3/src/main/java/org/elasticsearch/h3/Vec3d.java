@@ -26,7 +26,7 @@ package org.elasticsearch.h3;
 /**
  *  3D floating-point vector
  */
-final class Vec3d {
+record Vec3d(double x, double y, double z) {
 
     /** icosahedron face centers in x/y/z on the unit sphere */
     public static final Vec3d[] faceCenterPoint = new Vec3d[] {
@@ -51,14 +51,6 @@ final class Vec3d {
         new Vec3d(0.2139234834501420, -0.1478171829550704, -0.9656017935214205),   // face 18
         new Vec3d(-0.1092625278784796, 0.4811951572873210, -0.8697775121287253)   // face 19
     };
-
-    private final double x, y, z;
-
-    private Vec3d(double x, double y, double z) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-    }
 
     /**
      * Calculate the square of the distance between two 3D coordinates.
@@ -96,7 +88,7 @@ final class Vec3d {
             }
         }
         // cos(r) = 1 - 2 * sin^2(r/2) = 1 - 2 * (sqd / 4) = 1 - sqd/2
-        double r = FastMath.acos(1 - sqd / 2);
+        double r = FastMath.acos(1 - sqd * 0.5);
 
         if (r < Constants.EPSILON) {
             return FaceIJK.faceIjkToH3(res, face, new CoordIJK(0, 0, 0));
@@ -168,6 +160,51 @@ final class Vec3d {
     }
 
     /**
+     * Computes the point on the sphere with a specified azimuth and distance from
+     * this point.
+     *
+     * @param az       The desired azimuth.
+     * @param distance The desired distance.
+     * @return The LatLng point.
+     */
+    LatLng geoAzDistanceRads(double az, double distance) {
+        az = Vec2d.posAngleRads(az);
+        // from https://www.movable-type.co.uk/scripts/latlong-vectors.html
+        // N = {0,0,1} – vector representing north pole
+        // d̂e = N×a – east vector at a
+        // dn = a×de – north vector at a
+        // d = dn·cosθ + de·sinθ – direction vector in dir’n of θ
+        // b = a·cosδ + d·sinδ
+
+        // east direction vector @ n1 (Gade's k_e_E)
+        final double magnitude = magnitude(this.x, this.y, 0);
+        final double deX = -this.y / magnitude;
+        final double deY = this.x / magnitude;
+
+        // north direction vector @ n1 (Gade's (k_n_E)
+        final double dnX = -this.z * deY;
+        final double dnY = this.z * deX;
+        final double dnZ = this.x * deY - this.y * deX;
+
+        final double sinAz = FastMath.sin(az);
+        final double cosAz = FastMath.cos(az);
+        final double sinDistance = FastMath.sin(distance);
+        final double cosDistance = FastMath.cos(distance);
+
+        // direction vector @ n1 (≡ C×n1; C = great circle)
+        final double dX = dnX * cosAz + deX * sinAz;
+        final double dY = dnY * cosAz + deY * sinAz;
+        final double dZ = dnZ * cosAz;
+
+        // Gade's n_EB_E = component of n2 parallel to n1 + component of n2 perpendicular to n1
+        final double n2X = this.x * cosDistance + dX * sinDistance;
+        final double n2Y = this.y * cosDistance + dY * sinDistance;
+        final double n2Z = this.z * cosDistance + dZ * sinDistance;
+
+        return new LatLng(FastMath.asin(n2Z), FastMath.atan2(n2Y, n2X));
+    }
+
+    /**
      * Calculate the dot product between two 3D coordinates.
      *
      * @param x1 The first 3D coordinate from the first set of coordinates.
@@ -193,5 +230,4 @@ final class Vec3d {
     private static double magnitude(double x, double y, double z) {
         return Math.sqrt(square(x) + square(y) + square(z));
     }
-
 }

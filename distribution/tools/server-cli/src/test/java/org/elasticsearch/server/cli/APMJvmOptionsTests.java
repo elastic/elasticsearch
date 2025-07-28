@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.Node;
@@ -20,8 +22,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.endsWith;
@@ -33,7 +38,6 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
-@ESTestCase.WithoutSecurityManager
 public class APMJvmOptionsTests extends ESTestCase {
 
     private Path installDir;
@@ -73,17 +77,34 @@ public class APMJvmOptionsTests extends ESTestCase {
         assertFalse(Files.exists(tempFile));
     }
 
+    public void testExtractSecureSettings() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("telemetry.secret_token", "token");
+        secureSettings.setString("telemetry.api_key", "key");
+
+        Map<String, String> propertiesMap = new HashMap<>();
+        APMJvmOptions.extractSecureSettings(secureSettings, propertiesMap);
+
+        assertThat(propertiesMap, matchesMap(Map.of("secret_token", "token", "api_key", "key")));
+    }
+
     public void testExtractSettings() throws UserException {
-        Settings settings = Settings.builder()
-            .put("tracing.apm.enabled", true)
-            .put("tracing.apm.agent.server_url", "https://myurl:443")
-            .put("tracing.apm.agent.service_node_name", "instance-0000000001")
-            .put("tracing.apm.agent.global_labels.deployment_id", "123")
-            .put("tracing.apm.agent.global_labels.deployment_name", "APM Tracing")
-            .put("tracing.apm.agent.global_labels.organization_id", "456")
+        Settings defaults = Settings.builder()
+            .put("telemetry.agent.server_url", "https://myurl:443")
+            .put("telemetry.agent.service_node_name", "instance-0000000001")
             .build();
 
-        var extracted = APMJvmOptions.extractApmSettings(settings);
+        var name = "APM Tracing";
+        var deploy = "123";
+        var org = "456";
+        var extracted = APMJvmOptions.extractApmSettings(
+            Settings.builder()
+                .put(defaults)
+                .put("telemetry.agent.global_labels.deployment_name", name)
+                .put("telemetry.agent.global_labels.deployment_id", deploy)
+                .put("telemetry.agent.global_labels.organization_id", org)
+                .build()
+        );
 
         assertThat(
             extracted,
@@ -96,21 +117,21 @@ public class APMJvmOptionsTests extends ESTestCase {
         );
 
         List<String> labels = Arrays.stream(extracted.get("global_labels").split(",")).toList();
-
         assertThat(labels, hasSize(3));
-        assertThat(labels, containsInAnyOrder("deployment_name=APM Tracing", "organization_id=456", "deployment_id=123"));
+        assertThat(labels, containsInAnyOrder("deployment_name=APM Tracing", "organization_id=" + org, "deployment_id=" + deploy));
 
-        settings = Settings.builder()
-            .put("tracing.apm.enabled", true)
-            .put("tracing.apm.agent.server_url", "https://myurl:443")
-            .put("tracing.apm.agent.service_node_name", "instance-0000000001")
-            .put("tracing.apm.agent.global_labels.deployment_id", "")
-            .put("tracing.apm.agent.global_labels.deployment_name", "APM=Tracing")
-            .put("tracing.apm.agent.global_labels.organization_id", ",456")
-            .build();
-
-        extracted = APMJvmOptions.extractApmSettings(settings);
-
+        // test replacing with underscores and skipping empty
+        name = "APM=Tracing";
+        deploy = "";
+        org = ",456";
+        extracted = APMJvmOptions.extractApmSettings(
+            Settings.builder()
+                .put(defaults)
+                .put("telemetry.agent.global_labels.deployment_name", name)
+                .put("telemetry.agent.global_labels.deployment_id", deploy)
+                .put("telemetry.agent.global_labels.organization_id", org)
+                .build()
+        );
         labels = Arrays.stream(extracted.get("global_labels").split(",")).toList();
         assertThat(labels, hasSize(2));
         assertThat(labels, containsInAnyOrder("deployment_name=APM_Tracing", "organization_id=_456"));

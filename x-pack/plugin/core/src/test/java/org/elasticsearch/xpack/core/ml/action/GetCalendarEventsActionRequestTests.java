@@ -34,6 +34,11 @@ public class GetCalendarEventsActionRequestTests extends AbstractXContentSeriali
     }
 
     @Override
+    protected GetCalendarEventsAction.Request mutateInstance(GetCalendarEventsAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<GetCalendarEventsAction.Request> instanceReader() {
         return GetCalendarEventsAction.Request::new;
     }
@@ -41,11 +46,6 @@ public class GetCalendarEventsActionRequestTests extends AbstractXContentSeriali
     @Override
     protected GetCalendarEventsAction.Request doParseInstance(XContentParser parser) {
         return GetCalendarEventsAction.Request.parseRequest(null, parser);
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     public void testValidate() {

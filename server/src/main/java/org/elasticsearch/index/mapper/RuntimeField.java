@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -178,7 +179,15 @@ public interface RuntimeField extends ToXContentFragment {
                 }
                 Parser typeParser = parserContext.runtimeFieldParser(type);
                 if (typeParser == null) {
-                    throw new MapperParsingException("No handler for type [" + type + "] declared on runtime field [" + fieldName + "]");
+                    throw new MapperParsingException(
+                        "The mapper type ["
+                            + type
+                            + "] declared on runtime field ["
+                            + fieldName
+                            + "] does not exist."
+                            + " It might have been created within a future version or requires a plugin to be installed."
+                            + " Check the documentation."
+                    );
                 }
                 runtimeFields.put(fieldName, builder.apply(typeParser.parse(fieldName, propNode, parserContext)));
                 propNode.remove("type");
@@ -214,14 +223,9 @@ public interface RuntimeField extends ToXContentFragment {
                 throw new IllegalStateException("Found sub-fields with name not belonging to the parent field they are part of " + names);
             }
             return runtimeField.asMappedFieldTypes();
-        })
-            .collect(
-                Collectors.toUnmodifiableMap(
-                    MappedFieldType::name,
-                    mappedFieldType -> mappedFieldType,
-                    (t, t2) -> { throw new IllegalArgumentException("Found two runtime fields with same name [" + t.name() + "]"); }
-                )
-            );
+        }).collect(Collectors.toUnmodifiableMap(MappedFieldType::name, mappedFieldType -> mappedFieldType, (t, t2) -> {
+            throw new IllegalArgumentException("Found two runtime fields with same name [" + t.name() + "]");
+        }));
     }
 
     static <T> Function<FieldMapper, T> initializerNotSupported() {

@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid introduced in 8.1.0
 
   - do:
@@ -49,8 +49,8 @@ setup:
 
 ---
 fetch the _tsid:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -64,20 +64,46 @@ fetch the _tsid:
           sort:   [ _tsid ]
 
   - match: {hits.total.value: 2}
-  - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+  - match: {hits.hits.0.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62ccUzlcoJwx6Ltf34ddg5heNyQIA"]}
   - match: {hits.hits.0.fields.metricset: [aa]}
   - match: {hits.hits.0.fields.ul: [9223372036854775807]}
-  - match: {hits.hits.1.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
+  - match: {hits.hits.1.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62xbkMpink-I2ckSWnx-vXF67HQ-U"]}
   - match: {hits.hits.1.fields.metricset: [aa]}
   - match: {hits.hits.1.fields.ul: [9223372036854775808]}
+
+---
+fetch the _source:
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
+      reason: synthetic source support to unsigned long added in 8.7.0
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [_tsid, metricset, ul]
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:35:24.467Z" +metricset:aa'
+          sort:   [ _tsid ]
+
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0._source.voltage: 7.2}
+  - match: {hits.hits.0._source.metricset: aa}
+  - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:35:24.467Z}
+  - match: {hits.hits.0._source.ul: 9223372036854775807}
+  - match: {hits.hits.1._source.voltage: 3.2}
+  - match: {hits.hits.1._source.metricset: aa}
+  - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:35:24.467Z}
+  - match: {hits.hits.1._source.ul: 9223372036854775808}
 
 ---
 # Sort order is of unsigned_long fields is not the one we would expect.
 # This is caused by the encoding of unsigned_long as a signed long before
 # being serialized in _tsid
 aggregate the _tsid:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -93,14 +119,14 @@ aggregate the _tsid:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: {metricset: aa, ul: 9223372036854775807}}
-  - match: {aggregations.tsids.buckets.0.doc_count: 3}
-  - match: {aggregations.tsids.buckets.1.key: {metricset: aa, ul: 9223372036854775808}}
+  - match: {aggregations.tsids.buckets.0.key: "KEgPmt8JTKe7WA6iB8FLYKbvei62VWzfUKafNxTRdD8v6_Z8PbKJ6TQ"}
+  - match: {aggregations.tsids.buckets.0.doc_count: 1}
+  - match: {aggregations.tsids.buckets.1.key: "KEgPmt8JTKe7WA6iB8FLYKbvei62ccUzlcoJwx6Ltf34ddg5heNyQIA"}
   - match: {aggregations.tsids.buckets.1.doc_count: 3}
-  - match: {aggregations.tsids.buckets.2.key: {metricset: aa, ul: 18446744073709551614}}
+  - match: {aggregations.tsids.buckets.2.key: "KEgPmt8JTKe7WA6iB8FLYKbvei62erJQlP1_gz9tjb7S743_9tpXyfM"}
   - match: {aggregations.tsids.buckets.2.doc_count: 1}
-  - match: {aggregations.tsids.buckets.3.key: {metricset: aa, ul: 18446744073709551615}}
-  - match: {aggregations.tsids.buckets.3.doc_count: 1 }
+  - match: {aggregations.tsids.buckets.3.key: "KEgPmt8JTKe7WA6iB8FLYKbvei62xbkMpink-I2ckSWnx-vXF67HQ-U"}
+  - match: {aggregations.tsids.buckets.3.doc_count: 3}
 
 
 ---
@@ -108,8 +134,8 @@ aggregate the _tsid:
 # This is caused by the encoding of unsigned_long as a signed long before
 # being serialized in _tsid
 sort by tsid:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid support introduced in 8.1.0
 
   - do:
@@ -121,19 +147,19 @@ sort by tsid:
 
   - match: {hits.total.value: 8 }
 
-  - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
-  - match: {hits.hits.1.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
-  - match: {hits.hits.2.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
-  - match: {hits.hits.3.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
-  - match: {hits.hits.4.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
-  - match: {hits.hits.5.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
-  - match: {hits.hits.6.fields._tsid: [{metricset: aa, ul: 18446744073709551614}]}
-  - match: {hits.hits.7.fields._tsid: [{metricset: aa, ul: 18446744073709551615}]}
+  - match: {hits.hits.0.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62VWzfUKafNxTRdD8v6_Z8PbKJ6TQ"]}
+  - match: {hits.hits.1.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62ccUzlcoJwx6Ltf34ddg5heNyQIA"]}
+  - match: {hits.hits.2.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62ccUzlcoJwx6Ltf34ddg5heNyQIA"]}
+  - match: {hits.hits.3.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62ccUzlcoJwx6Ltf34ddg5heNyQIA"]}
+  - match: {hits.hits.4.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62erJQlP1_gz9tjb7S743_9tpXyfM"]}
+  - match: {hits.hits.5.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62xbkMpink-I2ckSWnx-vXF67HQ-U"]}
+  - match: {hits.hits.6.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62xbkMpink-I2ckSWnx-vXF67HQ-U"]}
+  - match: {hits.hits.7.fields._tsid: ["KEgPmt8JTKe7WA6iB8FLYKbvei62xbkMpink-I2ckSWnx-vXF67HQ-U"]}
 
 ---
 composite aggregation on tsid:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: _tsid introduced in 8.1.0
 
   - do:
@@ -154,18 +180,13 @@ composite aggregation on tsid:
 
   - match:  { hits.total.value: 8 }
   - length: { aggregations.tsids.buckets: 4 }
-  - match:  { aggregations.tsids.buckets.0.key.tsid.ul: 9223372036854775807 }
-  - match:  { aggregations.tsids.buckets.0.key.tsid.metricset: "aa" }
-  - match:  { aggregations.tsids.buckets.0.doc_count: 3 }
-  - match:  { aggregations.tsids.buckets.1.key.tsid.ul: 9223372036854775808 }
-  - match:  { aggregations.tsids.buckets.1.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.0.key.tsid: "KEgPmt8JTKe7WA6iB8FLYKbvei62VWzfUKafNxTRdD8v6_Z8PbKJ6TQ" }
+  - match:  { aggregations.tsids.buckets.0.doc_count: 1 }
+  - match:  { aggregations.tsids.buckets.1.key.tsid: "KEgPmt8JTKe7WA6iB8FLYKbvei62ccUzlcoJwx6Ltf34ddg5heNyQIA" }
   - match:  { aggregations.tsids.buckets.1.doc_count: 3 }
-  - match:  { aggregations.tsids.buckets.2.key.tsid.ul: 18446744073709551614 }
-  - match:  { aggregations.tsids.buckets.2.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.2.key.tsid: "KEgPmt8JTKe7WA6iB8FLYKbvei62erJQlP1_gz9tjb7S743_9tpXyfM" }
   - match:  { aggregations.tsids.buckets.2.doc_count: 1 }
-  - match:  { aggregations.tsids.buckets.3.key.tsid.ul: 18446744073709551615 }
-  - match:  { aggregations.tsids.buckets.3.key.tsid.metricset: "aa" }
-  - match:  { aggregations.tsids.buckets.3.doc_count: 1 }
+  - match:  { aggregations.tsids.buckets.3.key.tsid: "KEgPmt8JTKe7WA6iB8FLYKbvei62xbkMpink-I2ckSWnx-vXF67HQ-U" }
+  - match:  { aggregations.tsids.buckets.3.doc_count: 3 }
 
-  - match:  { aggregations.tsids.after_key.tsid.ul: 18446744073709551615 }
-  - match:  { aggregations.tsids.after_key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.after_key.tsid: "KEgPmt8JTKe7WA6iB8FLYKbvei62xbkMpink-I2ckSWnx-vXF67HQ-U" }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -27,7 +28,9 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
 
     public void testParserAndCreateApiRequestBuilder() throws IOException {
         boolean withExpiration = randomBoolean();
-        final String json = formatted("""
+        Object[] args = new Object[] { withExpiration ? """
+            "expiration": "1d",""" : "" };
+        final String json = Strings.format("""
             {
               "name": "my-api-key",
               %s
@@ -51,8 +54,7 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
                   ]
                 }
               }
-            }""", withExpiration ? """
-            "expiration": "1d",""" : "");
+            }""", args);
         final BytesArray source = new BytesArray(json);
         final NodeClient mockClient = mock(NodeClient.class);
         final CreateApiKeyRequest request = new CreateApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();

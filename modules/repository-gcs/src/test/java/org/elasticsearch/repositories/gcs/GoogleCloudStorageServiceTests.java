@@ -1,16 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
 
 import com.google.cloud.http.HttpTransportOptions;
-import com.google.cloud.storage.Storage;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.protocol.HttpContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -21,6 +26,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -71,7 +78,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             }
         };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
-        GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
+        var statsCollector = new GcsRepositoryStatsCollector();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> service.client("another_client", "repo", statsCollector)
@@ -80,7 +87,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName) }
         );
-        final Storage storage = service.client(clientName, "repo", statsCollector);
+        final var storage = service.client(clientName, "repo", statsCollector);
         assertThat(storage.getOptions().getApplicationName(), Matchers.containsString(applicationName));
         assertThat(storage.getOptions().getHost(), Matchers.is(endpoint));
         assertThat(storage.getOptions().getProjectId(), Matchers.is(projectIdName));
@@ -107,10 +114,10 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
-            GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
-            final Storage client11 = storageService.client("gcs1", "repo1", statsCollector);
+            var statsCollector = new GcsRepositoryStatsCollector();
+            final var client11 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
-            final Storage client12 = storageService.client("gcs2", "repo2", statsCollector);
+            final var client12 = storageService.client("gcs2", "repo2", statsCollector);
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // client 3 is missing
             final IllegalArgumentException e1 = expectThrows(
@@ -123,7 +130,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             // old client 1 not changed
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             // new client 1 is changed
-            final Storage client21 = storageService.client("gcs1", "repo1", statsCollector);
+            final var client21 = storageService.client("gcs1", "repo1", statsCollector);
             assertThat(client21.getOptions().getProjectId(), equalTo("project_gcs21"));
             // old client 2 not changed
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
@@ -134,7 +141,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             );
             assertThat(e2.getMessage(), containsString("Unknown client name [gcs2]."));
             // client 3 emerged
-            final Storage client23 = storageService.client("gcs3", "repo3", statsCollector);
+            final var client23 = storageService.client("gcs3", "repo3", statsCollector);
             assertThat(client23.getOptions().getProjectId(), equalTo("project_gcs23"));
         }
     }
@@ -146,13 +153,9 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
 
-            final Storage repo1Client = storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
-            final Storage repo2Client = storageService.client("gcs1", "repo2", new GoogleCloudStorageOperationsStats("bucket"));
-            final Storage repo1ClientSecondInstance = storageService.client(
-                "gcs1",
-                "repo1",
-                new GoogleCloudStorageOperationsStats("bucket")
-            );
+            final MeteredStorage repo1Client = storageService.client("gcs1", "repo1", new GcsRepositoryStatsCollector());
+            final MeteredStorage repo2Client = storageService.client("gcs1", "repo2", new GcsRepositoryStatsCollector());
+            final MeteredStorage repo1ClientSecondInstance = storageService.client("gcs1", "repo1", new GcsRepositoryStatsCollector());
 
             assertNotSame(repo1Client, repo2Client);
             assertSame(repo1Client, repo1ClientSecondInstance);
@@ -179,5 +182,23 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertEquals(-1, GoogleCloudStorageService.toTimeout(null).intValue());
         assertEquals(-1, GoogleCloudStorageService.toTimeout(TimeValue.ZERO).intValue());
         assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
+    }
+
+    public void testGetDefaultProjectIdViaProxy() throws Exception {
+        String proxyProjectId = randomAlphaOfLength(16);
+        var proxyServer = new MockHttpProxyServer() {
+            @Override
+            public void handle(HttpRequest request, HttpResponse response, HttpContext context) {
+                assertEquals(
+                    "GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1",
+                    request.getRequestLine().toString()
+                );
+                response.setEntity(new StringEntity(proxyProjectId, ContentType.TEXT_PLAIN));
+            }
+        };
+        try (proxyServer) {
+            var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
+            assertEquals(proxyProjectId, GoogleCloudStorageService.getDefaultProjectId(proxy));
+        }
     }
 }

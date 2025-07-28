@@ -41,22 +41,22 @@ final class H3Index {
         return BaseCells.isBaseCellPentagon(H3Index.H3_get_base_cell(h3)) && H3Index.h3LeadingNonZeroDigit(h3) == 0;
     }
 
-    public static long H3_INIT = 35184372088831L;
+    public static final long H3_INIT = 35184372088831L;
 
     /**
      * The bit offset of the mode in an H3 index.
      */
-    public static int H3_MODE_OFFSET = 59;
+    public static final int H3_MODE_OFFSET = 59;
 
     /**
      * 1's in the 4 mode bits, 0's everywhere else.
      */
-    public static long H3_MODE_MASK = 15L << H3_MODE_OFFSET;
+    public static final long H3_MODE_MASK = 15L << H3_MODE_OFFSET;
 
     /**
      * 0's in the 4 mode bits, 1's everywhere else.
      */
-    public static long H3_MODE_MASK_NEGATIVE = ~H3_MODE_MASK;
+    public static final long H3_MODE_MASK_NEGATIVE = ~H3_MODE_MASK;
 
     public static long H3_set_mode(long h3, long mode) {
         return (h3 & H3_MODE_MASK_NEGATIVE) | (mode << H3_MODE_OFFSET);
@@ -65,16 +65,16 @@ final class H3Index {
     /**
      * The bit offset of the base cell in an H3 index.
      */
-    public static int H3_BC_OFFSET = 45;
+    public static final int H3_BC_OFFSET = 45;
     /**
      * 1's in the 7 base cell bits, 0's everywhere else.
      */
-    public static long H3_BC_MASK = 127L << H3_BC_OFFSET;
+    public static final long H3_BC_MASK = 127L << H3_BC_OFFSET;
 
     /**
      * 0's in the 7 base cell bits, 1's everywhere else.
      */
-    public static long H3_BC_MASK_NEGATIVE = ~H3_BC_MASK;
+    public static final long H3_BC_MASK_NEGATIVE = ~H3_BC_MASK;
 
     /**
      * Sets the integer base cell of h3 to bc.
@@ -83,26 +83,26 @@ final class H3Index {
         return (h3 & H3_BC_MASK_NEGATIVE) | (bc << H3_BC_OFFSET);
     }
 
-    public static int H3_RES_OFFSET = 52;
+    public static final int H3_RES_OFFSET = 52;
     /**
      * 1's in the 4 resolution bits, 0's everywhere else.
      */
-    public static long H3_RES_MASK = 15L << H3_RES_OFFSET;
+    public static final long H3_RES_MASK = 15L << H3_RES_OFFSET;
 
     /**
      * 0's in the 4 resolution bits, 1's everywhere else.
      */
-    public static long H3_RES_MASK_NEGATIVE = ~H3_RES_MASK;
+    public static final long H3_RES_MASK_NEGATIVE = ~H3_RES_MASK;
 
     /**
      * The bit offset of the max resolution digit in an H3 index.
      */
-    public static int H3_MAX_OFFSET = 63;
+    public static final int H3_MAX_OFFSET = 63;
 
     /**
      * 1 in the highest bit, 0's everywhere else.
      */
-    public static long H3_HIGH_BIT_MASK = (1L << H3_MAX_OFFSET);
+    public static final long H3_HIGH_BIT_MASK = (1L << H3_MAX_OFFSET);
 
     /**
      * Gets the highest bit of the H3 index.
@@ -121,12 +121,12 @@ final class H3Index {
     /**
      * The bit offset of the reserved bits in an H3 index.
      */
-    public static int H3_RESERVED_OFFSET = 56;
+    public static final int H3_RESERVED_OFFSET = 56;
 
     /**
      * 1's in the 3 reserved bits, 0's everywhere else.
      */
-    public static long H3_RESERVED_MASK = (7L << H3_RESERVED_OFFSET);
+    public static final long H3_RESERVED_MASK = (7L << H3_RESERVED_OFFSET);
 
     /**
      * Gets a value in the reserved space. Should always be zero for valid indexes.
@@ -149,25 +149,25 @@ final class H3Index {
     /**
      * The number of bits in a single H3 resolution digit.
      */
-    public static int H3_PER_DIGIT_OFFSET = 3;
+    public static final int H3_PER_DIGIT_OFFSET = 3;
 
     /**
      * 1's in the 3 bits of res 15 digit bits, 0's everywhere else.
      */
-    public static long H3_DIGIT_MASK = 7L;
+    public static final long H3_DIGIT_MASK = 7L;
 
     /**
      * Gets the resolution res integer digit (0-7) of h3.
      */
     public static int H3_get_index_digit(long h3, int res) {
-        return ((int) ((((h3) >> ((Constants.MAX_H3_RES - (res)) * H3_PER_DIGIT_OFFSET)) & H3_DIGIT_MASK)));
+        return ((int) ((((h3) >> ((H3.MAX_H3_RES - (res)) * H3_PER_DIGIT_OFFSET)) & H3_DIGIT_MASK)));
     }
 
     /**
      * Sets the resolution res digit of h3 to the integer digit (0-7)
      */
     public static long H3_set_index_digit(long h3, int res, long digit) {
-        int x = (Constants.MAX_H3_RES - res) * H3_PER_DIGIT_OFFSET;
+        int x = (H3.MAX_H3_RES - res) * H3_PER_DIGIT_OFFSET;
         return (((h3) & ~((H3_DIGIT_MASK << (x)))) | (((digit)) << x));
     }
 
@@ -268,7 +268,7 @@ final class H3Index {
         final int res = H3Index.H3_get_resolution(h);
 
         // center base cell hierarchy is entirely on this face
-        final boolean possibleOverage = BaseCells.isBaseCellPentagon(H3_get_base_cell(h)) != false
+        final boolean possibleOverage = BaseCells.isBaseCellPentagon(H3_get_base_cell(h))
             || (res != 0 && (fijk.coord.i != 0 || fijk.coord.j != 0 || fijk.coord.k != 0));
 
         for (int r = 1; r <= res; r++) {
@@ -325,7 +325,9 @@ final class H3Index {
                 foundFirstNonZeroDigit = true;
 
                 // adjust for deleted k-axes sequence
-                if (h3LeadingNonZeroDigit(h) == CoordIJK.Direction.K_AXES_DIGIT.digit()) h = h3Rotate60ccw(h);
+                if (h3LeadingNonZeroDigit(h) == CoordIJK.Direction.K_AXES_DIGIT.digit()) {
+                    h = h3Rotate60ccw(h);
+                }
             }
         }
         return h;

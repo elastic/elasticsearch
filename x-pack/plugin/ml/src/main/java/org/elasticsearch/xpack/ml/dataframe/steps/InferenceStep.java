@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -70,42 +70,33 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
             return;
         }
 
-        ActionListener<String> modelIdListener = ActionListener.wrap(modelId -> runInference(modelId, listener), listener::onFailure);
-
-        ActionListener<Boolean> testDocsExistListener = ActionListener.wrap(testDocsExist -> {
-            if (testDocsExist) {
-                getModelId(modelIdListener);
-            } else {
-                // no need to run inference at all so let us skip
-                // loading the model in memory.
-                LOGGER.debug(() -> "[" + config.getId() + "] Inference step completed immediately as there are no test docs");
-                task.getStatsHolder().getProgressTracker().updateInferenceProgress(100);
-                listener.onResponse(new StepResponse(isTaskStopping()));
-                return;
-            }
-        }, listener::onFailure);
-
-        ActionListener<RefreshResponse> refreshDestListener = ActionListener.wrap(
-            refreshResponse -> searchIfTestDocsExist(testDocsExistListener),
-            listener::onFailure
+        refreshDestAsync(
+            listener.delegateFailureAndWrap(
+                (delegate, refreshResponse) -> searchIfTestDocsExist(delegate.delegateFailureAndWrap((delegate2, testDocsExist) -> {
+                    if (testDocsExist) {
+                        getModelId(delegate2.delegateFailureAndWrap((l, modelId) -> runInference(modelId, l)));
+                    } else {
+                        // no need to run inference at all so let us skip
+                        // loading the model in memory.
+                        LOGGER.debug(() -> "[" + config.getId() + "] Inference step completed immediately as there are no test docs");
+                        task.getStatsHolder().getProgressTracker().updateInferenceProgress(100);
+                        delegate2.onResponse(new StepResponse(isTaskStopping()));
+                    }
+                }))
+            )
         );
-
-        refreshDestAsync(refreshDestListener);
     }
 
     private void runInference(String modelId, ActionListener<StepResponse> listener) {
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-            try {
-                inferenceRunner.run(modelId);
-                listener.onResponse(new StepResponse(isTaskStopping()));
-            } catch (Exception e) {
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(ActionRunnable.wrap(listener, delegate -> {
+            inferenceRunner.run(modelId, ActionListener.wrap(aVoid -> delegate.onResponse(new StepResponse(isTaskStopping())), e -> {
                 if (task.isStopping()) {
-                    listener.onResponse(new StepResponse(false));
+                    delegate.onResponse(new StepResponse(false));
                 } else {
-                    listener.onFailure(e);
+                    delegate.onFailure(e);
                 }
-            }
-        });
+            }));
+        }));
     }
 
     private void searchIfTestDocsExist(ActionListener<Boolean> listener) {
@@ -122,12 +113,9 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
         executeAsyncWithOrigin(
             client,
             ML_ORIGIN,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequest,
-            ActionListener.wrap(
-                searchResponse -> listener.onResponse(searchResponse.getHits().getTotalHits().value > 0),
-                listener::onFailure
-            )
+            listener.delegateFailureAndWrap((l, searchResponse) -> l.onResponse(searchResponse.getHits().getTotalHits().value() > 0))
         );
     }
 
@@ -142,14 +130,20 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
         SearchRequest searchRequest = new SearchRequest(InferenceIndexConstants.INDEX_PATTERN);
         searchRequest.source(searchSourceBuilder);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
-            SearchHit[] hits = searchResponse.getHits().getHits();
-            if (hits.length == 0) {
-                listener.onFailure(new ResourceNotFoundException("No model could be found to perform inference"));
-            } else {
-                listener.onResponse(hits[0].getId());
-            }
-        }, listener::onFailure));
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            TransportSearchAction.TYPE,
+            searchRequest,
+            listener.delegateFailureAndWrap((l, searchResponse) -> {
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                if (hits.length == 0) {
+                    l.onFailure(new ResourceNotFoundException("No model could be found to perform inference"));
+                } else {
+                    l.onResponse(hits[0].getId());
+                }
+            })
+        );
     }
 
     @Override

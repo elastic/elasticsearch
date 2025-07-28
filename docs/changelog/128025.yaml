@@ -1,0 +1,6 @@
+pr: 128025
+summary: "Set `connection: close` header on shutdown"
+area: Network
+type: enhancement
+issues:
+ - 127984

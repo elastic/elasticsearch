@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -35,7 +36,8 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
-        private RankFeatureMetaFieldType() {
+        // made visible for tests
+        RankFeatureMetaFieldType() {
             super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
@@ -46,12 +48,17 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
+            throw new IllegalArgumentException("Cannot fetch values for internal field [" + typeName() + "].");
         }
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException("Cannot run exists query on [_feature]");
+        }
+
+        @Override
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
+            return fieldInfos.fieldInfo(NAME) != null;
         }
 
         @Override
@@ -67,10 +74,5 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

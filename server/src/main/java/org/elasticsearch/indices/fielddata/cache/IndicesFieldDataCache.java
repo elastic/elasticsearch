@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.fielddata.cache;
@@ -26,25 +27,33 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsAccounting;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongBiFunction;
 
-public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
+public final class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable {
 
     private static final Logger logger = LogManager.getLogger(IndicesFieldDataCache.class);
 
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY = Setting.memorySizeSetting(
         "indices.fielddata.cache.size",
         ByteSizeValue.MINUS_ONE,
+        Property.NodeScope
+    );
+    public static final Setting<TimeValue> INDICES_FIELDDATA_CACHE_EXPIRE = Setting.positiveTimeSetting(
+        "indices.fielddata.cache.expire",
+        new TimeValue(1, TimeUnit.HOURS),
         Property.NodeScope
     );
     private final IndexFieldDataCache.Listener indicesFieldDataCacheListener;
@@ -57,6 +66,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         if (sizeInBytes > 0) {
             cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
+        final TimeValue expire = INDICES_FIELDDATA_CACHE_EXPIRE.get(settings);
+        if (expire != null && expire.getNanos() > 0) {
+            cacheBuilder.setExpireAfterAccess(expire);
+        }
         cache = cacheBuilder.build();
     }
 
@@ -66,7 +79,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
-        return new IndexFieldCache(logger, cache, index, fieldName, indicesFieldDataCacheListener, listener);
+        return new IndexFieldCache(cache, index, fieldName, indicesFieldDataCacheListener, listener);
     }
 
     public Cache<Key, Accountable> getCache() {
@@ -106,14 +119,12 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
      * A specific cache instance for the relevant parameters of it (index, fieldNames, fieldType).
      */
     static class IndexFieldCache implements IndexFieldDataCache, IndexReader.ClosedListener {
-        private final Logger logger;
         final Index index;
         final String fieldName;
         private final Cache<Key, Accountable> cache;
         private final Listener[] listeners;
 
-        IndexFieldCache(Logger logger, final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
-            this.logger = logger;
+        IndexFieldCache(final Cache<Key, Accountable> cache, Index index, String fieldName, Listener... listeners) {
             this.listeners = listeners;
             this.index = index;
             this.fieldName = fieldName;
@@ -162,16 +173,19 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 Collections.addAll(k.listeners, this.listeners);
-                final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
+                final IndexFieldData<?> ifd = indexFieldData.loadGlobalDirect(indexReader);
                 for (Listener listener : k.listeners) {
                     try {
-                        listener.onCache(shardId, fieldName, ifd);
+                        listener.onCache(shardId, fieldName, (Accountable) ifd);
+                        if (ifd instanceof GlobalOrdinalsAccounting) {
+                            listener.onCache(shardId, fieldName, (GlobalOrdinalsAccounting) ifd);
+                        }
                     } catch (Exception e) {
                         // load anyway since listeners should not throw exceptions
                         logger.error("Failed to call listener on global ordinals loading", e);
                     }
                 }
-                return ifd;
+                return (Accountable) ifd;
             });
             return (IFD) accountable;
         }

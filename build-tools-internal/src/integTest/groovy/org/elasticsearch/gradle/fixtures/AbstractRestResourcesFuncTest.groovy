@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.fixtures;
@@ -12,6 +13,27 @@ package org.elasticsearch.gradle.fixtures;
 abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
+        settingsFile.text = """
+        plugins {
+            id 'elasticsearch.java-toolchain'
+        }
+
+        toolchainManagement {
+          jvm {
+            javaRepositories {
+              repository('bundledOracleOpendJdk') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+              }
+              repository('adoptiumJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+              }
+              repository('archivedOracleJdks') {
+                resolverClass = org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+              }
+            }
+          }
+        }
+        """ + settingsFile.text
         subProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
         subProject(":test:test-clusters") << "apply plugin: 'elasticsearch.java'"
         subProject(":test:yaml-rest-runner") << "apply plugin: 'elasticsearch.java'"
@@ -31,7 +53,8 @@ abstract class AbstractRestResourcesFuncTest extends AbstractGradleFuncTest {
         }
         """
 
-        subProject(":distribution:archives:integ-test-zip") << "configurations { extracted }"
+        subProject(":distribution:archives:integ-test-zip") << "configurations.create('extracted')\n"
+        subProject(":distribution:archives:integ-test-zip") << "configurations.create('default')\n"
     }
 
     void setupRestResources(List<String> apis, List<String> tests = [], List<String> xpackTests = []) {

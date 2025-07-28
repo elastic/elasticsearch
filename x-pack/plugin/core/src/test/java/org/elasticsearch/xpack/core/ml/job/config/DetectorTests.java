@@ -181,6 +181,11 @@ public class DetectorTests extends AbstractXContentSerializingTestCase<Detector>
     }
 
     @Override
+    protected Detector mutateInstance(Detector instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<Detector> instanceReader() {
         return Detector::new;
     }

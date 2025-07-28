@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,22 +34,6 @@ public class ResultsFieldUpdate implements InferenceConfigUpdate {
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof ClassificationConfig) {
-            ClassificationConfigUpdate update = new ClassificationConfigUpdate(null, resultsField, null, null, null);
-            return update.apply(originalConfig);
-        } else if (originalConfig instanceof RegressionConfig) {
-            RegressionConfigUpdate update = new RegressionConfigUpdate(resultsField, null);
-            return update.apply(originalConfig);
-        } else {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of unknown type [{}] can not be updated",
-                originalConfig.getName()
-            );
-        }
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return true;
     }
@@ -70,8 +54,8 @@ public class ResultsFieldUpdate implements InferenceConfigUpdate {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_9_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override

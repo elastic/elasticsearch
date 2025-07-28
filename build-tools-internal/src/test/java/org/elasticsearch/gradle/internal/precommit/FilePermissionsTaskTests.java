@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.apache.tools.ant.taskdefs.condition.Os;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -17,7 +18,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.File;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -30,7 +31,7 @@ public class FilePermissionsTaskTests {
 
     @Test
     public void testCheckPermissionsWhenAnExecutableFileExists() throws Exception {
-        assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -51,7 +52,7 @@ public class FilePermissionsTaskTests {
 
     @Test
     public void testCheckPermissionsWhenNoFileExists() throws Exception {
-        assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -60,13 +61,13 @@ public class FilePermissionsTaskTests {
         filePermissionsTask.checkInvalidPermissions();
 
         File outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
-        List<String> result = Files.readAllLines(outputMarker.toPath(), Charset.forName("UTF-8"));
+        List<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8);
         assertEquals("done", result.get(0));
     }
 
     @Test
     public void testCheckPermissionsWhenNoExecutableFileExists() throws Exception {
-        assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -79,7 +80,7 @@ public class FilePermissionsTaskTests {
         filePermissionsTask.checkInvalidPermissions();
 
         File outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
-        List<String> result = Files.readAllLines(outputMarker.toPath(), Charset.forName("UTF-8"));
+        List<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8);
         assertEquals("done", result.get(0));
 
         file.delete();

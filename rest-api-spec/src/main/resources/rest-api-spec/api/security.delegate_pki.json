@@ -1,0 +1,26 @@
+{
+  "security.delegate_pki": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-delegate-pki-authentication.html",
+      "description": "Delegate PKI authentication."
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/delegate_pki",
+          "methods": ["POST"]
+        }
+      ]
+    },
+    "params": {},
+    "body": {
+      "description":"The X509Certificate chain.",
+      "required":true
+    }
+  }
+}

@@ -1,20 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.collect;
 
 import com.carrotsearch.hppc.ObjectCollection;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
-
-import org.elasticsearch.common.util.Maps;
+import com.carrotsearch.hppc.procedures.ObjectProcedure;
 
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
@@ -84,32 +83,13 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public boolean containsValue(Object value) {
-        for (ObjectCursor<VType> cursor : map.values()) {
-            if (Objects.equals(cursor.value, value)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public VType put(KType key, VType value) {
-        throw new UnsupportedOperationException("modification is not supported");
+        return map.values().contains((VType) value);
     }
 
     @Override
     public VType remove(Object key) {
-        throw new UnsupportedOperationException("modification is not supported");
-    }
-
-    @Override
-    public void putAll(Map<? extends KType, ? extends VType> m) {
-        throw new UnsupportedOperationException("modification is not supported");
-    }
-
-    @Override
-    public void clear() {
         throw new UnsupportedOperationException("modification is not supported");
     }
 
@@ -146,35 +126,7 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         return super.hashCode();
     }
 
-    private static final class ConversionIterator<KType, VType> implements Iterator<Map.Entry<KType, VType>> {
-
-        private final Iterator<ObjectObjectCursor<KType, VType>> original;
-
-        ConversionIterator(Iterator<ObjectObjectCursor<KType, VType>> original) {
-            this.original = original;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return original.hasNext();
-        }
-
-        @Override
-        public Map.Entry<KType, VType> next() {
-            final ObjectObjectCursor<KType, VType> obj = original.next();
-            if (obj == null) {
-                return null;
-            }
-            return new Maps.ImmutableEntry<>(obj.key, obj.value);
-        }
-
-        @Override
-        public void remove() {
-            throw new UnsupportedOperationException("removal is unsupported");
-        }
-    }
-
-    private static final class EntrySet<KType, VType> extends AbstractSet<Map.Entry<KType, VType>> {
+    private static class EntrySet<KType, VType> extends AbstractSet<Map.Entry<KType, VType>> {
         private final ObjectObjectHashMap<KType, VType> map;
 
         private EntrySet(ObjectObjectHashMap<KType, VType> map) {
@@ -187,13 +139,25 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         }
 
         @Override
-        public void clear() {
-            throw new UnsupportedOperationException("removal is unsupported");
+        public boolean isEmpty() {
+            return map.isEmpty();
         }
 
         @Override
         public Iterator<Map.Entry<KType, VType>> iterator() {
-            return new ConversionIterator<>(map.iterator());
+            return Iterators.map(map.iterator(), c -> new AbstractMap.SimpleImmutableEntry<>(c.key, c.value));
+        }
+
+        @Override
+        public Spliterator<Map.Entry<KType, VType>> spliterator() {
+            return Spliterators.spliterator(iterator(), size(), Spliterator.IMMUTABLE);
+        }
+
+        @Override
+        public void forEach(Consumer<? super Map.Entry<KType, VType>> action) {
+            map.forEach(
+                (Consumer<ObjectObjectCursor<KType, VType>>) c -> action.accept(new AbstractMap.SimpleImmutableEntry<>(c.key, c.value))
+            );
         }
 
         @SuppressWarnings("unchecked")
@@ -204,70 +168,87 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             }
             Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
             Object key = e.getKey();
-            if (map.containsKey((KType) key) == false) {
+            Object v = map.get((KType) key);
+            if (v == null && map.containsKey((KType) key) == false) {
                 return false;
             }
-            Object val = map.get((KType) key);
-            return Objects.equals(val, e.getValue());
+            return Objects.equals(v, e.getValue());
         }
 
         @Override
-        public boolean remove(Object o) {
-            throw new UnsupportedOperationException("removal is not supported");
-        }
-
-        @Override
-        public Spliterator<Map.Entry<KType, VType>> spliterator() {
-            return Spliterators.spliterator(iterator(), size(), Spliterator.SIZED);
-        }
-
-        @Override
-        public void forEach(Consumer<? super Map.Entry<KType, VType>> action) {
-            map.forEach((Consumer<? super ObjectObjectCursor<KType, VType>>) ooCursor -> {
-                Maps.ImmutableEntry<KType, VType> entry = new Maps.ImmutableEntry<>(ooCursor.key, ooCursor.value);
-                action.accept(entry);
-            });
+        public String toString() {
+            return map.toString();
         }
     }
 
-    private static final class KeySet<KType, VType> extends AbstractSet<KType> {
+    private static class MapObjectCollection<Type> extends AbstractCollection<Type> {
+        private final ObjectCollection<Type> collection;
 
-        private final ObjectObjectHashMap<KType, VType>.KeysContainer keys;
-
-        private KeySet(ObjectObjectHashMap<KType, VType>.KeysContainer keys) {
-            this.keys = keys;
-        }
-
-        @Override
-        public Iterator<KType> iterator() {
-            final Iterator<ObjectCursor<KType>> iterator = keys.iterator();
-            return new Iterator<>() {
-                @Override
-                public boolean hasNext() {
-                    return iterator.hasNext();
-                }
-
-                @Override
-                public KType next() {
-                    return iterator.next().value;
-                }
-
-                @Override
-                public void remove() {
-                    throw new UnsupportedOperationException();
-                }
-            };
+        private MapObjectCollection(ObjectCollection<Type> collection) {
+            this.collection = collection;
         }
 
         @Override
         public int size() {
-            return keys.size();
+            return collection.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return collection.isEmpty();
+        }
+
+        @Override
+        public Iterator<Type> iterator() {
+            return Iterators.map(collection.iterator(), c -> c.value);
+        }
+
+        @Override
+        public Spliterator<Type> spliterator() {
+            return Spliterators.spliterator(iterator(), size(), Spliterator.IMMUTABLE);
+        }
+
+        @Override
+        public void forEach(Consumer<? super Type> action) {
+            collection.forEach((ObjectProcedure<Type>) action::accept);
         }
 
         @Override
         @SuppressWarnings("unchecked")
         public boolean contains(Object o) {
-            return keys.contains((KType) o);
+            return collection.contains((Type) o);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return collection.equals(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return collection.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return collection.toString();
+        }
+
+        @Override
+        public Object[] toArray() {
+            return collection.toArray();
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T[] toArray(T[] a) {
+            return a.length == 0 ? (T[]) collection.toArray(a.getClass().getComponentType()) : super.toArray(a);
+        }
+    }
+
+    private static class KeySet<KType, VType> extends MapObjectCollection<KType> implements Set<KType> {
+        private KeySet(ObjectObjectHashMap<KType, VType>.KeysContainer keys) {
+            super(keys);
         }
     };
 
@@ -278,42 +259,12 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
 
     @Override
     public Collection<VType> values() {
-        return new AbstractCollection<VType>() {
-            @Override
-            public Iterator<VType> iterator() {
-                return ImmutableOpenMap.iterator(map.values());
-            }
-
-            @Override
-            public int size() {
-                return map.size();
-            }
-        };
+        return new MapObjectCollection<>(map.values());
     }
 
     @Override
     public void forEach(BiConsumer<? super KType, ? super VType> action) {
         map.forEach((ObjectObjectProcedure<KType, VType>) action::accept);
-    }
-
-    static <T> Iterator<T> iterator(ObjectCollection<T> collection) {
-        final Iterator<ObjectCursor<T>> iterator = collection.iterator();
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return iterator.hasNext();
-            }
-
-            @Override
-            public T next() {
-                return iterator.next().value;
-            }
-
-            @Override
-            public void remove() {
-                throw new UnsupportedOperationException();
-            }
-        };
     }
 
     @Override
@@ -343,6 +294,12 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
         }
         Builder<KType, VType> builder = new Builder<>(map.size());
         builder.putAllFromMap(map);
+        return builder;
+    }
+
+    public static <KType, VType> Builder<KType, VType> builder(KType key, VType value) {
+        Builder<KType, VType> builder = new Builder<>(1);
+        builder.put(key, value);
         return builder;
     }
 
@@ -407,9 +364,7 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
          */
         public Builder<KType, VType> putAllFromMap(Map<KType, VType> map) {
             maybeCloneMap();
-            for (Map.Entry<KType, VType> entry : map.entrySet()) {
-                this.mutableMap.put(entry.getKey(), entry.getValue());
-            }
+            map.forEach(mutableMap::put);
             return this;
         }
 

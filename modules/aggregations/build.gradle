@@ -1,25 +1,24 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds "built in" aggregations to Elasticsearch.'
-  classname 'org.elasticsearch.aggregations.AggregationsPlugin'
+  description = 'Adds "built in" aggregations to Elasticsearch.'
+  classname ='org.elasticsearch.aggregations.AggregationsPlugin'
   extendedPlugins = ['lang-painless']
 }
 
 restResources {
   restApi {
-    include '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk', 'scripts_painless_execute'
+    include 'capabilities', '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk', 'scripts_painless_execute', 'put_script'
   }
   restTests {
     // Pulls in all aggregation tests from core AND the forwards v7's core for forwards compatibility
@@ -27,24 +26,13 @@ restResources {
   }
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
   tasks.named("internalClusterTest").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
-}
-
-tasks.named("yamlRestTestV7CompatTransform").configure { task ->
-  task.skipTest("search.aggregation/20_terms/string profiler via global ordinals filters implementation", "The profiler results aren't backwards compatible.")
-  task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
-  task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
-  task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
-  task.skipTest("search.aggregation/210_top_hits_nested_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
-  task.skipTest("search.aggregation/370_doc_count_field/Test filters agg with doc_count", "Uses profiler for assertions which is not backwards compatible")
-
-  task.addAllowedWarningRegex("\\[types removal\\].*")
 }
 
 artifacts {
@@ -55,3 +43,10 @@ dependencies {
   compileOnly(project(':modules:lang-painless:spi'))
   clusterModules(project(':modules:lang-painless'))
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("aggregations/date_agg_per_day_of_week/Date aggregartion per day of week", "week-date behaviour has changed")
+  task.skipTest("aggregations/time_series/Configure with no synthetic source", "temporary until backport")
+  task.skipTest("aggregations/percentiles_hdr_metric/Negative values test", "returned exception has changed")
+  task.skipTest("aggregations/moving_fn/linearWeightedAvg", "math was wrong in previous versions")
+})

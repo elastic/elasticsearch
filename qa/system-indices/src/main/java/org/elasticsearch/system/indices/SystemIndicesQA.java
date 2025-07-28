@@ -1,25 +1,28 @@
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.system.indices;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -36,9 +39,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
@@ -70,13 +74,11 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .build()
                 )
                 .setOrigin(TASKS_ORIGIN)
-                .setVersionMetaKey("version")
-                .setPrimaryIndex(".net-new-system-index-" + Version.CURRENT.major)
+                .setPrimaryIndex(".net-new-system-index-primary")
                 .build(),
             SystemIndexDescriptor.builder()
                 .setIndexPattern(INTERNAL_UNMANAGED_INDEX_NAME)
@@ -93,13 +95,11 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setSettings(
                     Settings.builder()
                         .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                         .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
                         .build()
                 )
                 .setOrigin(TASKS_ORIGIN)
-                .setVersionMetaKey("version")
-                .setPrimaryIndex(".internal-managed-index-" + Version.CURRENT.major)
+                .setPrimaryIndex(".internal-managed-index-primary")
                 .setAliasName(".internal-managed-alias")
                 .build()
         );
@@ -110,7 +110,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Version.CURRENT)
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
                 .endObject()
                 .field("dynamic", "strict")
                 .startObject("properties")
@@ -128,12 +128,14 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
     @Override
     public List<RestHandler> getRestHandlers(
         Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return List.of(new CreateNetNewSystemIndexHandler(), new IndexDocHandler());
     }
@@ -147,14 +149,14 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         public List<Route> routes() {
-            return List.of(Route.builder(Method.PUT, "/_net_new_sys_index/_create").build());
+            return List.of(new Route(Method.PUT, "/_net_new_sys_index/_create"));
         }
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
             return channel -> client.admin()
                 .indices()
-                .create(new CreateIndexRequest(".net-new-system-index-" + Version.CURRENT.major), new RestToXContentListener<>(channel));
+                .create(new CreateIndexRequest(".net-new-system-index-primary"), new RestToXContentListener<>(channel));
         }
 
         @Override
@@ -176,12 +178,12 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-            IndexRequest indexRequest = new IndexRequest(".net-new-system-index-" + Version.CURRENT.major);
-            indexRequest.source(request.requiredContent(), request.getXContentType());
+            var content = request.requiredContent();
+            IndexRequest indexRequest = new IndexRequest(".net-new-system-index-primary");
+            indexRequest.source(content, request.getXContentType());
             indexRequest.id(request.param("id"));
             indexRequest.setRefreshPolicy(request.param("refresh"));
-
-            return channel -> client.index(indexRequest, new RestToXContentListener<>(channel));
+            return channel -> client.index(indexRequest, ActionListener.withRef(new RestToXContentListener<>(channel), content));
         }
 
         @Override

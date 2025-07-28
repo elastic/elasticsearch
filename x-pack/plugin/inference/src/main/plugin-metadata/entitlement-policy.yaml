@@ -1,0 +1,24 @@
+com.google.api.client:
+  - set_https_connection_properties
+  - outbound_network
+software.amazon.awssdk.utils:
+  - manage_threads
+  - outbound_network
+# AmazonBedrockInferenceClient uses NettyNioAsyncHttpClient, so we grant network permissions (and thread permissions,
+# as it is async) to the related modules
+software.amazon.awssdk.http.nio.netty:
+  - manage_threads
+  - outbound_network
+io.netty.common:
+  - outbound_network
+  - manage_threads
+  - files:
+      - path: "/etc/os-release"
+        mode: "read"
+      - path: "/usr/lib/os-release"
+        mode: "read"
+      - path: "/proc/sys/net/core/somaxconn"
+        mode: read
+io.netty.transport:
+  - manage_threads
+  - outbound_network

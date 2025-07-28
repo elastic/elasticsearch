@@ -37,6 +37,11 @@ public class BlockedTests extends AbstractXContentSerializingTestCase<Blocked> {
         return createRandom();
     }
 
+    @Override
+    protected Blocked mutateInstance(Blocked instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static Blocked createRandom() {
         Blocked.Reason reason = randomFrom(Blocked.Reason.values());
         TaskId taskId = (reason != Blocked.Reason.NONE && randomBoolean())

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.phrase;
@@ -28,7 +29,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
     public static PhraseSuggestionBuilder randomPhraseSuggestionBuilder() {
         PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
-        maybeSet(testBuilder::maxErrors, randomFloat());
+        maybeSet(testBuilder::maxErrors, Math.max(randomFloat(), Float.MIN_NORMAL));
         maybeSet(testBuilder::separator, randomAlphaOfLengthBetween(1, 10));
         maybeSet(testBuilder::realWordErrorLikelihood, randomFloat());
         maybeSet(testBuilder::confidence, randomFloat());

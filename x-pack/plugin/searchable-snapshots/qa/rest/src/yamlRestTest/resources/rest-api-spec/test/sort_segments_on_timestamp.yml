@@ -1,0 +1,87 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+          settings:
+            number_of_shards: 1
+
+  # 1st segment
+  - do:
+      index:
+        index: test
+        body: { "foo": "bar1", "@timestamp": "2021-08-01" }
+        refresh: true
+
+  # 2nd segment
+  - do:
+      index:
+        index: test
+        body: { "foo": "bar2", "@timestamp": "2021-08-02" }
+        refresh: true
+
+  # 3rd segment missing @timestamp field
+  - do:
+      index:
+        index: test
+        body: { "foo": "bar1"}
+        refresh: true
+
+  - do:
+      snapshot.create_repository:
+        repository: repository-fs
+        body:
+          type: fs
+          settings:
+            location: "repository-fs"
+
+  # Remove the snapshot if a previous test failed to delete it.
+  # Useful for third party tests that runs the test against a real external service.
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+        ignore: 404
+
+  - do:
+      snapshot.create:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+
+  - do:
+      indices.delete:
+        index: test
+
+---
+"Test that index segments are sorted on timestamp field if @timestamp field is defined in mapping":
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        body:
+          index: test
+          renamed_index: test-default-storage
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  # test that segments are sorted by @timestamp DESC
+  - do:
+      search:
+        index: test-default-storage
+        body:
+          fields: [{ "field":"@timestamp", "format":"yyyy-MM-dd" }]
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0.fields.@timestamp: ["2021-08-02"] }
+  - match: { hits.hits.1.fields.@timestamp: ["2021-08-01"] }
+  - is_false: hits.hits.2.fields.@timestamp

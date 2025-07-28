@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
@@ -12,15 +13,19 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -34,6 +39,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -51,24 +57,30 @@ public class IndexMetadataVerifier {
     private static final Logger logger = LogManager.getLogger(IndexMetadataVerifier.class);
 
     private final Settings settings;
+    private final ClusterService clusterService;
     private final XContentParserConfiguration parserConfiguration;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
+    private final MapperMetrics mapperMetrics;
 
     public IndexMetadataVerifier(
         Settings settings,
+        ClusterService clusterService,
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
         IndexScopedSettings indexScopedSettings,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        MapperMetrics mapperMetrics
     ) {
         this.settings = settings;
+        this.clusterService = clusterService;
         this.parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.scriptService = scriptCompiler;
+        this.mapperMetrics = mapperMetrics;
     }
 
     /**
@@ -78,8 +90,12 @@ public class IndexMetadataVerifier {
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
      * cannot be updated the method throws an exception.
      */
-    public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
+    public IndexMetadata verifyIndexMetadata(
+        IndexMetadata indexMetadata,
+        IndexVersion minimumIndexCompatibilityVersion,
+        IndexVersion minimumReadOnlyIndexCompatibilityVersion
+    ) {
+        checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion);
 
         // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
         IndexMetadata newMetadata = convertSharedCacheTierPreference(indexMetadata);
@@ -95,26 +111,119 @@ public class IndexMetadataVerifier {
     }
 
     /**
-     * Check that the index version is compatible. Elasticsearch does not support indices created before the
-     * previous major version.
+     * Check that the index version is compatible. Elasticsearch supports reading and writing indices created in the current version ("N")
+     + as well as the previous major version ("N-1"). Elasticsearch only supports reading indices created down to the penultimate version
+     + ("N-2") and does not support reading nor writing any version below that.
      */
-    private static void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        boolean isSupportedVersion = indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
-        if (isSupportedVersion == false) {
-            throw new IllegalStateException(
-                "The index "
-                    + indexMetadata.getIndex()
-                    + " has current compatibility version ["
-                    + indexMetadata.getCompatibilityVersion()
-                    + "] but the minimum compatible version is ["
-                    + minimumIndexCompatibilityVersion
-                    + "]. It should be re-indexed in Elasticsearch "
-                    + minimumIndexCompatibilityVersion.major
-                    + ".x before upgrading to "
-                    + Version.CURRENT
-                    + "."
-            );
+    private static void checkSupportedVersion(
+        IndexMetadata indexMetadata,
+        IndexVersion minimumIndexCompatibilityVersion,
+        IndexVersion minimumReadOnlyIndexCompatibilityVersion
+    ) {
+        if (isFullySupportedVersion(indexMetadata, minimumIndexCompatibilityVersion)) {
+            return;
         }
+        if (isReadOnlySupportedVersion(indexMetadata, minimumIndexCompatibilityVersion, minimumReadOnlyIndexCompatibilityVersion)) {
+            return;
+        }
+        throw new IllegalStateException(
+            "The index "
+                + indexMetadata.getIndex()
+                + " has current compatibility version ["
+                + indexMetadata.getCompatibilityVersion().toReleaseVersion()
+                + "] but the minimum compatible version is ["
+                + minimumIndexCompatibilityVersion.toReleaseVersion()
+                + "]. It should be re-indexed in Elasticsearch "
+                + (Version.CURRENT.major - 1)
+                + ".x before upgrading to "
+                + Build.current().version()
+                + "."
+        );
+    }
+
+    public static boolean isFullySupportedVersion(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
+        return indexMetadata.getCompatibilityVersion().onOrAfter(minimumIndexCompatibilityVersion);
+    }
+
+    /**
+     * Returns {@code true} if the index version is compatible with read-only mode. A regular index is read-only compatible if it was
+     * created in version N-2 and if it was marked as read-only on version N-1, a process which involves adding a write block and a special
+     * index setting indicating that the shard was "verified". Searchable snapshots and Archives indices created in version N-2 are also
+     * read-only compatible by nature as long as they have a write block. Other type of indices like CCR are not read-only compatible.
+     *
+     * @param indexMetadata              the index metadata
+     * @param minimumCompatible          the min. index compatible version for reading and writing indices (used in assertion)
+     * @param minimumReadOnlyCompatible  the min. index compatible version for only reading indices
+     *
+     * @return {@code true} if the index version is compatible in read-only mode, {@code false} otherwise.
+     * @throws IllegalStateException if the index is read-only compatible but has no write block or no verification index setting in place.
+     */
+    public static boolean isReadOnlySupportedVersion(
+        IndexMetadata indexMetadata,
+        IndexVersion minimumCompatible,
+        IndexVersion minimumReadOnlyCompatible
+    ) {
+        if (isReadOnlyCompatible(indexMetadata, minimumCompatible, minimumReadOnlyCompatible)) {
+            assert isFullySupportedVersion(indexMetadata, minimumCompatible) == false : indexMetadata;
+            final boolean isReadOnly = hasReadOnlyBlocks(indexMetadata) || isIndexVerifiedBeforeClosed(indexMetadata);
+            if (isReadOnly == false) {
+                throw new IllegalStateException(
+                    "The index "
+                        + indexMetadata.getIndex()
+                        + " created in version ["
+                        + indexMetadata.getCreationVersion().toReleaseVersion()
+                        + "] with current compatibility version ["
+                        + indexMetadata.getCompatibilityVersion().toReleaseVersion()
+                        + "] must be marked as read-only using the setting ["
+                        + IndexMetadata.SETTING_BLOCKS_WRITE
+                        + "] set to [true] before upgrading to "
+                        + Build.current().version()
+                        + '.'
+                );
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean isReadOnlyCompatible(
+        IndexMetadata indexMetadata,
+        IndexVersion minimumCompatible,
+        IndexVersion minimumReadOnlyCompatible
+    ) {
+        var compatibilityVersion = indexMetadata.getCompatibilityVersion();
+        if (compatibilityVersion.onOrAfter(minimumReadOnlyCompatible)) {
+            // searchable snapshots are read-only compatible
+            if (indexMetadata.isSearchableSnapshot()) {
+                return true;
+            }
+            // archives are read-only compatible
+            if (indexMetadata.getCreationVersion().isLegacyIndexVersion()) {
+                return true;
+            }
+            // indices (other than CCR and old-style frozen indices) are read-only compatible
+            return compatibilityVersion.before(minimumCompatible)
+                && indexMetadata.getSettings().getAsBoolean("index.frozen", false) == false
+                && indexMetadata.getSettings().getAsBoolean("index.xpack.ccr.following_index", false) == false;
+        }
+        return false;
+    }
+
+    static boolean hasReadOnlyBlocks(IndexMetadata indexMetadata) {
+        var indexSettings = indexMetadata.getSettings();
+        if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(indexSettings) || IndexMetadata.INDEX_READ_ONLY_SETTING.get(indexSettings)) {
+            return indexMetadata.isSearchableSnapshot()
+                || indexMetadata.getCreationVersion().isLegacyIndexVersion()
+                || MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexSettings);
+        }
+        return false;
+    }
+
+    public static boolean isReadOnlyVerified(IndexMetadata indexMetadata) {
+        if (isReadOnlyCompatible(indexMetadata, IndexVersions.MINIMUM_COMPATIBLE, IndexVersions.MINIMUM_READONLY_COMPATIBLE)) {
+            return hasReadOnlyBlocks(indexMetadata);
+        }
+        return false;
     }
 
     /**
@@ -140,16 +249,14 @@ public class IndexMetadataVerifier {
 
             IndexSettings indexSettings = new IndexSettings(indexMetadata, this.settings);
 
-            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap = new AbstractMap<
-                String,
-                TriFunction<Settings, Version, ScriptService, Similarity>>() {
+            final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarityMap = new AbstractMap<>() {
                 @Override
                 public boolean containsKey(Object key) {
                     return true;
                 }
 
                 @Override
-                public TriFunction<Settings, Version, ScriptService, Similarity> get(Object key) {
+                public TriFunction<Settings, IndexVersion, ScriptService, Similarity> get(Object key) {
                     assert key instanceof String : "key must be a string but was: " + key.getClass();
                     return (settings, version, scriptService) -> new BM25Similarity();
                 }
@@ -157,7 +264,7 @@ public class IndexMetadataVerifier {
                 // this entrySet impl isn't fully correct but necessary as SimilarityService will iterate
                 // over all similarities
                 @Override
-                public Set<Entry<String, TriFunction<Settings, Version, ScriptService, Similarity>>> entrySet() {
+                public Set<Entry<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>>> entrySet() {
                     return Collections.emptySet();
                 }
             };
@@ -169,33 +276,26 @@ public class IndexMetadataVerifier {
                 }
             });
 
-            final Map<String, NamedAnalyzer> analyzerMap = new AbstractMap<String, NamedAnalyzer>() {
-                @Override
-                public NamedAnalyzer get(Object key) {
-                    assert key instanceof String : "key must be a string but was: " + key.getClass();
-                    return new NamedAnalyzer((String) key, AnalyzerScope.INDEX, fakeDefault.analyzer());
-                }
-
-                // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
-                // over all analyzers to close them
-                @Override
-                public Set<Entry<String, NamedAnalyzer>> entrySet() {
-                    return Collections.emptySet();
-                }
-            };
-            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
+            try (
                 MapperService mapperService = new MapperService(
+                    clusterService,
                     indexSettings,
-                    fakeIndexAnalzyers,
+                    (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeDefault.analyzer()),
                     parserConfiguration,
                     similarityService,
                     mapperRegistry,
                     () -> null,
                     indexSettings.getMode().idFieldMapperWithoutFieldData(),
-                    scriptService
-                );
+                    scriptService,
+                    query -> {
+                        throw new UnsupportedOperationException("IndexMetadataVerifier");
+                    },
+                    mapperMetrics
+                )
+            ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
+
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
             throw new IllegalStateException("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);

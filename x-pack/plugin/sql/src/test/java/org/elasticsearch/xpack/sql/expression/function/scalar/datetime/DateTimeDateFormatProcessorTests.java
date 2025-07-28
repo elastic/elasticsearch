@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -94,7 +95,7 @@ public class DateTimeDateFormatProcessorTests extends ESTestCase {
             .makePipe()
             .asProcessor()
             .process(null);
-        assertEquals(String.format(Locale.ROOT, """
+        assertEquals(Strings.format("""
 
             Testfile: %s
             Line number: %s

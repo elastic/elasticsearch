@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -16,7 +17,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -27,12 +27,7 @@ public final class NetworkService {
     /** By default, we bind to loopback interfaces */
     public static final String DEFAULT_NETWORK_HOST = "_local_";
     public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, Property.NodeScope);
-    public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING = Setting.listSetting(
-        "network.host",
-        Collections.emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING = Setting.stringListSetting("network.host", Property.NodeScope);
     public static final Setting<List<String>> GLOBAL_NETWORK_BIND_HOST_SETTING = Setting.listSetting(
         "network.bind_host",
         GLOBAL_NETWORK_HOST_SETTING,
@@ -91,6 +86,7 @@ public final class NetworkService {
 
     private final List<CustomNameResolver> customNameResolvers;
     private final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
+    private final ThreadWatchdog threadWatchdog = new ThreadWatchdog();
 
     public NetworkService(List<CustomNameResolver> customNameResolvers) {
         this.customNameResolvers = Objects.requireNonNull(customNameResolvers, "customNameResolvers must be non null");
@@ -98,6 +94,10 @@ public final class NetworkService {
 
     public HandlingTimeTracker getHandlingTimeTracker() {
         return handlingTimeTracker;
+    }
+
+    public ThreadWatchdog getThreadWatchdog() {
+        return threadWatchdog;
     }
 
     /**

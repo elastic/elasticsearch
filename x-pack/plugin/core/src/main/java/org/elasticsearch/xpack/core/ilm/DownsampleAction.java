@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -13,35 +17,46 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.downsample.DownsampleConfig;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.downsample.DownsampleConfig.generateDownsampleIndexName;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.downsample.DownsampleAction} on an index
+ * A {@link LifecycleAction} which calls {@link org.elasticsearch.action.downsample.DownsampleAction} on an index
  */
 public class DownsampleAction implements LifecycleAction {
 
+    private static final Logger logger = LogManager.getLogger(DownsampleAction.class);
+
     public static final String NAME = "downsample";
     public static final String DOWNSAMPLED_INDEX_PREFIX = "downsample-";
+    public static final String CONDITIONAL_TIME_SERIES_CHECK_KEY = BranchingStep.NAME + "-on-timeseries-check";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
-    public static final String GENERATE_DOWNSAMPLE_STEP_NAME = "generate-downsampled-index-name";
+    public static final TimeValue DEFAULT_WAIT_TIMEOUT = new TimeValue(1, TimeUnit.DAYS);
     private static final ParseField FIXED_INTERVAL_FIELD = new ParseField(DownsampleConfig.FIXED_INTERVAL);
+    private static final ParseField WAIT_TIMEOUT_FIELD = new ParseField("wait_timeout");
+    static final String BWC_CLEANUP_TARGET_INDEX_NAME = "cleanup-target-index";
 
     private static final ConstructingObjectParser<DownsampleAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new DownsampleAction((DateHistogramInterval) a[0])
+        a -> new DownsampleAction((DateHistogramInterval) a[0], (TimeValue) a[1])
     );
 
     static {
@@ -51,34 +66,53 @@ public class DownsampleAction implements LifecycleAction {
             FIXED_INTERVAL_FIELD,
             ObjectParser.ValueType.STRING
         );
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> TimeValue.parseTimeValue(p.textOrNull(), WAIT_TIMEOUT_FIELD.getPreferredName()),
+            WAIT_TIMEOUT_FIELD,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     private final DateHistogramInterval fixedInterval;
+    private final TimeValue waitTimeout;
 
     public static DownsampleAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    public DownsampleAction(DateHistogramInterval fixedInterval) {
+    public DownsampleAction(final DateHistogramInterval fixedInterval, final TimeValue waitTimeout) {
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL_FIELD.getPreferredName() + "] is required.");
         }
         this.fixedInterval = fixedInterval;
+        this.waitTimeout = waitTimeout == null ? DEFAULT_WAIT_TIMEOUT : waitTimeout;
     }
 
     public DownsampleAction(StreamInput in) throws IOException {
-        this(new DateHistogramInterval(in));
+        this(
+            new DateHistogramInterval(in),
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)
+                ? TimeValue.parseTimeValue(in.readString(), WAIT_TIMEOUT_FIELD.getPreferredName())
+                : DEFAULT_WAIT_TIMEOUT
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         fixedInterval.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+            out.writeString(waitTimeout.getStringRep());
+        } else {
+            out.writeString(DEFAULT_WAIT_TIMEOUT.getStringRep());
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval.toString());
+        builder.field(WAIT_TIMEOUT_FIELD.getPreferredName(), waitTimeout.getStringRep());
         builder.endObject();
         return builder;
     }
@@ -92,6 +126,10 @@ public class DownsampleAction implements LifecycleAction {
         return fixedInterval;
     }
 
+    public TimeValue waitTimeout() {
+        return waitTimeout;
+    }
+
     @Override
     public boolean isSafeAction() {
         return false;
@@ -99,68 +137,118 @@ public class DownsampleAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey timeSeriesIndexCheckBranchKey = new StepKey(phase, NAME, CONDITIONAL_TIME_SERIES_CHECK_KEY);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
+        StepKey waitTimeSeriesEndTimePassesKey = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
-        StepKey cleanupRollupIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
-        StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_DOWNSAMPLE_STEP_NAME);
-        StepKey rollupKey = new StepKey(phase, NAME, RollupStep.NAME);
-        StepKey waitForRollupIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
+        StepKey cleanupDownsampleIndexKey = new StepKey(phase, NAME, BWC_CLEANUP_TARGET_INDEX_NAME);
+        StepKey generateDownsampleIndexNameKey = new StepKey(phase, NAME, DownsamplePrepareLifeCycleStateStep.NAME);
+        StepKey downsampleKey = new StepKey(phase, NAME, DownsampleStep.NAME);
+        StepKey waitForDownsampleIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
+        StepKey copyIndexLifecycleKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
         StepKey swapAliasesKey = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
 
+        // If the source index is not a time-series index, we should skip the downsample action completely
+        BranchingStep isTimeSeriesIndexBranchingStep = new BranchingStep(
+            timeSeriesIndexCheckBranchKey,
+            nextStepKey,
+            checkNotWriteIndex,
+            (index, project) -> {
+                IndexMetadata indexMetadata = project.index(index);
+                assert indexMetadata != null : "invalid cluster metadata. index [" + index.getName() + "] metadata not found";
+                if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+                    return false;
+                }
+
+                if (index.getName().equals(generateDownsampleIndexName(DOWNSAMPLED_INDEX_PREFIX, indexMetadata, fixedInterval))) {
+                    var downsampleStatus = IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexMetadata.getSettings());
+                    if (downsampleStatus == IndexMetadata.DownsampleTaskStatus.UNKNOWN) {
+                        // This isn't a downsample index, but it has the name of our target downsample index - very bad, we'll skip the
+                        // downsample action to avoid blocking the lifecycle of this index - if there
+                        // is another downsample action configured in the next phase, it'll be able to proceed successfully
+                        logger.warn(
+                            "index [{}] as part of policy [{}] cannot be downsampled at interval [{}] in phase [{}] because it has"
+                                + " the name of the target downsample index and is itself not a downsampled index. Skipping the downsample "
+                                + "action.",
+                            index.getName(),
+                            indexMetadata.getLifecyclePolicyName(),
+                            fixedInterval,
+                            phase
+                        );
+                    }
+                    return false;
+                }
+
+                return true;
+            }
+        );
+
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
             checkNotWriteIndex,
             waitForNoFollowerStepKey
         );
-        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, cleanupRollupIndexKey, client);
+        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(
+            waitForNoFollowerStepKey,
+            waitTimeSeriesEndTimePassesKey,
+            client
+        );
 
-        // We generate a unique rollup index name, but we also retry if the allocation of the rollup index is not possible, so we want to
-        // delete the "previously generated" rollup index (this is a no-op if it's the first run of the action, and we haven't generated a
-        // rollup index name)
-        CleanupTargetIndexStep cleanupRollupIndexStep = new CleanupTargetIndexStep(
-            cleanupRollupIndexKey,
+        WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
+            waitTimeSeriesEndTimePassesKey,
             readOnlyKey,
-            client,
-            (indexMetadata) -> IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.get(indexMetadata.getSettings()),
-            (indexMetadata) -> indexMetadata.getLifecycleExecutionState().rollupIndexName()
+            Instant::now
         );
         // Mark source index as read-only
-        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateRollupIndexNameKey, client);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, generateDownsampleIndexNameKey, client, true);
 
-        // Generate a unique rollup index name and store it in the ILM execution state
-        GenerateUniqueIndexNameStep generateRollupIndexNameStep = new GenerateUniqueIndexNameStep(
-            generateRollupIndexNameKey,
-            rollupKey,
-            DOWNSAMPLED_INDEX_PREFIX,
-            (rollupIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setRollupIndexName(rollupIndexName)
+        // Before the downsample action was retry-able, we used to generate a unique downsample index name and delete the previous index in
+        // case a failure occurred. The downsample action can now retry execution in case of failure and start where it left off, so no
+        // unique name needs to be generated and the target index is now predictable and generated in the downsample step.
+        // (This noop step exists so deployments that are in this step (that has been converted to a noop) when the Elasticsearch
+        // upgrade was performed resume the ILM execution and complete the downsample action after upgrade.)
+        NoopStep cleanupDownsampleIndexStep = new NoopStep(cleanupDownsampleIndexKey, downsampleKey);
+
+        // Prepare the lifecycleState by generating the name of the target index, that subsequent steps will use.
+        DownsamplePrepareLifeCycleStateStep generateDownsampleIndexNameStep = new DownsamplePrepareLifeCycleStateStep(
+            generateDownsampleIndexNameKey,
+            downsampleKey,
+            fixedInterval
         );
 
-        // Here is where the actual rollup action takes place
-        RollupStep rollupStep = new RollupStep(rollupKey, waitForRollupIndexKey, client, fixedInterval);
+        // Here is where the actual downsample action takes place
+        DownsampleStep downsampleStep = new DownsampleStep(downsampleKey, waitForDownsampleIndexKey, client, fixedInterval, waitTimeout);
 
         // Wait until the downsampled index is recovered. We again wait until the configured threshold is breached and
-        // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-rollup-index"
-        // step to delete this unsuccessful downsampled index and retry the operation by generating a new downsampled index
+        // if the downsampled index has not successfully recovered until then, we rewind to the "cleanup-downsample-index"
+        // step to delete this unsuccessful downsampled index and retry the operation by generating a new downsample index
         // name and attempting to downsample again.
-        ClusterStateWaitUntilThresholdStep rollupAllocatedStep = new ClusterStateWaitUntilThresholdStep(
+        ClusterStateWaitUntilThresholdStep downsampleAllocatedStep = new ClusterStateWaitUntilThresholdStep(
             new WaitForIndexColorStep(
-                waitForRollupIndexKey,
+                waitForDownsampleIndexKey,
                 copyMetadataKey,
                 ClusterHealthStatus.YELLOW,
-                (indexName, lifecycleState) -> lifecycleState.rollupIndexName()
+                (indexName, lifecycleState) -> lifecycleState.downsampleIndexName()
             ),
-            cleanupRollupIndexKey
+            cleanupDownsampleIndexKey
         );
 
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
-            dataStreamCheckBranchingKey,
-            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            copyIndexLifecycleKey,
+            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
             nextStepKey
+        );
+
+        CopySettingsStep copyLifecycleSettingsStep = new CopySettingsStep(
+            copyIndexLifecycleKey,
+            dataStreamCheckBranchingKey,
+            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
+            LifecycleSettings.LIFECYCLE_NAME_SETTING.getKey()
         );
 
         // By the time we get to this step we have 2 indices, the source and the downsampled one. We now need to choose an index
@@ -171,8 +259,8 @@ public class DownsampleAction implements LifecycleAction {
             dataStreamCheckBranchingKey,
             swapAliasesKey,
             replaceDataStreamIndexKey,
-            (index, clusterState) -> {
-                IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
+            (index, project) -> {
+                IndexAbstraction indexAbstraction = project.getIndicesLookup().get(index.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";
                 return indexAbstraction.getParentDataStream() != null;
             }
@@ -181,7 +269,7 @@ public class DownsampleAction implements LifecycleAction {
         ReplaceDataStreamBackingIndexStep replaceDataStreamBackingIndex = new ReplaceDataStreamBackingIndexStep(
             replaceDataStreamIndexKey,
             deleteIndexKey,
-            (sourceIndexName, lifecycleState) -> lifecycleState.rollupIndexName()
+            (sourceIndexName, lifecycleState) -> lifecycleState.downsampleIndexName()
         );
         DeleteStep deleteSourceIndexStep = new DeleteStep(deleteIndexKey, nextStepKey, client);
 
@@ -189,19 +277,22 @@ public class DownsampleAction implements LifecycleAction {
             swapAliasesKey,
             nextStepKey,
             client,
-            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
+            (indexName, lifecycleState) -> lifecycleState.downsampleIndexName(),
             false
         );
 
         return List.of(
+            isTimeSeriesIndexBranchingStep,
             checkNotWriteIndexStep,
             waitForNoFollowersStep,
-            cleanupRollupIndexStep,
+            waitUntilTimeSeriesEndTimeStep,
             readOnlyStep,
-            generateRollupIndexNameStep,
-            rollupStep,
-            rollupAllocatedStep,
+            cleanupDownsampleIndexStep,
+            generateDownsampleIndexNameStep,
+            downsampleStep,
+            downsampleAllocatedStep,
             copyExecutionStateStep,
+            copyLifecycleSettingsStep,
             isDataStreamBranchingStep,
             replaceDataStreamBackingIndex,
             deleteSourceIndexStep,

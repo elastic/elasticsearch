@@ -12,6 +12,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -49,15 +50,23 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
     }
 
     public void testParseCron() throws Exception {
-        Object cron = randomBoolean() ? Schedules.cron("* 0/5 * * * ?") : Schedules.cron("* 0/2 * * * ?", "* 0/3 * * * ?", "* 0/5 * * * ?");
-        XContentBuilder builder = jsonBuilder().startObject().field(CronSchedule.TYPE, cron).endObject();
+        var cron = randomBoolean() ? Schedules.cron("* 0/5 * * * ?") : Schedules.cron("* 0/2 * * * ?", "* 0/3 * * * ?", "* 0/5 * * * ?");
+        ZoneId timeZone = null;
+        XContentBuilder builder = jsonBuilder().startObject().field(CronSchedule.TYPE, cron);
+        if (randomBoolean()) {
+            timeZone = randomTimeZone().toZoneId();
+            cron.setTimeZone(timeZone);
+            builder.field(ScheduleTrigger.TIMEZONE_FIELD, timeZone.getId());
+        }
+        builder.endObject();
         BytesReference bytes = BytesReference.bytes(builder);
         XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
-        Schedule schedule = registry.parse("ctx", parser);
+        CronnableSchedule schedule = (CronnableSchedule) registry.parse("ctx", parser);
         assertThat(schedule, notNullValue());
         assertThat(schedule, instanceOf(CronSchedule.class));
         assertThat(schedule, is(cron));
+        assertThat(schedule.getTimeZone(), equalTo(timeZone));
     }
 
     public void testParseHourly() throws Exception {

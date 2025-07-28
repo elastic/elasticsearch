@@ -1,5 +1,0 @@
-pr: 91536
-summary: Add new `token_type` setting to JWT realm
-area: Authentication
-type: enhancement
-issues: []

@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
@@ -22,12 +21,16 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -43,7 +46,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
@@ -80,6 +83,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private Client client;
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+    private final ProjectId projectId = ProjectId.DEFAULT;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -90,6 +95,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        when(client.projectClient(any())).thenReturn(client);
         AdminClient adminClient = mock(AdminClient.class);
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
@@ -101,6 +107,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         }).when(indicesAdminClient).putTemplate(any(PutIndexTemplateRequest.class), any(ActionListener.class));
 
         clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(
             Arrays.asList(
@@ -117,24 +124,24 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingTemplatesAreAddedImmediately() {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
-            PutComposableIndexTemplateAction.Request.class
+        ArgumentCaptor<TransportPutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
+            TransportPutComposableIndexTemplateAction.Request.class
         );
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
+        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
 
         // now delete one template from the cluster state and lets retry
         Map<String, Integer> existingTemplates = new HashMap<>();
         existingTemplates.put(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME, INDEX_TEMPLATE_VERSION);
         ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(newEvent);
-        argumentCaptor = ArgumentCaptor.forClass(PutComposableIndexTemplateAction.Request.class);
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
-        PutComposableIndexTemplateAction.Request req = argumentCaptor.getAllValues()
+        argumentCaptor = ArgumentCaptor.forClass(TransportPutComposableIndexTemplateAction.Request.class);
+        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
+        TransportPutComposableIndexTemplateAction.Request req = argumentCaptor.getAllValues()
             .stream()
             .filter(r -> r.name().equals(WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME))
             .findFirst()
@@ -143,7 +150,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatNonExistingTemplatesAreAddedEvenWithILMUsageDisabled() {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         registry = new WatcherIndexTemplateRegistry(
@@ -155,10 +162,10 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        ArgumentCaptor<PutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
-            PutComposableIndexTemplateAction.Request.class
+        ArgumentCaptor<TransportPutComposableIndexTemplateAction.Request> argumentCaptor = ArgumentCaptor.forClass(
+            TransportPutComposableIndexTemplateAction.Request.class
         );
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
+        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
 
         // now delete one template from the cluster state and lets retry
         Map<String, Integer> existingTemplates = new HashMap<>();
@@ -166,36 +173,36 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         ClusterChangedEvent newEvent = createClusterChangedEvent(existingTemplates, nodes);
         registry.clusterChanged(newEvent);
         ArgumentCaptor<PutIndexTemplateRequest> captor = ArgumentCaptor.forClass(PutIndexTemplateRequest.class);
-        verify(client, times(1)).execute(same(PutComposableIndexTemplateAction.INSTANCE), argumentCaptor.capture(), any());
+        verify(client, times(1)).execute(same(TransportPutComposableIndexTemplateAction.TYPE), argumentCaptor.capture(), any());
         captor.getAllValues().forEach(req -> assertNull(req.settings().get("index.lifecycle.name")));
-        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+        verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testThatNonExistingPoliciesAreAddedImmediately() {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        verify(client, times(1)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+        verify(client, times(1)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testPolicyAlreadyExists() {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         LifecyclePolicy policy = policies.get(0);
         policyMap.put(policy.getName(), policy);
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
         registry.clusterChanged(event);
-        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+        verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testNoPolicyButILMDisabled() {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         registry = new WatcherIndexTemplateRegistry(
@@ -207,16 +214,16 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         );
         ClusterChangedEvent event = createClusterChangedEvent(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+        verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
     }
 
     public void testPolicyAlreadyExistsButDiffers() throws IOException {
-        DiscoveryNode node = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        List<LifecyclePolicy> policies = registry.getLifecyclePolicies();
         assertThat(policies, hasSize(1));
         LifecyclePolicy policy = policies.get(0);
         try (
@@ -227,7 +234,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             policyMap.put(policy.getName(), different);
             ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), policyMap, nodes);
             registry.clusterChanged(event);
-            verify(client, times(0)).execute(eq(PutLifecycleAction.INSTANCE), any(), any());
+            verify(client, times(0)).execute(eq(ILMActions.PUT), any(), any());
         }
     }
 
@@ -283,8 +290,8 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatTemplatesAreNotAppliedOnSameVersionNodes() {
-        DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode masterNode = new DiscoveryNode("master", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
+        DiscoveryNode masterNode = DiscoveryNodeUtils.create("master");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("master").add(localNode).add(masterNode).build();
 
         Map<String, Integer> existingTemplates = new HashMap<>();
@@ -296,7 +303,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     }
 
     public void testThatMissingMasterNodeDoesNothing() {
-        DiscoveryNode localNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
 
         Map<String, Integer> existingTemplates = new HashMap<>();
@@ -333,9 +340,10 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("test"))
             .metadata(
                 Metadata.builder()
-                    .templates(indexTemplates)
                     .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+                    .put(
+                        ProjectMetadata.builder(projectId).templates(indexTemplates).putCustom(IndexLifecycleMetadata.TYPE, ilmMeta).build()
+                    )
                     .build()
             )
             .blocks(new ClusterBlocks.Builder().build())
@@ -378,7 +386,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
             when(indexTemplate.indexPatterns()).thenReturn(Arrays.asList(generateRandomStringArray(10, 100, false, false)));
             templates.put(template.getKey(), indexTemplate);
         }
-        metadataBuilder.indexTemplates(templates);
+        metadataBuilder.put(ProjectMetadata.builder(projectId).indexTemplates(templates));
 
         return ClusterState.builder(new ClusterName("foo")).metadata(metadataBuilder.build()).build();
     }

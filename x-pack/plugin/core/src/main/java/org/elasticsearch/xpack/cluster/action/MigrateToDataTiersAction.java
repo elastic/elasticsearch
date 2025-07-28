@@ -15,7 +15,7 @@ public class MigrateToDataTiersAction extends ActionType<MigrateToDataTiersRespo
     public static final String NAME = "cluster:admin/migrate_to_data_tiers";
 
     private MigrateToDataTiersAction() {
-        super(NAME, MigrateToDataTiersResponse::new);
+        super(NAME);
     }
 
 }

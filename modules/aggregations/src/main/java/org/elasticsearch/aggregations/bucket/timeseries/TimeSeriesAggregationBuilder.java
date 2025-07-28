@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.timeseries;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -30,9 +33,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<TimeSeriesAggregationBuilder> {
     public static final String NAME = "time_series";
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
+    public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final InstantiatingObjectParser<TimeSeriesAggregationBuilder, String> PARSER;
 
-    private boolean keyed;
+    private final boolean keyed;
+    private int size;
+
+    private static final int DEFAULT_SIZE = MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
 
     static {
         InstantiatingObjectParser.Builder<TimeSeriesAggregationBuilder, String> parser = InstantiatingObjectParser.builder(
@@ -41,17 +48,23 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
             TimeSeriesAggregationBuilder.class
         );
         parser.declareBoolean(optionalConstructorArg(), KEYED_FIELD);
+        parser.declareInt(optionalConstructorArg(), SIZE_FIELD);
         PARSER = parser.build();
     }
 
     public TimeSeriesAggregationBuilder(String name) {
-        this(name, true);
+        this(name, true, DEFAULT_SIZE);
+    }
+
+    public TimeSeriesAggregationBuilder(String name, Boolean keyed) {
+        this(name, keyed, DEFAULT_SIZE);
     }
 
     @ParserConstructor
-    public TimeSeriesAggregationBuilder(String name, Boolean keyed) {
+    public TimeSeriesAggregationBuilder(String name, Boolean keyed, Integer size) {
         super(name);
         this.keyed = keyed != null ? keyed : true;
+        this.size = size != null ? size : DEFAULT_SIZE;
     }
 
     protected TimeSeriesAggregationBuilder(
@@ -61,16 +74,19 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     ) {
         super(clone, factoriesBuilder, metadata);
         this.keyed = clone.keyed;
+        this.size = clone.size;
     }
 
     public TimeSeriesAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         keyed = in.readBoolean();
+        size = in.readVInt();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
+        out.writeVInt(size);
     }
 
     @Override
@@ -79,13 +95,14 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        return new TimeSeriesAggregationFactory(name, keyed, context, parent, subFactoriesBuilder, metadata);
+        return new TimeSeriesAggregationFactory(name, keyed, size, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(KEYED_FIELD.getPreferredName(), keyed);
+        builder.field(SIZE_FIELD.getPreferredName(), size);
         builder.endObject();
         return builder;
     }
@@ -110,12 +127,16 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
         return true;
     }
 
-    public boolean isKeyed() {
-        return keyed;
+    public TimeSeriesAggregationBuilder setSize(int size) {
+        if (size <= 0) {
+            throw new IllegalArgumentException("[size] must be greater than 0. Found [" + size + "] in [" + name + "]");
+        }
+        this.size = size;
+        return this;
     }
 
-    public void setKeyed(boolean keyed) {
-        this.keyed = keyed;
+    public int getSize() {
+        return size;
     }
 
     @Override
@@ -133,7 +154,7 @@ public class TimeSeriesAggregationBuilder extends AbstractAggregationBuilder<Tim
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_1_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_8_1_0;
     }
 }

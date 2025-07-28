@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -11,7 +12,6 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -68,9 +68,11 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected void assertSampled(InternalGeoCentroid sampled, InternalGeoCentroid reduced, SamplingContext samplingContext) {
-        assertEquals(sampled.centroid().getY(), reduced.centroid().getY(), 1e-12);
-        assertEquals(sampled.centroid().getX(), reduced.centroid().getX(), 1e-12);
         assertEquals(sampled.count(), samplingContext.scaleUp(reduced.count()), 0);
+        if (sampled.count() > 0) {
+            assertEquals(sampled.centroid().getY(), reduced.centroid().getY(), 1e-12);
+            assertEquals(sampled.centroid().getX(), reduced.centroid().getX(), 1e-12);
+        }
     }
 
     public void testReduceMaxCount() {
@@ -80,17 +82,11 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             Long.MAX_VALUE,
             Collections.emptyMap()
         );
-        InternalCentroid reducedGeoCentroid = maxValueGeoCentroid.reduce(Collections.singletonList(maxValueGeoCentroid), null);
+        InternalCentroid reducedGeoCentroid = (InternalCentroid) InternalAggregationTestCase.reduce(
+            Collections.singletonList(maxValueGeoCentroid),
+            null
+        );
         assertThat(reducedGeoCentroid.count(), equalTo(Long.MAX_VALUE));
-    }
-
-    @Override
-    protected void assertFromXContent(InternalGeoCentroid aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedGeoCentroid);
-        ParsedGeoCentroid parsed = (ParsedGeoCentroid) parsedAggregation;
-
-        assertEquals(aggregation.centroid(), parsed.centroid());
-        assertEquals(aggregation.count(), parsed.count());
     }
 
     @Override

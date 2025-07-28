@@ -7,13 +7,15 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -30,6 +32,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.COMPRESSION_FIELD;
+import static org.elasticsearch.search.aggregations.metrics.PercentilesMethod.EXECUTION_HINT_FIELD;
 
 public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.MetricsAggregationBuilder<BoxplotAggregationBuilder> {
     public static final String NAME = "boxplot";
@@ -45,9 +48,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
         PARSER.declareDouble(BoxplotAggregationBuilder::compression, COMPRESSION_FIELD);
+        PARSER.declareString(BoxplotAggregationBuilder::parseExecutionHint, EXECUTION_HINT_FIELD);
     }
 
     private double compression = 100.0;
+    private TDigestExecutionHint executionHint;
 
     public BoxplotAggregationBuilder(String name) {
         super(name);
@@ -60,6 +65,7 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     ) {
         super(clone, factoriesBuilder, metadata);
         this.compression = clone.compression;
+        this.executionHint = clone.executionHint;
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -77,6 +83,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     public BoxplotAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         compression = in.readDouble();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            executionHint = in.readOptionalWriteable(TDigestExecutionHint::readFrom);
+        } else {
+            executionHint = TDigestExecutionHint.HIGH_ACCURACY;
+        }
     }
 
     @Override
@@ -87,6 +98,9 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(compression);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeOptionalWriteable(executionHint);
+        }
     }
 
     @Override
@@ -108,6 +122,11 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         return this;
     }
 
+    public BoxplotAggregationBuilder parseExecutionHint(String executionHint) {
+        this.executionHint = TDigestExecutionHint.parse(executionHint);
+        return this;
+    }
+
     /**
      * Expert: get the compression. Higher values improve accuracy but also
      * memory usage. Only relevant when using {@link PercentilesMethod#TDIGEST}.
@@ -124,13 +143,28 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
         BoxplotAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
-
-        return new BoxplotAggregatorFactory(name, config, compression, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        if (executionHint == null) {
+            executionHint = TDigestExecutionHint.parse(context.getClusterSettings().get(TDigestExecutionHint.SETTING));
+        }
+        return new BoxplotAggregatorFactory(
+            name,
+            config,
+            compression,
+            executionHint,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(COMPRESSION_FIELD.getPreferredName(), compression);
+        if (executionHint != null) {
+            builder.field(EXECUTION_HINT_FIELD.getPreferredName(), executionHint);
+        }
         return builder;
     }
 
@@ -140,12 +174,12 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
         if (obj == null || getClass() != obj.getClass()) return false;
         if (super.equals(obj) == false) return false;
         BoxplotAggregationBuilder other = (BoxplotAggregationBuilder) obj;
-        return Objects.equals(compression, other.compression);
+        return Objects.equals(compression, other.compression) && Objects.equals(executionHint, other.executionHint);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), compression);
+        return Objects.hash(super.hashCode(), compression, executionHint);
     }
 
     @Override
@@ -154,17 +188,12 @@ public class BoxplotAggregationBuilder extends ValuesSourceAggregationBuilder.Me
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public Optional<Set<String>> getOutputFieldNames() {
         return Optional.of(InternalBoxplot.METRIC_NAMES);
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_7_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

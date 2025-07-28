@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -11,7 +12,8 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -28,7 +30,7 @@ import java.util.Objects;
 /**
  * A sort builder allowing to sort by score.
  */
-public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
+public final class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
     private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
@@ -99,8 +101,12 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
-        throws IOException {
+    public BucketedSort buildBucketedSort(
+        SearchExecutionContext context,
+        BigArrays bigArrays,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForFloats(bigArrays, order, DocValueFormat.RAW, bucketSize, extra) {
             @Override
             public boolean needsScores() {
@@ -108,7 +114,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
             }
 
             @Override
-            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+            public Leaf forLeaf(LeafReaderContext ctx) {
                 return new BucketedSort.ForFloats.Leaf(ctx) {
                     private Scorable scorer;
                     private float score;
@@ -120,7 +126,6 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        assert doc == scorer.docID() : "expected scorer to be on [" + doc + "] but was on [" + scorer.docID() + "]";
                         /* We will never be called by documents that don't match the
                          * query and they'll all have a score, thus `true`. */
                         score = scorer.score();
@@ -159,12 +164,12 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override
-    public ScoreSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+    public ScoreSortBuilder rewrite(QueryRewriteContext ctx) {
         return this;
     }
 }

@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.Map;
 
 public class ResponseRewriterTests extends ESTestCase {
@@ -26,7 +26,7 @@ public class ResponseRewriterTests extends ESTestCase {
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
-            Version.V_8_0_0,
+            TransportVersions.V_8_0_0,
             oldResponse,
             new String[] { "-metadata" },
             Strings.EMPTY_ARRAY
@@ -45,7 +45,7 @@ public class ResponseRewriterTests extends ESTestCase {
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
-            Version.V_8_0_0,
+            TransportVersions.V_8_0_0,
             oldResponse,
             new String[] { "+metadata" },
             Strings.EMPTY_ARRAY
@@ -66,7 +66,7 @@ public class ResponseRewriterTests extends ESTestCase {
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
-            Version.V_8_0_0,
+            TransportVersions.V_8_0_0,
             oldResponse,
             new String[] { "-nested" },
             Strings.EMPTY_ARRAY
@@ -90,7 +90,7 @@ public class ResponseRewriterTests extends ESTestCase {
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
-            Version.V_8_0_0,
+            TransportVersions.V_8_0_0,
             oldResponse,
             new String[] { "-multifield" },
             Strings.EMPTY_ARRAY
@@ -112,7 +112,7 @@ public class ResponseRewriterTests extends ESTestCase {
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
-            Version.V_8_0_0,
+            TransportVersions.V_8_0_0,
             oldResponse,
             new String[] { "-parent" },
             Strings.EMPTY_ARRAY
@@ -134,7 +134,7 @@ public class ResponseRewriterTests extends ESTestCase {
         );
 
         Map<String, IndexFieldCapabilities> rewritten = ResponseRewriter.rewriteOldResponses(
-            Version.V_8_0_0,
+            TransportVersions.V_8_0_0,
             oldResponse,
             Strings.EMPTY_ARRAY,
             new String[] { "text", "keyword" }
@@ -146,7 +146,7 @@ public class ResponseRewriterTests extends ESTestCase {
     }
 
     private static IndexFieldCapabilities fieldCaps(String name, String type, boolean isMetadata) {
-        return new IndexFieldCapabilities(name, type, isMetadata, true, true, false, null, Collections.emptyMap());
+        return new IndexFieldCapabilitiesBuilder(name, type).isMetadataField(isMetadata).build();
     }
 
 }

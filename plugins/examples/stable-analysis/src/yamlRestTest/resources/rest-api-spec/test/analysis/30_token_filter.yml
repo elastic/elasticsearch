@@ -10,9 +10,11 @@
           tokenizer: standard
           filter:
             - type: example_token_filter_factory
-  - length: { tokens: 2 }
-  - match:  { tokens.0.token: "2test" }
-  - match:  { tokens.1.token: "3test" }
+              token_filter_number: 2
+  - length: { tokens: 3 }
+  - match:  { tokens.0.token: "1test" }
+  - match:  { tokens.1.token: "1test" }
+  - match:  { tokens.2.token: "3test" }
 
   - do:
       indices.analyze:
@@ -22,7 +24,49 @@
           tokenizer: standard
           filter:
             - type: example_token_filter_factory
+              token_filter_number: 1
   - match:  { detail.custom_analyzer: true }
   - length: { detail.tokenfilters.0.tokens: 2 }
   - match:  { detail.tokenfilters.0.tokens.0.token: "2test" }
   - match:  { detail.tokenfilters.0.tokens.1.token: "3test" }
+
+
+---
+"Index and search with stable plugin token filter":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              filter:
+                my_token_filter:
+                  type: example_token_filter_factory
+                  token_filter_number: 1
+              analyzer:
+                my_analyzer:
+                  tokenizer: standard
+                  filter: ["my_token_filter"
+                  ]
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: my_analyzer
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { "text": "1test 2test 1test 3test" }
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              text: 2test
+  - match: { hits.total: 1 }

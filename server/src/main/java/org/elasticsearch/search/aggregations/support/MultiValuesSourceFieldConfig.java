@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -161,27 +162,14 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
     }
 
     public MultiValuesSourceFieldConfig(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            this.fieldName = in.readOptionalString();
-        } else {
-            this.fieldName = in.readString();
-        }
+        this.fieldName = in.readOptionalString();
         this.missing = in.readGenericValue();
         this.script = in.readOptionalWriteable(Script::new);
         this.timeZone = in.readOptionalZoneId();
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        } else {
-            this.filter = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
-            this.format = in.readOptionalString();
-        } else {
-            this.userValueTypeHint = null;
-            this.format = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_8_7_0)) {
+        this.filter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        this.userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
+        this.format = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             this.includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         } else {
             this.includeExclude = null;
@@ -222,22 +210,14 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeOptionalString(fieldName);
-        } else {
-            out.writeString(fieldName);
-        }
+        out.writeOptionalString(fieldName);
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(script);
         out.writeOptionalZoneId(timeZone);
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeOptionalNamedWriteable(filter);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeOptionalWriteable(userValueTypeHint);
-            out.writeOptionalString(format);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_7_0)) {
+        out.writeOptionalNamedWriteable(filter);
+        out.writeOptionalWriteable(userValueTypeHint);
+        out.writeOptionalString(format);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
             out.writeOptionalWriteable(includeExclude);
         }
     }
@@ -310,17 +290,9 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
         private String format = null;
         private IncludeExclude includeExclude = null;
 
-        public String getFieldName() {
-            return fieldName;
-        }
-
         public Builder setFieldName(String fieldName) {
             this.fieldName = fieldName;
             return this;
-        }
-
-        public Object getMissing() {
-            return missing;
         }
 
         public Builder setMissing(Object missing) {
@@ -328,17 +300,9 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             return this;
         }
 
-        public Script getScript() {
-            return script;
-        }
-
         public Builder setScript(Script script) {
             this.script = script;
             return this;
-        }
-
-        public ZoneId getTimeZone() {
-            return timeZone;
         }
 
         public Builder setTimeZone(ZoneId timeZone) {
@@ -356,17 +320,9 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
             return this;
         }
 
-        public ValueType getUserValueTypeHint() {
-            return userValueTypeHint;
-        }
-
         public Builder setFormat(String format) {
             this.format = format;
             return this;
-        }
-
-        public String getFormat() {
-            return format;
         }
 
         public Builder setIncludeExclude(IncludeExclude includeExclude) {

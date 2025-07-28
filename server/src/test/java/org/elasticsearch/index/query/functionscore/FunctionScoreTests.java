@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query.functionscore;
@@ -125,8 +126,6 @@ public class FunctionScoreTests extends ESTestCase {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
-                @Override
-                public void close() {}
             };
         }
 
@@ -228,8 +227,6 @@ public class FunctionScoreTests extends ESTestCase {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
-                @Override
-                public void close() {}
             };
         }
 
@@ -240,6 +237,11 @@ public class FunctionScoreTests extends ESTestCase {
 
         @Override
         protected boolean sortRequiresCustomComparator() {
+            return false;
+        }
+
+        @Override
+        protected boolean isIndexed() {
             return false;
         }
     }
@@ -697,7 +699,7 @@ public class FunctionScoreTests extends ESTestCase {
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, Float.POSITIVE_INFINITY);
         for (org.apache.lucene.search.ScoreMode scoreMode : org.apache.lucene.search.ScoreMode.values()) {
             Weight weight = searcher.createWeight(fsq, scoreMode, 1f);
-            Scorer scorer = weight.scorer(reader.leaves().get(0));
+            Scorer scorer = weight.scorer(searcher.getIndexReader().leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }
     }
@@ -934,7 +936,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testWithInvalidScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         FunctionScoreQuery query1 = new FunctionScoreQuery(
             new TermQuery(new Term(FIELD, "out")),
             new ConstantScoreFunction(Float.NaN),
@@ -956,7 +958,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function throws an exception on negative scores
@@ -976,7 +978,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnLnNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function using modifier ln throws an exception on negative scores
@@ -994,7 +996,7 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public void testExceptionOnLogNegativeScores() {
-        IndexSearcher localSearcher = new IndexSearcher(reader);
+        IndexSearcher localSearcher = newSearcher(reader);
         TermQuery termQuery = new TermQuery(new Term(FIELD, "out"));
 
         // test that field_value_factor function using modifier log throws an exception on negative scores

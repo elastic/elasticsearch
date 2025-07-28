@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
@@ -67,9 +69,14 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     public InternalTopMetrics(StreamInput in) throws IOException {
         super(in);
         sortOrder = SortOrder.readFromStream(in);
-        metricNames = in.readStringList();
+        final List<String> metricNames = in.readStringCollectionAsList();
+        if (in instanceof DelayableWriteable.Deduplicator bo) {
+            this.metricNames = bo.deduplicate(metricNames);
+        } else {
+            this.metricNames = metricNames;
+        }
         size = in.readVInt();
-        topMetrics = in.readList(TopMetric::new);
+        topMetrics = in.readCollectionAsList(TopMetric::new);
     }
 
     @Override
@@ -77,7 +84,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
         sortOrder.writeTo(out);
         out.writeStringCollection(metricNames);
         out.writeVInt(size);
-        out.writeList(topMetrics);
+        out.writeCollection(topMetrics);
     }
 
     @Override
@@ -111,33 +118,39 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     }
 
     @Override
-    public InternalTopMetrics reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        if (false == canLeadReduction()) {
-            return this;
-        }
-        List<TopMetric> merged = new ArrayList<>(size);
-        PriorityQueue<ReduceState> queue = new PriorityQueue<ReduceState>(aggregations.size()) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final PriorityQueue<ReduceState> queue = new PriorityQueue<>(size) {
             @Override
             protected boolean lessThan(ReduceState lhs, ReduceState rhs) {
                 return sortOrder.reverseMul() * lhs.sortValue().compareTo(rhs.sortValue()) < 0;
             }
         };
-        for (InternalAggregation agg : aggregations) {
-            InternalTopMetrics result = (InternalTopMetrics) agg;
-            if (result.canLeadReduction()) {
-                queue.add(new ReduceState(result));
+        return new AggregatorReducer() {
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregation.canLeadReduction()) {
+                    queue.add(new ReduceState((InternalTopMetrics) aggregation));
+                }
             }
-        }
-        while (queue.size() > 0 && merged.size() < size) {
-            merged.add(queue.top().topMetric());
-            queue.top().index++;
-            if (queue.top().result.topMetrics.size() <= queue.top().index) {
-                queue.pop();
-            } else {
-                queue.updateTop();
+
+            @Override
+            public InternalAggregation get() {
+                if (queue.size() == 1) {
+                    return queue.top().result;
+                }
+                final List<TopMetric> merged = new ArrayList<>(getSize());
+                while (queue.size() > 0 && merged.size() < getSize()) {
+                    merged.add(queue.top().topMetric());
+                    queue.top().index++;
+                    if (queue.top().result.topMetrics.size() <= queue.top().index) {
+                        queue.pop();
+                    } else {
+                        queue.updateTop();
+                    }
+                }
+                return new InternalTopMetrics(getName(), sortOrder, metricNames, getSize(), merged, getMetadata());
             }
-        }
-        return new InternalTopMetrics(getName(), sortOrder, metricNames, size, merged, getMetadata());
+        };
     }
 
     @Override
@@ -268,7 +281,7 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
         TopMetric(StreamInput in) throws IOException {
             sortFormat = in.readNamedWriteable(DocValueFormat.class);
             sortValue = in.readNamedWriteable(SortValue.class);
-            metricValues = in.readList(s -> s.readOptionalWriteable(MetricValue::new));
+            metricValues = in.readCollectionAsList(s -> s.readOptionalWriteable(MetricValue::new));
         }
 
         @Override

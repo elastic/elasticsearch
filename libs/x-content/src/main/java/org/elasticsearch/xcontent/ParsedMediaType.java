@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent;
@@ -27,7 +28,7 @@ public class ParsedMediaType {
     private final String subType;
     private final Map<String, String> parameters;
     // tchar pattern as defined by RFC7230 section 3.2.6
-    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-z0-9!#$%&'*+\\-.\\^_`|~]+");
+    private static final Pattern TCHAR_PATTERN = Pattern.compile("[a-zA-Z0-9!#$%&'*+\\-.\\^_`|~]+");
 
     private ParsedMediaType(String originalHeaderValue, String type, String subType, Map<String, String> parameters) {
         this.originalHeaderValue = originalHeaderValue;
@@ -62,7 +63,7 @@ public class ParsedMediaType {
             if (isMediaRange(headerValue) || "*/*".equals(headerValue)) {
                 return null;
             }
-            final String[] elements = headerValue.toLowerCase(Locale.ROOT).split("[\\s\\t]*;");
+            final String[] elements = headerValue.toLowerCase(Locale.ROOT).split(";");
 
             final String[] splitMediaType = elements[0].split("/");
             if ((splitMediaType.length == 2

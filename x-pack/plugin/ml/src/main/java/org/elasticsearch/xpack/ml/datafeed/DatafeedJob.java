@@ -26,15 +26,15 @@ import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -75,7 +75,7 @@ class DatafeedJob {
     private volatile long lastDataCheckTimeMs;
     private volatile Tuple<String, Annotation> lastDataCheckAnnotationWithId;
     private volatile Long lastEndTimeMs;
-    private AtomicBoolean running = new AtomicBoolean(true);
+    private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
@@ -175,6 +175,7 @@ class DatafeedJob {
 
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
+        request.setRefreshRequired(false);
         run(lookbackStartTimeMs, lookbackEnd, request);
         if (shouldPersistAfterLookback(isLookbackOnly)) {
             sendPersistRequest();
@@ -205,6 +206,7 @@ class DatafeedJob {
             // start time is after last checkpoint, thus we need to skip time
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
+            request.setRefreshRequired(false);
             FlushJobAction.Response flushResponse = flushJob(request);
             LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
             return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
@@ -218,6 +220,7 @@ class DatafeedJob {
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setWaitForNormalization(false);
+        request.setRefreshRequired(false);
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
@@ -300,12 +303,12 @@ class DatafeedJob {
         Date currentTime = new Date(currentTimeSupplier.get());
         return new Annotation.Builder().setAnnotation(msg)
             .setCreateTime(currentTime)
-            .setCreateUsername(XPackUser.NAME)
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setTimestamp(startTime)
             .setEndTimestamp(endTime)
             .setJobId(jobId)
             .setModifiedTime(currentTime)
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .setType(Annotation.Type.ANNOTATION)
             .setEvent(Annotation.Event.DELAYED_DATA)
             .build();
@@ -316,7 +319,7 @@ class DatafeedJob {
             .setTimestamp(annotation.getTimestamp())
             .setEndTimestamp(annotation.getEndTimestamp())
             .setModifiedTime(new Date(currentTimeSupplier.get()))
-            .setModifiedUsername(XPackUser.NAME)
+            .setModifiedUsername(InternalUsers.XPACK_USER.principal())
             .build();
     }
 
@@ -348,7 +351,7 @@ class DatafeedJob {
         return running.get();
     }
 
-    private void run(long start, long end, FlushJobAction.Request flushRequest) throws IOException {
+    private void run(long start, long end, FlushJobAction.Request flushRequest) {
         if (end <= start) {
             return;
         }
@@ -374,7 +377,7 @@ class DatafeedJob {
                 extractedData = result.data();
                 searchInterval = result.searchInterval();
             } catch (Exception e) {
-                LOGGER.error(() -> "[" + jobId + "] error while extracting data", e);
+                LOGGER.warn(() -> "[" + jobId + "] error while extracting data", e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
@@ -479,7 +482,7 @@ class DatafeedJob {
         }
     }
 
-    private boolean isConflictException(Exception e) {
+    private static boolean isConflictException(Exception e) {
         return e instanceof ElasticsearchStatusException && ((ElasticsearchStatusException) e).status() == RestStatus.CONFLICT;
     }
 

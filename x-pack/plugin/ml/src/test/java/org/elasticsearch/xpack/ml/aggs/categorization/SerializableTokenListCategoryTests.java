@@ -85,6 +85,11 @@ public class SerializableTokenListCategoryTests extends AbstractWireSerializingT
         return createTestInstance(bytesRefHash);
     }
 
+    @Override
+    protected SerializableTokenListCategory mutateInstance(SerializableTokenListCategory instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static SerializableTokenListCategory createTestInstance(CategorizationBytesRefHash bytesRefHash) {
         return new SerializableTokenListCategory(
             TokenListCategoryTests.createTestInstance(bytesRefHash, randomIntBetween(1, 1000)),

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.similarity;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -254,7 +256,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("foo");
         MapperParsingException e = expectThrows(
             MapperParsingException.class,
-            () -> indexService.mapperService().parseMapping("type", new CompressedXContent(mapping))
+            () -> indexService.mapperService().parseMapping("type", MergeReason.MAPPING_UPDATE, new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), equalTo("Failed to parse mapping: Unknown Similarity type [unknown_similarity] for field [field1]"));
     }

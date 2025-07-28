@@ -1,18 +1,44 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.IndexTests;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class ShardIdTests extends ESTestCase {
+public class ShardIdTests extends AbstractWireSerializingTestCase<ShardId> {
+
+    @Override
+    protected Writeable.Reader<ShardId> instanceReader() {
+        return ShardId::new;
+    }
+
+    @Override
+    protected ShardId createTestInstance() {
+        return new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), randomIntBetween(0, 99));
+    }
+
+    @Override
+    protected ShardId mutateInstance(ShardId instance) {
+        return mutate(instance);
+    }
+
+    public static ShardId mutate(ShardId instance) {
+        return switch (randomInt(1)) {
+            case 0 -> new ShardId(IndexTests.mutate(instance.getIndex()), instance.id());
+            case 1 -> new ShardId(instance.getIndex(), randomValueOtherThan(instance.id(), () -> randomIntBetween(0, 99)));
+            default -> throw new RuntimeException("unreachable");
+        };
+    }
 
     public void testShardIdFromString() {
         String indexName = randomAlphaOfLengthBetween(3, 50);
@@ -38,21 +64,5 @@ public class ShardIdTests extends ESTestCase {
 
         String badId3 = "[" + indexName + "][" + shardId; // missing closing bracket
         ex = expectThrows(IllegalArgumentException.class, () -> ShardId.fromString(badId3));
-    }
-
-    public void testEquals() {
-        Index index1 = new Index("a", "a");
-        Index index2 = new Index("a", "b");
-        ShardId shardId1 = new ShardId(index1, 0);
-        ShardId shardId2 = new ShardId(index1, 0);
-        ShardId shardId3 = new ShardId(index2, 0);
-        ShardId shardId4 = new ShardId(index1, 1);
-        String s = "Some random other object";
-        assertEquals(shardId1, shardId1);
-        assertEquals(shardId1, shardId2);
-        assertNotEquals(shardId1, null);
-        assertNotEquals(shardId1, s);
-        assertNotEquals(shardId1, shardId3);
-        assertNotEquals(shardId1, shardId4);
     }
 }

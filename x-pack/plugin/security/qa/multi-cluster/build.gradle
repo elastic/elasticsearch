@@ -1,0 +1,46 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.bc-upgrade-test'
+
+dependencies {
+  javaRestTestImplementation project(':x-pack:plugin:core')
+  javaRestTestImplementation project(':x-pack:plugin:security')
+  javaRestTestImplementation project(':x-pack:plugin:ccr')
+  clusterModules(project(":modules:analysis-common"))
+  clusterModules project(':x-pack:plugin:ccr')
+  clusterModules(project(":modules:reindex")) // need for deleting transform jobs
+  clusterModules(project(":x-pack:plugin:transform"))
+  // esql with enrich
+  clusterModules project(':x-pack:plugin:esql')
+  clusterModules project(':x-pack:plugin:enrich')
+  clusterModules project(':x-pack:plugin:autoscaling')
+  clusterModules project(':x-pack:plugin:ml')
+  clusterModules project(xpackModule('ilm'))
+  clusterModules(project(":modules:ingest-common"))
+}
+
+tasks.named("javaRestTest") {
+  enabled = true
+  // This is tested explicitly in bwc test tasks.
+  exclude '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
+  exclude '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
+}
+
+buildParams.bwcVersions.withWireCompatible() { bwcVersion, baseName ->
+  tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
+    usesBwcDistribution(bwcVersion)
+    systemProperty("tests.old_cluster_version", bwcVersion)
+    include '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
+    include '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
+  }
+}

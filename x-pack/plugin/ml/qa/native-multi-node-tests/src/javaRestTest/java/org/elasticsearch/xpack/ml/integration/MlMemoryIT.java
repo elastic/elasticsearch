@@ -157,6 +157,7 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     private void deployTrainedModel() {
         String modelId = "pytorch";
+        String deploymentId = "deployment-foo";
         client().execute(
             PutTrainedModelAction.INSTANCE,
             new PutTrainedModelAction.Request(
@@ -177,7 +178,8 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
                 new BytesArray(Base64.getDecoder().decode(BASE_64_ENCODED_MODEL)),
                 0,
                 RAW_MODEL_SIZE,
-                1
+                1,
+                false
             )
         ).actionGet();
         client().execute(
@@ -185,12 +187,14 @@ public class MlMemoryIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             new PutTrainedModelVocabularyAction.Request(
                 modelId,
                 List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
-                List.of()
+                List.of(),
+                List.of(),
+                false
             )
         ).actionGet();
         client().execute(
             StartTrainedModelDeploymentAction.INSTANCE,
-            new StartTrainedModelDeploymentAction.Request(modelId).setWaitForState(AllocationStatus.State.STARTED)
+            new StartTrainedModelDeploymentAction.Request(modelId, deploymentId).setWaitForState(AllocationStatus.State.STARTED)
         ).actionGet();
     }
 

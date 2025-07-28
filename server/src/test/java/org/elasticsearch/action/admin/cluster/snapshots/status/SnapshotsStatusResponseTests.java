@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -17,13 +20,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTestCase<SnapshotsStatusResponse> {
 
+    private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshots_status_response",
+        true,
+        (Object[] parsedObjects) -> {
+            @SuppressWarnings("unchecked")
+            List<SnapshotStatus> snapshots = (List<SnapshotStatus>) parsedObjects[0];
+            return new SnapshotsStatusResponse(snapshots);
+        }
+    );
+    static {
+        PARSER.declareObjectArray(constructorArg(), SnapshotStatusTests.PARSER, new ParseField("snapshots"));
+    }
+
     @Override
     protected SnapshotsStatusResponse doParseInstance(XContentParser parser) throws IOException {
-        return SnapshotsStatusResponse.fromXContent(parser);
+        return PARSER.parse(parser, null);
     }
 
     @Override
@@ -48,24 +64,19 @@ public class SnapshotsStatusResponseTests extends AbstractChunkedSerializingTest
     }
 
     @Override
+    protected SnapshotsStatusResponse mutateInstance(SnapshotsStatusResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<SnapshotsStatusResponse> instanceReader() {
         return SnapshotsStatusResponse::new;
     }
 
-    public void testChunkCount() {
-        final var instance = createTestInstance();
-        // open and close chunk
-        int chunksExpected = 2;
-        for (SnapshotStatus snapshot : instance.getSnapshots()) {
-            // open and close chunk + one chunk per index
-            chunksExpected += 2 + snapshot.getIndices().size();
-        }
-        final var iterator = instance.toXContentChunked(EMPTY_PARAMS);
-        int chunksSeen = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            chunksSeen++;
-        }
-        assertEquals(chunksExpected, chunksSeen);
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(
+            createTestInstance(),
+            instance -> 2 + instance.getSnapshots().stream().mapToInt(i -> 2 + i.getIndices().size()).sum()
+        );
     }
 }

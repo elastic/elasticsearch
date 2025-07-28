@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -33,7 +33,7 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ProjectMetadata currentProject, ActionListener<Void> listener) {
         final String indexName = indexMetadata.getIndex().getName();
 
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
@@ -48,10 +48,9 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             listener.onResponse(null);
             return;
         }
-        getClient().admin()
+        getClient(currentProject.id()).admin()
             .cluster()
-            .prepareDeleteSnapshot(repositoryName, snapshotName)
-            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
+            .prepareDeleteSnapshot(TimeValue.MAX_VALUE, repositoryName, snapshotName)
             .execute(new ActionListener<>() {
 
                 @Override

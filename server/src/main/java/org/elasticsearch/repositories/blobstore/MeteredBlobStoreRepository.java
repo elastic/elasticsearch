@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -25,6 +27,7 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
     private final RepositoryInfo repositoryInfo;
 
     public MeteredBlobStoreRepository(
+        ProjectId projectId,
         RepositoryMetadata metadata,
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
@@ -33,7 +36,7 @@ public abstract class MeteredBlobStoreRepository extends BlobStoreRepository {
         BlobPath basePath,
         Map<String, String> location
     ) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
         ThreadPool threadPool = clusterService.getClusterApplierService().threadPool();
         this.repositoryInfo = new RepositoryInfo(
             UUIDs.randomBase64UUID(),

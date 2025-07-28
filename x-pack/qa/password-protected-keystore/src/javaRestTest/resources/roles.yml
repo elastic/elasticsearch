@@ -2,3 +2,15 @@
 user_role:
   cluster: [ALL]
   indices: []
+
+manage_role:
+  cluster: [MANAGE]
+  indices: []
+
+manage_security_role:
+  cluster: [MANAGE_SECURITY]
+  indices: []
+
+monitor_role:
+  cluster: [MONITOR]
+  indices: []

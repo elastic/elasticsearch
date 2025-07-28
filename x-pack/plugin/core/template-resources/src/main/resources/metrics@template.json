@@ -1,0 +1,19 @@
+{
+  "index_patterns": ["metrics-*-*"],
+  "priority": 100,
+  "data_stream": {},
+  "composed_of": [
+    "metrics@mappings",
+    "data-streams@mappings",
+    "metrics@settings",
+    "metrics@custom"
+  ],
+  "ignore_missing_component_templates": ["metrics@custom"],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "default metrics template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

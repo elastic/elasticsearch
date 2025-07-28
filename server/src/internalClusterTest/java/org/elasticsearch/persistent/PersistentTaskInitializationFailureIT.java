@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -17,7 +18,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -50,6 +50,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
             UUIDs.base64UUID(),
             FailingInitializationPersistentTaskExecutor.TASK_NAME,
             new FailingInitializationTaskParams(),
+            TEST_REQUEST_TIMEOUT,
             startPersistentTaskFuture
         );
         startPersistentTaskFuture.actionGet();
@@ -65,8 +66,6 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
     }
 
     public static class FailingInitializationPersistentTasksPlugin extends Plugin implements PersistentTaskPlugin {
-        public FailingInitializationPersistentTasksPlugin(Settings settings) {}
-
         @Override
         public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
             ClusterService clusterService,
@@ -115,8 +114,8 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override
@@ -132,10 +131,9 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
 
     static class FailingInitializationPersistentTaskExecutor extends PersistentTasksExecutor<FailingInitializationTaskParams> {
         static final String TASK_NAME = "cluster:admin/persistent/test_init_failure";
-        static final String EXECUTOR_NAME = "failing_executor";
 
         FailingInitializationPersistentTaskExecutor() {
-            super(TASK_NAME, EXECUTOR_NAME);
+            super(TASK_NAME, r -> fail("execution is unexpected"));
         }
 
         @Override

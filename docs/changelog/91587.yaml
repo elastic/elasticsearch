@@ -1,5 +1,0 @@
-pr: 91587
-summary: "[HealthAPI] Use the `RestCancellableNodeClient` infrastructure"
-area: Health
-type: feature
-issues: []

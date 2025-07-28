@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,6 +12,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
@@ -20,11 +23,12 @@ import java.io.Reader;
 // used for binary, geo and range fields
 public abstract class CustomDocValuesField implements IndexableField {
 
-    public static final FieldType TYPE = new FieldType();
+    public static final FieldType TYPE;
     static {
-        TYPE.setDocValuesType(DocValuesType.BINARY);
-        TYPE.setOmitNorms(true);
-        TYPE.freeze();
+        FieldType ft = new FieldType();
+        ft.setDocValuesType(DocValuesType.BINARY);
+        ft.setOmitNorms(true);
+        TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
     }
 
     private final String name;
@@ -63,4 +67,13 @@ public abstract class CustomDocValuesField implements IndexableField {
         return null;
     }
 
+    @Override
+    public StoredValue storedValue() {
+        return null;
+    }
+
+    @Override
+    public InvertableType invertableType() {
+        return InvertableType.BINARY;
+    }
 }

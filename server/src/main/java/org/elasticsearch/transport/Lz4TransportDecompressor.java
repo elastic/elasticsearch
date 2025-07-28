@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  *
  * Copyright 2014 The Netty Project
  *
@@ -26,18 +27,15 @@ import net.jpountz.lz4.LZ4Exception;
 import net.jpountz.lz4.LZ4FastDecompressor;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.Locale;
 
 /**
- * This file is forked from the https://netty.io project. In particular it forks the following file
+ * This file is forked from the https://netty.io project. In particular, it forks the following file
  * io.netty.handler.codec.compression.Lz4FrameDecoder.
  *
  * It modifies the original netty code to operate on byte arrays opposed to ByteBufs.
@@ -46,7 +44,7 @@ import java.util.Locale;
  *
  * This class is necessary as Netty is not a dependency in Elasticsearch server module.
  */
-public class Lz4TransportDecompressor implements TransportDecompressor {
+public class Lz4TransportDecompressor extends TransportDecompressor {
 
     private static final ThreadLocal<byte[]> DECOMPRESSED = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
     private static final ThreadLocal<byte[]> COMPRESSED = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
@@ -68,9 +66,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
      */
     static final int COMPRESSION_LEVEL_BASE = 10;
 
-    static final int MIN_BLOCK_SIZE = 64;
     static final int MAX_BLOCK_SIZE = 1 << COMPRESSION_LEVEL_BASE + 0x0F;   // 32 M
-    static final int DEFAULT_BLOCK_SIZE = 1 << 16;  // 64 KB
 
     static final int BLOCK_TYPE_NON_COMPRESSED = 0x10;
     static final int BLOCK_TYPE_COMPRESSED = 0x20;
@@ -104,37 +100,9 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
      */
     private int decompressedLength;
 
-    private final Recycler<BytesRef> recycler;
-    private final ArrayDeque<Recycler.V<BytesRef>> pages;
-    private int pageOffset = 0;
-    private int pageLength = 0;
-    private boolean hasSkippedESHeader = false;
-
     public Lz4TransportDecompressor(Recycler<BytesRef> recycler) {
+        super(recycler);
         this.decompressor = Compression.Scheme.lz4Decompressor();
-        this.recycler = recycler;
-        this.pages = new ArrayDeque<>(4);
-    }
-
-    @Override
-    public ReleasableBytesReference pollDecompressedPage(boolean isEOS) {
-        if (pages.isEmpty()) {
-            return null;
-        } else if (pages.size() == 1) {
-            if (isEOS) {
-                Recycler.V<BytesRef> page = pages.pollFirst();
-                BytesArray delegate = new BytesArray(page.v().bytes, page.v().offset, pageOffset);
-                ReleasableBytesReference reference = new ReleasableBytesReference(delegate, page);
-                pageLength = 0;
-                pageOffset = 0;
-                return reference;
-            } else {
-                return null;
-            }
-        } else {
-            Recycler.V<BytesRef> page = pages.pollFirst();
-            return new ReleasableBytesReference(new BytesArray(page.v()), page);
-        }
     }
 
     @Override
@@ -143,17 +111,10 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     }
 
     @Override
-    public void close() {
-        for (Recycler.V<BytesRef> page : pages) {
-            page.close();
-        }
-    }
-
-    @Override
     public int decompress(BytesReference bytesReference) throws IOException {
         int bytesConsumed = 0;
-        if (hasSkippedESHeader == false) {
-            hasSkippedESHeader = true;
+        if (hasSkippedHeader == false) {
+            hasSkippedHeader = true;
             int esHeaderLength = Compression.Scheme.HEADER_LENGTH;
             bytesReference = bytesReference.slice(esHeaderLength, bytesReference.length() - esHeaderLength);
             bytesConsumed += esHeaderLength;
@@ -292,16 +253,8 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         int bytesToCopy = decompressedLength;
                         int uncompressedOffset = 0;
                         while (bytesToCopy > 0) {
-                            final boolean isNewPage = pageOffset == pageLength;
-                            if (isNewPage) {
-                                Recycler.V<BytesRef> newPage = recycler.obtain();
-                                pageOffset = 0;
-                                pageLength = newPage.v().length;
-                                assert newPage.v().length > 0;
-                                pages.add(newPage);
-                            }
+                            maybeAddNewPage();
                             final Recycler.V<BytesRef> page = pages.getLast();
-
                             int toCopy = Math.min(bytesToCopy, pageLength - pageOffset);
                             System.arraycopy(decompressed, uncompressedOffset, page.v().bytes, page.v().offset + pageOffset, toCopy);
                             pageOffset += toCopy;

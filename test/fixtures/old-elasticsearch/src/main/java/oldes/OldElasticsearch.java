@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package oldes;
@@ -90,7 +91,7 @@ public class OldElasticsearch {
         }
         command.add("-p");
         Path pidPath = baseDir.relativize(baseDir.resolve("pid"));
-        command.add(pidPath.toString().replaceAll("&", "\\&"));
+        command.add(pidPath.toString().replace("&", "\\&"));
         ProcessBuilder subprocess = new ProcessBuilder(command);
         Process process = subprocess.start();
         System.out.println("Running " + command);
@@ -127,11 +128,11 @@ public class OldElasticsearch {
         }
 
         Path tmp = Files.createTempFile(baseDir, null, null);
-        Files.write(tmp, Integer.toString(port).getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tmp, Integer.toString(port));
         Files.move(tmp, baseDir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);
 
         tmp = Files.createTempFile(baseDir, null, null);
-        Files.write(tmp, Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tmp, Integer.toString(pid));
         Files.move(tmp, baseDir.resolve("pid"), StandardCopyOption.ATOMIC_MOVE);
     }
 }

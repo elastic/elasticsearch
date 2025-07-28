@@ -1,23 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -25,6 +31,7 @@ import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
+import org.elasticsearch.transport.RemoteClusterServerInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
@@ -36,25 +43,54 @@ import java.util.Map;
  */
 public class NodeInfo extends BaseNodeResponse {
 
-    private Version version;
-    private Build build;
+    private final String version;
+    private final CompatibilityVersions compatibilityVersions;
+    private final IndexVersion indexVersion;
+    private final Map<String, Integer> componentVersions;
+    private final Build build;
 
     @Nullable
-    private Settings settings;
+    private final Settings settings;
 
     /**
      * Do not expose this map to other classes. For type safety, use {@link #getInfo(Class)}
      * to retrieve items from this map and {@link #addInfoIfNonNull(Class, ReportingService.Info)}
      * to retrieve items from it.
      */
-    private Map<Class<? extends ReportingService.Info>, ReportingService.Info> infoMap = new HashMap<>();
+    private final Map<Class<? extends ReportingService.Info>, ReportingService.Info> infoMap = new HashMap<>();
 
     @Nullable
-    private ByteSizeValue totalIndexingBuffer;
+    private final ByteSizeValue totalIndexingBuffer;
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
-        version = Version.readVersion(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            version = in.readString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
+                compatibilityVersions = CompatibilityVersions.readVersion(in);
+            } else {
+                compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
+            }
+            indexVersion = IndexVersion.readVersion(in);
+        } else {
+            Version legacyVersion = Version.readVersion(in);
+            version = legacyVersion.toString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+                compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
+            } else {
+                compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(legacyVersion.id), Map.of());
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+                indexVersion = IndexVersion.readVersion(in);
+            } else {
+                indexVersion = IndexVersion.fromId(legacyVersion.id);
+            }
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+            componentVersions = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
+        } else {
+            componentVersions = Map.of();
+        }
         build = Build.readBuild(in);
         if (in.readBoolean()) {
             totalIndexingBuffer = ByteSizeValue.ofBytes(in.readLong());
@@ -63,6 +99,8 @@ public class NodeInfo extends BaseNodeResponse {
         }
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);
+        } else {
+            settings = null;
         }
         addInfoIfNonNull(OsInfo.class, in.readOptionalWriteable(OsInfo::new));
         addInfoIfNonNull(ProcessInfo.class, in.readOptionalWriteable(ProcessInfo::new));
@@ -72,13 +110,17 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(HttpInfo.class, in.readOptionalWriteable(HttpInfo::new));
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
+        addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            addInfoIfNonNull(RemoteClusterServerInfo.class, in.readOptionalWriteable(RemoteClusterServerInfo::new));
         }
     }
 
     public NodeInfo(
-        Version version,
+        String version,
+        CompatibilityVersions compatibilityVersions,
+        IndexVersion indexVersion,
+        Map<String, Integer> componentVersions,
         Build build,
         DiscoveryNode node,
         @Nullable Settings settings,
@@ -88,6 +130,7 @@ public class NodeInfo extends BaseNodeResponse {
         @Nullable ThreadPoolInfo threadPool,
         @Nullable TransportInfo transport,
         @Nullable HttpInfo http,
+        @Nullable RemoteClusterServerInfo remoteClusterServer,
         @Nullable PluginsAndModules plugins,
         @Nullable IngestInfo ingest,
         @Nullable AggregationInfo aggsInfo,
@@ -95,6 +138,9 @@ public class NodeInfo extends BaseNodeResponse {
     ) {
         super(node);
         this.version = version;
+        this.compatibilityVersions = compatibilityVersions;
+        this.indexVersion = indexVersion;
+        this.componentVersions = componentVersions;
         this.build = build;
         this.settings = settings;
         addInfoIfNonNull(OsInfo.class, os);
@@ -103,6 +149,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(ThreadPoolInfo.class, threadPool);
         addInfoIfNonNull(TransportInfo.class, transport);
         addInfoIfNonNull(HttpInfo.class, http);
+        addInfoIfNonNull(RemoteClusterServerInfo.class, remoteClusterServer);
         addInfoIfNonNull(PluginsAndModules.class, plugins);
         addInfoIfNonNull(IngestInfo.class, ingest);
         addInfoIfNonNull(AggregationInfo.class, aggsInfo);
@@ -120,8 +167,36 @@ public class NodeInfo extends BaseNodeResponse {
     /**
      * The current ES version
      */
-    public Version getVersion() {
+    public String getVersion() {
         return version;
+    }
+
+    /**
+     * The most recent transport version that can be used by this node
+     */
+    public TransportVersion getTransportVersion() {
+        return compatibilityVersions.transportVersion();
+    }
+
+    /**
+     * The most recent index version that can be used by this node
+     */
+    public IndexVersion getIndexVersion() {
+        return indexVersion;
+    }
+
+    /**
+     * The version numbers of other installed components
+     */
+    public Map<String, Integer> getComponentVersions() {
+        return componentVersions;
+    }
+
+    /**
+     * A map of system index names to versions for their mappings supported by this node.
+     */
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getCompatibilityVersions() {
+        return compatibilityVersions.systemIndexMappingsVersion();
     }
 
     /**
@@ -171,7 +246,20 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(version.id);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeString(version);
+        } else {
+            Version.writeVersion(Version.fromString(version), out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_1)) {
+            compatibilityVersions.writeTo(out);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            TransportVersion.writeVersion(compatibilityVersions.transportVersion(), out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+            IndexVersion.writeVersion(indexVersion, out);
+            out.writeMap(componentVersions, StreamOutput::writeString, StreamOutput::writeVInt);
+        }
         Build.writeBuild(build, out);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
@@ -193,8 +281,9 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(HttpInfo.class));
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeOptionalWriteable(getInfo(AggregationInfo.class));
+        out.writeOptionalWriteable(getInfo(AggregationInfo.class));
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            out.writeOptionalWriteable(getInfo(RemoteClusterServerInfo.class));
         }
     }
 }

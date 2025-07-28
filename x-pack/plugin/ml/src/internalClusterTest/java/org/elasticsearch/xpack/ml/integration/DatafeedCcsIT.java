@@ -18,7 +18,7 @@ import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
-import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 
 import java.util.Collection;
 import java.util.List;
@@ -58,7 +59,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
     @Override
     protected Settings nodeSettings() {
         return Settings.builder()
-            .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             // For an internal cluster test we have to use the "black hole" autodetect process - we cannot use the native one
             .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
@@ -86,13 +87,14 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
             IndexLifecycle.class,
             // Deprecation warnings go to a data stream, if we ever cause a deprecation warning the data streams plugin is required
             DataStreamsPlugin.class,
-            // To remove errors from parsing built in templates that contain scaled_float
-            MapperExtrasPlugin.class
+            // To remove errors from parsing built in templates that contain scaled_float or wildcard
+            MapperExtrasPlugin.class,
+            Wildcard.class
         );
     }
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
     }
 
@@ -188,9 +190,12 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
         try {
             SearchResponse response = client(LOCAL_CLUSTER).prepareSearch(".ml-notifications*")
                 .setQuery(new MatchPhraseQueryBuilder("message", message))
-                .execute()
-                .actionGet();
-            return response.getHits().getTotalHits().value > 0;
+                .get();
+            try {
+                return response.getHits().getTotalHits().value() > 0;
+            } finally {
+                response.decRef();
+            }
         } catch (ElasticsearchException e) {
             return false;
         }
@@ -239,7 +244,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
     private void setSkipUnavailable(boolean skip) {
         client(LOCAL_CLUSTER).admin()
             .cluster()
-            .prepareUpdateSettings()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().put("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable", skip).build())
             .get();
     }
@@ -247,7 +252,7 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
     private void clearSkipUnavailable() {
         client(LOCAL_CLUSTER).admin()
             .cluster()
-            .prepareUpdateSettings()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .setPersistentSettings(Settings.builder().putNull("cluster.remote." + REMOTE_CLUSTER + ".skip_unavailable").build())
             .get();
     }

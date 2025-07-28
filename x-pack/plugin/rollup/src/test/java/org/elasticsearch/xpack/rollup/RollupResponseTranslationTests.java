@@ -13,9 +13,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -45,9 +43,10 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -74,7 +73,6 @@ import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -94,56 +92,70 @@ import static org.mockito.Mockito.when;
 public class RollupResponseTranslationTests extends AggregatorTestCase {
 
     public void testLiveFailure() {
-        MultiSearchResponse.Item[] failure = new MultiSearchResponse.Item[] {
-            new MultiSearchResponse.Item(null, new RuntimeException("foo")),
-            new MultiSearchResponse.Item(null, null) };
-
-        Exception e = expectThrows(
-            RuntimeException.class,
-            () -> RollupResponseTranslator.combineResponses(failure, InternalAggregationTestCase.emptyReduceContextBuilder())
+        MultiSearchResponse failure = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] {
+                new MultiSearchResponse.Item(null, new RuntimeException("foo")),
+                new MultiSearchResponse.Item(null, null) },
+            0L
         );
-        assertThat(e.getMessage(), equalTo("foo"));
+        try {
+            Exception e = expectThrows(
+                RuntimeException.class,
+                () -> RollupResponseTranslator.combineResponses(failure, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(e.getMessage(), equalTo("foo"));
 
-        e = expectThrows(
-            RuntimeException.class,
-            () -> RollupResponseTranslator.translateResponse(failure, InternalAggregationTestCase.emptyReduceContextBuilder())
-        );
-        assertThat(e.getMessage(), equalTo("foo"));
+            e = expectThrows(
+                RuntimeException.class,
+                () -> RollupResponseTranslator.translateResponse(failure, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(e.getMessage(), equalTo("foo"));
 
-        e = expectThrows(RuntimeException.class, () -> RollupResponseTranslator.verifyResponse(failure[0]));
-        assertThat(e.getMessage(), equalTo("foo"));
+            e = expectThrows(RuntimeException.class, () -> RollupResponseTranslator.verifyResponse(failure.getResponses()[0]));
+            assertThat(e.getMessage(), equalTo("foo"));
+        } finally {
+            failure.decRef();
+        }
     }
 
     public void testRollupFailure() {
-        MultiSearchResponse.Item[] failure = new MultiSearchResponse.Item[] {
-            new MultiSearchResponse.Item(null, new RuntimeException("rollup failure")) };
-
-        Exception e = expectThrows(
-            RuntimeException.class,
-            () -> RollupResponseTranslator.translateResponse(failure, InternalAggregationTestCase.emptyReduceContextBuilder())
+        MultiSearchResponse failure = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(null, new RuntimeException("rollup failure")) },
+            0L
         );
-        assertThat(e.getMessage(), equalTo("rollup failure"));
+        try {
+            Exception e = expectThrows(
+                RuntimeException.class,
+                () -> RollupResponseTranslator.translateResponse(failure, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(e.getMessage(), equalTo("rollup failure"));
+        } finally {
+            failure.decRef();
+        }
     }
 
     public void testLiveMissingRollupMissing() {
-        MultiSearchResponse.Item[] failure = new MultiSearchResponse.Item[] {
-            new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")),
-            new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")) };
-
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        ScriptService scriptService = mock(ScriptService.class);
-
-        ResourceNotFoundException e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> RollupResponseTranslator.combineResponses(failure, InternalAggregationTestCase.emptyReduceContextBuilder())
+        MultiSearchResponse failure = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] {
+                new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")),
+                new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")) },
+            0L
         );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "Index [[foo]] was not found, likely because it was deleted while the request was in-flight. "
-                    + "Rollup does not support partial search results, please try the request again."
-            )
-        );
+        try {
+            ResourceNotFoundException e = expectThrows(
+                ResourceNotFoundException.class,
+                () -> RollupResponseTranslator.combineResponses(failure, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Index [[foo]] was not found, likely because it was deleted while the request was in-flight. "
+                        + "Rollup does not support partial search results, please try the request again."
+                )
+            );
+        } finally {
+            failure.decRef();
+        }
     }
 
     public void testMissingLiveIndex() throws Exception {
@@ -175,24 +187,30 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
 
-        MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[] {
-            new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")),
-            new MultiSearchResponse.Item(responseWithout, null) };
-
-        ResourceNotFoundException e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
+        MultiSearchResponse msearch = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] {
+                new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")),
+                new MultiSearchResponse.Item(responseWithout, null) },
+            0L
         );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "Index [[foo]] was not found, likely because it was deleted while the request was in-flight. "
-                    + "Rollup does not support partial search results, please try the request again."
-            )
-        );
+        try {
+            ResourceNotFoundException e = expectThrows(
+                ResourceNotFoundException.class,
+                () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Index [[foo]] was not found, likely because it was deleted while the request was in-flight. "
+                        + "Rollup does not support partial search results, please try the request again."
+                )
+            );
+        } finally {
+            msearch.decRef();
+        }
     }
 
     public void testRolledMissingAggs() throws Exception {
@@ -201,44 +219,59 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         when(responseWithout.getAggregations()).thenReturn(InternalAggregations.EMPTY);
 
-        MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(responseWithout, null) };
-
-        SearchResponse response = RollupResponseTranslator.translateResponse(
-            msearch,
-            InternalAggregationTestCase.emptyReduceContextBuilder()
+        MultiSearchResponse msearch = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(responseWithout, null) },
+            0L
         );
-        assertNotNull(response);
-        Aggregations responseAggs = response.getAggregations();
-        assertThat(responseAggs.asList().size(), equalTo(0));
+        try {
+            SearchResponse response = RollupResponseTranslator.translateResponse(
+                msearch,
+                InternalAggregationTestCase.emptyReduceContextBuilder()
+            );
+            try {
+                assertNotNull(response);
+                InternalAggregations responseAggs = response.getAggregations();
+                assertThat(responseAggs.asList().size(), equalTo(0));
+            } finally {
+                // this SearchResponse is not a mock, so must be decRef'd
+                response.decRef();
+            }
+        } finally {
+            msearch.decRef();
+        }
     }
 
     public void testMissingRolledIndex() {
         SearchResponse response = mock(SearchResponse.class);
 
-        MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[] {
-            new MultiSearchResponse.Item(response, null),
-            new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")) };
-
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        ScriptService scriptService = mock(ScriptService.class);
-
-        ResourceNotFoundException e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
+        MultiSearchResponse msearch = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] {
+                new MultiSearchResponse.Item(response, null),
+                new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")) },
+            0L
         );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "Index [[foo]] was not found, likely because it was deleted while the request was in-flight. "
-                    + "Rollup does not support partial search results, please try the request again."
-            )
-        );
+        try {
+            ResourceNotFoundException e = expectThrows(
+                ResourceNotFoundException.class,
+                () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Index [[foo]] was not found, likely because it was deleted while the request was in-flight. "
+                        + "Rollup does not support partial search results, please try the request again."
+                )
+            );
+        } finally {
+            msearch.decRef();
+        }
     }
 
     public void testVerifyNormal() throws Exception {
         SearchResponse response = mock(SearchResponse.class);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
 
+        // this SearchResponse is a mock, so does not need a decRef call
         SearchResponse finalResponse = RollupResponseTranslator.verifyResponse(item);
         assertThat(finalResponse, equalTo(response));
     }
@@ -278,38 +311,54 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggs = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggs = InternalAggregations.from(aggTree);
         when(response.getAggregations()).thenReturn(mockAggs);
-        MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
-
-        SearchResponse finalResponse = RollupResponseTranslator.translateResponse(
-            new MultiSearchResponse.Item[] { item },
-            InternalAggregationTestCase.emptyReduceContextBuilder()
+        MultiSearchResponse multiSearchResponse = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(response, null) },
+            0L
         );
-        assertNotNull(finalResponse);
-        Aggregations responseAggs = finalResponse.getAggregations();
-        assertNotNull(finalResponse);
-        Avg avg = responseAggs.get("foo");
-        assertThat(avg.getValue(), equalTo(5.0));
+        try {
+            // this is not a mock, so needs to be decRef'd
+            SearchResponse finalResponse = RollupResponseTranslator.translateResponse(
+                multiSearchResponse,
+                InternalAggregationTestCase.emptyReduceContextBuilder(
+                    new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("foo"))
+                )
+            );
+            try {
+                assertNotNull(finalResponse);
+                InternalAggregations responseAggs = finalResponse.getAggregations();
+                assertNotNull(finalResponse);
+                Avg avg = responseAggs.get("foo");
+                assertThat(avg.getValue(), equalTo(5.0));
+            } finally {
+                finalResponse.decRef();
+            }
+        } finally {
+            multiSearchResponse.decRef();
+        }
     }
 
     public void testTranslateMissingRollup() {
-        MultiSearchResponse.Item missing = new MultiSearchResponse.Item(null, new IndexNotFoundException("foo"));
-
-        ResourceNotFoundException e = expectThrows(
-            ResourceNotFoundException.class,
-            () -> RollupResponseTranslator.translateResponse(
-                new MultiSearchResponse.Item[] { missing },
-                InternalAggregationTestCase.emptyReduceContextBuilder()
-            )
+        MultiSearchResponse missing = new MultiSearchResponse(
+            new MultiSearchResponse.Item[] { new MultiSearchResponse.Item(null, new IndexNotFoundException("foo")) },
+            0L
         );
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "Index [foo] was not found, likely because it was deleted while the request was in-flight. "
-                    + "Rollup does not support partial search results, please try the request again."
-            )
-        );
+        try {
+            ResourceNotFoundException e = expectThrows(
+                ResourceNotFoundException.class,
+                () -> RollupResponseTranslator.translateResponse(missing, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Index [foo] was not found, likely because it was deleted while the request was in-flight. "
+                        + "Rollup does not support partial search results, please try the request again."
+                )
+            );
+        } finally {
+            missing.decRef();
+        }
     }
 
     public void testMissingFilter() {
@@ -318,7 +367,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         Max protoMax = mock(Max.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
-        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
+        InternalAggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -327,17 +376,20 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         Max max = mock(Max.class);
         when(max.getName()).thenReturn("bizzbuzz");
         aggTreeWithoutFilter.add(max);
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
-        MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[] { unrolledResponse, rolledResponse };
-
-        Exception e = expectThrows(
-            RuntimeException.class,
-            () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
-        );
-        assertThat(e.getMessage(), containsString("Expected [bizzbuzz] to be a FilterAggregation"));
+        MultiSearchResponse msearch = new MultiSearchResponse(new MultiSearchResponse.Item[] { unrolledResponse, rolledResponse }, 0L);
+        try {
+            Exception e = expectThrows(
+                RuntimeException.class,
+                () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(e.getMessage(), containsString("Expected [bizzbuzz] to be a FilterAggregation"));
+        } finally {
+            msearch.decRef();
+        }
     }
 
     public void testMatchingNameNotFilter() {
@@ -346,7 +398,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         Max protoMax = mock(Max.class);
         when(protoMax.getName()).thenReturn("foo");
         protoAggTree.add(protoMax);
-        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
+        InternalAggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -354,17 +406,20 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         List<InternalAggregation> aggTreeWithoutFilter = new ArrayList<>(1);
         Max max = new Max("filter_foo", 0, DocValueFormat.RAW, null);
         aggTreeWithoutFilter.add(max);
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTreeWithoutFilter);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
-        MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[] { unrolledResponse, rolledResponse };
-
-        Exception e = expectThrows(
-            RuntimeException.class,
-            () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
-        );
-        assertThat(e.getMessage(), equalTo("Expected [filter_foo] to be a FilterAggregation, but was [Max]"));
+        MultiSearchResponse msearch = new MultiSearchResponse(new MultiSearchResponse.Item[] { unrolledResponse, rolledResponse }, 0L);
+        try {
+            Exception e = expectThrows(
+                RuntimeException.class,
+                () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(e.getMessage(), equalTo("Expected [filter_foo] to be a FilterAggregation, but was [Max]"));
+        } finally {
+            msearch.decRef();
+        }
     }
 
     public void testSimpleReduction() throws Exception {
@@ -373,7 +428,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
         InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
         protoAggTree.add(internalAvg);
-        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
+        InternalAggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -405,24 +460,32 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
-        MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[] { unrolledResponse, rolledResponse };
-
-        SearchResponse response = RollupResponseTranslator.combineResponses(
-            msearch,
-            InternalAggregationTestCase.emptyReduceContextBuilder(
-                new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("foo"))
-                    .addAggregator(new MaxAggregationBuilder("foo." + RollupField.COUNT_FIELD))
-            )
-        );
-        assertNotNull(response);
-        Aggregations responseAggs = response.getAggregations();
-        assertNotNull(responseAggs);
-        Avg avg = responseAggs.get("foo");
-        assertThat(avg.getValue(), equalTo(5.0));
+        MultiSearchResponse msearch = new MultiSearchResponse(new MultiSearchResponse.Item[] { unrolledResponse, rolledResponse }, 0L);
+        try {
+            // this SearchResponse is not a mock, so needs a decRef
+            SearchResponse response = RollupResponseTranslator.combineResponses(
+                msearch,
+                InternalAggregationTestCase.emptyReduceContextBuilder(
+                    new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("foo"))
+                        .addAggregator(new MaxAggregationBuilder("foo." + RollupField.COUNT_FIELD))
+                )
+            );
+            try {
+                assertNotNull(response);
+                InternalAggregations responseAggs = response.getAggregations();
+                assertNotNull(responseAggs);
+                Avg avg = responseAggs.get("foo");
+                assertThat(avg.getValue(), equalTo(5.0));
+            } finally {
+                response.decRef();
+            }
+        } finally {
+            msearch.decRef();
+        }
     }
 
     public void testUnsupported() throws IOException {
@@ -499,58 +562,30 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
         }, filterBuilder, new MappedFieldType[] { fieldType }, new MappedFieldType[] { fieldType });
 
-        // TODO SearchResponse.Clusters is not public, using null for now. Should fix upstream.
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(
-            new SearchResponse(
-                new InternalSearchResponse(
-                    null,
-                    InternalAggregations.from(Collections.singletonList(responses.get(0))),
-                    null,
-                    null,
-                    false,
-                    false,
-                    1
-                ),
-                null,
-                1,
-                1,
-                0,
-                10,
-                null,
-                null
-            ),
+            SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(responses.get(0)))
+                .build(),
             null
         );
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(
-            new SearchResponse(
-                new InternalSearchResponse(
-                    null,
-                    InternalAggregations.from(Collections.singletonList(responses.get(1))),
-                    null,
-                    null,
-                    false,
-                    false,
-                    1
-                ),
-                null,
-                1,
-                1,
-                0,
-                10,
-                null,
-                null
-            ),
+            SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(responses.get(1)))
+                .build(),
             null
         );
 
-        MultiSearchResponse.Item[] msearch = new MultiSearchResponse.Item[] { unrolledItem, rolledItem };
-
-        ClassCastException e = expectThrows(
-            ClassCastException.class,
-            () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
-        );
-        assertThat(e.getMessage(), containsString("org.elasticsearch.search.aggregations.metrics.InternalGeoBounds"));
-        assertThat(e.getMessage(), containsString("org.elasticsearch.search.aggregations.InternalMultiBucketAggregation"));
+        MultiSearchResponse msearch = new MultiSearchResponse(new MultiSearchResponse.Item[] { unrolledItem, rolledItem }, 0);
+        try {
+            ClassCastException e = expectThrows(
+                ClassCastException.class,
+                () -> RollupResponseTranslator.combineResponses(msearch, InternalAggregationTestCase.emptyReduceContextBuilder())
+            );
+            assertThat(e.getMessage(), containsString("org.elasticsearch.search.aggregations.metrics.InternalGeoBounds"));
+            assertThat(e.getMessage(), containsString("org.elasticsearch.search.aggregations.InternalMultiBucketAggregation"));
+        } finally {
+            msearch.decRef();
+        }
     }
 
     public void testDateHisto() throws IOException {
@@ -634,7 +669,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             PipelineTree.EMPTY
         );
 
-        InternalAggregation reduced = ((InternalDateHistogram) unrolled).reduce(Collections.singletonList(unrolled), context);
+        InternalAggregation reduced = InternalAggregationTestCase.reduce(Collections.singletonList(unrolled), context);
         assertThat(reduced.toString(), equalTo(XContentHelper.stripWhitespace("""
             {
               "histo": {
@@ -1256,14 +1291,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     private Document stringValueDoc(String stringValue) {
         Document doc = new Document();
         BytesRef bytes = new BytesRef(stringValue);
-        doc.add(new SortedSetDocValuesField("stringField", bytes));
         doc.add(new KeywordField("stringField", bytes, KeywordFieldMapper.Defaults.FIELD_TYPE));
         return doc;
     }
 
     private Document stringValueRollupDoc(String stringValue, long docCount) {
         Document doc = new Document();
-        doc.add(new SortedSetDocValuesField("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue)));
         doc.add(new Field("stringfield.terms." + RollupField.VALUE, new BytesRef(stringValue), KeywordFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new SortedNumericDocValuesField("stringfield.terms." + RollupField.COUNT_FIELD, docCount));
         return doc;
@@ -1311,13 +1344,12 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         buildIndex.accept(indexWriter);
         indexWriter.close();
 
-        IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+        DirectoryReader indexReader = DirectoryReader.open(directory);
 
-        try (AggregationContext context = createAggregationContext(indexSearcher, query, fieldType)) {
+        try (AggregationContext context = createAggregationContext(indexReader, query, fieldType)) {
             Aggregator aggregator = createAggregator(aggBuilder, context);
             aggregator.preCollection();
-            indexSearcher.search(query, aggregator.asCollector());
+            context.searcher().search(query, aggregator.asCollector());
             aggregator.postCollection();
             return aggregator.buildTopLevel();
         } finally {

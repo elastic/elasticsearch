@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -31,13 +32,19 @@ public class IndexMetadataStatsSerializationTests extends AbstractXContentSerial
         final int numberOfShards = randomIntBetween(1, 10);
         final var indexWriteLoad = IndexWriteLoad.builder(numberOfShards);
         for (int i = 0; i < numberOfShards; i++) {
-            indexWriteLoad.withShardWriteLoad(i, randomDoubleBetween(1, 10, true), randomLongBetween(1, 1000));
+            indexWriteLoad.withShardWriteLoad(
+                i,
+                randomDoubleBetween(1, 10, true),
+                randomDoubleBetween(1, 10, true),
+                randomLongBetween(1, 1000),
+                randomLongBetween(1, 1000)
+            );
         }
         return new IndexMetadataStats(indexWriteLoad.build(), randomLongBetween(1024, 10240), randomIntBetween(1, 4));
     }
 
     @Override
-    protected IndexMetadataStats mutateInstance(IndexMetadataStats originalStats) throws IOException {
+    protected IndexMetadataStats mutateInstance(IndexMetadataStats originalStats) {
         final IndexWriteLoad originalWriteLoad = originalStats.writeLoad();
 
         final int newNumberOfShards;
@@ -52,10 +59,16 @@ public class IndexMetadataStatsSerializationTests extends AbstractXContentSerial
             double shardLoad = existingShard && randomBoolean()
                 ? originalWriteLoad.getWriteLoadForShard(i).getAsDouble()
                 : randomDoubleBetween(0, 128, true);
+            double recentShardLoad = existingShard && randomBoolean()
+                ? originalWriteLoad.getRecentWriteLoadForShard(i).getAsDouble()
+                : randomDoubleBetween(0, 128, true);
+            double peakShardLoad = existingShard && randomBoolean()
+                ? originalWriteLoad.getPeakWriteLoadForShard(i).getAsDouble()
+                : randomDoubleBetween(0, 128, true);
             long uptimeInMillis = existingShard && randomBoolean()
                 ? originalWriteLoad.getUptimeInMillisForShard(i).getAsLong()
                 : randomNonNegativeLong();
-            indexWriteLoad.withShardWriteLoad(i, shardLoad, uptimeInMillis);
+            indexWriteLoad.withShardWriteLoad(i, shardLoad, recentShardLoad, peakShardLoad, uptimeInMillis);
         }
         return new IndexMetadataStats(indexWriteLoad.build(), randomLongBetween(1024, 10240), randomIntBetween(1, 4));
     }

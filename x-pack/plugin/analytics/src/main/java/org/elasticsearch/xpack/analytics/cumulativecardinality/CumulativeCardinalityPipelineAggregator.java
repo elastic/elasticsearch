@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -25,8 +25,6 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
@@ -57,13 +55,16 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
                     hll.merge(0, bucketHll, 0);
                     cardinality = hll.cardinality(0);
                 }
-
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .map((p) -> (InternalAggregation) p)
-                    .collect(Collectors.toList());
-                aggs.add(new InternalSimpleLongValue(name(), cardinality, formatter, metadata()));
-                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
-                newBuckets.add(newBucket);
+                newBuckets.add(
+                    factory.createBucket(
+                        factory.getKey(bucket),
+                        bucket.getDocCount(),
+                        InternalAggregations.append(
+                            bucket.getAggregations(),
+                            new InternalSimpleLongValue(name(), cardinality, formatter, metadata())
+                        )
+                    )
+                );
             }
             return factory.createAggregation(newBuckets);
         } finally {
@@ -73,22 +74,13 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         }
     }
 
-    private AbstractHyperLogLogPlusPlus resolveBucketValue(
+    private static AbstractHyperLogLogPlusPlus resolveBucketValue(
         MultiBucketsAggregation agg,
         InternalMultiBucketAggregation.InternalBucket bucket,
         String aggPath
     ) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
-        if (propertyValue == null) {
-            throw new AggregationExecutionException(
-                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() + " must reference a cardinality aggregation"
-            );
-        }
-
-        if (propertyValue instanceof InternalCardinality) {
-            return ((InternalCardinality) propertyValue).getCounts();
-        }
 
         String currentAggName;
         if (aggPathsList.isEmpty()) {
@@ -97,13 +89,24 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
             currentAggName = aggPathsList.get(0);
         }
 
-        throw new AggregationExecutionException(
-            AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference a cardinality aggregation, got: ["
-                + propertyValue.getClass().getSimpleName()
-                + "] at aggregation ["
-                + currentAggName
-                + "]"
+        if (propertyValue == null) {
+            throw AggregationErrors.incompatibleAggregationType(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName(),
+                "cardinality",
+                "null",
+                currentAggName
+            );
+        }
+
+        if (propertyValue instanceof InternalCardinality) {
+            return ((InternalCardinality) propertyValue).getCounts();
+        }
+
+        throw AggregationErrors.incompatibleAggregationType(
+            AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName(),
+            "cardinality",
+            propertyValue.getClass().getSimpleName(),
+            currentAggName
         );
     }
 

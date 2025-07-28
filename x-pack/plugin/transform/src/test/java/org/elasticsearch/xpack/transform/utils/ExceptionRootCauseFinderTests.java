@@ -11,122 +11,47 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentLocation;
 
+import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class ExceptionRootCauseFinderTests extends ESTestCase {
 
-    public void testFetFirstIrrecoverableExceptionFromBulkResponses() {
-        Map<Integer, BulkItemResponse> bulkItemResponses = new HashMap<>();
-
-        int id = 1;
-        // 1
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new MapperParsingException("mapper parsing error"))
-            )
-        );
-        // 2
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new ResourceNotFoundException("resource not found error"))
-            )
-        );
-        // 3
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new IllegalArgumentException("illegal argument error"))
-            )
-        );
-        // 4 not irrecoverable
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new EsRejectedExecutionException("es rejected execution"))
-            )
-        );
-        // 5 not irrecoverable
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure("the_index", "id", new TranslogException(new ShardId("the_index", "uid", 0), "translog error"))
-            )
-        );
-        // 6
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure(
-                    "the_index",
-                    "id",
-                    new ElasticsearchSecurityException("Authentication required", RestStatus.UNAUTHORIZED)
-                )
-            )
-        );
-        // 7
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure(
-                    "the_index",
-                    "id",
-                    new ElasticsearchSecurityException("current license is non-compliant for [transform]", RestStatus.FORBIDDEN)
-                )
-            )
-        );
-        // 8 not irrecoverable
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure(
-                    "the_index",
-                    "id",
-                    new ElasticsearchSecurityException("overloaded, to many requests", RestStatus.TOO_MANY_REQUESTS)
-                )
-            )
-        );
-        // 9 not irrecoverable
-        bulkItemResponses.put(
-            id,
-            BulkItemResponse.failure(
-                id++,
-                OpType.INDEX,
-                new BulkItemResponse.Failure(
-                    "the_index",
-                    "id",
-                    new ElasticsearchSecurityException("internal error", RestStatus.INTERNAL_SERVER_ERROR)
-                )
-            )
+    public void testGetFirstIrrecoverableExceptionFromBulkResponses() {
+        Map<Integer, BulkItemResponse> bulkItemResponses = bulkItemResponses(
+            new DocumentParsingException(XContentLocation.UNKNOWN, "document parsing error"),
+            new ResourceNotFoundException("resource not found error"),
+            new IllegalArgumentException("illegal argument error"),
+            new EsRejectedExecutionException("es rejected execution"),
+            new TranslogException(new ShardId("the_index", "uid", 0), "translog error"),
+            new ElasticsearchSecurityException("Authentication required", RestStatus.UNAUTHORIZED),
+            new ElasticsearchSecurityException("current license is non-compliant for [transform]", RestStatus.FORBIDDEN),
+            new ElasticsearchSecurityException("overloaded, to many requests", RestStatus.TOO_MANY_REQUESTS),
+            new ElasticsearchSecurityException("internal error", RestStatus.INTERNAL_SERVER_ERROR),
+            new IndexNotFoundException("some missing index")
         );
 
-        assertFirstException(bulkItemResponses.values(), MapperParsingException.class, "mapper parsing error");
+        assertFirstException(bulkItemResponses.values(), DocumentParsingException.class, "document parsing error");
         bulkItemResponses.remove(1);
         assertFirstException(bulkItemResponses.values(), ResourceNotFoundException.class, "resource not found error");
         bulkItemResponses.remove(2);
@@ -144,11 +69,38 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
     }
 
+    private static Map<Integer, BulkItemResponse> bulkItemResponses(Exception... exceptions) {
+        var id = new AtomicInteger(1);
+        return Arrays.stream(exceptions)
+            .map(exception -> new BulkItemResponse.Failure("the_index", "id", exception))
+            .map(failure -> BulkItemResponse.failure(id.get(), OpType.INDEX, failure))
+            .collect(Collectors.toMap(response -> id.getAndIncrement(), Function.identity()));
+    }
+
+    public void testIsIrrecoverable() {
+        assertFalse(ExceptionRootCauseFinder.isExceptionIrrecoverable(new MapperException("mappings problem")));
+        assertFalse(ExceptionRootCauseFinder.isExceptionIrrecoverable(new TaskCancelledException("cancelled task")));
+        assertFalse(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(
+                new SearchContextMissingException(new ShardSearchContextId("session-id", 123, null))
+            )
+        );
+        assertFalse(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(
+                new CircuitBreakingException("circuit broken", CircuitBreaker.Durability.TRANSIENT)
+            )
+        );
+        assertTrue(ExceptionRootCauseFinder.isExceptionIrrecoverable(new IndexClosedException(new Index("index", "1234"))));
+        assertTrue(
+            ExceptionRootCauseFinder.isExceptionIrrecoverable(new DocumentParsingException(new XContentLocation(1, 2), "parse error"))
+        );
+        assertTrue(ExceptionRootCauseFinder.isExceptionIrrecoverable(new IndexNotFoundException("some missing index")));
+    }
+
     private static void assertFirstException(Collection<BulkItemResponse> bulkItemResponses, Class<?> expectedClass, String message) {
         Throwable t = ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses);
         assertNotNull(t);
         assertEquals(t.getClass(), expectedClass);
         assertEquals(t.getMessage(), message);
     }
-
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis.wrappers;
@@ -11,12 +12,13 @@ package org.elasticsearch.indices.analysis.wrappers;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugin.api.settings.BooleanSetting;
-import org.elasticsearch.plugin.api.settings.IntSetting;
-import org.elasticsearch.plugin.api.settings.ListSetting;
-import org.elasticsearch.plugin.api.settings.LongSetting;
-import org.elasticsearch.plugin.api.settings.StringSetting;
+import org.elasticsearch.plugin.settings.BooleanSetting;
+import org.elasticsearch.plugin.settings.IntSetting;
+import org.elasticsearch.plugin.settings.ListSetting;
+import org.elasticsearch.plugin.settings.LongSetting;
+import org.elasticsearch.plugin.settings.StringSetting;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
@@ -45,6 +47,9 @@ public class SettingsInvocationHandler implements InvocationHandler {
         );
     }
 
+    @SuppressForbidden(
+        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
+    )
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         assert method.getAnnotations().length == 1;

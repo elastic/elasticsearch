@@ -24,7 +24,7 @@ public class SourceFieldTests extends ESTestCase {
 
         ExtractedField field = new SourceField("single", Collections.singleton("text"));
 
-        assertThat(field.value(hit), equalTo(new String[] { "bar" }));
+        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "bar" }));
         assertThat(field.getName(), equalTo("single"));
         assertThat(field.getSearchField(), equalTo("single"));
         assertThat(field.getTypes(), contains("text"));
@@ -42,7 +42,7 @@ public class SourceFieldTests extends ESTestCase {
 
         ExtractedField field = new SourceField("array", Collections.singleton("text"));
 
-        assertThat(field.value(hit), equalTo(new String[] { "a", "b" }));
+        assertThat(field.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "a", "b" }));
         assertThat(field.getName(), equalTo("array"));
         assertThat(field.getSearchField(), equalTo("array"));
         assertThat(field.getTypes(), contains("text"));
@@ -60,7 +60,7 @@ public class SourceFieldTests extends ESTestCase {
 
         ExtractedField missing = new SourceField("missing", Collections.singleton("text"));
 
-        assertThat(missing.value(hit), equalTo(new Object[0]));
+        assertThat(missing.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
     }
 
     public void testValueGivenNested() {
@@ -69,7 +69,7 @@ public class SourceFieldTests extends ESTestCase {
 
         ExtractedField nested = new SourceField("level_1.level_2.foo", Collections.singleton("text"));
 
-        assertThat(nested.value(hit), equalTo(new String[] { "bar" }));
+        assertThat(nested.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "bar" }));
     }
 
     public void testValueGivenNestedArray() {
@@ -78,6 +78,6 @@ public class SourceFieldTests extends ESTestCase {
 
         ExtractedField nested = new SourceField("level_1.level_2.foo", Collections.singleton("text"));
 
-        assertThat(nested.value(hit), equalTo(new String[] { "bar" }));
+        assertThat(nested.value(hit, new SourceSupplier(hit)), equalTo(new String[] { "bar" }));
     }
 }

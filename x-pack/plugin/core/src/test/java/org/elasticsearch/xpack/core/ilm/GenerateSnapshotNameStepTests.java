@@ -6,19 +6,18 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
-import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -60,10 +59,16 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
     }
 
     public void testPerformAction() {
+        testPerformAction("test-ilm-policy", "test-ilm-policy");
+        // in case the policy name contains disallowed characters ({@link org.elasticsearch.common.Strings.INVALID_CHARS}), they should
+        // be stripped off
+        testPerformAction("invalid-policy\\\\/*?\"<>|,-name", "invalid-policy-name");
+    }
+
+    private void testPerformAction(String policyName, String expectedPolicyName) {
         String indexName = randomAlphaOfLength(10);
-        String policyName = "test-ilm-policy";
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -73,20 +78,15 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         // generate a snapshot repository with the expected name
         RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
-                    .build()
-            )
-            .build();
-
-        ClusterState newClusterState;
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
+        );
 
         // the snapshot index name, snapshot repository, and snapshot name are generated as expected
-        newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
-        LifecycleExecutionState executionState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
+        ProjectState newState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), state);
+        LifecycleExecutionState executionState = newState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(executionState.snapshotIndexName(), is(indexName));
         assertThat(
             "the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name",
@@ -95,11 +95,11 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         );
         assertThat(executionState.snapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
         assertThat(executionState.snapshotName(), containsString(indexName.toLowerCase(Locale.ROOT)));
-        assertThat(executionState.snapshotName(), containsString(policyName.toLowerCase(Locale.ROOT)));
+        assertThat(executionState.snapshotName(), containsString(expectedPolicyName));
 
         // re-running this step results in no change to the important outputs
-        newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), newClusterState);
-        LifecycleExecutionState repeatedState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
+        newState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), newState);
+        LifecycleExecutionState repeatedState = newState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(repeatedState.snapshotIndexName(), is(executionState.snapshotIndexName()));
         assertThat(repeatedState.snapshotRepository(), is(executionState.snapshotRepository()));
         assertThat(repeatedState.snapshotName(), is(executionState.snapshotName()));
@@ -109,20 +109,22 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
         GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, false).putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).build())
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+        );
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
-            () -> generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState)
+            () -> generateSnapshotNameStep.performAction(indexMetadata.getIndex(), state)
         );
         assertThat(
             illegalStateException.getMessage(),
@@ -147,7 +149,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         newCustomData.setSnapshotRepository("snapshot-repository-will-be-reset");
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())
@@ -158,18 +160,15 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         // generate a snapshot repository with the expected name
         RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
+        );
 
-        ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
+        ProjectState newState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), state);
 
-        LifecycleExecutionState executionState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
+        LifecycleExecutionState executionState = newState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(executionState.snapshotName(), is("snapshot-name-is-not-touched"));
         assertThat(executionState.snapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
     }
@@ -179,13 +178,12 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat(generateSnapshotName("name"), startsWith("name-"));
         assertThat(generateSnapshotName("name").length(), greaterThan("name-".length()));
 
-        IndexNameExpressionResolver.ResolverContext resolverContext = new IndexNameExpressionResolver.ResolverContext(time);
-        assertThat(generateSnapshotName("<name-{now}>", resolverContext), startsWith("name-2019.03.15-"));
-        assertThat(generateSnapshotName("<name-{now}>", resolverContext).length(), greaterThan("name-2019.03.15-".length()));
+        assertThat(generateSnapshotName("<name-{now}>", time), startsWith("name-2019.03.15-"));
+        assertThat(generateSnapshotName("<name-{now}>", time).length(), greaterThan("name-2019.03.15-".length()));
 
-        assertThat(generateSnapshotName("<name-{now/M}>", resolverContext), startsWith("name-2019.03.01-"));
+        assertThat(generateSnapshotName("<name-{now/M}>", time), startsWith("name-2019.03.01-"));
 
-        assertThat(generateSnapshotName("<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", resolverContext), startsWith("name-2019-03-15.21:09:00-"));
+        assertThat(generateSnapshotName("<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", time), startsWith("name-2019-03-15.21:09:00-"));
     }
 
     public void testNameValidation() {

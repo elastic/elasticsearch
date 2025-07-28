@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.security.rest.action.profile;
 
+import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -32,7 +34,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,7 +54,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(SuggestProfilesRequest.class));
             requestHolder.set((SuggestProfilesRequest) actionRequest);
-            return mock(SuggestProfilesResponse.class);
+            return new SuggestProfilesResponse(new SuggestProfilesResponse.ProfileHit[0], 0, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
         }));
     }
 
@@ -98,7 +99,7 @@ public class RestSuggestProfilesActionTests extends RestActionTestCase {
         )
             .withPath("/_security/profile/_suggest")
             .withParams(new HashMap<>(Map.of("data", randomAlphaOfLengthBetween(3, 8))))
-            .withContent(new BytesArray(formatted("{\"data\": \"%s\"}", randomAlphaOfLengthBetween(3, 8))), XContentType.JSON)
+            .withContent(new BytesArray(Strings.format("{\"data\": \"%s\"}", randomAlphaOfLengthBetween(3, 8))), XContentType.JSON)
             .build();
 
         final IllegalArgumentException e = expectThrows(

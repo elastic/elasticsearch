@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.cli;
@@ -54,7 +55,7 @@ public abstract class EnvironmentAwareCommand extends Command {
         execute(terminal, options, createEnv(options, processInfo), processInfo);
     }
 
-    private void putDockerEnvSettings(Map<String, String> settings, Map<String, String> envVars) {
+    private static void putDockerEnvSettings(Map<String, String> settings, Map<String, String> envVars) {
         for (var envVar : envVars.entrySet()) {
             String key = envVar.getKey();
             if (DOCKER_LOWERCASE_SETTING_REGEX.matcher(key).matches()) {
@@ -83,13 +84,7 @@ public abstract class EnvironmentAwareCommand extends Command {
                 throw new UserException(ExitCodes.USAGE, "setting [" + kvp.key + "] must not be empty");
             }
             if (settings.containsKey(kvp.key)) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "setting [%s] already set, saw [%s] and [%s]",
-                    kvp.key,
-                    settings.get(kvp.key),
-                    kvp.value
-                );
+                final String message = String.format(Locale.ROOT, "setting [%s] set twice via command line -E", kvp.key);
                 throw new UserException(ExitCodes.USAGE, message);
             }
             settings.put(kvp.key, kvp.value);
@@ -118,7 +113,7 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     // protected to allow tests to override
     protected Build.Type getBuildType() {
-        return Build.CURRENT.type();
+        return Build.current().type();
     }
 
     @SuppressForbidden(reason = "need path to construct environment")
@@ -132,18 +127,17 @@ public abstract class EnvironmentAwareCommand extends Command {
         final Map<String, String> settings,
         final String setting,
         final String key
-    ) {
+    ) throws UserException {
         final String value = sysprops.get(key);
         if (value != null) {
             if (settings.containsKey(setting)) {
                 final String message = String.format(
                     Locale.ROOT,
-                    "duplicate setting [%s] found via command-line [%s] and system property [%s]",
+                    "setting [%s] found via command-line -E and system property [%s]",
                     setting,
-                    settings.get(setting),
-                    value
+                    key
                 );
-                throw new IllegalArgumentException(message);
+                throw new UserException(ExitCodes.USAGE, message);
             } else {
                 settings.put(setting, value);
             }

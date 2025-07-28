@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.settings;
@@ -42,15 +43,11 @@ public class PrivateSettingsIT extends ESIntegTestCase {
         // we can not update the setting via the update settings API
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareUpdateSettings("test")
-                .setSettings(Settings.builder().put("index.private", "private-update"))
-                .get()
+            indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.private", "private-update"))
         );
         final String message = "can not update private setting [index.private]; this setting is managed by Elasticsearch";
         assertThat(e, hasToString(containsString(message)));
-        final GetSettingsResponse responseAfterAttemptedUpdate = client().admin().indices().prepareGetSettings("test").get();
+        final GetSettingsResponse responseAfterAttemptedUpdate = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
         assertNull(responseAfterAttemptedUpdate.getSetting("test", "index.private"));
     }
 
@@ -60,7 +57,7 @@ public class PrivateSettingsIT extends ESIntegTestCase {
             InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.INSTANCE,
             new InternalOrPrivateSettingsPlugin.UpdateInternalOrPrivateAction.Request("test", "index.private", "private-update")
         ).actionGet();
-        final GetSettingsResponse responseAfterUpdate = client().admin().indices().prepareGetSettings("test").get();
+        final GetSettingsResponse responseAfterUpdate = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
         assertThat(responseAfterUpdate.getSetting("test", "index.private"), equalTo("private-update"));
     }
 

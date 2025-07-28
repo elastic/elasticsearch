@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -15,6 +16,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -161,7 +163,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
@@ -178,7 +180,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
@@ -191,7 +193,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
@@ -204,7 +206,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        String query = formatted("""
+        String query = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
@@ -256,7 +258,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     public void testPointValidation() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        String queryInvalidLat = formatted("""
+        String queryInvalidLat = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {
@@ -272,7 +274,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         QueryShardException e1 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLat).toQuery(context));
         assertThat(e1.getMessage(), containsString("illegal latitude value [140.0] for [geo_polygon]"));
 
-        String queryInvalidLon = formatted("""
+        String queryInvalidLon = Strings.format("""
             {
               "geo_polygon": {
                 "%s": {

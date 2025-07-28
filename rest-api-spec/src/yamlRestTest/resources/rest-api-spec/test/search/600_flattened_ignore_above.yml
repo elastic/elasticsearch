@@ -1,0 +1,125 @@
+---
+flattened ignore_above single-value field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              keyword:
+                type: keyword
+                ignore_above: 5
+              flat:
+                type: flattened
+                ignore_above: 5
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          name: "A"
+          keyword: "foo"
+          flat: { "value": "foo", "key": "foo key" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        refresh: true
+        body:
+          name: "B"
+          keyword: "foo bar"
+          flat: { "value": "foo bar",  "key": "foo bar key"}
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          fields:
+            - keyword
+            - flat
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._source.keyword: "foo" }
+  - match: { hits.hits.0._source.flat.value: "foo" }
+  - match: { hits.hits.0._source.flat.key: "foo key" }
+  - match: { hits.hits.1._source.keyword: "foo bar" }
+  - match: { hits.hits.1._source.flat.value: "foo bar" }
+  - match: { hits.hits.1._source.flat.key: "foo bar key" }
+
+  - match: { hits.hits.0.fields.keyword.0: "foo" }
+  - match: { hits.hits.0.fields.flat.0.value: "foo" }
+  - match: { hits.hits.1.fields.keyword.0: null }
+  - match: { hits.hits.1.fields.flat.0.value: null }
+
+---
+flattened ignore_above multi-value field:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              keyword:
+                type: keyword
+                ignore_above: 5
+              flat:
+                type: flattened
+                ignore_above: 5
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          name: "A"
+          keyword: ["foo","bar"]
+          flat: { "value": ["foo", "bar"], "key": "foo bar array key" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        refresh: true
+        body:
+          name: "B"
+          keyword: ["foobar", "foo", "bar"]
+          flat: { "value": ["foobar", "foo"], "key": ["foo key", "bar key"]}
+
+  - do:
+      search:
+        index: test
+        sort: name
+        body:
+          fields:
+            - keyword
+            - flat
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 2 }
+
+  - match: { hits.hits.0._source.keyword: ["foo", "bar"] }
+  - match: { hits.hits.0._source.flat.value: ["foo", "bar"] }
+  - match: { hits.hits.0._source.flat.key: "foo bar array key" }
+  - match: { hits.hits.1._source.keyword: ["foobar", "foo", "bar"] }
+  - match: { hits.hits.1._source.flat.value: ["foobar", "foo"] }
+  - match: { hits.hits.1._source.flat.key: ["foo key", "bar key"] }
+
+  - match: { hits.hits.0.fields.keyword: [ "foo", "bar" ] }
+  - match: { hits.hits.0.fields.flat.0.value: ["foo", "bar"] }
+  - match: { hits.hits.0.fields.flat.0.key: null }
+  - match: { hits.hits.1.fields.keyword: [ "foo", "bar" ] }
+  - match: { hits.hits.1.fields.flat.0.value: "foo" }
+  - match: { hits.hits.1.fields.flat.0.key: null }

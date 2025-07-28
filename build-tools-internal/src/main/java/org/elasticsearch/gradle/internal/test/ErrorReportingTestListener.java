@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.test;
 
 import org.gradle.api.internal.tasks.testing.logging.FullExceptionFormatter;
 import org.gradle.api.internal.tasks.testing.logging.TestExceptionFormatter;
 import org.gradle.api.logging.Logger;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.testing.TestDescriptor;
 import org.gradle.api.tasks.testing.TestListener;
 import org.gradle.api.tasks.testing.TestOutputEvent;
 import org.gradle.api.tasks.testing.TestOutputListener;
 import org.gradle.api.tasks.testing.TestResult;
-import org.gradle.api.tasks.testing.logging.TestLogging;
 
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -44,11 +45,16 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
     private Map<Descriptor, EventWriter> eventWriters = new ConcurrentHashMap<>();
     private Map<Descriptor, Deque<String>> reproductionLines = new ConcurrentHashMap<>();
     private Set<Descriptor> failedTests = new LinkedHashSet<>();
+    private boolean dumpOutputOnFailure = true;
 
-    public ErrorReportingTestListener(TestLogging testLogging, Logger taskLogger, File outputDirectory) {
-        this.formatter = new FullExceptionFormatter(testLogging);
-        this.taskLogger = taskLogger;
+    public ErrorReportingTestListener(Test testTask, File outputDirectory) {
+        this.formatter = new FullExceptionFormatter(testTask.getTestLogging());
+        this.taskLogger = testTask.getLogger();
         this.outputDirectory = outputDirectory;
+    }
+
+    public void setDumpOutputOnFailure(boolean dumpOutputOnFailure) {
+        this.dumpOutputOnFailure = dumpOutputOnFailure;
     }
 
     @Override
@@ -80,34 +86,37 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
         Descriptor descriptor = Descriptor.of(suite);
 
         try {
-            // if the test suite failed, report all captured output
-            if (result.getResultType().equals(TestResult.ResultType.FAILURE)) {
-                EventWriter eventWriter = eventWriters.get(descriptor);
+            if (dumpOutputOnFailure) {
+                // if the test suite failed, report all captured output
+                if (result.getResultType().equals(TestResult.ResultType.FAILURE)) {
+                    EventWriter eventWriter = eventWriters.get(descriptor);
 
-                if (eventWriter != null) {
-                    // It's not explicit what the threading guarantees are for TestListener method execution so we'll
-                    // be explicitly safe here to avoid interleaving output from multiple test suites
-                    synchronized (this) {
-                        // make sure we've flushed everything to disk before reading
-                        eventWriter.flush();
+                    if (eventWriter != null) {
+                        // It's not explicit what the threading guarantees are for TestListener method execution so we'll
+                        // be explicitly safe here to avoid interleaving output from multiple test suites
+                        synchronized (this) {
+                            // make sure we've flushed everything to disk before reading
+                            eventWriter.flush();
 
-                        System.err.println("\n\nSuite: " + suite);
+                            System.err.println("\n\nSuite: " + suite);
 
-                        try (BufferedReader reader = eventWriter.reader()) {
-                            PrintStream out = System.out;
-                            for (String message = reader.readLine(); message != null; message = reader.readLine()) {
-                                if (message.startsWith("  1> ")) {
-                                    out = System.out;
-                                } else if (message.startsWith("  2> ")) {
-                                    out = System.err;
+                            try (BufferedReader reader = eventWriter.reader()) {
+                                PrintStream out = System.out;
+                                for (String message = reader.readLine(); message != null; message = reader.readLine()) {
+                                    if (message.startsWith("  1> ")) {
+                                        out = System.out;
+                                    } else if (message.startsWith("  2> ")) {
+                                        out = System.err;
+                                    }
+
+                                    out.println(message);
                                 }
-
-                                out.println(message);
                             }
                         }
                     }
                 }
             }
+
             if (suite.getParent() == null) {
                 // per test task top level gradle test run suite finished
                 if (getFailedTests().size() > 0) {
@@ -161,6 +170,11 @@ public class ErrorReportingTestListener implements TestOutputListener, TestListe
                         @Override
                         public Destination getDestination() {
                             return Destination.StdErr;
+                        }
+
+                        @Override
+                        public long getLogTime() {
+                            return result.getEndTime();
                         }
 
                         @Override

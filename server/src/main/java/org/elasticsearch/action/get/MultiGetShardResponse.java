@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class MultiGetShardResponse extends ActionResponse {
 
@@ -29,7 +31,6 @@ public class MultiGetShardResponse extends ActionResponse {
     }
 
     MultiGetShardResponse(StreamInput in) throws IOException {
-        super(in);
         int size = in.readVInt();
         locations = new ArrayList<>(size);
         responses = new ArrayList<>(size);
@@ -79,5 +80,18 @@ public class MultiGetShardResponse extends ActionResponse {
                 failures.get(i).writeTo(out);
             }
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o instanceof MultiGetShardResponse == false) return false;
+        MultiGetShardResponse other = (MultiGetShardResponse) o;
+        return Objects.equals(locations, other.locations) && Objects.equals(responses, other.responses);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(locations, responses);
     }
 }

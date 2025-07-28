@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -20,6 +19,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource.Type;
 
 import java.io.IOException;
@@ -41,10 +41,10 @@ public class GroupConfigTests extends AbstractXContentSerializingTestCase<GroupC
     private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = { '[', ']', '>' };
 
     public static GroupConfig randomGroupConfig() {
-        return randomGroupConfig(Version.CURRENT);
+        return randomGroupConfig(TransformConfigVersion.CURRENT);
     }
 
-    public static GroupConfig randomGroupConfig(Version version) {
+    public static GroupConfig randomGroupConfig(TransformConfigVersion version) {
         return randomGroupConfig(() -> randomSingleGroupSource(version));
     }
 
@@ -66,7 +66,7 @@ public class GroupConfigTests extends AbstractXContentSerializingTestCase<GroupC
         return new GroupConfig(source, groups);
     }
 
-    public static SingleGroupSource randomSingleGroupSource(Version version) {
+    public static SingleGroupSource randomSingleGroupSource(TransformConfigVersion version) {
         Type type = randomFrom(SingleGroupSource.Type.values());
         switch (type) {
             case TERMS:
@@ -91,6 +91,11 @@ public class GroupConfigTests extends AbstractXContentSerializingTestCase<GroupC
     @Override
     protected GroupConfig createTestInstance() {
         return randomGroupConfig();
+    }
+
+    @Override
+    protected GroupConfig mutateInstance(GroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

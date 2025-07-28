@@ -17,9 +17,18 @@ import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.lucene.spatial.Component2DVisitor;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
@@ -41,8 +50,6 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
         doTestShapes(GeoTestUtil::nextPoint);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92142")
-    // This is waiting for a Lucene release that includes https://github.com/apache/lucene/pull/12022
     public void testLine() throws Exception {
         doTestShapes(GeoTestUtil::nextLine);
     }
@@ -86,8 +93,6 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
         doTestShape(shape, reader, latLonGeometry, relation, true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/92142")
-    // This is waiting for a Lucene release that includes https://github.com/apache/lucene/pull/12022
     public void testVeryFlatPolygonDoesNotContainIntersectingLine() throws Exception {
         double[] x = new double[] { -0.001, -0.001, 0.001, 0.001, -0.001 };
         double[] y = new double[] { 1e-10, 0, -1e-10, 0, 1e-10 };
@@ -139,6 +144,18 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
         }
     }
 
+    /** Explicitly test failure found in <a href="https://github.com/elastic/elasticsearch/issues/98063">#98063</a> */
+    public void testOriginPointInMultipoint() throws Exception {
+        ArrayList<org.elasticsearch.geometry.Point> points = new ArrayList<>();
+        points.add(new org.elasticsearch.geometry.Point(0.0, 0.0));
+        points.add(new org.elasticsearch.geometry.Point(0.0, 0.0));
+        points.add(new org.elasticsearch.geometry.Point(0.0, 1.401298464324817E-45));
+        Geometry geometry = new MultiPoint(points);
+        GeoShapeValues.GeoShapeValue geoShapeValue = GeoTestUtils.geoShapeValue(geometry);
+        GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(geometry, CoordinateEncoder.GEO);
+        doTestShape(geometry, geoShapeValue, reader, new Point(0, 0));
+    }
+
     private <T extends LatLonGeometry> void doTestShapes(Supplier<T> supplier) throws Exception {
         Geometry geometry = GeometryNormalizer.apply(Orientation.CCW, GeometryTestUtils.randomGeometryWithoutCircle(0, false));
         GeoShapeValues.GeoShapeValue geoShapeValue = GeoTestUtils.geoShapeValue(geometry);
@@ -164,11 +181,8 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
     }
 
     private boolean isIdenticalPoint(Geometry geometry, LatLonGeometry latLonGeometry) {
-        if (geometry instanceof org.elasticsearch.geometry.Point point) {
-            if (latLonGeometry instanceof Point latLonPoint) {
-                return encodeLatitude(point.getLat()) == encodeLatitude(latLonPoint.getLat())
-                    && encodeLongitude(point.getLon()) == encodeLongitude(latLonPoint.getLon());
-            }
+        if (latLonGeometry instanceof Point latLonPoint) {
+            return geometry.visit(new TestIdenticalPointVisitor(latLonPoint));
         }
         return false;
     }
@@ -275,5 +289,114 @@ public class LatLonGeometryRelationVisitorTests extends ESTestCase {
 
     private double quantizeLon(double lon) {
         return decodeLongitude(encodeLongitude(lon));
+    }
+
+    /**
+     * This visitor returns false if any point in the geometry is not identical to the provided point.
+     * Identical means that the encoded lat and lon values are the same.
+     */
+    private static class TestIdenticalPointVisitor implements GeometryVisitor<Boolean, RuntimeException> {
+        private final int encodedLat;
+        private final int encodedLon;
+
+        private TestIdenticalPointVisitor(Point latLonPoint) {
+            encodedLat = encodeLatitude(latLonPoint.getLat());
+            encodedLon = encodeLongitude(latLonPoint.getLon());
+        }
+
+        private boolean isIdenticalPoint(double lat, double lon) {
+            return encodeLatitude(lat) == encodedLat && encodeLongitude(lon) == encodedLon;
+        }
+
+        @Override
+        public Boolean visit(Circle circle) {
+            if (circle.getRadiusMeters() == 0) {
+                return isIdenticalPoint(circle.getLat(), circle.getLon());
+            }
+            return false;
+        }
+
+        @Override
+        public Boolean visit(GeometryCollection<?> collection) {
+            for (Geometry shape : collection) {
+                if (shape.visit(this) == false) {
+                    return false;
+                }
+            }
+            return collection.size() > 0;
+        }
+
+        @Override
+        public Boolean visit(org.elasticsearch.geometry.Line line) {
+            for (int i = 0; i < line.length(); i++) {
+                if (isIdenticalPoint(line.getLat(i), line.getLon(i)) == false) {
+                    return false;
+                }
+            }
+            return line.length() > 0;
+        }
+
+        @Override
+        public Boolean visit(LinearRing ring) {
+            return visit((org.elasticsearch.geometry.Line) ring);
+        }
+
+        @Override
+        public Boolean visit(MultiLine multiLine) {
+            for (org.elasticsearch.geometry.Line line : multiLine) {
+                if (visit(line) == false) {
+                    return false;
+                }
+            }
+            return multiLine.size() > 0;
+        }
+
+        @Override
+        public Boolean visit(MultiPoint multiPoint) {
+            for (org.elasticsearch.geometry.Point point : multiPoint) {
+                if (visit(point) == false) {
+                    return false;
+                }
+            }
+            return multiPoint.size() > 0;
+        }
+
+        @Override
+        public Boolean visit(MultiPolygon multiPolygon) {
+            for (org.elasticsearch.geometry.Polygon polygon : multiPolygon) {
+                if (visit(polygon) == false) {
+                    return false;
+                }
+            }
+            return multiPolygon.size() > 0;
+        }
+
+        @Override
+        public Boolean visit(org.elasticsearch.geometry.Point point) {
+            return isIdenticalPoint(point.getLat(), point.getLon());
+        }
+
+        @Override
+        public Boolean visit(org.elasticsearch.geometry.Polygon polygon) {
+            if (visit(polygon.getPolygon()) == false) {
+                return false;
+            }
+            for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
+                LinearRing hole = polygon.getHole(i);
+                if (visit(hole) == false) {
+                    return false;
+                }
+            }
+            return polygon.getPolygon().length() > 0;
+        }
+
+        @Override
+        public Boolean visit(Rectangle rectangle) {
+            int eMinX = encodeLongitude(rectangle.getMinX());
+            int eMaxX = encodeLongitude(rectangle.getMaxX());
+            int eMinY = encodeLatitude(rectangle.getMinY());
+            int eMaxY = encodeLatitude(rectangle.getMaxY());
+            return eMinX == eMaxX && eMinY == eMaxY && isIdenticalPoint(rectangle.getMinLat(), rectangle.getMinLon());
+        }
     }
 }

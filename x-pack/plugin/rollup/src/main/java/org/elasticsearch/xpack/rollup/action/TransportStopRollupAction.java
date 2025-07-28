@@ -14,8 +14,12 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -26,13 +30,17 @@ import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
 import java.util.List;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
 
 public class TransportStopRollupAction extends TransportTasksAction<
     RollupJobTask,
     StopRollupJobAction.Request,
     StopRollupJobAction.Response,
     StopRollupJobAction.Response> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportStopRollupAction.class);
 
     private final ThreadPool threadPool;
 
@@ -50,25 +58,25 @@ public class TransportStopRollupAction extends TransportTasksAction<
             actionFilters,
             StopRollupJobAction.Request::new,
             StopRollupJobAction.Response::new,
-            StopRollupJobAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
     }
 
     @Override
-    protected void processTasks(StopRollupJobAction.Request request, Consumer<RollupJobTask> operation) {
-        TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
+    protected List<RollupJobTask> processTasks(StopRollupJobAction.Request request) {
+        return TransportTaskHelper.doProcessTasks(request.getId(), taskManager);
     }
 
     @Override
     protected void doExecute(Task task, StopRollupJobAction.Request request, ActionListener<StopRollupJobAction.Response> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         super.doExecute(task, request, listener);
     }
 
     @Override
     protected void taskOperation(
-        Task actionTask,
+        CancellableTask actionTask,
         StopRollupJobAction.Request request,
         RollupJobTask jobTask,
         ActionListener<StopRollupJobAction.Response> listener

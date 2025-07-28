@@ -1,0 +1,40 @@
+{
+  "security.query_user": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-query-user.html",
+      "description": "Retrieves information for Users using a subset of query DSL"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/_query/user",
+          "methods": [
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "From, size, query, sort and search_after",
+      "required": false
+    },
+    "params": {
+      "with_profile_uid": {
+        "type": "boolean",
+        "default": false,
+        "description": "flag to retrieve profile uid (if exists) associated with the user"
+      }
+    }
+  }
+}

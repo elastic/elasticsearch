@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,26 +29,7 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
     public static final String NAME = "cluster:admin/slm/stats";
 
     protected GetSnapshotLifecycleStatsAction() {
-        super(NAME, GetSnapshotLifecycleStatsAction.Response::new);
-    }
-
-    public static class Request extends AcknowledgedRequest<GetSnapshotLifecycleStatsAction.Request> {
-
-        public Request() {}
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
+        super(NAME);
     }
 
     public static class Response extends ActionResponse implements ToXContentObject {
@@ -65,6 +44,10 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
 
         public Response(StreamInput in) throws IOException {
             this.slmStats = new SnapshotLifecycleStats(in);
+        }
+
+        public SnapshotLifecycleStats getSlmStats() {
+            return slmStats;
         }
 
         @Override

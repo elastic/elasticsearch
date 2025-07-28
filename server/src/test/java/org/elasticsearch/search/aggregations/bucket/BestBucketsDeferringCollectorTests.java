@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket;
 
@@ -27,6 +28,8 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -59,7 +62,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
 
         indexWriter.close();
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        IndexSearcher indexSearcher = newSearcher(indexReader);
 
         TermQuery termQuery = new TermQuery(new Term("field", String.valueOf(randomInt(maxNumValues))));
         Query rewrittenQuery = indexSearcher.rewrite(termQuery);
@@ -76,7 +79,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         collector.preCollection();
         indexSearcher.search(termQuery, collector.asCollector());
         collector.postCollection();
-        collector.prepareSelectedBuckets(0);
+        collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -90,7 +93,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
         collector.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), collector.asCollector());
         collector.postCollection();
-        collector.prepareSelectedBuckets(0);
+        collector.prepareSelectedBuckets(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true));
 
         assertEquals(topDocs.scoreDocs.length, deferredCollectedDocIds.size());
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
@@ -140,7 +143,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 }
             }
         }, (deferringCollector, finalCollector) -> {
-            deferringCollector.prepareSelectedBuckets(0, 8, 9);
+            deferringCollector.prepareSelectedBuckets(toLongArray(0, 8, 9));
 
             equalTo(Map.of(0L, List.of(0, 1, 2, 3, 4, 5, 6, 7), 1L, List.of(8), 2L, List.of(9)));
         });
@@ -157,7 +160,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 }
             }
         }, (deferringCollector, finalCollector) -> {
-            deferringCollector.prepareSelectedBuckets(0, 8, 9);
+            deferringCollector.prepareSelectedBuckets(toLongArray(0, 8, 9));
 
             assertThat(finalCollector.collection, equalTo(Map.of(0L, List.of(4, 5, 6, 7), 1L, List.of(8), 2L, List.of(9))));
         });
@@ -175,10 +178,18 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
                 }
             }
         }, (deferringCollector, finalCollector) -> {
-            deferringCollector.prepareSelectedBuckets(0, 8, 9);
+            deferringCollector.prepareSelectedBuckets(toLongArray(0, 8, 9));
 
             assertThat(finalCollector.collection, equalTo(Map.of(0L, List.of(0, 1, 2, 3), 1L, List.of(8), 2L, List.of(9))));
         });
+    }
+
+    private LongArray toLongArray(long... lons) {
+        LongArray longArray = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(lons.length);
+        for (int i = 0; i < lons.length; i++) {
+            longArray.set(i, lons[i]);
+        }
+        return longArray;
     }
 
     private void testCase(
@@ -193,7 +204,7 @@ public class BestBucketsDeferringCollectorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+                IndexSearcher indexSearcher = newSearcher(indexReader);
 
                 Query query = new MatchAllDocsQuery();
                 BestBucketsDeferringCollector deferringCollector = new BestBucketsDeferringCollector(query, indexSearcher, false);

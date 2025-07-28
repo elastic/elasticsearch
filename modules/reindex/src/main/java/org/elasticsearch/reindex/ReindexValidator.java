@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -11,7 +12,6 @@ package org.elasticsearch.reindex;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
@@ -20,6 +20,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -30,7 +32,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.transport.RemoteClusterAware;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class ReindexValidator {
@@ -40,18 +44,21 @@ public class ReindexValidator {
 
     private final CharacterRunAutomaton remoteWhitelist;
     private final ClusterService clusterService;
-    private final IndexNameExpressionResolver resolver;
+    private final IndexNameExpressionResolver indexResolver;
+    private final ProjectResolver projectResolver;
     private final AutoCreateIndex autoCreateIndex;
 
     ReindexValidator(
         Settings settings,
         ClusterService clusterService,
-        IndexNameExpressionResolver resolver,
+        IndexNameExpressionResolver indexResolver,
+        ProjectResolver projectResolver,
         AutoCreateIndex autoCreateIndex
     ) {
         this.remoteWhitelist = buildRemoteWhitelist(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.get(settings));
         this.clusterService = clusterService;
-        this.resolver = resolver;
+        this.indexResolver = indexResolver;
+        this.projectResolver = projectResolver;
         this.autoCreateIndex = autoCreateIndex;
     }
 
@@ -62,9 +69,9 @@ public class ReindexValidator {
             request.getSearchRequest(),
             request.getDestination(),
             request.getRemoteInfo(),
-            resolver,
+            indexResolver,
             autoCreateIndex,
-            state
+            projectResolver.getProjectMetadata(state)
         );
         SearchSourceBuilder searchSource = request.getSearchRequest().source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
@@ -93,7 +100,7 @@ public class ReindexValidator {
             return new CharacterRunAutomaton(Automata.makeEmpty());
         }
         Automaton automaton = Regex.simpleMatchToAutomaton(whitelist.toArray(Strings.EMPTY_ARRAY));
-        automaton = MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        automaton = Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         if (Operations.isTotal(automaton)) {
             throw new IllegalArgumentException(
                 "Refusing to start because whitelist "
@@ -118,32 +125,45 @@ public class ReindexValidator {
         RemoteInfo remoteInfo,
         IndexNameExpressionResolver indexNameExpressionResolver,
         AutoCreateIndex autoCreateIndex,
-        ClusterState clusterState
+        ProjectMetadata project
     ) {
         if (remoteInfo != null) {
             return;
         }
         String target = destination.index();
-        if (destination.isRequireAlias() && (false == clusterState.getMetadata().hasAlias(target))) {
+        if (destination.isRequireAlias() && (false == project.hasAlias(target))) {
             throw new IndexNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + target + "] is not an alias",
                 target
             );
         }
-        if (false == autoCreateIndex.shouldAutoCreate(target, clusterState)) {
+        if (false == autoCreateIndex.shouldAutoCreate(target, project)) {
             /*
              * If we're going to autocreate the index we don't need to resolve
              * it. This is the same sort of dance that TransportIndexRequest
              * uses to decide to autocreate the index.
              */
-            target = indexNameExpressionResolver.concreteWriteIndex(clusterState, destination).getName();
+            target = indexNameExpressionResolver.concreteWriteIndex(project, destination).getName();
         }
-        for (String sourceIndex : indexNameExpressionResolver.concreteIndexNames(clusterState, source)) {
+        SearchRequest filteredSource = skipRemoteIndexNames(source);
+        if (filteredSource.indices().length == 0) {
+            return;
+        }
+        String[] sourceIndexNames = indexNameExpressionResolver.concreteIndexNames(project, filteredSource);
+        for (String sourceIndex : sourceIndexNames) {
             if (sourceIndex.equals(target)) {
                 ActionRequestValidationException e = new ActionRequestValidationException();
                 e.addValidationError("reindex cannot write into an index its reading from [" + target + ']');
                 throw e;
             }
         }
+    }
+
+    private static SearchRequest skipRemoteIndexNames(SearchRequest source) {
+        // An index expression that references a remote cluster uses ":" to separate the cluster-alias from the index portion of the
+        // expression, e.g., cluster0:index-name
+        return new SearchRequest(source).indices(
+            Arrays.stream(source.indices()).filter(name -> RemoteClusterAware.isRemoteIndexName(name) == false).toArray(String[]::new)
+        );
     }
 }

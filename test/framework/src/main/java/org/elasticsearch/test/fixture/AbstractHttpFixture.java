@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.fixture;
@@ -12,6 +13,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.junit.rules.ExternalResource;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -40,7 +42,7 @@ import static java.util.Collections.singletonMap;
  * Base class for test fixtures that requires a {@link HttpServer} to work.
  */
 @SuppressForbidden(reason = "uses httpserver by design")
-public abstract class AbstractHttpFixture {
+public abstract class AbstractHttpFixture extends ExternalResource {
 
     protected static final Map<String, String> TEXT_PLAIN_CONTENT_TYPE = contentType("text/plain; charset=utf-8");
     protected static final Map<String, String> JSON_CONTENT_TYPE = contentType("application/json; charset=utf-8");
@@ -51,8 +53,9 @@ public abstract class AbstractHttpFixture {
     private final AtomicLong requests = new AtomicLong(0);
 
     /** Current working directory of the fixture **/
-    private final Path workingDirectory;
-    private final int port;
+    private Path workingDirectory;
+    private int port;
+    private HttpServer httpServer;
 
     protected AbstractHttpFixture(final String workingDir) {
         this(workingDir, 0);
@@ -62,6 +65,8 @@ public abstract class AbstractHttpFixture {
         this.port = port;
         this.workingDirectory = PathUtils.get(Objects.requireNonNull(workingDir));
     }
+
+    public AbstractHttpFixture() {}
 
     /**
      * Opens a {@link HttpServer} and start listening on a provided or random port.
@@ -75,85 +80,104 @@ public abstract class AbstractHttpFixture {
      */
     public final void listen(InetAddress inetAddress, boolean exposePidAndPort) throws IOException, InterruptedException {
         final InetSocketAddress socketAddress = new InetSocketAddress(inetAddress, port);
-        final HttpServer httpServer = HttpServer.create(socketAddress, 0);
+        listenAndWait(socketAddress, exposePidAndPort);
+    }
 
+    public final void listenAndWait(InetSocketAddress socketAddress, boolean exposePidAndPort) throws IOException, InterruptedException {
         try {
-            if (exposePidAndPort) {
-                /// Writes the PID of the current Java process in a `pid` file located in the working directory
-                writeFile(workingDirectory, "pid", ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
-
-                final String addressAndPort = addressToString(httpServer.getAddress());
-                // Writes the address and port of the http server in a `ports` file located in the working directory
-                writeFile(workingDirectory, "ports", addressAndPort);
-            }
-
-            httpServer.createContext("/", exchange -> {
-                try {
-                    Response response;
-
-                    // Check if this is a request made by the AntFixture
-                    final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
-                    if (userAgent != null
-                        && userAgent.startsWith("Apache Ant")
-                        && "GET".equals(exchange.getRequestMethod())
-                        && "/".equals(exchange.getRequestURI().getPath())) {
-                        response = new Response(200, TEXT_PLAIN_CONTENT_TYPE, "OK".getBytes(UTF_8));
-
-                    } else {
-                        try {
-                            final long requestId = requests.getAndIncrement();
-                            final String method = exchange.getRequestMethod();
-
-                            final Map<String, String> headers = new HashMap<>();
-                            for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
-                                headers.put(header.getKey(), exchange.getRequestHeaders().getFirst(header.getKey()));
-                            }
-
-                            final ByteArrayOutputStream body = new ByteArrayOutputStream();
-                            try (InputStream requestBody = exchange.getRequestBody()) {
-                                final byte[] buffer = new byte[1024];
-                                int i;
-                                while ((i = requestBody.read(buffer, 0, buffer.length)) != -1) {
-                                    body.write(buffer, 0, i);
-                                }
-                                body.flush();
-                            }
-
-                            final Request request = new Request(requestId, method, exchange.getRequestURI(), headers, body.toByteArray());
-                            response = handle(request);
-
-                        } catch (Exception e) {
-                            final String error = e.getMessage() != null ? e.getMessage() : "Exception when processing the request";
-                            response = new Response(500, singletonMap("Content-Type", "text/plain; charset=utf-8"), error.getBytes(UTF_8));
-                        }
-                    }
-
-                    if (response == null) {
-                        response = new Response(400, TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
-                    }
-
-                    response.headers.forEach((k, v) -> exchange.getResponseHeaders().put(k, singletonList(v)));
-                    if (response.body.length > 0) {
-                        exchange.sendResponseHeaders(response.status, response.body.length);
-                        exchange.getResponseBody().write(response.body);
-                    } else {
-                        exchange.sendResponseHeaders(response.status, -1);
-                    }
-                } finally {
-                    exchange.close();
-                }
-            });
-            httpServer.start();
-
+            listen(socketAddress, exposePidAndPort);
             // Wait to be killed
             Thread.sleep(Long.MAX_VALUE);
-
         } finally {
+            stop();
+        }
+    }
+
+    public final void listen(InetSocketAddress socketAddress, boolean exposePidAndPort) throws IOException, InterruptedException {
+        httpServer = HttpServer.create(socketAddress, 0);
+        if (exposePidAndPort) {
+            /// Writes the PID of the current Java process in a `pid` file located in the working directory
+            writeFile(workingDirectory, "pid", ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
+
+            final String addressAndPort = addressToString(httpServer.getAddress());
+            // Writes the address and port of the http server in a `ports` file located in the working directory
+            writeFile(workingDirectory, "ports", addressAndPort);
+        }
+
+        httpServer.createContext("/", exchange -> {
+            try {
+                Response response;
+
+                // Check if this is a request made by the AntFixture
+                final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
+                if (userAgent != null
+                    && userAgent.startsWith("Apache Ant")
+                    && "GET".equals(exchange.getRequestMethod())
+                    && "/".equals(exchange.getRequestURI().getPath())) {
+                    response = new Response(200, TEXT_PLAIN_CONTENT_TYPE, "OK".getBytes(UTF_8));
+
+                } else {
+                    try {
+                        final long requestId = requests.getAndIncrement();
+                        final String method = exchange.getRequestMethod();
+
+                        final Map<String, String> headers = new HashMap<>();
+                        for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
+                            headers.put(header.getKey(), exchange.getRequestHeaders().getFirst(header.getKey()));
+                        }
+
+                        final ByteArrayOutputStream body = new ByteArrayOutputStream();
+                        try (InputStream requestBody = exchange.getRequestBody()) {
+                            final byte[] buffer = new byte[1024];
+                            int i;
+                            while ((i = requestBody.read(buffer, 0, buffer.length)) != -1) {
+                                body.write(buffer, 0, i);
+                            }
+                            body.flush();
+                        }
+
+                        final Request request = new Request(requestId, method, exchange.getRequestURI(), headers, body.toByteArray());
+                        response = handle(request);
+
+                    } catch (Exception e) {
+                        final String error = e.getMessage() != null ? e.getMessage() : "Exception when processing the request";
+                        response = new Response(500, singletonMap("Content-Type", "text/plain; charset=utf-8"), error.getBytes(UTF_8));
+                    }
+                }
+
+                if (response == null) {
+                    response = new Response(400, TEXT_PLAIN_CONTENT_TYPE, EMPTY_BYTE);
+                }
+
+                response.headers.forEach((k, v) -> exchange.getResponseHeaders().put(k, singletonList(v)));
+                if (response.body.length > 0) {
+                    exchange.sendResponseHeaders(response.status, response.body.length);
+                    exchange.getResponseBody().write(response.body);
+                } else {
+                    exchange.sendResponseHeaders(response.status, -1);
+                }
+            } finally {
+                exchange.close();
+            }
+        });
+        httpServer.start();
+    }
+
+    protected abstract Response handle(Request request) throws IOException;
+
+    protected void stop() {
+        if (httpServer != null) {
             httpServer.stop(0);
         }
     }
 
-    protected abstract Response handle(Request request) throws IOException;
+    public String getAddress() {
+        return "http://127.0.0.1:" + httpServer.getAddress().getPort();
+    }
+
+    public String getHostAndPort() {
+        return "127.0.0.1:" + httpServer.getAddress().getPort();
+    }
 
     @FunctionalInterface
     public interface RequestHandler {
@@ -203,7 +227,7 @@ public abstract class AbstractHttpFixture {
             final Map<String, String> params = new HashMap<>();
             if (uri.getQuery() != null && uri.getQuery().length() > 0) {
                 for (String param : uri.getQuery().split("&")) {
-                    int i = param.indexOf("=");
+                    int i = param.indexOf('=');
                     if (i > 0) {
                         params.put(param.substring(0, i), param.substring(i + 1));
                     } else {

@@ -13,13 +13,11 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -43,6 +41,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHAS
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateAllSearchableSnapshotActionsUseSameRepository;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateFrozenPhaseHasSearchableSnapshotAction;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateReplicateFor;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,13 +50,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
-    private static final AllocateAction TEST_ALLOCATE_ACTION = new AllocateAction(
-        2,
-        20,
-        Collections.singletonMap("node", "node1"),
-        null,
-        null
-    );
+    private static final AllocateAction TEST_ALLOCATE_ACTION = new AllocateAction(2, 20, Map.of("node", "node1"), null, null);
     private static final DeleteAction TEST_DELETE_ACTION = DeleteAction.WITH_SNAPSHOT_DELETE;
 
     private static final WaitForSnapshotAction TEST_WAIT_FOR_SNAPSHOT_ACTION = new WaitForSnapshotAction("policy");
@@ -74,7 +67,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         null,
         null
     );
-    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
+    private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null, false);
     private static final ReadOnlyAction TEST_READ_ONLY_ACTION = new ReadOnlyAction();
     private static final SetPriorityAction TEST_PRIORITY_ACTION = new SetPriorityAction(0);
 
@@ -82,7 +75,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = MigrateAction.DISABLED;
-    private static final DownsampleAction TEST_DOWNSAMPLE_ACTION = new DownsampleAction(DateHistogramInterval.DAY);
+    public static final TimeValue TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
+    private static final DownsampleAction TEST_DOWNSAMPLE_ACTION = new DownsampleAction(DateHistogramInterval.DAY, TIMEOUT);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -90,7 +84,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         if (invalid) {
             phaseName += randomAlphaOfLength(5);
         }
-        Map<String, Phase> phases = Collections.singletonMap(phaseName, new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
+        Map<String, Phase> phases = Map.of(phaseName, new Phase(phaseName, TimeValue.ZERO, Map.of()));
         if (invalid) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE.validate(phases.values()));
             assertThat(e.getMessage(), equalTo("Timeseries lifecycle does not support phase [" + phaseName + "]"));
@@ -108,7 +102,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             invalidAction = getTestAction(randomFrom("allocate", "delete", "freeze"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
-        Map<String, Phase> hotPhase = Collections.singletonMap("hot", new Phase("hot", TimeValue.ZERO, actions));
+        Map<String, Phase> hotPhase = Map.of("hot", new Phase("hot", TimeValue.ZERO, actions));
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE.validate(hotPhase.values()));
@@ -122,14 +116,14 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 final Map<String, LifecycleAction> hotActionMap = hotActions.stream()
                     .map(this::getTestAction)
                     .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
-                TimeseriesLifecycleType.INSTANCE.validate(Collections.singleton(new Phase("hot", TimeValue.ZERO, hotActionMap)));
+                TimeseriesLifecycleType.INSTANCE.validate(List.of(new Phase("hot", TimeValue.ZERO, hotActionMap)));
             };
 
-            validateHotActions.accept(Arrays.asList(RolloverAction.NAME));
-            validateHotActions.accept(Arrays.asList(RolloverAction.NAME, ForceMergeAction.NAME));
+            validateHotActions.accept(List.of(RolloverAction.NAME));
+            validateHotActions.accept(List.of(RolloverAction.NAME, ForceMergeAction.NAME));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> validateHotActions.accept(Arrays.asList(ForceMergeAction.NAME))
+                () -> validateHotActions.accept(List.of(ForceMergeAction.NAME))
             );
             assertThat(
                 e.getMessage(),
@@ -147,7 +141,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             invalidAction = getTestAction(randomFrom("rollover", "delete", "freeze"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
-        Map<String, Phase> warmPhase = Collections.singletonMap("warm", new Phase("warm", TimeValue.ZERO, actions));
+        Map<String, Phase> warmPhase = Map.of("warm", new Phase("warm", TimeValue.ZERO, actions));
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE.validate(warmPhase.values()));
@@ -166,7 +160,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             invalidAction = getTestAction(randomFrom("rollover", "delete", "forcemerge", "shrink"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
-        Map<String, Phase> coldPhase = Collections.singletonMap("cold", new Phase("cold", TimeValue.ZERO, actions));
+        Map<String, Phase> coldPhase = Map.of("cold", new Phase("cold", TimeValue.ZERO, actions));
 
         if (invalidAction != null) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> TimeseriesLifecycleType.INSTANCE.validate(coldPhase.values()));
@@ -187,7 +181,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             invalidAction = getTestAction(randomFrom("rollover", "delete", "forcemerge", "shrink"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
-        Map<String, Phase> frozenPhase = Collections.singletonMap("frozen", new Phase("frozen", TimeValue.ZERO, actions));
+        Map<String, Phase> frozenPhase = Map.of("frozen", new Phase("frozen", TimeValue.ZERO, actions));
 
         if (invalidAction != null) {
             Exception e = expectThrows(
@@ -209,7 +203,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             invalidAction = getTestAction(randomFrom("allocate", "rollover", "forcemerge", "shrink", "freeze", "set_priority"));
             actions.put(invalidAction.getWriteableName(), invalidAction);
         }
-        Map<String, Phase> deletePhase = Collections.singletonMap("delete", new Phase("delete", TimeValue.ZERO, actions));
+        Map<String, Phase> deletePhase = Map.of("delete", new Phase("delete", TimeValue.ZERO, actions));
 
         if (invalidAction != null) {
             Exception e = expectThrows(
@@ -260,7 +254,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testValidateActionsFollowingSearchableSnapshot() {
         {
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false)));
             Phase coldPhase = new Phase("cold", TimeValue.ZERO, Map.of(FreezeAction.NAME, FreezeAction.INSTANCE));
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -276,7 +270,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false)));
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
@@ -298,7 +292,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
         {
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(ShrinkAction.NAME, new ShrinkAction(1, null, false)));
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
@@ -366,12 +360,12 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT))
             );
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT))
             );
 
             IllegalArgumentException e = expectThrows(
@@ -388,12 +382,12 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT))
             );
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30)))
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30), TIMEOUT))
             );
 
             IllegalArgumentException e = expectThrows(
@@ -410,12 +404,12 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1)))
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(1), TIMEOUT))
             );
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(130)))
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(130), TIMEOUT))
             );
 
             IllegalArgumentException e = expectThrows(
@@ -436,18 +430,18 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                     RolloverAction.NAME,
                     TEST_ROLLOVER_ACTION,
                     DownsampleAction.NAME,
-                    new DownsampleAction(DateHistogramInterval.minutes(10))
+                    new DownsampleAction(DateHistogramInterval.minutes(10), TIMEOUT)
                 )
             );
             Phase warmPhase = new Phase(
                 "warm",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30)))
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.minutes(30), TIMEOUT))
             );
             Phase coldPhase = new Phase(
                 "cold",
                 TimeValue.ZERO,
-                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(2)))
+                Map.of(DownsampleAction.NAME, new DownsampleAction(DateHistogramInterval.hours(2), TIMEOUT))
             );
 
             // This is a valid interval combination
@@ -458,7 +452,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testGetOrderedPhases() {
         Map<String, Phase> phaseMap = new HashMap<>();
         for (String phaseName : randomSubsetOf(randomIntBetween(0, ORDERED_VALID_PHASES.size()), ORDERED_VALID_PHASES)) {
-            phaseMap.put(phaseName, new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
+            phaseMap.put(phaseName, new Phase(phaseName, TimeValue.ZERO, Map.of()));
         }
 
         assertTrue(isSorted(TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap), Phase::getName, ORDERED_VALID_PHASES));
@@ -481,6 +475,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertTrue(isUnfollowInjected("warm", ShrinkAction.NAME));
         assertTrue(isUnfollowInjected("cold", SearchableSnapshotAction.NAME));
         assertTrue(isUnfollowInjected("frozen", SearchableSnapshotAction.NAME));
+
+        assertTrue(isUnfollowInjected("warm", DownsampleAction.NAME));
+        assertTrue(isUnfollowInjected("cold", DownsampleAction.NAME));
 
         assertFalse(isUnfollowInjected("hot", SetPriorityAction.NAME));
         assertFalse(isUnfollowInjected("warm", SetPriorityAction.NAME));
@@ -508,7 +505,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testGetOrderedActionsInvalidPhase() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.INSTANCE.getOrderedActions(new Phase("invalid", TimeValue.ZERO, Collections.emptyMap()))
+            () -> TimeseriesLifecycleType.INSTANCE.getOrderedActions(new Phase("invalid", TimeValue.ZERO, Map.of()))
         );
         assertThat(exception.getMessage(), equalTo("lifecycle type [timeseries] does not support phase [invalid]"));
     }
@@ -552,364 +549,6 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         assertTrue(isSorted(orderedActions, LifecycleAction::getWriteableName, ORDERED_VALID_DELETE_ACTIONS));
     }
 
-    public void testGetNextPhaseName() {
-        assertNextPhaseName("hot", "warm", new String[] { "hot", "warm" });
-        assertNextPhaseName("hot", "warm", new String[] { "hot", "warm", "cold" });
-        assertNextPhaseName("hot", "warm", new String[] { "hot", "warm", "cold", "delete" });
-        assertNextPhaseName("hot", "warm", new String[] { "warm", "cold", "delete" });
-        assertNextPhaseName("hot", "warm", new String[] { "warm", "cold", "delete" });
-        assertNextPhaseName("hot", "warm", new String[] { "warm", "delete" });
-        assertNextPhaseName("hot", "cold", new String[] { "cold", "delete" });
-        assertNextPhaseName("hot", "cold", new String[] { "cold" });
-        assertNextPhaseName("hot", "delete", new String[] { "hot", "delete" });
-        assertNextPhaseName("hot", "delete", new String[] { "delete" });
-        assertNextPhaseName("hot", null, new String[] { "hot" });
-        assertNextPhaseName("hot", null, new String[] {});
-
-        assertNextPhaseName("warm", "cold", new String[] { "hot", "warm", "cold", "delete" });
-        assertNextPhaseName("warm", "cold", new String[] { "warm", "cold", "delete" });
-        assertNextPhaseName("warm", "cold", new String[] { "cold", "delete" });
-        assertNextPhaseName("warm", "cold", new String[] { "cold" });
-        assertNextPhaseName("warm", "delete", new String[] { "hot", "warm", "delete" });
-        assertNextPhaseName("warm", null, new String[] { "hot", "warm" });
-        assertNextPhaseName("warm", null, new String[] { "warm" });
-        assertNextPhaseName("warm", null, new String[] { "hot" });
-        assertNextPhaseName("warm", null, new String[] {});
-
-        assertNextPhaseName("cold", "delete", new String[] { "hot", "warm", "cold", "delete" });
-        assertNextPhaseName("cold", "delete", new String[] { "warm", "cold", "delete" });
-        assertNextPhaseName("cold", "delete", new String[] { "cold", "delete" });
-        assertNextPhaseName("cold", "delete", new String[] { "delete" });
-        assertNextPhaseName("cold", "delete", new String[] { "hot", "warm", "delete" });
-        assertNextPhaseName("cold", null, new String[] { "hot", "warm", "cold" });
-        assertNextPhaseName("cold", null, new String[] { "hot", "warm" });
-        assertNextPhaseName("cold", null, new String[] { "cold" });
-        assertNextPhaseName("cold", null, new String[] { "hot" });
-        assertNextPhaseName("cold", null, new String[] {});
-
-        assertNextPhaseName("delete", null, new String[] { "hot", "warm", "cold" });
-        assertNextPhaseName("delete", null, new String[] { "hot", "warm" });
-        assertNextPhaseName("delete", null, new String[] { "cold" });
-        assertNextPhaseName("delete", null, new String[] { "hot" });
-        assertNextPhaseName("delete", null, new String[] {});
-        assertNextPhaseName("delete", null, new String[] { "hot", "warm", "cold", "delete" });
-        assertNextPhaseName("delete", null, new String[] { "hot", "warm", "delete" });
-        assertNextPhaseName("delete", null, new String[] { "cold", "delete" });
-        assertNextPhaseName("delete", null, new String[] { "delete" });
-        assertNextPhaseName("delete", null, new String[] {});
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.INSTANCE.getNextPhaseName("foo", Collections.emptyMap())
-        );
-        assertEquals("[foo] is not a valid phase for lifecycle type [" + TimeseriesLifecycleType.TYPE + "]", exception.getMessage());
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.INSTANCE.getNextPhaseName(
-                "foo",
-                Collections.singletonMap("foo", new Phase("foo", TimeValue.ZERO, Collections.emptyMap()))
-            )
-        );
-        assertEquals("[foo] is not a valid phase for lifecycle type [" + TimeseriesLifecycleType.TYPE + "]", exception.getMessage());
-    }
-
-    public void testGetPreviousPhaseName() {
-        assertPreviousPhaseName("hot", null, new String[] { "hot", "warm" });
-        assertPreviousPhaseName("hot", null, new String[] { "hot", "warm", "cold" });
-        assertPreviousPhaseName("hot", null, new String[] { "hot", "warm", "cold", "delete" });
-        assertPreviousPhaseName("hot", null, new String[] { "warm", "cold", "delete" });
-        assertPreviousPhaseName("hot", null, new String[] { "warm", "delete" });
-        assertPreviousPhaseName("hot", null, new String[] { "cold", "delete" });
-        assertPreviousPhaseName("hot", null, new String[] { "cold" });
-        assertPreviousPhaseName("hot", null, new String[] { "hot", "delete" });
-        assertPreviousPhaseName("hot", null, new String[] { "delete" });
-        assertPreviousPhaseName("hot", null, new String[] { "hot" });
-        assertPreviousPhaseName("hot", null, new String[] {});
-
-        assertPreviousPhaseName("warm", "hot", new String[] { "hot", "warm", "cold", "delete" });
-        assertPreviousPhaseName("warm", null, new String[] { "warm", "cold", "delete" });
-        assertPreviousPhaseName("warm", "hot", new String[] { "hot", "cold", "delete" });
-        assertPreviousPhaseName("warm", null, new String[] { "cold", "delete" });
-        assertPreviousPhaseName("warm", "hot", new String[] { "hot", "delete" });
-        assertPreviousPhaseName("warm", null, new String[] { "delete" });
-        assertPreviousPhaseName("warm", "hot", new String[] { "hot" });
-        assertPreviousPhaseName("warm", null, new String[] {});
-
-        assertPreviousPhaseName("cold", "warm", new String[] { "hot", "warm", "cold", "delete" });
-        assertPreviousPhaseName("cold", "hot", new String[] { "hot", "cold", "delete" });
-        assertPreviousPhaseName("cold", "warm", new String[] { "warm", "cold", "delete" });
-        assertPreviousPhaseName("cold", null, new String[] { "cold", "delete" });
-        assertPreviousPhaseName("cold", "warm", new String[] { "hot", "warm", "delete" });
-        assertPreviousPhaseName("cold", "hot", new String[] { "hot", "delete" });
-        assertPreviousPhaseName("cold", "warm", new String[] { "warm", "delete" });
-        assertPreviousPhaseName("cold", null, new String[] { "delete" });
-        assertPreviousPhaseName("cold", "warm", new String[] { "hot", "warm" });
-        assertPreviousPhaseName("cold", "hot", new String[] { "hot" });
-        assertPreviousPhaseName("cold", "warm", new String[] { "warm" });
-        assertPreviousPhaseName("cold", null, new String[] {});
-
-        assertPreviousPhaseName("delete", "cold", new String[] { "hot", "warm", "cold", "delete" });
-        assertPreviousPhaseName("delete", "cold", new String[] { "warm", "cold", "delete" });
-        assertPreviousPhaseName("delete", "warm", new String[] { "hot", "warm", "delete" });
-        assertPreviousPhaseName("delete", "hot", new String[] { "hot", "delete" });
-        assertPreviousPhaseName("delete", "cold", new String[] { "cold", "delete" });
-        assertPreviousPhaseName("delete", null, new String[] { "delete" });
-        assertPreviousPhaseName("delete", "cold", new String[] { "hot", "warm", "cold" });
-        assertPreviousPhaseName("delete", "cold", new String[] { "warm", "cold" });
-        assertPreviousPhaseName("delete", "warm", new String[] { "hot", "warm" });
-        assertPreviousPhaseName("delete", "hot", new String[] { "hot" });
-        assertPreviousPhaseName("delete", "cold", new String[] { "cold" });
-        assertPreviousPhaseName("delete", null, new String[] {});
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.INSTANCE.getPreviousPhaseName("foo", Collections.emptyMap())
-        );
-        assertEquals("[foo] is not a valid phase for lifecycle type [" + TimeseriesLifecycleType.TYPE + "]", exception.getMessage());
-        exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.INSTANCE.getPreviousPhaseName(
-                "foo",
-                Collections.singletonMap("foo", new Phase("foo", TimeValue.ZERO, Collections.emptyMap()))
-            )
-        );
-        assertEquals("[foo] is not a valid phase for lifecycle type [" + TimeseriesLifecycleType.TYPE + "]", exception.getMessage());
-    }
-
-    public void testGetNextActionName() {
-        // Hot Phase
-        assertNextActionName("hot", SetPriorityAction.NAME, UnfollowAction.NAME, new String[] { UnfollowAction.NAME, RolloverAction.NAME });
-        assertNextActionName("hot", SetPriorityAction.NAME, RolloverAction.NAME, new String[] { RolloverAction.NAME });
-        assertNextActionName("hot", SetPriorityAction.NAME, null, new String[] {});
-
-        assertNextActionName("hot", RolloverAction.NAME, null, new String[] {});
-        assertNextActionName("hot", RolloverAction.NAME, null, new String[] { RolloverAction.NAME });
-        assertNextActionName("hot", RolloverAction.NAME, ForceMergeAction.NAME, ForceMergeAction.NAME, RolloverAction.NAME);
-        assertNextActionName("hot", ForceMergeAction.NAME, null, RolloverAction.NAME, ForceMergeAction.NAME);
-
-        assertInvalidAction("hot", "foo", new String[] { RolloverAction.NAME });
-        assertInvalidAction("hot", AllocateAction.NAME, new String[] { RolloverAction.NAME });
-        assertInvalidAction("hot", DeleteAction.NAME, new String[] { RolloverAction.NAME });
-
-        // Warm Phase
-        assertNextActionName(
-            "warm",
-            SetPriorityAction.NAME,
-            UnfollowAction.NAME,
-            new String[] {
-                SetPriorityAction.NAME,
-                UnfollowAction.NAME,
-                ReadOnlyAction.NAME,
-                AllocateAction.NAME,
-                ShrinkAction.NAME,
-                ForceMergeAction.NAME }
-        );
-        assertNextActionName(
-            "warm",
-            SetPriorityAction.NAME,
-            ReadOnlyAction.NAME,
-            new String[] { SetPriorityAction.NAME, ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName(
-            "warm",
-            SetPriorityAction.NAME,
-            AllocateAction.NAME,
-            new String[] { SetPriorityAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName(
-            "warm",
-            SetPriorityAction.NAME,
-            ShrinkAction.NAME,
-            new String[] { SetPriorityAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName(
-            "warm",
-            SetPriorityAction.NAME,
-            ForceMergeAction.NAME,
-            new String[] { SetPriorityAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName("warm", SetPriorityAction.NAME, null, new String[] { SetPriorityAction.NAME });
-
-        assertNextActionName(
-            "warm",
-            UnfollowAction.NAME,
-            ReadOnlyAction.NAME,
-            new String[] { SetPriorityAction.NAME, ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName(
-            "warm",
-            UnfollowAction.NAME,
-            ReadOnlyAction.NAME,
-            new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName(
-            "warm",
-            UnfollowAction.NAME,
-            AllocateAction.NAME,
-            new String[] { AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName("warm", UnfollowAction.NAME, ShrinkAction.NAME, new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
-        assertNextActionName("warm", UnfollowAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
-        assertNextActionName("warm", UnfollowAction.NAME, null, new String[] {});
-
-        assertNextActionName(
-            "warm",
-            ReadOnlyAction.NAME,
-            AllocateAction.NAME,
-            new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName(
-            "warm",
-            ReadOnlyAction.NAME,
-            ShrinkAction.NAME,
-            new String[] { ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName(
-            "warm",
-            ReadOnlyAction.NAME,
-            ForceMergeAction.NAME,
-            new String[] { ReadOnlyAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName("warm", ReadOnlyAction.NAME, null, new String[] { ReadOnlyAction.NAME });
-
-        assertNextActionName(
-            "warm",
-            ReadOnlyAction.NAME,
-            AllocateAction.NAME,
-            new String[] { AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName("warm", ReadOnlyAction.NAME, ShrinkAction.NAME, new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
-        assertNextActionName("warm", ReadOnlyAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
-        assertNextActionName("warm", ReadOnlyAction.NAME, null, new String[] {});
-
-        assertNextActionName(
-            "warm",
-            AllocateAction.NAME,
-            ShrinkAction.NAME,
-            new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName(
-            "warm",
-            AllocateAction.NAME,
-            ForceMergeAction.NAME,
-            new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName("warm", AllocateAction.NAME, null, new String[] { ReadOnlyAction.NAME, AllocateAction.NAME });
-
-        assertNextActionName("warm", AllocateAction.NAME, ShrinkAction.NAME, new String[] { ShrinkAction.NAME, ForceMergeAction.NAME });
-        assertNextActionName("warm", AllocateAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
-        assertNextActionName("warm", AllocateAction.NAME, null, new String[] {});
-
-        assertNextActionName(
-            "warm",
-            ShrinkAction.NAME,
-            ForceMergeAction.NAME,
-            new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertNextActionName("warm", ShrinkAction.NAME, null, new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME });
-
-        assertNextActionName("warm", ShrinkAction.NAME, ForceMergeAction.NAME, new String[] { ForceMergeAction.NAME });
-        assertNextActionName("warm", ShrinkAction.NAME, null, new String[] {});
-
-        assertNextActionName(
-            "warm",
-            ForceMergeAction.NAME,
-            null,
-            new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-
-        assertNextActionName("warm", ForceMergeAction.NAME, null, new String[] {});
-
-        assertInvalidAction("warm", "foo", new String[] { RolloverAction.NAME });
-        assertInvalidAction(
-            "warm",
-            DeleteAction.NAME,
-            new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-        assertInvalidAction(
-            "warm",
-            RolloverAction.NAME,
-            new String[] { ReadOnlyAction.NAME, AllocateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME }
-        );
-
-        // Cold Phase
-        assertNextActionName(
-            "cold",
-            SetPriorityAction.NAME,
-            UnfollowAction.NAME,
-            new String[] { UnfollowAction.NAME, SetPriorityAction.NAME, FreezeAction.NAME }
-        );
-        assertNextActionName("cold", SetPriorityAction.NAME, FreezeAction.NAME, new String[] { SetPriorityAction.NAME, FreezeAction.NAME });
-        assertNextActionName(
-            "cold",
-            SetPriorityAction.NAME,
-            AllocateAction.NAME,
-            new String[] { SetPriorityAction.NAME, AllocateAction.NAME }
-        );
-        assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] { SetPriorityAction.NAME });
-        assertNextActionName("cold", SetPriorityAction.NAME, null, new String[] {});
-
-        assertNextActionName(
-            "cold",
-            UnfollowAction.NAME,
-            ReadOnlyAction.NAME,
-            new String[] { ReadOnlyAction.NAME, SearchableSnapshotAction.NAME, SetPriorityAction.NAME, AllocateAction.NAME }
-        );
-        assertNextActionName(
-            "cold",
-            UnfollowAction.NAME,
-            SearchableSnapshotAction.NAME,
-            new String[] { SearchableSnapshotAction.NAME, AllocateAction.NAME, FreezeAction.NAME }
-        );
-        assertNextActionName(
-            "cold",
-            UnfollowAction.NAME,
-            AllocateAction.NAME,
-            new String[] { SetPriorityAction.NAME, AllocateAction.NAME, FreezeAction.NAME }
-        );
-        assertNextActionName("cold", UnfollowAction.NAME, AllocateAction.NAME, new String[] { AllocateAction.NAME, FreezeAction.NAME });
-        assertNextActionName("cold", UnfollowAction.NAME, FreezeAction.NAME, new String[] { FreezeAction.NAME });
-        assertNextActionName("cold", UnfollowAction.NAME, null, new String[] {});
-
-        assertNextActionName("cold", AllocateAction.NAME, null, new String[] { AllocateAction.NAME });
-        assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
-        assertNextActionName("cold", AllocateAction.NAME, null, new String[] {});
-        assertNextActionName("cold", AllocateAction.NAME, FreezeAction.NAME, FreezeAction.NAME);
-
-        assertNextActionName("cold", FreezeAction.NAME, null);
-        assertNextActionName("cold", FreezeAction.NAME, null, AllocateAction.NAME);
-
-        assertInvalidAction("cold", "foo", new String[] { AllocateAction.NAME });
-        assertInvalidAction("cold", DeleteAction.NAME, new String[] { AllocateAction.NAME });
-        assertInvalidAction("cold", ForceMergeAction.NAME, new String[] { AllocateAction.NAME });
-        assertInvalidAction("cold", RolloverAction.NAME, new String[] { AllocateAction.NAME });
-        assertInvalidAction("cold", ShrinkAction.NAME, new String[] { AllocateAction.NAME });
-
-        // Delete Phase
-        assertNextActionName("delete", DeleteAction.NAME, null, new String[] {});
-        assertNextActionName("delete", DeleteAction.NAME, null, new String[] { DeleteAction.NAME });
-
-        assertInvalidAction("delete", "foo", new String[] { DeleteAction.NAME });
-        assertInvalidAction("delete", AllocateAction.NAME, new String[] { DeleteAction.NAME });
-        assertInvalidAction("delete", ForceMergeAction.NAME, new String[] { DeleteAction.NAME });
-        assertInvalidAction("delete", ReadOnlyAction.NAME, new String[] { DeleteAction.NAME });
-        assertInvalidAction("delete", RolloverAction.NAME, new String[] { DeleteAction.NAME });
-        assertInvalidAction("delete", ShrinkAction.NAME, new String[] { DeleteAction.NAME });
-        assertInvalidAction("delete", FreezeAction.NAME, new String[] { DeleteAction.NAME });
-        assertInvalidAction("delete", SetPriorityAction.NAME, new String[] { DeleteAction.NAME });
-        assertInvalidAction("delete", UnfollowAction.NAME, new String[] { DeleteAction.NAME });
-
-        Phase phase = new Phase("foo", TimeValue.ZERO, Collections.emptyMap());
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.INSTANCE.getNextActionName(ShrinkAction.NAME, phase)
-        );
-        assertEquals(
-            "lifecycle type [" + TimeseriesLifecycleType.TYPE + "] does not support phase [" + phase.getName() + "]",
-            exception.getMessage()
-        );
-    }
-
     public void testShouldMigrateDataToTiers() {
         {
             // there's an allocate action
@@ -940,25 +579,25 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
         {
             // not inject in hot phase
-            Phase phase = new Phase(HOT_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase phase = new Phase(HOT_PHASE, TimeValue.ZERO, Map.of());
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
         {
             // not inject in frozen phase
-            Phase phase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase phase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Map.of());
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
         {
             // not inject in delete phase
-            Phase phase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase phase = new Phase(DELETE_PHASE, TimeValue.ZERO, Map.of());
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
 
         {
             // return false for invalid phase
-            Phase phase = new Phase(HOT_PHASE + randomAlphaOfLength(5), TimeValue.ZERO, Collections.emptyMap());
+            Phase phase = new Phase(HOT_PHASE + randomAlphaOfLength(5), TimeValue.ZERO, Map.of());
             assertThat(TimeseriesLifecycleType.shouldInjectMigrateStepForPhase(phase), is(false));
         }
     }
@@ -977,7 +616,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase coldPhase = new Phase(HOT_PHASE, TimeValue.ZERO, coldActions);
             Phase frozenPhase = new Phase(HOT_PHASE, TimeValue.ZERO, frozenActions);
 
-            validateAllSearchableSnapshotActionsUseSameRepository(Arrays.asList(hotPhase, coldPhase, frozenPhase));
+            validateAllSearchableSnapshotActionsUseSameRepository(List.of(hotPhase, coldPhase, frozenPhase));
         }
 
         {
@@ -991,7 +630,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> validateAllSearchableSnapshotActionsUseSameRepository(Arrays.asList(hotPhase, coldPhase, frozenPhase))
+                () -> validateAllSearchableSnapshotActionsUseSameRepository(List.of(hotPhase, coldPhase, frozenPhase))
             );
             assertThat(
                 e.getMessage(),
@@ -1006,25 +645,25 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testValidatingIncreasingAges() {
         {
-            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.ZERO, Collections.emptyMap());
-            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.ZERO, Collections.emptyMap());
-            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
-            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Map.of());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.ZERO, Map.of());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.ZERO, Map.of());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Map.of());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.ZERO, Map.of());
 
             assertFalse(
                 Strings.hasText(
-                    validateMonotonicallyIncreasingPhaseTimings(Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase))
+                    validateMonotonicallyIncreasingPhaseTimings(List.of(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase))
                 )
             );
         }
 
         {
-            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Map.of());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(1), Map.of());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueDays(1), Map.of());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(1), Map.of());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Map.of());
 
             List<Phase> phases = new ArrayList<>();
             phases.add(hotPhase);
@@ -1044,15 +683,13 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.ZERO, Collections.emptyMap());
-            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueHours(12), Collections.emptyMap());
-            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Collections.emptyMap());
-            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.ZERO, Collections.emptyMap());
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Map.of());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.ZERO, Map.of());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueHours(12), Map.of());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, Map.of());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.ZERO, Map.of());
 
-            String err = validateMonotonicallyIncreasingPhaseTimings(
-                Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase)
-            );
+            String err = validateMonotonicallyIncreasingPhaseTimings(List.of(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
             assertThat(
                 err,
@@ -1065,15 +702,13 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
-            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
-            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Map.of());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Map.of());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Map.of());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(1), Map.of());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(2), Map.of());
 
-            String err = validateMonotonicallyIncreasingPhaseTimings(
-                Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase)
-            );
+            String err = validateMonotonicallyIncreasingPhaseTimings(List.of(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
             assertThat(
                 err,
@@ -1086,15 +721,13 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
-            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
-            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
-            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
-            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Map.of());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(3), Map.of());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Map.of());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Map.of());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Map.of());
 
-            String err = validateMonotonicallyIncreasingPhaseTimings(
-                Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase)
-            );
+            String err = validateMonotonicallyIncreasingPhaseTimings(List.of(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
             assertThat(
                 err,
@@ -1107,15 +740,13 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
-            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
-            Phase coldPhase = new Phase(COLD_PHASE, null, Collections.emptyMap());
-            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
-            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(3), Map.of());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(2), Map.of());
+            Phase coldPhase = new Phase(COLD_PHASE, null, Map.of());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Map.of());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Map.of());
 
-            String err = validateMonotonicallyIncreasingPhaseTimings(
-                Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase)
-            );
+            String err = validateMonotonicallyIncreasingPhaseTimings(List.of(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
             assertThat(
                 err,
@@ -1129,15 +760,13 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
 
         {
-            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(3), Collections.emptyMap());
-            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
-            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
-            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Collections.emptyMap());
-            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(3), Map.of());
+            Phase warmPhase = new Phase(WARM_PHASE, TimeValue.timeValueDays(2), Map.of());
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueDays(2), Map.of());
+            Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.timeValueDays(2), Map.of());
+            Phase deletePhase = new Phase(DELETE_PHASE, TimeValue.timeValueDays(1), Map.of());
 
-            String err = validateMonotonicallyIncreasingPhaseTimings(
-                Arrays.asList(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase)
-            );
+            String err = validateMonotonicallyIncreasingPhaseTimings(List.of(hotPhase, warmPhase, coldPhase, frozenPhase, deletePhase));
 
             assertThat(
                 err,
@@ -1156,7 +785,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Map<String, LifecycleAction> frozenActions = new HashMap<>();
             frozenActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo1", randomBoolean()));
             Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, frozenActions);
-            validateFrozenPhaseHasSearchableSnapshotAction(Collections.singleton(frozenPhase));
+            validateFrozenPhaseHasSearchableSnapshotAction(List.of(frozenPhase));
         }
 
         {
@@ -1164,7 +793,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             Phase frozenPhase = new Phase(FROZEN_PHASE, TimeValue.ZERO, frozenActions);
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> validateFrozenPhaseHasSearchableSnapshotAction(Collections.singleton(frozenPhase))
+                () -> validateFrozenPhaseHasSearchableSnapshotAction(List.of(frozenPhase))
             );
             assertThat(
                 e.getMessage(),
@@ -1176,85 +805,81 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
     }
 
-    private void assertNextActionName(String phaseName, String currentAction, String expectedNextAction, String... availableActionNames) {
-        Map<String, LifecycleAction> availableActions = convertActionNamesToActions(availableActionNames);
-        Phase phase = new Phase(phaseName, TimeValue.ZERO, availableActions);
-        String nextAction = TimeseriesLifecycleType.INSTANCE.getNextActionName(currentAction, phase);
-        assertEquals(expectedNextAction, nextAction);
-    }
+    public void testValidateReplicateFor() {
+        IllegalArgumentException e;
 
-    private void assertInvalidAction(String phaseName, String currentAction, String... availableActionNames) {
-        Map<String, LifecycleAction> availableActions = convertActionNamesToActions(availableActionNames);
-        Phase phase = new Phase(phaseName, TimeValue.ZERO, availableActions);
-        IllegalArgumentException exception = expectThrows(
+        // a searchable_snapshot action with replicate_for set to 10d
+        final var searchableSnapshotAction = new SearchableSnapshotAction(
+            "repo",
+            randomBoolean(),
+            randomBoolean() ? null : randomIntBetween(1, 100), // the ESTestCase utility can produce zeroes, which we can't have here
+            TimeValue.timeValueDays(10)
+        );
+
+        // first test case: there's a replicate_for, but it isn't on the first searchable_snapshot action
+        e = expectThrows(
             IllegalArgumentException.class,
-            () -> TimeseriesLifecycleType.INSTANCE.getNextActionName(currentAction, phase)
+            () -> validateReplicateFor(
+                List.of(
+                    new Phase(
+                        HOT_PHASE,
+                        TimeValue.ZERO,
+                        Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION, SearchableSnapshotAction.NAME, searchableSnapshotAction)
+                    ),
+                    new Phase(COLD_PHASE, TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, searchableSnapshotAction))
+                )
+            )
         );
-        assertEquals(
-            "["
-                + currentAction
-                + "] is not a valid action for phase ["
-                + phaseName
-                + "] in lifecycle type ["
-                + TimeseriesLifecycleType.TYPE
-                + "]",
-            exception.getMessage()
+        assertThat(
+            e.getMessage(),
+            is(
+                "only the first searchable_snapshot action in a policy may specify 'replicate_for', "
+                    + "but it was specified in the [cold] phase"
+            )
         );
-    }
 
-    private ConcurrentMap<String, LifecycleAction> convertActionNamesToActions(String... availableActionNames) {
-        return Arrays.asList(availableActionNames).stream().map(n -> {
-            return switch (n) {
-                case AllocateAction.NAME -> new AllocateAction(
-                    null,
-                    null,
-                    Collections.singletonMap("foo", "bar"),
-                    Collections.emptyMap(),
-                    Collections.emptyMap()
-                );
-                case DeleteAction.NAME -> DeleteAction.WITH_SNAPSHOT_DELETE;
-                case ForceMergeAction.NAME -> new ForceMergeAction(1, null);
-                case ReadOnlyAction.NAME -> new ReadOnlyAction();
-                case RolloverAction.NAME -> new RolloverAction(
-                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
-                    ByteSizeValue.parseBytesSizeValue("0b", "test"),
-                    TimeValue.ZERO,
-                    1L,
-                    1L,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                );
-                case ShrinkAction.NAME -> new ShrinkAction(1, null);
-                case FreezeAction.NAME -> FreezeAction.INSTANCE;
-                case SetPriorityAction.NAME -> new SetPriorityAction(0);
-                case UnfollowAction.NAME -> UnfollowAction.INSTANCE;
-                case MigrateAction.NAME -> MigrateAction.ENABLED;
-                case DownsampleAction.NAME -> TEST_DOWNSAMPLE_ACTION;
-                case SearchableSnapshotAction.NAME -> TEST_SEARCHABLE_SNAPSHOT_ACTION;
-                default -> DeleteAction.WITH_SNAPSHOT_DELETE;
-            };
-        }).collect(Collectors.toConcurrentMap(LifecycleAction::getWriteableName, Function.identity()));
-    }
+        // second test case: there's a replicate_for, but the next phase has a shorter min_age
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateReplicateFor(
+                List.of(
+                    new Phase(
+                        HOT_PHASE,
+                        TimeValue.ZERO,
+                        Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION, SearchableSnapshotAction.NAME, searchableSnapshotAction)
+                    ),
+                    new Phase(WARM_PHASE, TimeValue.timeValueDays(5), Map.of(TEST_MIGRATE_ACTION.getWriteableName(), MigrateAction.ENABLED))
+                )
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            is(
+                "The time a searchable snapshot is replicated in replicate_for [10d] may not exceed the time "
+                    + "until the next phase is configured to begin. Based on the min_age [5d] of the [warm] phase, "
+                    + "the maximum time the snapshot can be replicated is [5d]."
+            )
+        );
 
-    private void assertNextPhaseName(String currentPhase, String expectedNextPhase, String... availablePhaseNames) {
-        Map<String, Phase> availablePhases = Arrays.asList(availablePhaseNames)
-            .stream()
-            .map(n -> new Phase(n, TimeValue.ZERO, Collections.emptyMap()))
-            .collect(Collectors.toMap(Phase::getName, Function.identity()));
-        String nextPhase = TimeseriesLifecycleType.INSTANCE.getNextPhaseName(currentPhase, availablePhases);
-        assertEquals(expectedNextPhase, nextPhase);
-    }
-
-    private void assertPreviousPhaseName(String currentPhase, String expectedNextPhase, String... availablePhaseNames) {
-        Map<String, Phase> availablePhases = Arrays.asList(availablePhaseNames)
-            .stream()
-            .map(n -> new Phase(n, TimeValue.ZERO, Collections.emptyMap()))
-            .collect(Collectors.toMap(Phase::getName, Function.identity()));
-        String nextPhase = TimeseriesLifecycleType.INSTANCE.getPreviousPhaseName(currentPhase, availablePhases);
-        assertEquals(expectedNextPhase, nextPhase);
+        // third test case: there's a replicate_for, but the implied min_age difference isn't sufficient
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateReplicateFor(
+                List.of(
+                    new Phase(HOT_PHASE, TimeValue.ZERO, Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION)),
+                    new Phase(COLD_PHASE, TimeValue.timeValueDays(5), Map.of(SearchableSnapshotAction.NAME, searchableSnapshotAction)),
+                    new Phase(DELETE_PHASE, TimeValue.timeValueDays(12), Map.of())
+                )
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            is(
+                "The time a searchable snapshot is replicated in replicate_for [10d] may not exceed the time "
+                    + "until the next phase is configured to begin. Based on the min_age [12d] of the [delete] phase, "
+                    + "the maximum time the snapshot can be replicated is [7d]."
+            )
+        );
     }
 
     /**

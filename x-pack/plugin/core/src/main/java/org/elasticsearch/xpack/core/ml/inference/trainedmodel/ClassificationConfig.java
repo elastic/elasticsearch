@@ -6,13 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -21,14 +23,13 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
 
     public static final ParseField NAME = new ParseField("classification");
 
-    public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     public static final ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
     public static final ParseField TOP_CLASSES_RESULTS_FIELD = new ParseField("top_classes_results_field");
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
     public static final ParseField PREDICTION_FIELD_TYPE = new ParseField("prediction_field_type");
-    private static final Version MIN_SUPPORTED_VERSION = Version.V_7_6_0;
+    private static final MlConfigVersion MIN_SUPPORTED_VERSION = MlConfigVersion.V_7_6_0;
 
-    public static ClassificationConfig EMPTY_PARAMS = new ClassificationConfig(
+    public static final ClassificationConfig EMPTY_PARAMS = new ClassificationConfig(
         0,
         DEFAULT_RESULTS_FIELD,
         DEFAULT_TOP_CLASSES_RESULTS_FIELD,
@@ -105,6 +106,33 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         this.resultsField = in.readString();
         this.numTopFeatureImportanceValues = in.readVInt();
         this.predictionFieldType = PredictionFieldType.fromStream(in);
+    }
+
+    @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof ClassificationConfigUpdate configUpdate) {
+            ClassificationConfig.Builder builder = new ClassificationConfig.Builder(this);
+            if (configUpdate.getResultsField() != null) {
+                builder.setResultsField(configUpdate.getResultsField());
+            }
+            if (configUpdate.getNumTopFeatureImportanceValues() != null) {
+                builder.setNumTopFeatureImportanceValues(configUpdate.getNumTopFeatureImportanceValues());
+            }
+            if (configUpdate.getTopClassesResultsField() != null) {
+                builder.setTopClassesResultsField(configUpdate.getTopClassesResultsField());
+            }
+            if (configUpdate.getNumTopClasses() != null) {
+                builder.setNumTopClasses(configUpdate.getNumTopClasses());
+            }
+            if (configUpdate.getPredictionFieldType() != null) {
+                builder.setPredictionFieldType(configUpdate.getPredictionFieldType());
+            }
+            return builder.build();
+        } else if (update instanceof ResultsFieldUpdate resultsFieldUpdate) {
+            return new ClassificationConfig.Builder(this).setResultsField(resultsFieldUpdate.getResultsField()).build();
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
     }
 
     public int getNumTopClasses() {
@@ -192,8 +220,13 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return requestingImportance() ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return requestingImportance() ? MlConfigVersion.V_7_7_0 : MIN_SUPPORTED_VERSION;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersions.ZERO;
     }
 
     public static Builder builder() {

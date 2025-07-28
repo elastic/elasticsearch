@@ -12,14 +12,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction.Response.CacheInfo;
@@ -33,7 +32,8 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
     TrainedModelCacheInfoAction.Request,
     TrainedModelCacheInfoAction.Response,
     TransportTrainedModelCacheInfoAction.NodeModelCacheInfoRequest,
-    CacheInfo> {
+    CacheInfo,
+    Void> {
 
     private final ModelLoadingService modelLoadingService;
 
@@ -47,14 +47,11 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
     ) {
         super(
             TrainedModelCacheInfoAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            TrainedModelCacheInfoAction.Request::new,
             NodeModelCacheInfoRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            CacheInfo.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.modelLoadingService = modelLoadingService;
     }
@@ -70,7 +67,7 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
 
     @Override
     protected NodeModelCacheInfoRequest newNodeRequest(TrainedModelCacheInfoAction.Request request) {
-        return new NodeModelCacheInfoRequest(request);
+        return new NodeModelCacheInfoRequest();
     }
 
     @Override
@@ -88,28 +85,17 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
         );
     }
 
-    public static class NodeModelCacheInfoRequest extends TransportRequest {
+    public static class NodeModelCacheInfoRequest extends AbstractTransportRequest {
 
-        TrainedModelCacheInfoAction.Request request;
+        NodeModelCacheInfoRequest() {}
 
         public NodeModelCacheInfoRequest(StreamInput in) throws IOException {
             super(in);
-            request = new TrainedModelCacheInfoAction.Request(in);
-        }
-
-        NodeModelCacheInfoRequest(TrainedModelCacheInfoAction.Request request) {
-            this.request = request;
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "", parentTaskId, headers);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            request.writeTo(out);
         }
     }
 }

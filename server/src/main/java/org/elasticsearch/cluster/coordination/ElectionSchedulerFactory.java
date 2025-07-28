@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -21,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.Random;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -94,11 +96,13 @@ public class ElectionSchedulerFactory {
     private final TimeValue maxTimeout;
     private final TimeValue duration;
     private final ThreadPool threadPool;
+    private final Executor clusterCoordinationExecutor;
     private final Random random;
 
     public ElectionSchedulerFactory(Settings settings, Random random, ThreadPool threadPool) {
         this.random = random;
         this.threadPool = threadPool;
+        this.clusterCoordinationExecutor = threadPool.executor(Names.CLUSTER_COORDINATION);
 
         initialTimeout = ELECTION_INITIAL_TIMEOUT_SETTING.get(settings);
         backoffTime = ELECTION_BACK_OFF_TIME_SETTING.get(settings);
@@ -191,6 +195,11 @@ public class ElectionSchedulerFactory {
                         logger.debug("{} not starting election", this);
                     } else {
                         logger.debug("{} starting election", this);
+                        if (thisAttempt > 0 && thisAttempt % 10 == 0) {
+                            logger.info("""
+                                retrying master election after [{}] failed attempts; \
+                                election attempts are currently scheduled up to [{}ms] apart""", thisAttempt, maxDelayMillis);
+                        }
                         scheduleNextElection(duration, scheduledRunnable);
                         scheduledRunnable.run();
                     }
@@ -213,16 +222,17 @@ public class ElectionSchedulerFactory {
             };
 
             logger.debug("scheduling {}", runnable);
-            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), Names.CLUSTER_COORDINATION, runnable);
+            threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(delayMillis), clusterCoordinationExecutor, runnable);
         }
 
         @Override
         public String toString() {
-            return "ElectionScheduler{attempt=" + attempt + ", " + ElectionSchedulerFactory.this + "}";
+            return "ElectionScheduler{attempt=" + attempt + ",isClosed=" + isClosed.get() + "," + ElectionSchedulerFactory.this + "}";
         }
 
         @Override
         public void close() {
+            logger.trace("closing {}", this);
             boolean wasNotPreviouslyClosed = isClosed.compareAndSet(false, true);
             assert wasNotPreviouslyClosed;
         }

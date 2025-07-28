@@ -3,8 +3,6 @@ setup:
       indices.create:
           index: test
           body:
-            settings:
-              number_of_replicas: 0
             mappings:
               properties:
                 double:
@@ -20,8 +18,6 @@ setup:
       indices.create:
         index: date_range_test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date:
@@ -32,16 +28,10 @@ setup:
       indices.create:
         index: long_value_test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               long:
                 type: long
-
-  - do:
-      cluster.health:
-        wait_for_status: yellow
 
   - do:
       bulk:
@@ -83,8 +73,8 @@ setup:
 
 ---
 "Float Endpoint Exclusive":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason:  Bug fixed in 7.16.0
   - do:
       search:
@@ -112,8 +102,8 @@ setup:
 
 ---
 "Half Float Endpoint Exclusive":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason:  Bug fixed in 7.16.0
   - do:
       search:
@@ -141,8 +131,8 @@ setup:
 
 ---
 "Float range":
-  - skip:
-      version: " - 7.17.0"
+  - requires:
+      cluster_features: ["gte_v7.17.1"]
       reason: Bug fixed in 8.1.0 and backported to 7.17.1
   - do:
       search:
@@ -180,8 +170,8 @@ setup:
 
 ---
 "Double range":
-  - skip:
-      version: " - 7.16.99"
+  - requires:
+      cluster_features: ["gte_v7.17.0"]
       reason: Bug fixed in 8.1.0 and backported to 7.17.0
   - do:
       search:
@@ -219,8 +209,8 @@ setup:
 
 ---
 "Double range on long field":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: Bug fixed in 8.1.0
   - do:
       search:
@@ -443,8 +433,8 @@ setup:
 
 ---
 "Range aggregation on date field":
-  - skip:
-      version: " - 7.16.99"
+  - requires:
+      cluster_features: ["gte_v7.17.0"]
       reason: Fixed in 8.1.0 and backported to 7.17.0
 
   - do:
@@ -472,8 +462,8 @@ setup:
 
 ---
 "Min and max long range bounds":
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: Bug fixed in 8.1.0
   - do:
       search:

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -19,11 +19,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -37,8 +35,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
 
     GetResult getResult;
 
-    GetResponse(StreamInput in) throws IOException {
-        super(in);
+    public GetResponse(StreamInput in) throws IOException {
         getResult = new GetResult(in);
     }
 
@@ -89,13 +86,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     }
 
     /**
-     * The source of the document if exists.
-     */
-    public byte[] getSourceAsBytes() {
-        return getResult.source();
-    }
-
-    /**
      * Returns the internal source bytes, as they are returned without munging (for example,
      * might still be compressed).
      */
@@ -132,7 +122,7 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     }
 
     public Map<String, Object> getSource() {
-        return getResult.getSource();
+        return getResult.sourceAsMap();
     }
 
     public Map<String, DocumentField> getFields() {
@@ -154,37 +144,6 @@ public class GetResponse extends ActionResponse implements Iterable<DocumentFiel
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return getResult.toXContent(builder, params);
-    }
-
-    /**
-     * This method can be used to parse a {@link GetResponse} object when it has been printed out
-     * as a xcontent using the {@link #toXContent(XContentBuilder, Params)} method.
-     * <p>
-     * For forward compatibility reason this method might not fail if it tries to parse a field it
-     * doesn't know. But before returning the result it will check that enough information were
-     * parsed to return a valid {@link GetResponse} instance and throws a {@link ParsingException}
-     * otherwise. This is the case when we get a 404 back, which can be parsed as a normal
-     * {@link GetResponse} with found set to false, or as an elasticsearch exception. The caller
-     * of this method needs a way to figure out whether we got back a valid get response, which
-     * can be done by catching ParsingException.
-     *
-     * @param parser {@link XContentParser} to parse the response from
-     * @return a {@link GetResponse}
-     * @throws IOException is an I/O exception occurs during the parsing
-     */
-    public static GetResponse fromXContent(XContentParser parser) throws IOException {
-        GetResult getResult = GetResult.fromXContent(parser);
-
-        // At this stage we ensure that we parsed enough information to return
-        // a valid GetResponse instance. If it's not the case, we throw an
-        // exception so that callers know it and can handle it correctly.
-        if (getResult.getIndex() == null && getResult.getId() == null) {
-            throw new ParsingException(
-                parser.getTokenLocation(),
-                String.format(Locale.ROOT, "Missing required fields [%s,%s]", GetResult._INDEX, GetResult._ID)
-            );
-        }
-        return new GetResponse(getResult);
     }
 
     @Override

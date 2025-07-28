@@ -21,4 +21,9 @@ public class MlMemoryActionRequestTests extends AbstractWireSerializingTestCase<
     protected MlMemoryAction.Request createTestInstance() {
         return new MlMemoryAction.Request(randomAlphaOfLength(20));
     }
+
+    @Override
+    protected MlMemoryAction.Request mutateInstance(MlMemoryAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

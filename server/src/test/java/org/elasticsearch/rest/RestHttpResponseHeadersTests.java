@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -11,13 +12,14 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
@@ -72,20 +74,14 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
 
         // Initialize test candidate RestController
         CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
             Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
         UsageService usageService = new UsageService();
-        RestController restController = new RestController(
-            Collections.emptySet(),
-            null,
-            null,
-            circuitBreakerService,
-            usageService,
-            Tracer.NOOP
-        );
+        RestController restController = new RestController(null, null, circuitBreakerService, usageService, TelemetryProvider.NOOP);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new RestResponse(RestStatus.OK, ""));
@@ -101,7 +97,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         RestRequest restRequest = fakeRestRequestBuilder.build();
 
         // Send the request and verify the response status code
-        FakeRestChannel restChannel = new FakeRestChannel(restRequest, false, 1);
+        FakeRestChannel restChannel = new FakeRestChannel(restRequest, randomBoolean(), 1);
         restController.dispatchRequest(restRequest, restChannel, new ThreadContext(Settings.EMPTY));
         assertThat(restChannel.capturedResponse().status().getStatus(), is(405));
 

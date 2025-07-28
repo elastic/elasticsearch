@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 public class ExceptionsHelper {
 
+    private static String NO_KNOWN_MODEL_ERROR =
+        "No known trained model with model_id [{}], you may need to create it or load it into the cluster with eland";
+
     private ExceptionsHelper() {}
 
     public static ResourceNotFoundException missingJobException(String jobId) {
@@ -46,12 +49,16 @@ public class ExceptionsHelper {
         return new ResourceAlreadyExistsException("A data frame analytics with id [{}] already exists", id);
     }
 
+    public static ResourceNotFoundException missingModelDeployment(String deploymentId) {
+        return new ResourceNotFoundException("No known model deployment with id [{}]", deploymentId);
+    }
+
     public static ResourceNotFoundException missingTrainedModel(String modelId) {
-        return new ResourceNotFoundException("No known trained model with model_id [{}]", modelId);
+        return new ResourceNotFoundException(NO_KNOWN_MODEL_ERROR, modelId);
     }
 
     public static ResourceNotFoundException missingTrainedModel(String modelId, Exception cause) {
-        return new ResourceNotFoundException("No known trained model with model_id [{}]", cause, modelId);
+        return new ResourceNotFoundException(NO_KNOWN_MODEL_ERROR, cause, modelId);
     }
 
     public static ElasticsearchException serverError(String msg) {
@@ -84,6 +91,10 @@ public class ExceptionsHelper {
 
     public static ElasticsearchStatusException badRequestException(String msg, Object... args) {
         return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, args);
+    }
+
+    public static ElasticsearchStatusException entityNotFoundException(String msg, Object... args) {
+        return new ElasticsearchStatusException(msg, RestStatus.NOT_FOUND, args);
     }
 
     public static ElasticsearchStatusException taskOperationFailureToStatusException(TaskOperationFailure failure) {

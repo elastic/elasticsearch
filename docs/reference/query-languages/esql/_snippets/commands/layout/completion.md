@@ -46,8 +46,37 @@ including:
 **Requirements**
 
 To use this command, you must deploy your LLM model in Elasticsearch as
-an [≈inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
+an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
 task type `completion`.
+
+**Timeouts**
+
+`COMPLETION` commands may time out when processing large datasets or complex prompts.
+
+::::{tab-set}
+:::{tab-item} {{ess}}
+* Timeouts can be increased through {{es}} settings in the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
+* Adjust the `search.default_search_timeout` cluster setting
+:::
+
+:::{tab-item} Self-managed
+* Configure at the cluster level:
+  * Set `search.default_search_timeout` in `elasticsearch.yml`
+  * Or update via Cluster Settings API
+* Alternatively, add timeout parameters to individual queries
+:::
+
+:::{tab-item} {{serverless-full}}
+* Requires a manual override from Elastic Support as users cannot modify timeout settings directly
+:::
+::::
+
+**Workarounds:**
+
+* Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
+* Split complex operations into multiple simpler queries 
+* Configure your application to handle streaming responses where supported
+* Contact Elastic Support to request timeout configuration adjustments in Serverless environments
 
 **Examples**
 

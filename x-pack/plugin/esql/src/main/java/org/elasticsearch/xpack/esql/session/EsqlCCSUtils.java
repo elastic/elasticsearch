@@ -58,7 +58,7 @@ public class EsqlCCSUtils {
     static Map<String, FieldCapabilitiesFailure> determineUnavailableRemoteClusters(Map<String, List<FieldCapabilitiesFailure>> failures) {
         Map<String, FieldCapabilitiesFailure> unavailableRemotes = new HashMap<>(failures.size());
         for (var e : failures.entrySet()) {
-            if (Strings.isEmpty(e.getKey())) {
+            if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(e.getKey())) {
                 continue;
             }
             if (e.getValue().stream().allMatch(f -> ExceptionsHelper.isRemoteUnavailableException(f.getException()))) {

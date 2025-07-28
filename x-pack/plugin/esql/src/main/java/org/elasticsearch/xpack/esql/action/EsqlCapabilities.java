@@ -921,6 +921,17 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Fixes bug when aggregate metric double is encoded as a single nul value but decoded as
+         * AggregateMetricDoubleBlock (expecting 4 values) in TopN.
+         */
+        AGGREGATE_METRIC_DOUBLE_SORTING_FIXED(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Stop erroring out when trying to apply MV_EXPAND on aggregate metric double.
+         */
+        AGGREGATE_METRIC_DOUBLE_MV_EXPAND(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -1295,6 +1306,11 @@ public class EsqlCapabilities {
          * Dot product vector similarity function
          */
         DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * l1 norm vector similarity function
+         */
+        L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Support for the options field of CATEGORIZE.

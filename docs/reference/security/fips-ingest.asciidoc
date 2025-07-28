@@ -1,0 +1,110 @@
+[role="xpack"]
+[[fips-ingest]]
+=== FIPS mode for Ingest tools
+
+preview::[]
+
+{agent}, {fleet}, {filebeat}, {metricbeat}, and APM Server binaries are built and can be configured to use FIPS 140-2 compliant cryptography.
+Generally speaking FIPS 140-2 requirements can be summarized as:
+
+- linking against a FIPS certified cryptographic library
+- using only FIPS approved cryptographic functions
+- ensuring that the configuration of the component is FIPS 140-2 compliant.
+
+[[fips-binaries]]
+==== FIPS-compatible binaries and configuration 
+
+FIPS compatible binaries for {agent}, {fleet}, {filebeat}, {metricbeat}, and APM Server are available for link:https://www.elastic.co/downloads[download].
+Look for the `Linux 64-bit (FIPS)` or `Linux aarch64 (FIPS)` platform option on the product download pages for {agent} and {fleet}, {filebeat}, and {metricbeat}.
+Look for the `Linux x86_64 (FIPS)` or `Linux aarch64 (FIPS)` platform option on the APM Server download page.
+
+IMPORTANT: The default configurations provided in the binaries are FIPS compatible. Be sure to check and understand the implications of changing default configurations. 
+
+[[ingest-limitations-all]]
+==== Limitations 
+
+[[ingest-limitations-tls]]
+===== TLS 
+
+Only FIPS 140-2 compliant TLS protocols, ciphers, and curve types are allowed to be used:
+
+* The supported TLS versions are `TLS v1.2` and `TLS v1.3`. 
+* The supported cipher suites are:
+
+** `TLS v1.2`: `ECDHE-RSA-AES-128-GCM-SHA256`, `ECDHE-RSA-AES-256-GCM-SHA384`, `ECDHE-ECDSA-AES-128-GCM-SHA256`, `ECDHE-ECDSA-AES-256-GCM-SHA384`
+** `TLS v1.3`: `TLS-AES-128-GCM-SHA256`, `TLS-AES-256-GCM-SHA384`
+
+* The supported curve types are `P-256`, `P-384` and `P-521`.
+
+Support for encrypted private keys is not available, as the cryptographic modules used for decrypting password protected keys are not FIPS validated. If an output or any other component with an SSL key that is password protected is configured, the components will fail to load the key. When running in FIPS mode, you must provide non-encrypted keys.
+Be sure to enforce security in your FIPS environments through other means, such as strict file permissions and access controls on the key file itself, for example. 
+
+These TLS related restrictions apply to all components listed--{agent}, {fleet}, {filebeat}, {metricbeat}, and APM Server. 
+
+[[ingest-inputoutput-limitations]]
+===== General output and input limitations (Kerberos protocol) 
+
+The Kerberos protocol is not supported for any output or input, which also impacts the available `sasl.mechanism` for the Kafka output where only `PLAIN` is supported. 
+
+This impacts link:https://www.elastic.co/guide/en/beats/filebeat/8.19/configuration-kerberos.html[Filebeat], link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/configuration-kerberos.html[Metricbeat], and APM Server, as well as output configurations for {agent} with {fleet-server}. 
+
+[[ingest-apm-limitations]]
+===== APM Server 
+
+* The link:https://www.elastic.co/guide/en/observability/8.19/apm-keystore.html[Secrets Keystore] is not supported. 
+
+// `{observability-guide}` attribute resolving to 8.x and `404`-ing
+// * The link:{observability-guide}/apm-keystore.html[Secrets Keystore] is not supported.
+
+[[ingest-filebeat-limitations]]
+===== Filebeat 
+
+// `{filebeat-ref}` attribute resolving to 8.x and `404`-ing
+// * The link:{filebeat-ref}/keystore.html[Secrets Keystore] is not supported.
+
+* The link:https://www.elastic.co/guide/en/beats/filebeat/8.19/keystore.html[Secrets Keystore] is not supported.
+* The link:https://www.elastic.co/guide/en/beats/filebeat/8.19/processor-translate-guid.html[Translate GUID processor] is not supported.
+* The link:https://www.elastic.co/guide/en/beats/filebeat/8.19/fingerprint.html[Fingerprint processor] does not support the md5 and sha1 method. 
+* The link:https://www.elastic.co/guide/en/beats/filebeat/8.19/community-id.html[Community ID Network Flowhash processor] is not supported. 
+* The link:https://www.elastic.co/guide/en/beats/filebeat/8.19/filebeat-module-azure.html[Azure module] including the link:https://www.elastic.co/guide/en/beats/filebeat/8.19/filebeat-input-azure-eventhub.html[Azure eventhub input] and the link:https://www.elastic.co/guide/en/beats/filebeat/8.19/filebeat-input-azure-blob-storage.html[Azure Blob Storage Input] are not currently supported. 
+  The link:https://www.elastic.co/guide/en/beats/filebeat/8.19/add-cloud-metadata.html[Add Cloud Metadata processor] does not support the Azure Virtual Machine provider currently. 
+* The link:https://www.elastic.co/guide/en/beats/filebeat/8.19/filebeat-module-o365.html[Office 365 module (Beta)] and the link:https://www.elastic.co/guide/en/beats/filebeat/8.19/filebeat-input-o365audi.html[Office 365 input (Deprecated)] are not supported. 
+* The link:https://www.elastic.co/guide/en/beats/filebeat/8.19/filebeat-input-gcp-pubsub.html[GCP Pub/Sub input] and the link:https://www.elastic.co/guide/en/beats/filebeat/8.19/filebeat-input-gcs.html[Google Cloud Storage input] are not supported for now. 
+* The link:https://www.elastic.co/guide/en/beats/filebeat/8.19/filebeat-input-entity-analytics.html[Entity Analytics input] is not supported. 
+
+[[ingest-metricbeat-limitations]]
+===== Metricbeat 
+
+// `{metricbeat-ref}` attribute resolving to 8.x and `404`-ing
+// * The link:{metricbeat-ref}/keystore.html[Secrets Keystore] is not supported.
+
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/keystore.html[Secrets Keystore] is not supported. 
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/processor-translate-guid.html[Translate GUID processor] is not supported.
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/fingerprint.html[Fingerprint processor] does not support the md5 and sha1 method. 
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/community-id.html[Community ID Network Flowhash processor] is not supported. 
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/metricbeat-module-azure.html[Azure module] is currently not supported. 
+  The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/add-cloud-metadata.html[Add Cloud Metadata processor] does not support the Azure Virtual Machine provider currently. 
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/metricbeat-module-gcp.html[Google Cloud Platform module] is currently not supported. 
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/metricbeat-module-kvm.html[Beta KVM module] is not yet supported.
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/metricbeat-module-mongodb.html[Mongo DB module] is not supported. 
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/metricbeat-module-mysql.html[MySQL], link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/metricbeat-module-postgresql.html[PostgreSQL], link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/metricbeat-module-mssql.html[MSSQL] and link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/metricbeat-module-sql.html[SQL] modules are not supported. 
+* The link:https://www.elastic.co/guide/en/beats/metricbeat/8.19/metricbeat-module-oracle.html[Oracle module] is not supported. 
+
+[[ingest-limitations-agent]]
+===== Elastic Agent and Fleet Server 
+
+When you use {agent} and {fleet-server}, these limitations apply:
+
+* Running {agent} in link:https://github.com/elastic/elastic-agent/blob/main/internal/pkg/otel/README.md[OpenTelemetry mode] is not yet supported.
+  This includes all receivers, such as Filebeat Receiver, Metricbeat Receiver, and link:https://www.elastic.co/docs/reference/integrations/prometheus[Prometheus Receiver].
+* Some Elastic Integrations are not FIPS compatible, as they depend on functionality that is not yet supported for FIPS configuration. 
+  In general, when using {agent} and {fleet-server}, the same restrictions listed previously for {metricbeat} and {filebeat} modules, inputs, and processors apply.
+* These Elastic Integrations have components that are **not** FIPS compatible, and **cannot** be used in FIPS environments, even if combined with other ingest tools that offer FIPS mode. 
+
+  - link:https://www.elastic.co/docs/reference/integrations/azure/events[Azure Logs Integration (v2 preview)]
+  - link:https://www.elastic.co/docs/reference/integrations/azure/eventhub[Azure Event Hub Input]
+  - link:https://www.elastic.co/docs/reference/integrations/postgresql[PostgreSQL Integration]
+  - link:https://www.elastic.co/docs/reference/integrations/mongodb[MongoDB Integration]
+  - link:https://www.elastic.co/docs/reference/integrations/mysql[MySQL Integration]
+  - link:https://www.elastic.co/docs/reference/integrations/microsoft_sqlserver[Microsoft SQL Server Integration]
+  - link:https://www.elastic.co/docs/reference/integrations/oracle[Oracle Integration]

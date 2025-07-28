@@ -9,10 +9,11 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.common.settings.Settings;
 
-public class WriteLoadConstraintDeciderTests {
+public class WriteLoadConstraintDeciderTests extends ESAllocationTestCase {
 
     public void testWriteLoadDeciderIsDisabled() {
         // TODO

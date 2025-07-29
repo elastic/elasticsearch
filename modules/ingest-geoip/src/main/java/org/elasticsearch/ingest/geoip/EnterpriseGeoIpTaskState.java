@@ -142,7 +142,7 @@ class EnterpriseGeoIpTaskState implements PersistentTaskState, VersionedNamedWri
      * Retrieves the geoip downloader's task state from the cluster state. This may return null in some circumstances,
      * for example if the geoip downloader task hasn't been created yet (which it wouldn't be if it's disabled).
      *
-     * @param state the cluster state to read the task state from
+     * @param projectMetadata the project metatdata to read the task state from
      * @return the geoip downloader's task state or null if there is not a state to read
      */
     @Nullable

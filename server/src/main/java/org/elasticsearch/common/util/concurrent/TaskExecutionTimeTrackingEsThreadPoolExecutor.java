@@ -257,7 +257,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      *
      * Can be extended to remember multiple past frames.
      */
-    static class FramedTimeTracker {
+    public static class FramedTimeTracker {
         final long interval;
         private final Supplier<Long> timeNow;
         long ongoingTasks;
@@ -266,7 +266,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         long previousTime;
 
         // for testing
-        FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
+        public FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
             assert intervalNano > 0;
             this.interval = intervalNano;
             this.timeNow = timeNow;
@@ -278,7 +278,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             this.timeNow = System::nanoTime;
         }
 
-        synchronized void updateFrame() {
+        public synchronized void updateFrame() {
             updateFrame0(timeNow.get());
         }
 
@@ -310,7 +310,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
          * Start tracking new task, assume that task runs indefinitely, or at least till end of frame.
          * If task finishes sooner than end of interval {@link FramedTimeTracker#endTask()} will deduct remaining time.
          */
-        synchronized void startTask() {
+        public synchronized void startTask() {
             var now = timeNow.get();
             updateFrame0(now);
             currentTime += (currentFrame + 1) * interval - now;
@@ -320,7 +320,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         /**
          * Stop task tracking. We already assumed that task runs till end of frame, here we deduct not used time.
          */
-        synchronized void endTask() {
+        public synchronized void endTask() {
             var now = timeNow.get();
             updateFrame0(now);
             currentTime -= (currentFrame + 1) * interval - now;
@@ -330,7 +330,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         /**
          * Returns previous frame total execution time.
          */
-        synchronized long previousFrameTime() {
+        public synchronized long previousFrameTime() {
             updateFrame0(timeNow.get());
             return previousTime;
         }

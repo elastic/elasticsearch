@@ -9,14 +9,11 @@
 
 package org.elasticsearch.benchmark.common.util.concurrent;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Group;
 import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
@@ -24,95 +21,80 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
-import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.time.Duration;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-@Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 1, time = 10, timeUnit = TimeUnit.SECONDS)
+@Threads(12)
+@Warmup(iterations = 3, time = 200, timeUnit = TimeUnit.MILLISECONDS)
+@Measurement(iterations = 5, time = 600, timeUnit = TimeUnit.MILLISECONDS)
 @BenchmarkMode(Mode.AverageTime)
-@OutputTimeUnit(TimeUnit.MILLISECONDS)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
+@State(Scope.Benchmark)
 @Fork(1)
-@State(Scope.Thread)
 public class ThreadPoolUtilizationBenchmark {
 
-    @Param({ "false", "true" })
-    private boolean trackUtilization;
+    @Param({ "0", "10000", "100000" })
+    private int callIntervalTicks;
 
-    @Param({ "4", "8", "16" })
-    private int poolSize;
-
-    @Param({ "1000000" })
-    private int tasksNum;
-
-    @Param({ "10" }) // 10ms is aggressive interval, it increases frame updates on FramedTimeTracker, normally we run at 30/60
-    // seconds
+    /**
+     * This makes very little difference, all the overhead is in the synchronization
+     */
+    @Param({ "10" })
     private int utilizationIntervalMs;
 
-    private EsThreadPoolExecutor executor;
+    @State(Scope.Thread)
+    public static class TaskState {
+        boolean running = false;
 
-    private EsThreadPoolExecutor newExecutor(boolean tracking) {
-        var conf = EsExecutors.TaskTrackingConfig.builder();
-        if (tracking) {
-            conf.trackExecutionTime(0.3).trackUtilization(Duration.ofMillis(utilizationIntervalMs));
+        boolean shouldStart() {
+            return (running = running == false);
         }
-        return EsExecutors.newFixed(
-            "bench",
-            poolSize,
-            tasksNum,
-            Executors.defaultThreadFactory(),
-            new ThreadContext(Settings.EMPTY),
-            conf.build()
-        );
     }
+
+    private TaskExecutionTimeTrackingEsThreadPoolExecutor.FramedTimeTracker timeTracker;
 
     @Setup
     public void setup() {
-        if (trackUtilization) {
-            var exec = newExecutor(true);
-            if (exec instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor trackingExecutor) {
-                if (trackingExecutor.trackingConfig().trackUtilization() == false) {
-                    throw new IllegalStateException("utilization tracking must be enabled");
-                } else {
-                    executor = trackingExecutor;
-                }
-            } else {
-                throw new IllegalStateException("must be tracking executor");
-            }
-        } else {
-            var exec = newExecutor(false);
-            if (exec instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor) {
-                throw new IllegalStateException("must be non-tracking executor");
-            }
-            executor = exec;
-        }
-    }
-
-    @TearDown
-    public void tearDown() throws InterruptedException {
-        executor.shutdown();
-        executor.awaitTermination(0, TimeUnit.MILLISECONDS);
+        timeTracker = new TaskExecutionTimeTrackingEsThreadPoolExecutor.FramedTimeTracker(
+            TimeUnit.MILLISECONDS.toNanos(utilizationIntervalMs),
+            System::nanoTime
+        );
     }
 
     @Benchmark
-    public void run(Blackhole bh) throws InterruptedException {
-        var completedTasks = new CountDownLatch(tasksNum);
-        for (var i = 0; i < tasksNum; i++) {
-            executor.execute(() -> {
-                // busy cycles for cpu
-                var r = 0;
-                for (var j = 0; j < 1000; j++) {
-                    r += j * 2;
-                }
-                bh.consume(r);
-                completedTasks.countDown();
-            });
+    public void baseline() {
+        Blackhole.consumeCPU(callIntervalTicks);
+    }
+
+    @Group("ReadAndWrite")
+    @Benchmark
+    public void startAndStopTasks(TaskState state) {
+        Blackhole.consumeCPU(callIntervalTicks);
+        if (state.shouldStart()) {
+            timeTracker.startTask();
+        } else {
+            timeTracker.endTask();
         }
-        completedTasks.await();
+    }
+
+    @Benchmark
+    @Group("ReadAndWrite")
+    public void readPrevious(Blackhole blackhole) {
+        Blackhole.consumeCPU(callIntervalTicks);
+        blackhole.consume(timeTracker.previousFrameTime());
+    }
+
+    @Benchmark
+    @Group("JustWrite")
+    public void startAndStopTasksOnly(TaskState state) {
+        Blackhole.consumeCPU(callIntervalTicks);
+        if (state.shouldStart()) {
+            timeTracker.startTask();
+        } else {
+            timeTracker.endTask();
+        }
     }
 }

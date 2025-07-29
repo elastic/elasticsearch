@@ -36,7 +36,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
     private final Expression timestamp;
 
     @FunctionInfo(
-        returnType = { "date" },
+        returnType = { "date", "date_nanos" },
         description = """
             Creates groups of values - buckets - out of a @timestamp attribute. The size of the buckets must be provided directly.""",
         examples = {
@@ -102,7 +102,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction implem
 
     @Override
     public DataType dataType() {
-        return DataType.DATETIME;
+        return timestamp.dataType();
     }
 
     @Override

@@ -8122,4 +8122,50 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         assertThat(e.getMessage(), containsString("Output has changed from"));
     }
 
+    public void testTranslateDataGroupedByTBucket() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        var query = """
+            FROM sample_data
+            | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 hour)
+            | SORT min
+            """;
+
+        var plan = planSample(query);
+        var topN = as(plan, TopN.class);
+
+        Aggregate aggregate = as(topN.child(), Aggregate.class);
+        assertThat(aggregate, not(instanceOf(TimeSeriesAggregate.class)));
+
+        assertThat(aggregate.groupings(), hasSize(1));
+        assertThat(aggregate.groupings().get(0), instanceOf(ReferenceAttribute.class));
+        assertThat(as(aggregate.groupings().getFirst(), ReferenceAttribute.class).name(), equalTo("bucket"));
+
+        assertThat(aggregate.aggregates(), hasSize(3));
+        List<? extends NamedExpression> aggregates = aggregate.aggregates();
+        assertThat(aggregates, hasSize(3));
+        Alias a = as(aggregates.get(0), Alias.class);
+        assertEquals("min", a.name());
+        Min min = as(a.child(), Min.class);
+        FieldAttribute fa = as(min.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        a = as(aggregates.get(1), Alias.class);
+        assertEquals("max", a.name());
+        Max max = as(a.child(), Max.class);
+        fa = as(max.field(), FieldAttribute.class);
+        assertEquals("@timestamp", fa.name());
+        ReferenceAttribute ra = as(aggregates.get(2), ReferenceAttribute.class);
+        assertEquals("bucket", ra.name());
+        assertThat(Expressions.attribute(aggregate.groupings().get(0)).id(), equalTo(aggregate.aggregates().get(2).id()));
+        Eval eval = as(aggregate.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(1));
+        Alias bucketAlias = eval.fields().get(0);
+        assertThat(bucketAlias.child(), instanceOf(Bucket.class));
+        assertThat(Expressions.attribute(bucketAlias).id(), equalTo(aggregate.aggregates().get(2).id()));
+        Bucket bucket = as(Alias.unwrap(bucketAlias), Bucket.class);
+        assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
+        assertThat(bucket.children().get(0), instanceOf(FieldAttribute.class));
+        assertThat(((FieldAttribute)bucket.children().get(0)).name(), equalTo("@timestamp"));
+        assertThat(bucket.children().get(1), instanceOf(Literal.class));
+        assertThat(((Literal)bucket.children().get(1)).value(), equalTo(Duration.ofHours(1)));
+    }
 }

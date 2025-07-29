@@ -4136,13 +4136,14 @@ public class AnalyzerTests extends ESTestCase {
     public void testTBucketWithIntervalInStringInBothAggregationAndGrouping() {
         LogicalPlan plan = analyze("""
             FROM sample_data
-            | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET("1 week")
+            | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 week)
             | SORT min
             """, "mapping-sample_data.json");
 
         Limit limit = as(plan, Limit.class);
         OrderBy orderBy = as(limit.child(), OrderBy.class);
         Aggregate agg = as(orderBy.child(), Aggregate.class);
+
         List<? extends NamedExpression> aggregates = agg.aggregates();
         assertThat(aggregates, hasSize(3));
         Alias a = as(aggregates.get(0), Alias.class);
@@ -4157,6 +4158,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("@timestamp", fa.name());
         ReferenceAttribute ra = as(aggregates.get(2), ReferenceAttribute.class);
         assertEquals("bucket", ra.name());
+
         List<Expression> groupings = agg.groupings();
         assertEquals(1, groupings.size());
         a = as(groupings.get(0), Alias.class); // reference in groupings is resolved

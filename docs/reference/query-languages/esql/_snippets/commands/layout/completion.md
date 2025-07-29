@@ -7,13 +7,13 @@ stack: preview 9.1.0
 
 The `COMPLETION` command allows you to send prompts and context to a Large Language Model (LLM) directly within your ES|QL queries, to perform text generation tasks.
 
-### Syntax
+**Syntax**
 
 ```esql
 COMPLETION [column =] prompt WITH inference_id
 ```
 
-### Parameters
+**Parameters**
 
 `column`
 :   (Optional) The name of the output column containing the LLM's response.
@@ -28,7 +28,7 @@ COMPLETION [column =] prompt WITH inference_id
 :   The ID of the [inference endpoint](docs-content://explore-analyze/elastic-inference/inference-api.md) to use for the task.
     The inference endpoint must be configured with the `completion` task type.
 
-### Description
+**Description**
 
 The `COMPLETION` command provides a general-purpose interface for
 text generation tasks using a Large Language Model (LLM) in ES|QL.
@@ -43,7 +43,7 @@ including:
 - Content rewriting
 - Creative generation
 
-### Requirements
+**Requirements**
 
 To use this command, you must deploy your LLM model in Elasticsearch as
 an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
@@ -51,31 +51,36 @@ task type `completion`.
 
 #### Handling timeouts
 
-`COMPLETION` commands may time out when processing large datasets or complex prompts. To increase timeout limits for these operations, the configuration methods vary by deployment type:
+`COMPLETION` commands may time out when processing large datasets or complex prompts. The default timeout is 10 minutes, but you can increase this limit if necessary.
+
+How you increase the timeout depends on your deployment type:
 
 ::::{tab-set}
-:::{tab-item} {{ess}}
-* Timeouts can be increased through {{es}} settings in the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
-* Adjust the `search.default_search_timeout` cluster setting
+:::{tab-item} {{ech}}
+* You can adjust {{es}} settings in the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
+* You can also adjust the `search.default_search_timeout` cluster setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
+* The default timeout is 10 minutes
 :::
 
 :::{tab-item} Self-managed
-* Configure at the cluster level:
-  * Set `search.default_search_timeout` in `elasticsearch.yml`
-  * Or update via Cluster Settings API
-* Alternatively, add timeout parameters to individual queries
+* You can configure at the cluster level by setting `search.default_search_timeout` in `elasticsearch.yml` or updating via [Cluster Settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)
+* You can also adjust the `search:timeout` setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
+* Alternatively, you can add timeout parameters to individual queries
+* The default timeout is 10 minutes
 :::
 
 :::{tab-item} {{serverless-full}}
-Requires a manual override from Elastic Support as users cannot modify timeout settings directly.
+* The default timeout is 10 minutes
+* Requires a manual override from Elastic Support because you cannot modify timeout settings directly
 :::
 ::::
 
-**Alternative workarounds:**
+If you don't want to increase the timeout limit, try the following:
 
 * Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
 * Split complex operations into multiple simpler queries 
-* Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration)
+* Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
+
 
 **Examples**
 

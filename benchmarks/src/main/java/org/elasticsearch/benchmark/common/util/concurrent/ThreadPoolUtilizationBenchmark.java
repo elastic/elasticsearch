@@ -29,20 +29,20 @@ import java.util.concurrent.TimeUnit;
 
 @Threads(Threads.MAX)
 @Warmup(iterations = 3, time = 200, timeUnit = TimeUnit.MILLISECONDS)
-@Measurement(iterations = 5, time = 600, timeUnit = TimeUnit.MILLISECONDS)
+@Measurement(iterations = 1, time = 60, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Fork(1)
 public class ThreadPoolUtilizationBenchmark {
 
-    @Param({ "1000" })
+    @Param({ "10000" })
     private int callIntervalTicks;
 
     /**
      * This makes very little difference, all the overhead is in the synchronization
      */
-    @Param({ "30000" })
+    @Param({ "100" })
     private int utilizationIntervalMs;
     private TaskExecutionTimeTrackingEsThreadPoolExecutor.FramedTimeTracker timeTracker;
 
@@ -61,18 +61,9 @@ public class ThreadPoolUtilizationBenchmark {
 
     @Group("StartAndEnd")
     @Benchmark
-    public void startAndStopTasks(TaskState state) {
+    public void startAndStopTasks() {
         timeTracker.startTask();
         Blackhole.consumeCPU(callIntervalTicks);
         timeTracker.endTask();
-    }
-
-    @State(Scope.Thread)
-    public static class TaskState {
-        boolean running = false;
-
-        boolean shouldStart() {
-            return (running = running == false);
-        }
     }
 }

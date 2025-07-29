@@ -260,13 +260,12 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * Can be extended to remember multiple past frames.
      */
     public static class FramedTimeTracker {
-        private final long interval;
+        final long interval;
         private final Supplier<Long> timeNow;
-        private final ReentrantReadWriteLock rwlock = new ReentrantReadWriteLock();
-        private final AtomicLong ongoingTasks = new AtomicLong();
-        private final AtomicLong currentFrame = new AtomicLong();
-        private final AtomicLong currentTime = new AtomicLong();
-        private final AtomicLong previousTime = new AtomicLong();
+        private long ongoingTasks;
+        private long currentFrame;
+        private long currentTime;
+        private long previousTime;
 
         // for testing
         public FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
@@ -298,23 +297,14 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
          */
         private void updateFrame0(long nowTime) {
             var now = nowTime / interval;
-            var current = currentFrame.get();
-            if (current < now) {
-                rwlock.readLock().unlock();
-                rwlock.writeLock().lock();
-                current = currentFrame.get(); // make sure it didnt change during lock acquisition
-                if (current < now) {
-                    var tasks = ongoingTasks.get();
-                    if (current == now - 1) {
-                        previousTime.set(currentTime.get());
-                    } else {
-                        previousTime.set(tasks * interval);
-                    }
-                    currentTime.set(tasks * interval);
-                    currentFrame.set(now);
+            if (currentFrame < now) {
+                if (currentFrame == now - 1) {
+                    previousTime = currentTime; //
+                } else {
+                    previousTime = ongoingTasks * interval;
                 }
-                rwlock.readLock().lock();
-                rwlock.writeLock().unlock();
+                currentTime = ongoingTasks * interval;
+                currentFrame = now;
             }
         }
 
@@ -322,38 +312,29 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
          * Start tracking new task, assume that task runs indefinitely, or at least till end of frame.
          * If task finishes sooner than end of interval {@link FramedTimeTracker#endTask()} will deduct remaining time.
          */
-        public void startTask() {
-            rwlock.readLock().lock();
+        public synchronized void startTask() {
             var now = timeNow.get();
             updateFrame0(now);
-            ongoingTasks.incrementAndGet();
-            currentTime.addAndGet((now + 1) * interval - now);
-            rwlock.readLock().unlock();
+            currentTime += (currentFrame + 1) * interval - now;
+            ++ongoingTasks;
         }
 
         /**
          * Stop task tracking. We already assumed that task runs till end of frame, here we deduct not used time.
          */
-        public void endTask() {
-            rwlock.readLock().lock();
+        public synchronized void endTask() {
             var now = timeNow.get();
             updateFrame0(now);
-            ongoingTasks.decrementAndGet();
-            currentTime.addAndGet(-((now + 1) * interval - now));
-            rwlock.readLock().unlock();
+            currentTime -= (currentFrame + 1) * interval - now;
+            --ongoingTasks;
         }
 
         /**
          * Returns previous frame total execution time.
          */
-        public long previousFrameTime() {
-            try {
-                rwlock.readLock().lock();
-                updateFrame0(timeNow.get());
-                return previousTime.get();
-            } finally {
-                rwlock.readLock().unlock();
-            }
+        public synchronized long previousFrameTime() {
+            updateFrame0(timeNow.get());
+            return previousTime;
         }
     }
 }

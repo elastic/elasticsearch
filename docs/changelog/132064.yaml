@@ -1,0 +1,5 @@
+pr: 132064
+summary: New logic to check for conflicting indices before enabling streams pl…
+area: Data streams
+type: enhancement
+issues: []

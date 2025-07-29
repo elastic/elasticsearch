@@ -296,7 +296,6 @@ public class MockNode extends Node {
         try {
             return super.awaitClose(timeout, timeUnit);
         } finally {
-            // wipePendingDataDirectories requires entitlement delegation to work due to this using FileSystemUtils ES-10920
             IOUtils.closeWhileHandlingException(entitlementGrant);
         }
     }

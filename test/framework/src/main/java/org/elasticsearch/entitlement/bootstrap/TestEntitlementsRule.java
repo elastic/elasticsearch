@@ -191,7 +191,10 @@ public class TestEntitlementsRule implements TestRule {
 
         @Override
         public void close() {
-            onClose.accept(this);
+            // wipePendingDataDirectories in tests requires entitlement delegation to work as this uses server's FileSystemUtils.
+            // until ES-10920 is solved, node grants cannot be removed until the test suite completes unless explicitly removing all node
+            // grants using revokeNodeGrants where feasible.
+            // onClose.accept(this);
         }
 
         @Override

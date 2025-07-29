@@ -530,6 +530,27 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_crud/Test transform where source query is invalid}
   issue: https://github.com/elastic/elasticsearch/issues/132111
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=bbq_flat updateType=bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132112
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=hnsw updateType=int4_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132113
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=hnsw updateType=bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132115
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=int8_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132116
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=int8_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132117
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132119
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=bbq_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132120
 
 # Examples:
 #

@@ -534,3 +534,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test130JavaHasCorrectOwnership
   issue: https://github.com/elastic/elasticsearch/issues/131369
+- class: org.elasticsearch.packaging.test.DebPreservationTests
+  method: test40RestartOnUpgrade
+  issue: https://github.com/elastic/elasticsearch/issues/125821

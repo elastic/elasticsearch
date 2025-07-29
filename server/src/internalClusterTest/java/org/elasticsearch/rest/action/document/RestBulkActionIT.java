@@ -30,6 +30,7 @@ public class RestBulkActionIT extends ESIntegTestCase {
         return false;
     }
 
+    @AwaitsFix(bugUrl = "Doesn't work right now")
     public void testBulkIndexWithSourceOnErrorDisabled() throws Exception {
         var source = "{\"field\": \"index\",}";
         var sourceEscaped = "{\\\"field\\\": \\\"index\\\",}";

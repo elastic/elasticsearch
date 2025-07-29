@@ -440,7 +440,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     public void testCountAndCountDistinct() throws IOException {
         String mode = randomMode();
         index(
-            "test",
             "{\"gender\":\"m\", \"langs\": 1}",
             "{\"gender\":\"m\", \"langs\": 1}",
             "{\"gender\":\"m\", \"langs\": 2}",

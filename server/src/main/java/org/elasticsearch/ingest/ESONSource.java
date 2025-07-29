@@ -20,6 +20,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractCollection;
 import java.util.AbstractList;
@@ -145,10 +147,12 @@ public class ESONSource {
                             yield new FixedValue((int) position, ValueType.DOUBLE);
                         }
                         case BIG_INTEGER, BIG_DECIMAL -> {
-                            String numberString = parser.text();
-                            byte[] numberBytes = numberString.getBytes(StandardCharsets.UTF_8);
+                            ValueType valueType = numberType == XContentParser.NumberType.BIG_INTEGER
+                                ? ValueType.BIG_INTEGER
+                                : ValueType.BIG_DECIMAL;
+                            byte[] numberBytes = parser.text().getBytes(StandardCharsets.UTF_8);
                             bytes.write(numberBytes);
-                            yield new VariableValue((int) position, numberBytes.length, ValueType.STRING);
+                            yield new VariableValue((int) position, numberBytes.length, valueType);
                         }
                     };
                 }
@@ -173,6 +177,8 @@ public class ESONSource {
         FLOAT,
         DOUBLE,
         BOOLEAN,
+        BIG_INTEGER,
+        BIG_DECIMAL,
         STRING,
         BINARY
     }
@@ -292,6 +298,8 @@ public class ESONSource {
             return switch (valueType) {
                 case STRING -> source.readString(position, length);
                 case BINARY -> source.readByteArray(position, length);
+                case BIG_INTEGER -> new BigInteger(source.readString(position, length));
+                case BIG_DECIMAL -> new BigDecimal(source.readString(position, length));
                 default -> throw new IllegalArgumentException("Invalid value type: " + valueType);
             };
         }
@@ -310,6 +318,9 @@ public class ESONSource {
             switch (valueType) {
                 case STRING -> builder.utf8Value(bytes, offset, length);
                 case BINARY -> builder.value(bytes, offset, length);
+                // TODO: Improve?
+                case BIG_INTEGER -> builder.value(new BigInteger(new String(bytes, offset, length, StandardCharsets.UTF_8)));
+                case BIG_DECIMAL -> builder.value(new BigDecimal(new String(bytes, offset, length, StandardCharsets.UTF_8)));
                 default -> throw new IllegalArgumentException("Invalid value type: " + valueType);
             }
         }

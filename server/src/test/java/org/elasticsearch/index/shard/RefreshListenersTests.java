@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -177,7 +178,8 @@ public class RefreshListenersTests extends ESTestCase {
             true,
             EngineTestCase.createMapperService(),
             new EngineResetLock(),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            Function.identity()
         );
         engine = new InternalEngine(config);
         EngineTestCase.recoverFromTranslog(engine, (e, s) -> 0, Long.MAX_VALUE);

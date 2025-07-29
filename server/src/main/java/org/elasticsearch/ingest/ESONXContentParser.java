@@ -20,6 +20,8 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayDeque;
 import java.util.Base64;
@@ -214,8 +216,7 @@ public class ESONXContentParser extends AbstractXContentParser {
             return determineTokenFromObject(mutation.object());
         } else if (type instanceof ESONSource.FixedValue fixed) {
             return switch (fixed.valueType()) {
-                case INT, LONG -> Token.VALUE_NUMBER;
-                case FLOAT, DOUBLE -> Token.VALUE_NUMBER;
+                case INT, LONG, FLOAT, DOUBLE -> Token.VALUE_NUMBER;
                 case BOOLEAN -> Token.VALUE_BOOLEAN;
                 default -> throw new IllegalStateException("Unknown fixed value type: " + fixed.valueType());
             };
@@ -223,6 +224,7 @@ public class ESONXContentParser extends AbstractXContentParser {
             return switch (var.valueType()) {
                 case STRING -> Token.VALUE_STRING;
                 case BINARY -> Token.VALUE_EMBEDDED_OBJECT;
+                case BIG_INTEGER, BIG_DECIMAL -> Token.VALUE_NUMBER;
                 default -> throw new IllegalStateException("Unknown variable value type: " + var.valueType());
             };
         }
@@ -337,7 +339,7 @@ public class ESONXContentParser extends AbstractXContentParser {
                 streamInput.read(rawBytes);
             }
 
-            // TODO: Fix
+            // TODO: Fix Length
             return new Text(new XContentString.UTF8Bytes(rawBytes, offset, length), length);
         }
 
@@ -431,6 +433,10 @@ public class ESONXContentParser extends AbstractXContentParser {
             return NumberType.FLOAT;
         } else if (currentValue instanceof Double) {
             return NumberType.DOUBLE;
+        } else if (currentValue instanceof BigInteger) {
+            return NumberType.BIG_INTEGER;
+        } else if (currentValue instanceof BigDecimal) {
+            return NumberType.BIG_DECIMAL;
         }
         throw new IllegalStateException("Current token is not a number value");
     }
@@ -449,8 +455,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.shortValue();
+        } else {
+            // TODO: Improve handling
+            return Short.parseShort(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override
@@ -458,8 +466,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.intValue();
+        } else {
+            // TODO: Improve handling
+            return Integer.parseInt(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override
@@ -467,8 +477,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.longValue();
+        } else {
+            // TODO: Improve handling
+            return Long.parseLong(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override
@@ -476,8 +488,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.floatValue();
+        } else {
+            // TODO: Improve handling
+            return Float.parseFloat(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override
@@ -485,8 +499,10 @@ public class ESONXContentParser extends AbstractXContentParser {
         getCurrentValue();
         if (currentValue instanceof Number num) {
             return num.doubleValue();
+        } else {
+            // TODO: Improve handling
+            return Double.parseDouble(text());
         }
-        throw new IllegalStateException("Current token is not a number value");
     }
 
     @Override

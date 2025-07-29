@@ -366,12 +366,8 @@ class ValuesBytesRefAggregator {
             try (var builder = blockFactory.newIntBlockBuilder(estimateSize)) {
                 int nextValuesStart = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int group = selected.getInt(s);
-                    if (firstValues.size() < group) {
-                        builder.appendNull();
-                        continue;
-                    }
-                    int firstValue = firstValues.get(group) - 1;
+                    final int group = selected.getInt(s);
+                    final int firstValue = group >= firstValues.size() ? -1 : firstValues.get(group) - 1;
                     if (firstValue < 0) {
                         builder.appendNull();
                         continue;

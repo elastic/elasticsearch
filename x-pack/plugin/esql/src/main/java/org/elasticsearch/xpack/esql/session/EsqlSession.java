@@ -33,8 +33,10 @@ import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -166,6 +168,7 @@ public class EsqlSession {
      * Execute an ESQL request.
      */
     public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
         LogicalPlan parsed = parse(request.query(), request.params());
@@ -196,6 +199,12 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         ActionListener<Result> listener
     ) {
+        assert ThreadPool.assertCurrentThreadPool(
+            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
+            ThreadPool.Names.SYSTEM_READ,
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_COORDINATION
+        );
         if (explainMode) {// TODO: INLINESTATS come back to the explain mode branch and reevaluate
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request);
             String physicalPlanString = physicalPlan.toString();

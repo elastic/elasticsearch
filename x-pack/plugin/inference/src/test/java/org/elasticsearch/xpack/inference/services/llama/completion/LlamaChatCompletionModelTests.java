@@ -16,10 +16,47 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
 import java.util.List;
+import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionRequestTaskSettingsTests.getChatCompletionRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LlamaChatCompletionModelTests extends ESTestCase {
+
+    public void testOverrideWith_OverridesExistingUser() {
+        var model = createCompletionModel("model_name", "url", "api_key", "user");
+        var requestTaskSettingsMap = getChatCompletionRequestTaskSettingsMap("user_override");
+
+        var overriddenModel = LlamaChatCompletionModel.of(model, requestTaskSettingsMap);
+
+        assertThat(overriddenModel, is(createCompletionModel("model_name", "url", "api_key", "user_override")));
+    }
+
+    public void testOverrideWith_OverridesNullUser() {
+        var model = createCompletionModel("model_name", "url", "api_key", null);
+        var requestTaskSettingsMap = getChatCompletionRequestTaskSettingsMap("user_override");
+
+        var overriddenModel = LlamaChatCompletionModel.of(model, requestTaskSettingsMap);
+
+        assertThat(overriddenModel, is(createCompletionModel("model_name", "url", "api_key", "user_override")));
+    }
+
+    public void testOverrideWith_EmptyMap() {
+        var model = createCompletionModel("model_name", "url", "api_key", null);
+
+        var requestTaskSettingsMap = Map.<String, Object>of();
+
+        var overriddenModel = LlamaChatCompletionModel.of(model, requestTaskSettingsMap);
+        assertThat(overriddenModel, sameInstance(model));
+    }
+
+    public void testOverrideWith_NullMap() {
+        var model = createCompletionModel("model_name", "url", "api_key", null);
+
+        var overriddenModel = LlamaChatCompletionModel.of(model, (Map<String, Object>) null);
+        assertThat(overriddenModel, sameInstance(model));
+    }
 
     public static LlamaChatCompletionModel createCompletionModel(String modelId, String url, String apiKey, String user) {
         return new LlamaChatCompletionModel(

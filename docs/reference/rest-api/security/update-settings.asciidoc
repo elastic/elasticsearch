@@ -5,6 +5,12 @@
 <titleabbrev>Update Security settings</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Updates the settings of the security internal indices.
 
 

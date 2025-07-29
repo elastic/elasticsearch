@@ -38,6 +38,8 @@ import java.util.Map;
 
 public class TransportGetLifecycleAction extends TransportMasterNodeAction<Request, Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     @Inject
     public TransportGetLifecycleAction(
         TransportService transportService,
@@ -53,10 +55,10 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

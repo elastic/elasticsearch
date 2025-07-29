@@ -87,7 +87,7 @@ the same thing, but it's not necessary to use this feature in such a small
 cluster.
 
 We recommend you set only one of your two nodes to be
-<<master-node,master-eligible>>. This means you can be certain which of your
+<<master-node-role,master-eligible>>. This means you can be certain which of your
 nodes is the elected master of the cluster. The cluster can tolerate the loss of
 the other master-ineligible node. If you set both nodes to master-eligible, two
 nodes are required for a master election. Since the election will fail if either
@@ -164,12 +164,12 @@ cluster that is suitable for production deployments.
 [[high-availability-cluster-design-three-nodes]]
 ==== Three-node clusters
 
-If you have three nodes, we recommend they all be <<data-node,data nodes>> and
+If you have three nodes, we recommend they all be <<data-node-role,data nodes>> and
 every index that is not a <<searchable-snapshots,searchable snapshot index>>
 should have at least one replica. Nodes are data nodes by default. You may
 prefer for some indices to have two replicas so that each node has a copy of
 each shard in those indices. You should also configure each node to be
-<<master-node,master-eligible>> so that any two of them can hold a master
+<<master-node-role,master-eligible>> so that any two of them can hold a master
 election without needing to communicate with the third node. Nodes are
 master-eligible by default. This cluster will be resilient to the loss of any
 single node.
@@ -188,8 +188,8 @@ service provides such a load balancer.
 
 Once your cluster grows to more than three nodes, you can start to specialise
 these nodes according to their responsibilities, allowing you to scale their
-resources independently as needed. You can have as many <<data-node,data
-nodes>>, <<ingest,ingest nodes>>, <<ml-node,{ml} nodes>>, etc. as needed to
+resources independently as needed. You can have as many <<data-node-role,data
+nodes>>, <<ingest,ingest nodes>>, <<ml-node-role,{ml} nodes>>, etc. as needed to
 support your workload. As your cluster grows larger, we recommend using
 dedicated nodes for each role. This allows you to independently scale resources
 for each task.

@@ -5,6 +5,12 @@
 <titleabbrev>Get API key information</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Retrieves information for one or more API keys.
 
 [[security-api-get-api-key-request]]

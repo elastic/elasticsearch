@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -36,17 +35,9 @@ public class MonitoringUsageTransportAction extends XPackUsageFeatureTransportAc
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         MonitoringUsageServices monitoringServices
     ) {
-        super(
-            XPackUsageFeatureAction.MONITORING.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.MONITORING.name(), transportService, clusterService, threadPool, actionFilters);
         this.monitoringService = monitoringServices.monitoringService;
         this.exporters = monitoringServices.exporters;
     }

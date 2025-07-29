@@ -38,12 +38,12 @@ public class GreaterThanOrEqual extends EsqlBinaryComparison implements Negatabl
         Map.entry(DataType.DATE_NANOS, GreaterThanOrEqualLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.SEMANTIC_TEXT, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, GreaterThanOrEqualKeywordsEvaluator.Factory::new),
         Map.entry(DataType.IP, GreaterThanOrEqualKeywordsEvaluator.Factory::new)
     );
 
     @FunctionInfo(
+        operator = ">=",
         returnType = { "boolean" },
         description = "Check if one field is greater than or equal to another. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",

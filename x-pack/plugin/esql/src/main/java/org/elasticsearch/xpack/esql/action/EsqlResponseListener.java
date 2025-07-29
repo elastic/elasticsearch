@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -21,6 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
@@ -30,7 +32,9 @@ import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
@@ -120,6 +124,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
 
     @Override
     protected void processResponse(EsqlQueryResponse esqlQueryResponse) throws IOException {
+        logPartialFailures(channel.request().rawPath(), channel.request().params(), esqlQueryResponse.getExecutionInfo());
         channel.sendResponse(buildResponse(esqlQueryResponse));
     }
 
@@ -188,29 +193,26 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         if (LOGGER.isDebugEnabled() == false) {
             return listener;
         }
+        Consumer<EsqlQueryResponse> logger = response -> LOGGER.debug(
+            "ESQL query execution {}.\nQuery string or async ID: [{}]\nExecution time: {}ms",
+            response == null ? "failed" : "finished",
+            esqlQueryOrId,
+            getTook(response, TimeUnit.MILLISECONDS)
+        );
         return ActionListener.wrap(r -> {
             listener.onResponse(r);
-            // At this point, the StopWatch should already have been stopped, so we log a consistent time.
-            LOGGER.debug(
-                "Finished execution of ESQL query.\nQuery string or async ID: [{}]\nExecution time: [{}]ms",
-                esqlQueryOrId,
-                getTook(r, TimeUnit.MILLISECONDS)
-            );
+            logger.accept(r);
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
-            long timeMillis = getTook(null, TimeUnit.MILLISECONDS);
-            LOGGER.debug(
-                "Failed execution of ESQL query.\nQuery string or async ID: [{}]\nExecution time: [{}]ms",
-                esqlQueryOrId,
-                timeMillis
-            );
+            logger.accept(null);
             listener.onFailure(ex);
         });
     }
 
     static void logOnFailure(Throwable throwable) {
         RestStatus status = ExceptionsHelper.status(throwable);
-        LOGGER.log(status.getStatus() >= 500 ? Level.WARN : Level.DEBUG, () -> "Request failed with status [" + status + "]: ", throwable);
+        var level = status.getStatus() >= 500 ? Level.WARN : Level.DEBUG;
+        LOGGER.log(level, () -> "ESQL request failed with status [" + status + "]: ", throwable);
     }
 
     /*
@@ -229,6 +231,26 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                 restRequest.path()
             );
             throw new IllegalArgumentException(message);
+        }
+    }
+
+    /**
+     * Log all partial request failures to the {@code rest.suppressed} logger
+     * so an operator can categorize them after the fact.
+     */
+    static void logPartialFailures(String rawPath, Map<String, String> params, EsqlExecutionInfo executionInfo) {
+        if (executionInfo == null) {
+            return;
+        }
+        for (EsqlExecutionInfo.Cluster cluster : executionInfo.getClusters().values()) {
+            for (ShardSearchFailure failure : cluster.getFailures()) {
+                if (LOGGER.isWarnEnabled()) {
+                    String clusterMessage = cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)
+                        ? ""
+                        : ", cluster: " + cluster.getClusterAlias();
+                    LOGGER.warn("partial failure at path: {}, params: {}{}", rawPath, params, clusterMessage, failure);
+                }
+            }
         }
     }
 }

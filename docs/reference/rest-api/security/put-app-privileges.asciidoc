@@ -5,6 +5,12 @@
 <titleabbrev>Create or update application privileges</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Adds or updates <<application-privileges,application privileges>>.
 
 [[security-api-put-privileges-request]]

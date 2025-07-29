@@ -16,6 +16,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -55,6 +57,16 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
             .put("transport.profiles.client.xpack.security.filter.deny", "_all")
             .put(IPFilter.TRANSPORT_FILTER_DENY_SETTING.getKey(), "_all")
             .build();
+    }
+
+    @Before
+    public void waitForSecurityIndex() throws Exception {
+        assertSecurityIndexActive();
+    }
+
+    @After
+    public void cleanupSecurityIndex() throws Exception {
+        super.deleteSecurityIndex();
     }
 
     public void testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp() throws Exception {

@@ -5,6 +5,12 @@
 <titleabbrev>Get roles</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Retrieves roles in the native realm.
 
 [[security-api-get-role-request]]

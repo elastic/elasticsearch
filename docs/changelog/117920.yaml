@@ -1,6 +1,0 @@
-pr: 117920
-summary: Wait for the worker service to shutdown before closing task processor
-area: Machine Learning
-type: bug
-issues:
- - 117563

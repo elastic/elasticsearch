@@ -18,7 +18,10 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
@@ -29,6 +32,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -45,6 +49,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -64,6 +69,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
+import static org.elasticsearch.script.MockScriptPlugin.NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
@@ -102,7 +108,12 @@ public class TopHitsIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("5", script -> "5");
+            return Map.of("5", script -> "5", "doc['sort'].value", CustomScriptPlugin::sortDoubleScript);
+        }
+
+        private static Double sortDoubleScript(Map<String, Object> vars) {
+            Map<?, ?> doc = (Map) vars.get("doc");
+            return ((Number) ((ScriptDocValues<?>) doc.get("sort")).get(0)).doubleValue();
         }
 
         @Override
@@ -119,10 +130,10 @@ public class TopHitsIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword", "text", "type=text,store=true"));
-        assertAcked(prepareCreate("field-collapsing").setMapping("group", "type=keyword"));
-        createIndex("empty");
         assertAcked(
+            prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword", "text", "type=text,store=true"),
+            prepareCreate("field-collapsing").setMapping("group", "type=keyword"),
+            prepareCreate("empty"),
             prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -655,8 +666,9 @@ public class TopHitsIT extends ESIntegTestCase {
                     assertThat(hit.field("field2").getValue(), equalTo(2.71f));
                     assertThat(hit.field("script").getValue().toString(), equalTo("5"));
 
-                    assertThat(hit.getSourceAsMap().size(), equalTo(1));
-                    assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
+                    Map<String, Object> source = hit.getSourceAsMap();
+                    assertThat(source.size(), equalTo(1));
+                    assertThat(source.get("text").toString(), equalTo("some text to entertain"));
                     assertEquals("some text to entertain", hit.getFields().get("text").getValue());
                     assertEquals("some text to entertain", hit.getFields().get("text_stored_lookup").getValue());
                 }
@@ -927,8 +939,9 @@ public class TopHitsIT extends ESIntegTestCase {
                 field = searchHit.field("script");
                 assertThat(field.getValue().toString(), equalTo("5"));
 
-                assertThat(searchHit.getSourceAsMap().size(), equalTo(1));
-                assertThat(extractValue("message", searchHit.getSourceAsMap()), equalTo("some comment"));
+                Map<String, Object> source = searchHit.getSourceAsMap();
+                assertThat(source.size(), equalTo(1));
+                assertThat(extractValue("message", source), equalTo("some comment"));
             }
         );
     }
@@ -973,6 +986,67 @@ public class TopHitsIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    public void testTopHitsOnInnerHits() {
+        QueryBuilder nestedQuery = nestedQuery("comments", matchQuery("comments.message", "text"), ScoreMode.Avg).innerHit(
+            new InnerHitBuilder().setSize(2)
+        );
+        AggregationBuilder topHitsAgg = topHits("top-comments").size(3)
+            .sort(SortBuilders.fieldSort("comments.date").order(SortOrder.ASC).setNestedSort(new NestedSortBuilder("comments")));
+
+        assertNoFailuresAndResponse(prepareSearch("articles").setQuery(nestedQuery).addAggregation(topHitsAgg), response -> {
+            TopHits topHits = response.getAggregations().get("top-comments");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.getHits().length, equalTo(3));
+
+            for (SearchHit hit : hits) {
+                SearchHits innerHits = hit.getInnerHits().get("comments");
+                assertThat(innerHits.getHits().length, lessThanOrEqualTo(2));
+                for (SearchHit innerHit : innerHits) {
+                    assertThat(innerHit.getNestedIdentity().getField().string(), equalTo("comments"));
+                    Map<String, Object> source = innerHit.getSourceAsMap();
+                    assertTrue(source.containsKey("message"));
+                    assertFalse(source.containsKey("reviewers"));
+                }
+            }
+        });
+    }
+
+    public void testTopHitsOnMultipleNestedInnerHits() {
+        QueryBuilder doubleNestedQuery = nestedQuery(
+            "comments",
+            nestedQuery("comments.reviewers", matchQuery("comments.reviewers.name", "user c"), ScoreMode.Avg).innerHit(
+                new InnerHitBuilder()
+            ),
+            ScoreMode.Avg
+        ).innerHit(new InnerHitBuilder("review"));
+        AggregationBuilder topHitsAgg = topHits("top-reviewers").size(2)
+            .sort(SortBuilders.fieldSort("comments.date").order(SortOrder.ASC).setNestedSort(new NestedSortBuilder("comments")));
+
+        assertNoFailuresAndResponse(prepareSearch("articles").setQuery(doubleNestedQuery).addAggregation(topHitsAgg), response -> {
+            TopHits topHits = response.getAggregations().get("top-reviewers");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.getHits().length, equalTo(1));
+
+            SearchHit hit = hits.getAt(0);
+            SearchHits innerHits = hit.getInnerHits().get("review");
+            assertThat(innerHits.getHits().length, equalTo(2));
+
+            assertThat(innerHits.getAt(0).getId(), equalTo("1"));
+            assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+            assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+            Map<String, Object> source0 = innerHits.getAt(0).getSourceAsMap();
+            assertTrue(source0.containsKey("message"));
+            assertTrue(source0.containsKey("reviewers"));
+
+            assertThat(innerHits.getAt(1).getId(), equalTo("1"));
+            assertThat(innerHits.getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
+            assertThat(innerHits.getAt(1).getNestedIdentity().getOffset(), equalTo(1));
+            Map<String, Object> source1 = innerHits.getAt(1).getSourceAsMap();
+            assertTrue(source1.containsKey("message"));
+            assertTrue(source1.containsKey("reviewers"));
+        });
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
@@ -1261,6 +1335,41 @@ public class TopHitsIT extends ESIntegTestCase {
                     for (SearchHit hit : topHits.getHits().getHits()) {
                         assertThat(hit.getScore(), equalTo(Float.NaN));
                     }
+                }
+            }
+        );
+    }
+
+    public void testScriptSorting() {
+        Script script = new Script(ScriptType.INLINE, NAME, "doc['sort'].value", Collections.emptyMap());
+        assertNoFailuresAndResponse(
+            prepareSearch("idx").addAggregation(
+                terms("terms").executionHint(randomExecutionHint())
+                    .field(TERMS_AGGS_FIELD)
+                    .subAggregation(topHits("hits").sort(SortBuilders.scriptSort(script, ScriptSortType.NUMBER).order(SortOrder.DESC)))
+            ),
+            response -> {
+                Terms terms = response.getAggregations().get("terms");
+                assertThat(terms, notNullValue());
+                assertThat(terms.getName(), equalTo("terms"));
+                assertThat(terms.getBuckets().size(), equalTo(5));
+
+                double higestSortValue = 0;
+                for (int i = 0; i < 5; i++) {
+                    Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+                    assertThat(bucket, notNullValue());
+                    assertThat(key(bucket), equalTo("val" + i));
+                    assertThat(bucket.getDocCount(), equalTo(10L));
+                    TopHits topHits = bucket.getAggregations().get("hits");
+                    SearchHits hits = topHits.getHits();
+                    assertThat(hits.getTotalHits().value, equalTo(10L));
+                    assertThat(hits.getHits().length, equalTo(3));
+                    higestSortValue += 10;
+                    assertThat((Double) hits.getAt(0).getSortValues()[0], equalTo(higestSortValue));
+                    assertThat((Double) hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
+                    assertThat((Double) hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
+
+                    assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
                 }
             }
         );

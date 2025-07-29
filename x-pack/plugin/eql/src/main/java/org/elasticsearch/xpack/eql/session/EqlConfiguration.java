@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.session;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -30,6 +31,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final EqlSearchTask task;
     private final int fetchSize;
     private final int maxSamplesPerKey;
+    private final boolean allowPartialSearchResults;
+    private final boolean allowPartialSequenceResults;
+    private final TransportVersion minTransportVersion;
 
     @Nullable
     private final QueryBuilder filter;
@@ -50,6 +54,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         IndicesOptions indicesOptions,
         int fetchSize,
         int maxSamplesPerKey,
+        boolean allowPartialSearchResults,
+        boolean allowPartialSequenceResults,
+        TransportVersion minTransportVersion,
         String clientId,
         TaskId taskId,
         EqlSearchTask task
@@ -67,6 +74,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.task = task;
         this.fetchSize = fetchSize;
         this.maxSamplesPerKey = maxSamplesPerKey;
+        this.allowPartialSearchResults = allowPartialSearchResults;
+        this.allowPartialSequenceResults = allowPartialSequenceResults;
+        this.minTransportVersion = minTransportVersion;
     }
 
     public String[] indices() {
@@ -87,6 +97,14 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public int maxSamplesPerKey() {
         return maxSamplesPerKey;
+    }
+
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
+    public boolean allowPartialSequenceResults() {
+        return allowPartialSequenceResults;
     }
 
     public QueryBuilder filter() {
@@ -115,5 +133,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public TaskId getTaskId() {
         return taskId;
+    }
+
+    public TransportVersion minTransportVersion() {
+        return minTransportVersion;
     }
 }

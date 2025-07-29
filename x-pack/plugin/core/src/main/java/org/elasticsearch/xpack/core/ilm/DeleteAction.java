@@ -93,8 +93,7 @@ public class DeleteAction implements LifecycleAction {
             WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
                 waitTimeSeriesEndTimePassesKey,
                 cleanSnapshotKey,
-                Instant::now,
-                client
+                Instant::now
             );
             CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, deleteStepKey, client);
             DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
@@ -108,8 +107,7 @@ public class DeleteAction implements LifecycleAction {
             WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
                 waitTimeSeriesEndTimePassesKey,
                 deleteStepKey,
-                Instant::now,
-                client
+                Instant::now
             );
             DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
             return List.of(waitForNoFollowersStep, waitUntilTimeSeriesEndTimeStep, deleteStep);

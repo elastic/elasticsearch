@@ -36,7 +36,7 @@ public class ClusterUpdateSettingsResponse extends AcknowledgedResponse {
         persistentSettings = Settings.readSettingsFromStream(in);
     }
 
-    ClusterUpdateSettingsResponse(boolean acknowledged, Settings transientSettings, Settings persistentSettings) {
+    public ClusterUpdateSettingsResponse(boolean acknowledged, Settings transientSettings, Settings persistentSettings) {
         super(acknowledged);
         this.persistentSettings = persistentSettings;
         this.transientSettings = transientSettings;

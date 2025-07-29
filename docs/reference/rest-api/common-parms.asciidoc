@@ -798,6 +798,7 @@ currently supported:
 * <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
 * <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
+* <<search-aggregations-metrics-extendedstats-aggregation,Extended Stats>>
 * <<search-aggregations-bucket-filter-aggregation,Filter>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
@@ -865,7 +866,7 @@ end::search-q[]
 
 tag::query[]
 `query`::
-(Optional, <<query-dsl,query object>>) Defines the search definition using the
+(Optional, <<query-dsl,query object>>) Defines the search query using
 <<query-dsl,Query DSL>>.
 end::query[]
 
@@ -1309,8 +1310,26 @@ See <<index-wait-for-active-shards>>.
 end::wait_for_active_shards[]
 
 tag::rrf-retrievers[]
+
+[NOTE]
+====
+Either `query` or `retrievers` must be specified.
+Combining `query` and `retrievers` is not supported.
+====
+
+`query`::
+(Optional, String)
++
+The query to use when using the <<multi-field-query-format, multi-field query format>>.
+
+`fields`::
+(Optional, array of strings)
++
+The fields to query when using the <<multi-field-query-format, multi-field query format>>.
+If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
+
 `retrievers`::
-(Required, array of retriever objects)
+(Optional, array of retriever objects)
 +
 A list of child retrievers to specify which sets of returned top documents
 will have the RRF formula applied to them. Each child retriever carries an
@@ -1328,7 +1347,7 @@ that lower ranked documents have more influence. This value must be greater than
 equal to `1`. Defaults to `60`.
 end::rrf-rank-constant[]
 
-tag::rrf-rank-window-size[]
+tag::compound-retriever-rank-window-size[]
 `rank_window_size`::
 (Optional, integer)
 +
@@ -1336,13 +1355,105 @@ This value determines the size of the individual result sets per
 query. A higher value will improve result relevance at the cost of performance. The final
 ranked result set is pruned down to the search request's <<search-size-param, size>>.
 `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
-Defaults to the `size` parameter.
-end::rrf-rank-window-size[]
+Defaults to 10.
+end::compound-retriever-rank-window-size[]
 
-tag::rrf-filter[]
+tag::compound-retriever-filter[]
 `filter`::
 (Optional, <<query-dsl, query object or list of query objects>>)
 +
 Applies the specified <<query-dsl-bool-query, boolean query filter>> to all of the specified sub-retrievers,
 according to each retriever's specifications.
-end::rrf-filter[]
+end::compound-retriever-filter[]
+
+tag::linear-retriever-components[]
+
+[NOTE]
+====
+Either `query` or `retrievers` must be specified.
+Combining `query` and `retrievers` is not supported.
+====
+
+`query`::
+(Optional, String)
++
+The query to use when using the <<multi-field-query-format, multi-field query format>>.
+
+`fields`::
+(Optional, array of strings)
++
+The fields to query when using the <<multi-field-query-format, multi-field query format>>.
+Fields can include boost values using the `^` notation (e.g., `"field^2"`).
+If not specified, uses the index's default fields from the `index.query.default_field` index setting, which is `*` by default.
+
+`normalizer`::
+(Optional, String)
++
+The normalizer to use when using the <<multi-field-query-format, multi-field query format>>.
+See <<linear-retriever-normalizers, normalizers>> for supported values.
+Required when `query` is specified.
++
+[WARNING]
+====
+Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.
+See <<multi-field-field-grouping, field grouping>> for more information.
+====
+
+`retrievers`::
+(Optional, array of objects)
++
+A list of the sub-retrievers' configuration, that we will take into account and whose result sets
+we will merge through a weighted sum. Each configuration can have a different weight and normalization depending
+on the specified retriever.
+
+include::common-parms.asciidoc[tag=compound-retriever-rank-window-size]
+
+include::common-parms.asciidoc[tag=compound-retriever-filter]
+
+Each entry in the `retrievers` array specifies the following parameters:
+
+`retriever`::
+(Required, a <<retriever, retriever>> object)
++
+Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size`
+results, which will later be merged based on the specified `weight` and `normalizer`.
+
+`weight`::
+(Optional, float)
++
+The weight that each score of this retriever's top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
+
+`normalizer`::
+(Optional, String)
++
+Specifies how the retriever’s score will be normalized before applying the specified `weight`.
+See <<linear-retriever-normalizers, normalizers>> for supported values.
+Defaults to `none`.
+
+See also <<retrievers-examples-linear-retriever, this hybrid search example>> using a linear retriever on how to
+independently configure and apply normalizers to retrievers.
+end::linear-retriever-components[]
+
+tag::knn-rescore-vector[]
+
+`rescore_vector`::
++
+--
+(Optional, object) Functionality in preview:[]. Apply oversampling and rescoring to quantized vectors.
+
+NOTE: Rescoring only makes sense for quantized vectors; when <<dense-vector-quantization,quantization>> is not used, the original vectors are used for scoring.
+Rescore option will be ignored for non-quantized `dense_vector` fields.
+
+`oversample`::
+(Required, float)
++
+Applies the specified oversample factor to `k` on the approximate kNN search.
+The approximate kNN search will:
+
+* Retrieve `num_candidates` candidates per shard.
+* From these candidates, the top `k * oversample` candidates per shard will be rescored using the original vectors.
+* The top `k` rescored candidates will be returned.
+
+See <<dense-vector-knn-search-rescoring,oversampling and rescoring quantized vectors>> for details.
+--
+end::knn-rescore-vector[]

@@ -9,6 +9,7 @@ performance of your {es} cluster.
 
 * <<monitoring-overview>>
 * <<how-monitoring-works>>
+* <<logging>>
 * <<monitoring-production>>
 * <<configuring-elastic-agent>>
 * <<configuring-metricbeat>>
@@ -22,6 +23,8 @@ performance of your {es} cluster.
 include::overview.asciidoc[]
 
 include::how-monitoring-works.asciidoc[]
+
+include::{es-ref-dir}/setup/logging-config.asciidoc[]
 
 include::production.asciidoc[]
 

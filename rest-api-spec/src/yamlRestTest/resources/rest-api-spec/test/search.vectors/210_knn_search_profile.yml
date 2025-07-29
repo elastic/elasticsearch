@@ -106,9 +106,9 @@ setup:
             k: 3
             num_candidates: 3
             "rescore_vector":
-              "num_candidates_factor": 2.0
+              "oversample": 2.0
 
-  # We expect the knn search ops + rescoring num_cnaidates (for rescoring) per shard
+  # We expect the knn search ops + rescoring k * oversample (for rescoring) per shard
   - match: { profile.shards.0.dfs.knn.0.vector_operations_count: 6 }
 
   # Search with similarity to check number of operations are propagated correctly
@@ -131,7 +131,7 @@ setup:
             num_candidates: 3
             similarity: 100000
             "rescore_vector":
-              "num_candidates_factor": 2.0
+              "oversample": 2.0
 
-  # We expect the knn search ops + rescoring num_cnaidates (for rescoring) per shard
+  # We expect the knn search ops + rescoring k * oversample (for rescoring) per shard
   - match: { profile.shards.0.dfs.knn.0.vector_operations_count: 6 }

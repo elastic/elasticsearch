@@ -76,11 +76,11 @@ teardown:
 ---
 "Monitoring Bulk API":
   - skip:
-      features: ["catch_unauthorized", "allowed_warnings"]
+      features: ["catch_unauthorized", "allowed_warnings_regex"]
 
   - do:
-      allowed_warnings:
-        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+      allowed_warnings_regex:
+        - "\\[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.*"
       cluster.put_settings:
         body:
           persistent:

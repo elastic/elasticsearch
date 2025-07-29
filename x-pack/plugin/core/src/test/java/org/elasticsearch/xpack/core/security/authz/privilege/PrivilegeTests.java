@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
@@ -66,6 +67,7 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
+import java.util.Iterator;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -203,29 +205,44 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIndexAction() throws Exception {
         Set<String> actionName = Sets.newHashSet("indices:admin/mapping/delete");
-        IndexPrivilege index = IndexPrivilege.get(actionName);
+        IndexPrivilege index = IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(actionName);
         assertThat(index, notNullValue());
         assertThat(index.predicate().test("indices:admin/mapping/delete"), is(true));
         assertThat(index.predicate().test("indices:admin/mapping/dele"), is(false));
         assertThat(IndexPrivilege.READ_CROSS_CLUSTER.predicate().test("internal:transport/proxy/indices:data/read/query"), is(true));
     }
 
-    public void testIndexCollapse() throws Exception {
-        IndexPrivilege[] values = IndexPrivilege.values().values().toArray(new IndexPrivilege[IndexPrivilege.values().size()]);
+    public void testIndexCollapse() {
+        IndexPrivilege[] values = IndexPrivilege.values().values().toArray(new IndexPrivilege[0]);
         IndexPrivilege first = values[randomIntBetween(0, values.length - 1)];
         IndexPrivilege second = values[randomIntBetween(0, values.length - 1)];
 
         Set<String> name = Sets.newHashSet(first.name().iterator().next(), second.name().iterator().next());
-        IndexPrivilege index = IndexPrivilege.get(name);
+        Set<IndexPrivilege> indices = IndexPrivilege.resolveBySelectorAccess(name);
+
+        Automaton automaton = null;
+        if (indices.size() == 1) {
+            IndexPrivilege index = indices.iterator().next();
+            automaton = index.getAutomaton();
+        } else if (indices.size() == 2) {
+            Iterator<IndexPrivilege> it = indices.iterator();
+            IndexPrivilege index1 = it.next();
+            IndexPrivilege index2 = it.next();
+            automaton = Automatons.unionAndMinimize(Set.of(index1.getAutomaton(), index2.getAutomaton()));
+        } else {
+            fail("indices.size() must be 1 or 2");
+            assert false;
+        }
 
         if (Operations.subsetOf(second.getAutomaton(), first.getAutomaton())) {
-            assertTrue(Operations.sameLanguage(index.getAutomaton(), first.getAutomaton()));
+            assertTrue(Operations.sameLanguage(automaton, first.getAutomaton()));
         } else if (Operations.subsetOf(first.getAutomaton(), second.getAutomaton())) {
-            assertTrue(Operations.sameLanguage(index.getAutomaton(), second.getAutomaton()));
+            assertTrue(Operations.sameLanguage(automaton, second.getAutomaton()));
         } else {
-            assertFalse(Operations.sameLanguage(index.getAutomaton(), first.getAutomaton()));
-            assertFalse(Operations.sameLanguage(index.getAutomaton(), second.getAutomaton()));
+            assertFalse(Operations.sameLanguage(automaton, first.getAutomaton()));
+            assertFalse(Operations.sameLanguage(automaton, second.getAutomaton()));
         }
+
     }
 
     public void testSystem() throws Exception {

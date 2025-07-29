@@ -22,6 +22,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,6 +32,7 @@ import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class SearchPhaseExecutionExceptionTests extends ESTestCase {
 
@@ -167,5 +169,58 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         );
 
         assertEquals(actual.status(), RestStatus.BAD_REQUEST);
+    }
+
+    public void testOnlyWithCodesThatDoNotRequirePrecedence() {
+        int pickedIndex = randomIntBetween(0, 1);
+
+        // Pick one of these exceptions randomly.
+        var searchExceptions = new ElasticsearchException[] {
+            new ElasticsearchException("simulated"),
+            new NodeDisconnectedException(null, "unused message", "unused action", null) };
+
+        // Status codes that map to searchExceptions.
+        var expectedStatusCodes = new RestStatus[] { RestStatus.INTERNAL_SERVER_ERROR, RestStatus.BAD_GATEWAY };
+
+        ShardSearchFailure shardFailure1 = new ShardSearchFailure(
+            searchExceptions[pickedIndex],
+            new SearchShardTarget("nodeID", new ShardId("someIndex", "someUUID", 1), null)
+        );
+
+        ShardSearchFailure shardFailure2 = new ShardSearchFailure(
+            searchExceptions[pickedIndex],
+            new SearchShardTarget("nodeID", new ShardId("someIndex", "someUUID", 2), null)
+        );
+
+        SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+            "search",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure1, shardFailure2 }
+        );
+
+        assertThat(ex.status(), is(expectedStatusCodes[pickedIndex]));
+    }
+
+    public void testWithRetriableCodesThatTakePrecedence() {
+        // Maps to a 500.
+        ShardSearchFailure shardFailure1 = new ShardSearchFailure(
+            new ElasticsearchException("simulated"),
+            new SearchShardTarget("nodeID", new ShardId("someIndex", "someUUID", 1), null)
+        );
+
+        // Maps to a 502.
+        ShardSearchFailure shardFailure2 = new ShardSearchFailure(
+            new NodeDisconnectedException(null, "unused message", "unused action", null),
+            new SearchShardTarget("nodeID", new ShardId("someIndex", "someUUID", 2), null)
+        );
+
+        SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+            "search",
+            "all shards failed",
+            new ShardSearchFailure[] { shardFailure1, shardFailure2 }
+        );
+
+        // The 502 takes precedence over 500.
+        assertThat(ex.status(), is(RestStatus.BAD_GATEWAY));
     }
 }

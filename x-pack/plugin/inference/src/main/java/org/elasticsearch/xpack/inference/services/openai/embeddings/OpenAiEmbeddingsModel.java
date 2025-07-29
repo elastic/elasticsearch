@@ -7,26 +7,25 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
-import org.elasticsearch.common.util.LazyInitializable;
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiUtils;
+import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.util.Collections;
-import java.util.HashMap;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 public class OpenAiEmbeddingsModel extends OpenAiModel {
 
@@ -74,8 +73,16 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings,
-            secrets
+            secrets,
+            buildUri(serviceSettings.uri(), OpenAiService.NAME, OpenAiEmbeddingsModel::buildDefaultUri)
         );
+    }
+
+    public static URI buildDefaultUri() throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(OpenAiUtils.HOST)
+            .setPathSegments(OpenAiUtils.VERSION_1, OpenAiUtils.EMBEDDINGS_PATH)
+            .build();
     }
 
     private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {
@@ -104,31 +111,5 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     @Override
     public ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
-    }
-
-    public static class Configuration {
-        public static Map<String, SettingsConfiguration> get() {
-            return configuration.getOrCompute();
-        }
-
-        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
-            new LazyInitializable<>(() -> {
-                var configurationMap = new HashMap<String, SettingsConfiguration>();
-
-                configurationMap.put(
-                    USER,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
-                        .setLabel("User")
-                        .setOrder(1)
-                        .setRequired(false)
-                        .setSensitive(false)
-                        .setTooltip("Specifies the user issuing the request.")
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .setValue("")
-                        .build()
-                );
-
-                return Collections.unmodifiableMap(configurationMap);
-            });
     }
 }

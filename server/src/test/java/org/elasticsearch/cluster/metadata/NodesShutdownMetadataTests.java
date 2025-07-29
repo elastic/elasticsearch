@@ -78,6 +78,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
                     "this_node",
                     SingleNodeShutdownMetadata.builder()
                         .setNodeId("this_node")
+                        .setNodeEphemeralId("this_node")
                         .setReason("shutdown for a unit test")
                         .setType(type)
                         .setStartedAtMillis(randomNonNegativeLong())
@@ -106,6 +107,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
     public void testSigtermIsRemoveInOlderVersions() throws IOException {
         SingleNodeShutdownMetadata metadata = SingleNodeShutdownMetadata.builder()
             .setNodeId("myid")
+            .setNodeEphemeralId("myid")
             .setType(SingleNodeShutdownMetadata.Type.SIGTERM)
             .setReason("myReason")
             .setStartedAtMillis(0L)
@@ -127,6 +129,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
         SingleNodeShutdownMetadata.Type type;
         SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
             .setNodeId("thenode")
+            .setNodeEphemeralId("thenode")
             .setReason("myReason")
             .setStartedAtMillis(0L);
         switch (type = randomFrom(SingleNodeShutdownMetadata.Type.values())) {
@@ -182,6 +185,7 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
         final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
         final SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
+            .setNodeEphemeralId(randomAlphaOfLength(5))
             .setType(type)
             .setReason(randomAlphaOfLength(5))
             .setStartedAtMillis(randomNonNegativeLong());

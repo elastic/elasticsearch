@@ -1,12 +1,17 @@
 [role="xpack"]
 [[search-application-search]]
 === Search Application Search
-
-beta::[]
-
 ++++
 <titleabbrev>Search Application Search</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search_application[Search application APIs].
+--
+
+beta::[]
 
 Given specified query parameters, generates and executes an {es} query using the search template associated
 with the search application or a default template if none is specified.

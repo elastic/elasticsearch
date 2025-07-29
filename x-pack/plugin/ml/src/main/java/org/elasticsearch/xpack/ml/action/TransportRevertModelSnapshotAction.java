@@ -58,6 +58,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
     private static final Logger logger = LogManager.getLogger(TransportRevertModelSnapshotAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final JobManager jobManager;
     private final JobResultsProvider jobResultsProvider;
@@ -82,10 +83,10 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             threadPool,
             actionFilters,
             RevertModelSnapshotAction.Request::new,
-            indexNameExpressionResolver,
             RevertModelSnapshotAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
@@ -265,7 +266,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         Consumer<ModelSnapshot> handler,
         Consumer<Exception> errorHandler
     ) {
-        logger.info("Reverting to snapshot '" + request.getSnapshotId() + "'");
+        logger.info("[{}] Reverting to snapshot {}", request.getJobId(), request.getSnapshotId());
 
         if (ModelSnapshot.isTheEmptySnapshot(request.getSnapshotId())) {
             handler.accept(ModelSnapshot.emptySnapshot(request.getJobId()));

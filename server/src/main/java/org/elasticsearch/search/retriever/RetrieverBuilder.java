@@ -50,7 +50,7 @@ import java.util.Objects;
  */
 public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>, ToXContent {
 
-    public static final NodeFeature RETRIEVERS_SUPPORTED = new NodeFeature("retrievers_supported");
+    public static final NodeFeature RETRIEVERS_SUPPORTED = new NodeFeature("retrievers_supported", true);
 
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
 
@@ -63,7 +63,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
     ) {
         parser.declareObjectArray(
-            (r, v) -> r.preFilterQueryBuilders = v,
+            (r, v) -> r.preFilterQueryBuilders = new ArrayList<>(v),
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
             PRE_FILTER_FIELD
         );

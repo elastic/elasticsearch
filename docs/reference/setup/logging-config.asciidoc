@@ -1,5 +1,5 @@
 [[logging]]
-=== Logging
+== Elasticsearch application logging
 
 You can use {es}'s application logs to monitor your cluster and diagnose issues.
 If you run {es} as a service, the default location of the logs varies based on
@@ -11,7 +11,7 @@ If you run {es} from the command line, {es} prints logs to the standard output
 (`stdout`).
 
 [discrete]
-[[loggin-configuration]]
+[[logging-configuration]]
 === Logging configuration
 
 IMPORTANT: Elastic strongly recommends using the Log4j 2 configuration that is shipped by default.
@@ -304,6 +304,7 @@ The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.
 Deprecation logs can be indexed into `.logs-deprecation.elasticsearch-default` data stream
 `cluster.deprecation_indexing.enabled` setting is set to true.
 
+[discrete]
 ==== Deprecation logs throttling
 :es-rate-limiting-filter-java-doc: {elasticsearch-javadoc}/org/elasticsearch/common/logging/RateLimitingFilter.html
 Deprecation logs are deduplicated based on a deprecated feature key

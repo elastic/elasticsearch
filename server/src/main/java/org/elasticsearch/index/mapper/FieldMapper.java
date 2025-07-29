@@ -57,7 +57,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -202,7 +201,7 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
-    private void doParseMultiFields(DocumentParserContext context) throws IOException {
+    protected void doParseMultiFields(DocumentParserContext context) throws IOException {
         context.path().add(leafName());
         for (FieldMapper mapper : builderParams.multiFields.mappers) {
             mapper.parse(context);
@@ -210,7 +209,7 @@ public abstract class FieldMapper extends Mapper {
         context.path().remove();
     }
 
-    private static void throwIndexingWithScriptParam() {
+    protected static void throwIndexingWithScriptParam() {
         throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
     }
 
@@ -444,7 +443,11 @@ public abstract class FieldMapper extends Mapper {
 
     @Override
     public int getTotalFieldsCount() {
-        return 1 + Stream.of(builderParams.multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
+        int sum = 1;
+        for (FieldMapper mapper : builderParams.multiFields.mappers) {
+            sum += mapper.getTotalFieldsCount();
+        }
+        return sum;
     }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {
@@ -557,10 +560,26 @@ public abstract class FieldMapper extends Mapper {
 
         SyntheticSourceSupport FALLBACK = new Fallback();
 
-        record Native(SourceLoader.SyntheticFieldLoader loader) implements SyntheticSourceSupport {
+        final class Native implements SyntheticSourceSupport {
+            Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier;
+            private SourceLoader.SyntheticFieldLoader loader;
+
+            @SuppressWarnings("checkstyle:RedundantModifier")
+            public Native(Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier) {
+                this.loaderSupplier = loaderSupplier;
+            }
+
             @Override
             public SyntheticSourceMode mode() {
                 return SyntheticSourceMode.NATIVE;
+            }
+
+            @Override
+            public SourceLoader.SyntheticFieldLoader loader() {
+                if (loader == null) {
+                    loader = loaderSupplier.get();
+                }
+                return loader;
             }
         }
 
@@ -1380,6 +1399,11 @@ public abstract class FieldMapper extends Mapper {
             for (FieldMapper subField : initializer.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
+            return this;
+        }
+
+        public Builder addMultiField(FieldMapper.Builder builder) {
+            this.multiFieldsBuilder.add(builder);
             return this;
         }
 

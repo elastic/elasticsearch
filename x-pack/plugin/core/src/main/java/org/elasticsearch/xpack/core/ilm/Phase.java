@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -56,7 +55,6 @@ public class Phase implements ToXContentObject, Writeable {
             // when the phase is read from the cluster state during startup (even before negative timevalues were strictly
             // disallowed) so this is a hack to treat negative `min_age`s as 0 to prevent those errors.
             // They will be saved as `0` so this hack can be removed once we no longer have to read cluster states from 7.x.
-            @UpdateForV9 // remove this hack now that we don't have to read 7.x cluster states
             final String timeValueString = p.text();
             if (timeValueString.startsWith("-")) {
                 logger.warn("phase has negative min_age value of [{}] - this will be treated as a min_age of 0", timeValueString);

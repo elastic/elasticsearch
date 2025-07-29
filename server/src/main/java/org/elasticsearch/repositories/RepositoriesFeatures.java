@@ -15,7 +15,7 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Set;
 
 public class RepositoriesFeatures implements FeatureSpecification {
-    public static final NodeFeature SUPPORTS_REPOSITORIES_USAGE_STATS = new NodeFeature("repositories.supports_usage_stats");
+    public static final NodeFeature SUPPORTS_REPOSITORIES_USAGE_STATS = new NodeFeature("repositories.supports_usage_stats", true);
 
     @Override
     public Set<NodeFeature> getFeatures() {

@@ -560,6 +560,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             validateIndexName(checkerService, "..", "must not be '.' or '..'");
 
             validateIndexName(checkerService, "foo:bar", "must not contain ':'");
+
+            validateIndexName(checkerService, "", "must not be empty");
+            validateIndexName(checkerService, null, "must not be empty");
         }));
     }
 

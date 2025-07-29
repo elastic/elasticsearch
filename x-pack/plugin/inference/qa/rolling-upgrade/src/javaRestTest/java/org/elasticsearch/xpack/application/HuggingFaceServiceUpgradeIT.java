@@ -158,7 +158,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
         assertThat(inferenceMap.entrySet(), not(empty()));
     }
 
-    private String embeddingConfig(String url) {
+    static String embeddingConfig(String url) {
         return Strings.format("""
             {
                 "service": "hugging_face",
@@ -181,7 +181,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             """;
     }
 
-    private String elserConfig(String url) {
+    static String elserConfig(String url) {
         return Strings.format("""
             {
                 "service": "hugging_face",
@@ -193,7 +193,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             """, url);
     }
 
-    private String elserResponse() {
+    static String elserResponse() {
         return """
             [
                 {

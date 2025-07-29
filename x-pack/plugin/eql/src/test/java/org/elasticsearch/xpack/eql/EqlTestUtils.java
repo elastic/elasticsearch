@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +52,9 @@ public final class EqlTestUtils {
         null,
         123,
         1,
+        false,
+        true,
+        TransportVersion.current(),
         "",
         new TaskId("test", 123),
         null
@@ -69,6 +73,9 @@ public final class EqlTestUtils {
             randomIndicesOptions(),
             randomIntBetween(1, 1000),
             randomIntBetween(1, 1000),
+            randomBoolean(),
+            randomBoolean(),
+            TransportVersion.current(),
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomTask()

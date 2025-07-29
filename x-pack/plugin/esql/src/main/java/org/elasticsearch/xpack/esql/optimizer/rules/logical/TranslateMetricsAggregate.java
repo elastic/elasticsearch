@@ -215,12 +215,12 @@ public final class TranslateMetricsAggregate extends OptimizerRules.OptimizerRul
 
     private static Aggregate toStandardAggregate(Aggregate metrics) {
         final LogicalPlan child = metrics.child().transformDown(EsRelation.class, r -> {
-            var attributes = new ArrayList<>(new AttributeSet(metrics.inputSet()));
+            var attributes = new ArrayList<>(AttributeSet.of(metrics.inputSet()));
             attributes.removeIf(a -> a.name().equals(MetadataAttribute.TSID_FIELD));
             if (attributes.stream().noneMatch(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD))) {
                 attributes.removeIf(a -> a.name().equals(MetadataAttribute.TIMESTAMP_FIELD));
             }
-            return new EsRelation(r.source(), r.index(), new ArrayList<>(attributes), IndexMode.STANDARD);
+            return new EsRelation(r.source(), r.indexPattern(), IndexMode.STANDARD, r.indexNameWithModes(), new ArrayList<>(attributes));
         });
         return new Aggregate(metrics.source(), child, Aggregate.AggregateType.STANDARD, metrics.groupings(), metrics.aggregates());
     }

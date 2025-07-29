@@ -9,4 +9,4 @@
 
 package org.elasticsearch.entitlement.bridge;
 
-public interface Java23EntitlementChecker extends EntitlementChecker {}
+public interface Java23EntitlementChecker extends Java22EntitlementChecker {}

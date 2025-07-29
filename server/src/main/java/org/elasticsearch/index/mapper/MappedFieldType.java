@@ -29,6 +29,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -57,6 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
@@ -199,6 +203,15 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Vector embeddings are typically large and not intended for human consumption, so such fields may be excluded from responses.
+     *
+     * @return true if this field contains vector embeddings.
+     */
+    public boolean isVectorEmbedding() {
+        return false;
+    }
+
+    /**
      * @return true if field has script values.
      */
     public boolean hasScriptValues() {
@@ -219,6 +232,13 @@ public abstract class MappedFieldType {
      */
     public TimeSeriesParams.MetricType getMetricType() {
         return null;
+    }
+
+    /**
+     * Returns the default highlighter type to use when highlighting the field.
+     */
+    public String getDefaultHighlighter() {
+        return DefaultHighlighter.NAME;
     }
 
     /** Generates a query that will only match documents that contain the given value.
@@ -316,6 +336,19 @@ public abstract class MappedFieldType {
         return wildcardQuery(value, method, false, context);
     }
 
+    /**
+     * Similar to wildcardQuery, except that we change the behavior for ESQL
+     * to behave like a string LIKE query, where the value is matched as a string
+     */
+    public Query wildcardLikeQuery(
+        String value,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        boolean caseInsensitve,
+        SearchExecutionContext context
+    ) {
+        return wildcardQuery(value, method, caseInsensitve, context);
+    }
+
     public Query wildcardQuery(
         String value,
         @Nullable MultiTermQuery.RewriteMethod method,
@@ -354,6 +387,23 @@ public abstract class MappedFieldType {
         throw new QueryShardException(
             context,
             "Can only use regexp queries on keyword and text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Returns a Lucine pushable Query for the current field
+     * For now can only be AutomatonQuery or MatchAllDocsQuery() or MatchNoDocsQuery()
+     */
+    public Query automatonQuery(
+        Supplier<Automaton> automatonSupplier,
+        Supplier<CharacterRunAutomaton> characterRunAutomatonSupplier,
+        @Nullable MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context,
+        String description
+    ) {
+        throw new QueryShardException(
+            context,
+            "Can only use automaton queries on keyword fields - not on [" + name + "] which is of type [" + typeName() + "]"
         );
     }
 
@@ -705,9 +755,14 @@ public abstract class MappedFieldType {
          */
         DOC_VALUES,
         /**
+         *  Loads the field by extracting the extent from the binary encoded representation
+         */
+        EXTRACT_SPATIAL_BOUNDS,
+        /**
          * No preference. Leave the choice of where to load the field from up to the FieldType.
          */
-        NONE
+        NONE;
+
     }
 
     /**

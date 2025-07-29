@@ -349,10 +349,7 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
         /*
          * Now that we're sure we have space we allocate all the buckets.
          */
-        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(
-            Collections.singletonList(emptyBucketInfo.subAggregations),
-            reduceContext
-        );
+        InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(emptyBucketInfo.subAggregations, reduceContext);
         ListIterator<Bucket> iter = list.listIterator();
         iterateEmptyBuckets(list, iter, new DoubleConsumer() {
             private int size;
@@ -449,16 +446,11 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalHistogram(
-            getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            order,
-            minDocCount,
-            emptyBucketInfo,
-            format,
-            keyed,
-            getMetadata()
-        );
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
+        return new InternalHistogram(getName(), buckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override

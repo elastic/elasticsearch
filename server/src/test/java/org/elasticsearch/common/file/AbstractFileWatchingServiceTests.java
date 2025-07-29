@@ -24,12 +24,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -38,6 +40,7 @@ import java.time.ZoneOffset;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.sameInstance;
@@ -81,6 +84,39 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
                 countDownLatch.countDown();
             }
         }
+
+        // the following methods are a workaround to ensure exclusive access for files
+        // required by child watchers; this is required because we only check the caller's module
+        // not the entire stack
+        @Override
+        protected boolean filesExists(Path path) {
+            return Files.exists(path);
+        }
+
+        @Override
+        protected boolean filesIsDirectory(Path path) {
+            return Files.isDirectory(path);
+        }
+
+        @Override
+        protected <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException {
+            return Files.readAttributes(path, clazz);
+        }
+
+        @Override
+        protected Stream<Path> filesList(Path dir) throws IOException {
+            return Files.list(dir);
+        }
+
+        @Override
+        protected Path filesSetLastModifiedTime(Path path, FileTime time) throws IOException {
+            return Files.setLastModifiedTime(path, time);
+        }
+
+        @Override
+        protected InputStream filesNewInputStream(Path path) throws IOException {
+            return Files.newInputStream(path);
+        }
     }
 
     private AbstractFileWatchingService fileWatchingService;
@@ -104,7 +140,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
 
         env = newEnvironment(Settings.EMPTY);
 
-        Files.createDirectories(env.configFile());
+        Files.createDirectories(env.configDir());
 
         fileWatchingService = new TestFileWatchingService(getWatchedFilePath(env));
     }
@@ -203,7 +239,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
     }
 
     private static Path getWatchedFilePath(Environment env) {
-        return env.configFile().toAbsolutePath().resolve("test").resolve("test.json");
+        return env.configDir().toAbsolutePath().resolve("test").resolve("test.json");
     }
 
 }

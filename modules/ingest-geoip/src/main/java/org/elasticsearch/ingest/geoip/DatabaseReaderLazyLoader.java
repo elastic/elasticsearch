@@ -53,6 +53,10 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     private volatile boolean deleteDatabaseFileOnShutdown;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
+    // it seems insane, especially if you read the code for UnixPath, but calling toString on a path in advance here is faster enough
+    // than calling it on every call to cache.putIfAbsent that it makes the slight additional internal complication worth it
+    private final String cachedDatabasePathToString;
+
     DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
         this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
@@ -61,6 +65,9 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
         this.databaseReader = new SetOnce<>();
         this.databaseType = new SetOnce<>();
         this.buildDate = new SetOnce<>();
+
+        // cache the toString on construction
+        this.cachedDatabasePathToString = databasePath.toString();
     }
 
     /**
@@ -99,7 +106,7 @@ public class DatabaseReaderLazyLoader implements IpDatabase {
     @Override
     @Nullable
     public <RESPONSE> RESPONSE getResponse(String ipAddress, CheckedBiFunction<Reader, String, RESPONSE, Exception> responseProvider) {
-        return cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+        return cache.putIfAbsent(ipAddress, cachedDatabasePathToString, ip -> {
             try {
                 return responseProvider.apply(get(), ipAddress);
             } catch (Exception e) {

@@ -10,7 +10,10 @@
 package org.elasticsearch.features;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterFeatures;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -29,7 +32,7 @@ public class FeatureService {
     /**
      * A feature indicating that node features are supported.
      */
-    public static final NodeFeature FEATURES_SUPPORTED = new NodeFeature("features_supported");
+    public static final NodeFeature FEATURES_SUPPORTED = new NodeFeature("features_supported", true);
     public static final NodeFeature TEST_FEATURES_ENABLED = new NodeFeature("test_features_enabled");
 
     private static final Logger logger = LogManager.getLogger(FeatureService.class);
@@ -44,7 +47,6 @@ public class FeatureService {
      * as the local node's supported feature set
      */
     public FeatureService(List<? extends FeatureSpecification> specs) {
-
         var featureData = FeatureData.createFromSpecifications(specs);
         nodeFeatures = featureData.getNodeFeatures();
         historicalFeatures = featureData.getHistoricalFeatures();
@@ -61,11 +63,25 @@ public class FeatureService {
     }
 
     /**
+     * Returns {@code true} if {@code node} can have assumed features.
+     */
+    public boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
+        return ClusterFeatures.featuresCanBeAssumedForNode(node);
+    }
+
+    /**
+    * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
+    */
+    public boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
+        return ClusterFeatures.featuresCanBeAssumedForNodes(nodes);
+    }
+
+    /**
      * Returns {@code true} if all nodes in {@code state} support feature {@code feature}.
      */
     @SuppressForbidden(reason = "We need basic feature information from cluster state")
     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-        if (state.clusterFeatures().clusterHasFeature(feature)) {
+        if (state.clusterFeatures().clusterHasFeature(state.getNodes(), feature)) {
             return true;
         }
 

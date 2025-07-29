@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -40,8 +39,7 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
         ClusterService clusterService,
         ThreadPool threadPool,
         SnapshotsService snapshotsService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             TYPE.name(),
@@ -50,7 +48,6 @@ public class TransportDeleteSnapshotAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             DeleteSnapshotRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.snapshotsService = snapshotsService;

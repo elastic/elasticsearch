@@ -43,6 +43,7 @@ import org.apache.lucene.util.SuppressForbidden;
 import org.apache.lucene.util.hnsw.OrdinalTranslatedKnnCollector;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -153,7 +154,7 @@ class ES818BinaryQuantizedVectorsReader extends FlatVectorsReader {
     @Override
     public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
         FieldEntry fi = fields.get(field);
-        if (fi == null) {
+        if (fi == null || fi.size() == 0) {
             return null;
         }
         return vectorScorer.getRandomVectorScorer(

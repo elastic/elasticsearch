@@ -47,7 +47,7 @@ public class RerouteProcessorFactoryTests extends ESTestCase {
             ElasticsearchParseException.class,
             () -> create(Map.of("destination", "foo", "dataset", "bar"))
         );
-        assertThat(e.getMessage(), equalTo("[destination] can only be set if dataset and namespace are not set"));
+        assertThat(e.getMessage(), equalTo("[destination] can only be set if type, dataset, and namespace are not set"));
     }
 
     public void testFieldReference() throws Exception {

@@ -16,7 +16,6 @@ import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -580,7 +579,6 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(e.getMessage(), equalTo("the warning [foo] was both allowed and expected"));
     }
 
-    @UpdateForV9 // remove
     public void testLegacyNodeSelectorByVersionRange() throws IOException {
         parser = createParser(YamlXContent.yamlXContent, """
             node_selector:

@@ -9,13 +9,17 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+
+import java.io.IOException;
 
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
@@ -35,7 +39,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
  * <p> Block are immutable and can be passed between threads as long as no two threads hold a reference to
  * the same block at the same time.
  */
-public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, RefCounted, Releasable {
+public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCounted, Releasable {
     /**
      * The maximum number of values that can be added to one position via lookup.
      * TODO maybe make this everywhere?
@@ -212,9 +216,45 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     /**
      * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued
      * fields to expand. The returned block needs to be closed by the caller to release the block's resources.
-     * TODO: pass BlockFactory
      */
     Block expand();
+
+    /**
+     * Build a {@link Block} with a {@code null} inserted {@code before} each
+     * listed position.
+     * <p>
+     *     Note: {@code before} must be non-decreasing.
+     * </p>
+     */
+    default Block insertNulls(IntVector before) {
+        // TODO remove default and scatter to implementation where it can be a lot more efficient
+        int myCount = getPositionCount();
+        int beforeCount = before.getPositionCount();
+        try (Builder builder = elementType().newBlockBuilder(myCount + beforeCount, blockFactory())) {
+            int beforeP = 0;
+            int nextNull = before.getInt(beforeP);
+            for (int mainP = 0; mainP < myCount; mainP++) {
+                while (mainP == nextNull) {
+                    builder.appendNull();
+                    beforeP++;
+                    if (beforeP >= beforeCount) {
+                        builder.copyFrom(this, mainP, myCount);
+                        return builder.build();
+                    }
+                    nextNull = before.getInt(beforeP);
+                }
+                // This line right below this is the super inefficient one.
+                builder.copyFrom(this, mainP, mainP + 1);
+            }
+            assert nextNull == myCount;
+            while (beforeP < beforeCount) {
+                nextNull = before.getInt(beforeP++);
+                assert nextNull == myCount;
+                builder.appendNull();
+            }
+            return builder.build();
+        }
+    }
 
     /**
      * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
@@ -244,6 +284,11 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
+         * <p>
+         *     For single position copies use the faster
+         *     {@link IntBlockBuilder#copyFrom(IntBlock, int)},
+         *     {@link LongBlockBuilder#copyFrom(LongBlock, int)}, etc.
+         * </p>
          */
         Builder copyFrom(Block block, int beginInclusive, int endExclusive);
 
@@ -286,6 +331,39 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             }
             return blocks;
         }
+    }
+
+    /**
+     * Writes only the data of the block to a stream output.
+     * This method should be used when the type of the block is known during reading.
+     */
+    void writeTo(StreamOutput out) throws IOException;
+
+    /**
+     * Writes the type of the block followed by the block data to a stream output.
+     * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
+     */
+    static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
+        if (out.getTransportVersion().before(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19)
+            && block instanceof AggregateMetricDoubleArrayBlock aggregateMetricDoubleBlock) {
+            block = aggregateMetricDoubleBlock.asCompositeBlock();
+        }
+        block.elementType().writeTo(out);
+        block.writeTo(out);
+    }
+
+    /**
+     * Reads the block type and then the block data from a stream input
+     * This should be paired with {@link #writeTypedBlock(Block, StreamOutput)}
+     */
+    static Block readTypedBlock(BlockStreamInput in) throws IOException {
+        ElementType elementType = ElementType.readFrom(in);
+        Block block = elementType.reader.readBlock(in);
+        if (in.getTransportVersion().before(TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK_8_19)
+            && block instanceof CompositeBlock compositeBlock) {
+            block = AggregateMetricDoubleArrayBlock.fromCompositeBlock(compositeBlock);
+        }
+        return block;
     }
 
     /**

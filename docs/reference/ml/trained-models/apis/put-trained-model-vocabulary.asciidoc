@@ -6,6 +6,12 @@
 <titleabbrev>Create trained model vocabulary</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Creates a trained model vocabulary.
 This is supported only for natural language processing (NLP) models.
 

@@ -35,19 +35,19 @@ Every change to the transport protocol is represented by a new transport version
 higher than all previous transport versions, which then becomes the highest version
 recognized by that build of Elasticsearch. The version ids are stored
 as constants in the `TransportVersions` class.
-Each id has a standard pattern `M_NNN_SS_P`, where:
+Each id has a standard pattern `M_NNN_S_PP`, where:
 * `M` is the major version
 * `NNN` is an incrementing id
-* `SS` is used in subsidiary repos amending the default transport protocol
-* `P` is used for patches and backports
+* `S` is used in subsidiary repos amending the default transport protocol
+* `PP` is used for patches and backports
 
 When you make a change to the serialization form of any object,
 you need to create a new sequential constant in `TransportVersions`,
 introduced in the same PR that adds the change, that increments
 the `NNN` component from the previous highest version,
 with other components  set to zero.
-For example, if the previous version number is `8_413_00_1`,
-the next version number should be `8_414_00_0`.
+For example, if the previous version number is `8_413_0_01`,
+the next version number should be `8_414_0_00`.
 
 Once you have defined your constant, you then need to use it
 in serialization code. If the transport version is at or above the new id,
@@ -166,7 +166,7 @@ also has that change, and knows about the patch backport ids and what they mean.
 
 Index version is a single incrementing version number for the index data format,
 metadata, and associated mappings. It is declared the same way as the
-transport version - with the pattern `M_NNN_SS_P`, for the major version, version id,
+transport version - with the pattern `M_NNN_S_PP`, for the major version, version id,
 subsidiary version id, and patch number respectively.
 
 Index version is stored in index metadata when an index is created,

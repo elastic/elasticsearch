@@ -1,5 +1,0 @@
-pr: 115812
-summary: "Prohibit changes to index mode, source, and sort settings during resize"
-area: Logs
-type: bug
-issues: []

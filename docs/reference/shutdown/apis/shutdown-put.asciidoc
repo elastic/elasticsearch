@@ -3,6 +3,12 @@
 
 NOTE: {cloud-only}
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-shutdown[Node lifecycle APIs].
+--
+
 Prepares a node to be shut down.
 
 [[put-shutdown-api-request]]

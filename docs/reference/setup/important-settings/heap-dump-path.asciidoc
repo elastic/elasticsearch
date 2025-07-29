@@ -1,4 +1,3 @@
-[[heap-dump-path]]
 [discrete]
 ==== JVM heap dump path setting
 

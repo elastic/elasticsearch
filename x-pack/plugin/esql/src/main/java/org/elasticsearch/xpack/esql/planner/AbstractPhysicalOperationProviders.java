@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
@@ -47,9 +47,11 @@ import static java.util.Collections.emptyList;
 public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
     private final AggregateMapper aggregateMapper = new AggregateMapper();
+    private final FoldContext foldContext;
     private final AnalysisRegistry analysisRegistry;
 
-    AbstractPhysicalOperationProviders(AnalysisRegistry analysisRegistry) {
+    AbstractPhysicalOperationProviders(FoldContext foldContext, AnalysisRegistry analysisRegistry) {
+        this.foldContext = foldContext;
         this.analysisRegistry = analysisRegistry;
     }
 
@@ -66,14 +68,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         var aggregates = aggregateExec.aggregates();
 
         var sourceLayout = source.layout;
-
-        if (aggregatorMode != AggregatorMode.INITIAL && aggregatorMode != AggregatorMode.FINAL) {
-            assert false : "Invalid aggregator mode [" + aggregatorMode + "]";
-        }
-        if (aggregatorMode == AggregatorMode.INITIAL && aggregateExec.child() instanceof ExchangeSourceExec) {
-            // the reducer step at data node (local) level
-            aggregatorMode = AggregatorMode.INTERMEDIATE;
-        }
 
         if (aggregateExec.groupings().isEmpty()) {
             // not grouping
@@ -92,7 +86,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 false, // non-grouping
-                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
+                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels)),
+                context
             );
 
             if (aggregatorFactories.isEmpty() == false) {
@@ -166,7 +161,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 true, // grouping
-                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
+                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels)),
+                context
             );
 
             if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
@@ -248,14 +244,16 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         return attrs;
     }
 
-    private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, AggregatorMode mode) {}
+    private record AggFunctionSupplierContext(AggregatorFunctionSupplier supplier, List<Integer> channels, AggregatorMode mode) {}
 
     private void aggregatesToFactory(
+
         List<? extends NamedExpression> aggregates,
         AggregatorMode mode,
         Layout layout,
         boolean grouping,
-        Consumer<AggFunctionSupplierContext> consumer
+        Consumer<AggFunctionSupplierContext> consumer,
+        LocalExecutionPlannerContext context
     ) {
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
@@ -304,25 +302,31 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     } else {
                         throw new EsqlIllegalArgumentException("illegal aggregation mode");
                     }
+
+                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction);
+
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
                     assert inputChannels.stream().allMatch(i -> i >= 0) : inputChannels;
 
-                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction, inputChannels);
-
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
-                        EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(aggregateFunction.filter(), layout);
+                        EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
+                            foldContext,
+                            aggregateFunction.filter(),
+                            layout,
+                            context.shardContexts()
+                        );
                         aggSupplier = new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
                     }
-                    consumer.accept(new AggFunctionSupplierContext(aggSupplier, mode));
+                    consumer.accept(new AggFunctionSupplierContext(aggSupplier, inputChannels, mode));
                 }
             }
         }
     }
 
-    private static AggregatorFunctionSupplier supplier(AggregateFunction aggregateFunction, List<Integer> inputChannels) {
+    private static AggregatorFunctionSupplier supplier(AggregateFunction aggregateFunction) {
         if (aggregateFunction instanceof ToAggregator delegate) {
-            return delegate.supplier(inputChannels);
+            return delegate.supplier();
         }
         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
     }

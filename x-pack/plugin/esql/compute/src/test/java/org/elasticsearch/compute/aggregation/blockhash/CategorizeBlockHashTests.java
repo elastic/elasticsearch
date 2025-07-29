@@ -30,12 +30,12 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -53,7 +53,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.operator.OperatorTestCase.runDriver;
+import static org.elasticsearch.compute.test.OperatorTestCase.runDriver;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -130,9 +130,6 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         } finally {
             page.releaseBlocks();
         }
-
-        // TODO: randomize values? May give wrong results
-        // TODO: assert the categorizer state after adding pages.
     }
 
     public void testCategorizeRawMultivalue() {
@@ -419,6 +416,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         List<Page> intermediateOutput = new ArrayList<>();
 
         Driver driver = new Driver(
+            "test",
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
@@ -426,8 +424,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(makeGroupSpec()),
                     AggregatorMode.INITIAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
-                        new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
                     analysisRegistry
@@ -439,6 +437,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         runDriver(driver);
 
         driver = new Driver(
+            "test",
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
@@ -446,8 +445,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(makeGroupSpec()),
                     AggregatorMode.INITIAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
-                        new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
                     analysisRegistry
@@ -461,6 +460,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         List<Page> finalOutput = new ArrayList<>();
 
         driver = new Driver(
+            "test",
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
@@ -468,8 +468,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(makeGroupSpec()),
                     AggregatorMode.FINAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier(List.of(1, 2)).groupingAggregatorFactory(AggregatorMode.FINAL),
-                        new MaxLongAggregatorFunctionSupplier(List.of(3, 4)).groupingAggregatorFactory(AggregatorMode.FINAL)
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
                     ),
                     16 * 1024,
                     analysisRegistry

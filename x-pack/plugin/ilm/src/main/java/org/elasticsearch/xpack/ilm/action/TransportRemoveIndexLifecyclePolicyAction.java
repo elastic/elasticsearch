@@ -33,6 +33,8 @@ import java.util.List;
 
 public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNodeAction<Request, Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     @Inject
     public TransportRemoveIndexLifecyclePolicyAction(
         TransportService transportService,
@@ -48,10 +50,10 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

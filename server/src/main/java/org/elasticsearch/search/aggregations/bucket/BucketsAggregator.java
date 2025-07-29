@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.AbstractList;
@@ -57,13 +58,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
         super(name, factories, aggCtx, parent, bucketCardinality, metadata);
         docCounts = bigArrays().newLongArray(1, true);
         docCountProvider = new DocCountProvider();
-    }
-
-    /**
-     * Return an upper bound of the maximum bucket ordinal seen so far.
-     */
-    public final long maxBucketOrd() {
-        return docCounts.size();
     }
 
     /**
@@ -170,6 +164,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *         array of ordinals
      */
     protected final IntFunction<InternalAggregations> buildSubAggsForBuckets(LongArray bucketOrdsToCollect) throws IOException {
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("not building sub-aggregations due to task cancellation");
+        }
+
         prepareSubAggs(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {

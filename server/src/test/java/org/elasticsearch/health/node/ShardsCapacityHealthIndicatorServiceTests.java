@@ -62,6 +62,10 @@ import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService
 import static org.elasticsearch.indices.ShardLimitValidator.FROZEN_GROUP;
 import static org.elasticsearch.indices.ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP;
 import static org.elasticsearch.indices.ShardLimitValidator.NORMAL_GROUP;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -93,7 +97,6 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
             .build();
 
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-
         featureService = Mockito.mock(FeatureService.class);
         Mockito.when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
     }
@@ -156,6 +159,30 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("max_shards_in_cluster", maxShardsPerNodeFrozen)
                 )
             )
+        );
+    }
+
+    public void testDiagnoses() {
+        assertEquals("shards_capacity", SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().indicatorName());
+        assertEquals("decrease_shards_per_non_frozen_node", SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().id());
+        assertThat(
+            SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().cause(),
+            allOf(containsString("maximum number of shards"), containsString(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey()))
+        );
+        assertThat(
+            SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().action(),
+            allOf(containsString("Increase the number of nodes in your cluster"), containsString("remove some non-frozen indices"))
+        );
+
+        assertEquals("shards_capacity", SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().indicatorName());
+        assertEquals("decrease_shards_per_frozen_node", SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().id());
+        assertThat(
+            SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().cause(),
+            allOf(containsString("maximum number of shards"), containsString(SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey()))
+        );
+        assertThat(
+            SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().action(),
+            allOf(containsString("Increase the number of nodes in your cluster"), containsString("remove some frozen indices"))
         );
     }
 
@@ -378,11 +405,11 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
     public void testMappedFieldsForTelemetry() {
         assertEquals(ShardsCapacityHealthIndicatorService.NAME, "shards_capacity");
         assertEquals(
-            "elasticsearch:health:shards_capacity:diagnosis:increase_max_shards_per_node",
+            "elasticsearch:health:shards_capacity:diagnosis:decrease_shards_per_non_frozen_node",
             SHARDS_MAX_CAPACITY_REACHED_DATA_NODES.definition().getUniqueId()
         );
         assertEquals(
-            "elasticsearch:health:shards_capacity:diagnosis:increase_max_shards_per_node_frozen",
+            "elasticsearch:health:shards_capacity:diagnosis:decrease_shards_per_frozen_node",
             SHARDS_MAX_CAPACITY_REACHED_FROZEN_NODES.definition().getUniqueId()
         );
     }
@@ -442,7 +469,7 @@ public class ShardsCapacityHealthIndicatorServiceTests extends ESTestCase {
         var metadata = Metadata.builder()
             .persistentSettings(
                 Settings.builder()
-                    .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
+                    .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
                     .put(ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN.getKey(), maxShardsPerNodeFrozen)
                     .build()
             );

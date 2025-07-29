@@ -9,9 +9,11 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -21,9 +23,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19;
+
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
-    public static final ParseField NUM_CANDIDATES_FACTOR_FIELD = new ParseField("num_candidates_factor");
+    public static final ParseField OVERSAMPLE_FIELD = new ParseField("oversample");
+    public static final float NO_OVERSAMPLE = 0.0F;
     public static final float MIN_OVERSAMPLE = 1.0F;
     private static final ConstructingObjectParser<RescoreVectorBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "rescore_vector",
@@ -31,33 +36,44 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     );
 
     static {
-        PARSER.declareFloat(ConstructingObjectParser.constructorArg(), NUM_CANDIDATES_FACTOR_FIELD);
+        PARSER.declareFloat(ConstructingObjectParser.constructorArg(), OVERSAMPLE_FIELD);
     }
 
     // Oversample is required as of now as it is the only field in the rescore vector
-    private final float numCandidatesFactor;
+    private final float oversample;
 
     public RescoreVectorBuilder(float numCandidatesFactor) {
-        Objects.requireNonNull(numCandidatesFactor, "[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be set");
-        if (numCandidatesFactor < MIN_OVERSAMPLE) {
-            throw new IllegalArgumentException("[" + NUM_CANDIDATES_FACTOR_FIELD.getPreferredName() + "] must be >= " + MIN_OVERSAMPLE);
+        Objects.requireNonNull(numCandidatesFactor, "[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be set");
+        if (numCandidatesFactor < MIN_OVERSAMPLE && numCandidatesFactor != NO_OVERSAMPLE) {
+            throw new IllegalArgumentException("[" + OVERSAMPLE_FIELD.getPreferredName() + "] must be >= " + MIN_OVERSAMPLE + " or 0");
         }
-        this.numCandidatesFactor = numCandidatesFactor;
+        this.oversample = numCandidatesFactor;
     }
 
     public RescoreVectorBuilder(StreamInput in) throws IOException {
-        this.numCandidatesFactor = in.readFloat();
+        this.oversample = in.readFloat();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeFloat(numCandidatesFactor);
+        // We don't want to serialize a `0` oversample to a node that doesn't know what to do with it.
+        if (oversample == NO_OVERSAMPLE && out.getTransportVersion().isPatchFrom(RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19) == false) {
+            throw new ElasticsearchStatusException(
+                "[rescore_vector] does not support a 0 for ["
+                    + OVERSAMPLE_FIELD.getPreferredName()
+                    + "] before version ["
+                    + RESCORE_VECTOR_ALLOW_ZERO_BACKPORT_8_19.toReleaseVersion()
+                    + "]",
+                RestStatus.BAD_REQUEST
+            );
+        }
+        out.writeFloat(oversample);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(NUM_CANDIDATES_FACTOR_FIELD.getPreferredName(), numCandidatesFactor);
+        builder.field(OVERSAMPLE_FIELD.getPreferredName(), oversample);
         builder.endObject();
         return builder;
     }
@@ -71,15 +87,15 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RescoreVectorBuilder that = (RescoreVectorBuilder) o;
-        return Objects.equals(numCandidatesFactor, that.numCandidatesFactor);
+        return Objects.equals(oversample, that.oversample);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hashCode(numCandidatesFactor);
+        return Objects.hashCode(oversample);
     }
 
-    public float numCandidatesFactor() {
-        return numCandidatesFactor;
+    public float oversample() {
+        return oversample;
     }
 }

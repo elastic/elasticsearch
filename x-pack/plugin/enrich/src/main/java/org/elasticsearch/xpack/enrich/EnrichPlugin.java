@@ -306,7 +306,8 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
             COORDINATOR_PROXY_MAX_LOOKUPS_PER_REQUEST,
             COORDINATOR_PROXY_QUEUE_CAPACITY,
             ENRICH_MAX_FORCE_MERGE_ATTEMPTS,
-            CACHE_SIZE
+            CACHE_SIZE,
+            CACHE_SIZE_BWC
         );
     }
 

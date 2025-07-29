@@ -11,13 +11,21 @@ package org.elasticsearch.test.cluster.local;
 
 import org.elasticsearch.test.cluster.SystemPropertyProvider;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
-
-import static java.util.Map.entry;
 
 public class DefaultSystemPropertyProvider implements SystemPropertyProvider {
     @Override
     public Map<String, String> get(LocalClusterSpec.LocalNodeSpec nodeSpec) {
-        return Map.ofEntries(entry("ingest.geoip.downloader.enabled.default", "false"), entry("tests.testfeatures.enabled", "true"));
+        Map<String, String> properties = new HashMap<>();
+        properties.put("ingest.geoip.downloader.enabled.default", "false");
+
+        // enable test features unless we are running forwards compatibility tests
+        if (Boolean.parseBoolean(System.getProperty("tests.fwc", "false")) == false) {
+            properties.put("tests.testfeatures.enabled", "true");
+        }
+
+        return Collections.unmodifiableMap(properties);
     }
 }

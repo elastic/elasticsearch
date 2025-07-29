@@ -529,6 +529,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         var featureService = new FeatureService(List.of(new SnapshotLifecycleFeatures()));
         {
             ClusterState state = ClusterState.builder(new ClusterName("cluster"))
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("a")).add(DiscoveryNodeUtils.create("b")))
                 .nodeFeatures(Map.of("a", Set.of(), "b", Set.of(SnapshotLifecycleService.INTERVAL_SCHEDULE.id())))
                 .build();
 
@@ -540,6 +541,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         }
         {
             ClusterState state = ClusterState.builder(new ClusterName("cluster"))
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("a")))
                 .nodeFeatures(Map.of("a", Set.of(SnapshotLifecycleService.INTERVAL_SCHEDULE.id())))
                 .build();
             try {
@@ -550,6 +552,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
         }
         {
             ClusterState state = ClusterState.builder(new ClusterName("cluster"))
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("a")).add(DiscoveryNodeUtils.create("b")))
                 .nodeFeatures(Map.of("a", Set.of(), "b", Set.of(SnapshotLifecycleService.INTERVAL_SCHEDULE.id())))
                 .build();
             try {

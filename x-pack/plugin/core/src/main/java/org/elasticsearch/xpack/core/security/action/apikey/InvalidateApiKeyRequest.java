@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,7 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for invalidating API key(s) so that it can no longer be used
  */
-public final class InvalidateApiKeyRequest extends ActionRequest {
+public final class InvalidateApiKeyRequest extends LegacyActionRequest {
 
     private final String realmName;
     private final String userName;
@@ -129,9 +129,9 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     /**
      * Creates invalidate API key request for given api key ids
      *
-     * @param id api key id
+     * @param id                       api key id
      * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
-     * {@code false}
+     *                                 {@code false}
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingApiKeyId(String id, boolean ownedByAuthenticatedUser) {
@@ -141,9 +141,9 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     /**
      * Creates invalidate API key request for given api key id
      *
-     * @param ids array of api key ids
+     * @param ids                      array of api key ids
      * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
-     * {@code false}
+     *                                 {@code false}
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingApiKeyIds(String[] ids, boolean ownedByAuthenticatedUser) {
@@ -153,9 +153,9 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     /**
      * Creates invalidate api key request for given api key name
      *
-     * @param name api key name
+     * @param name                     api key name
      * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
-     * {@code false}
+     *                                 {@code false}
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingApiKeyName(String name, boolean ownedByAuthenticatedUser) {

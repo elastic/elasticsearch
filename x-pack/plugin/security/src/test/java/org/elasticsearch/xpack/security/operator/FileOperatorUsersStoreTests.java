@@ -484,7 +484,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
     }
 
     private Path getOperatorUsersPath() throws IOException {
-        Path xpackConf = env.configFile();
+        Path xpackConf = env.configDir();
         Files.createDirectories(xpackConf);
         return xpackConf.resolve("operator_users.yml");
     }

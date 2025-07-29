@@ -1,0 +1,6 @@
+pr: 125832
+summary: "ESQL: Fix `NULL` handling in `IN` clause"
+area: ES|QL
+type: bug
+issues:
+  - 119950

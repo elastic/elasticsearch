@@ -8,24 +8,45 @@
 package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.lookup.QueryList;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchService;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -36,6 +57,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * {@link EnrichLookupService} performs enrich lookup for a given input page.
@@ -47,19 +69,23 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     public EnrichLookupService(
         ClusterService clusterService,
-        SearchService searchService,
+        IndicesService indicesService,
+        LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
         super(
             LOOKUP_ACTION_NAME,
-            ClusterPrivilegeResolver.MONITOR_ENRICH.name(),
             clusterService,
-            searchService,
+            indicesService,
+            lookupShardContextFactory,
             transportService,
+            indexNameExpressionResolver,
             bigArrays,
             blockFactory,
+            true,
             TransportRequest::readFrom
         );
     }
@@ -80,18 +106,37 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
+    protected QueryList queryList(
+        TransportRequest request,
+        SearchExecutionContext context,
+        AliasFilter aliasFilter,
+        Block inputBlock,
+        @Nullable DataType inputDataType
+    ) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(inputDataType, fieldType);
         return switch (request.matchType) {
-            case "match", "range" -> termQueryList(fieldType, context, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
+            case "match", "range" -> termQueryList(fieldType, context, aliasFilter, inputBlock, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, aliasFilter, inputBlock);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }
 
-    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
-        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType) {
+    @Override
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+        if (pages.size() != 1) {
+            throw new UnsupportedOperationException("ENRICH always makes a single page of output");
+        }
+        return new LookupResponse(pages.get(0), blockFactory);
+    }
+
+    @Override
+    protected LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(in, blockFactory);
+    }
+
+    private static void validateTypes(@Nullable DataType inputDataType, MappedFieldType fieldType) {
+        if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType && inputDataType != null) {
             // For range policy types, the ENRICH index field type will be one of a list of supported range types,
             // which need to match the input data type (eg. ip-range -> ip, date-range -> date, etc.)
             if (rangeTypesCompatible(rangeType.rangeType(), inputDataType) == false) {
@@ -104,7 +149,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         // For geo_match, type validation is done earlier, in the Analyzer.
     }
 
-    private static boolean rangeTypesCompatible(RangeType rangeType, DataType inputDataType) {
+    private static boolean rangeTypesCompatible(RangeType rangeType, @Nullable DataType inputDataType) {
         if (inputDataType.noText() == DataType.KEYWORD) {
             // We allow runtime parsing of string types to numeric types
             return true;
@@ -131,7 +176,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, index, inputDataType, inputPage, extractFields, source);
+            super(sessionId, index, index, inputDataType, inputPage, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -152,7 +197,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
+            super(sessionId, shardId, shardId.getIndexName(), inputDataType, inputPage, toRelease, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
         }
@@ -213,5 +258,109 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         protected String extraDescription() {
             return " ,match_type=" + matchType + " ,match_field=" + matchField;
         }
+    }
+
+    private static class LookupResponse extends AbstractLookupService.LookupResponse {
+        private Page page;
+
+        private LookupResponse(Page page, BlockFactory blockFactory) {
+            super(blockFactory);
+            this.page = page;
+        }
+
+        private LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+            super(blockFactory);
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.page = new Page(bsi);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            long bytes = page.ramBytesUsedByBlocks();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize enrich lookup response");
+            reservedBytes += bytes;
+            page.writeTo(out);
+        }
+
+        @Override
+        protected List<Page> takePages() {
+            var p = List.of(page);
+            page = null;
+            return p;
+        }
+
+        @Override
+        protected void innerRelease() {
+            if (page != null) {
+                Releasables.closeExpectNoException(page::releaseBlocks);
+            }
+        }
+    }
+
+    @Override
+    protected void sendChildRequest(
+        CancellableTask parentTask,
+        ActionListener<List<Page>> delegate,
+        DiscoveryNode targetNode,
+        TransportRequest transportRequest
+    ) {
+        ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        ActionListener<List<Page>> listener = ContextPreservingActionListener.wrapPreservingContext(delegate, threadContext);
+        hasEnrichPrivilege(listener.delegateFailureAndWrap((l, ignored) -> {
+            // Since we just checked the needed privileges
+            // we can access the index regardless of the user/role that is executing the query
+            try (ThreadContext.StoredContext unused = threadContext.stashWithOrigin(ClientHelper.ENRICH_ORIGIN)) {
+                super.sendChildRequest(parentTask, l, targetNode, transportRequest);
+            }
+        }));
+    }
+
+    protected void hasEnrichPrivilege(ActionListener<Void> outListener) {
+        final Settings settings = clusterService.getSettings();
+        String privilegeName = ClusterPrivilegeResolver.MONITOR_ENRICH.name();
+        if (privilegeName == null
+            || settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false
+            || XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+            outListener.onResponse(null);
+            return;
+        }
+        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        final User user = securityContext.getUser();
+        if (user == null) {
+            outListener.onFailure(new IllegalStateException("missing or unable to read authentication info on request"));
+            return;
+        }
+        HasPrivilegesRequest request = new HasPrivilegesRequest();
+        request.username(user.principal());
+        request.clusterPrivileges(privilegeName);
+        request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
+        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
+        ActionListener<HasPrivilegesResponse> listener = outListener.delegateFailureAndWrap((l, resp) -> {
+            if (resp.isCompleteMatch()) {
+                l.onResponse(null);
+                return;
+            }
+            String detailed = resp.getClusterPrivileges()
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue() == false)
+                .map(e -> "privilege [" + e.getKey() + "] is missing")
+                .collect(Collectors.joining(", "));
+            String message = "user ["
+                + user.principal()
+                + "] doesn't have "
+                + "sufficient privileges to perform enrich lookup: "
+                + detailed;
+            l.onFailure(Exceptions.authorizationError(message));
+        });
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            HasPrivilegesAction.NAME,
+            request,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, HasPrivilegesResponse::new, executor)
+        );
     }
 }

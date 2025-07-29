@@ -7,6 +7,7 @@ apply plugin: 'elasticsearch.rest-resources'
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
   javaRestTestImplementation project(":test:framework")
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
 }
 

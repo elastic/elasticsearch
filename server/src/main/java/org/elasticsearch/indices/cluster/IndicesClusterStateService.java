@@ -93,11 +93,11 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.CLOSED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.FAILURE;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
-import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.REOPENED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.CLOSED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.DELETED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.FAILURE;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.NO_LONGER_ASSIGNED;
+import static org.elasticsearch.indices.cluster.IndexRemovalReason.REOPENED;
 
 public class IndicesClusterStateService extends AbstractLifecycleComponent implements ClusterStateApplier {
     private static final Logger logger = LogManager.getLogger(IndicesClusterStateService.class);
@@ -111,6 +111,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     public static final Setting<TimeValue> SHARD_LOCK_RETRY_TIMEOUT_SETTING = Setting.timeSetting(
         "indices.store.shard_lock_retry.timeout",
         TimeValue.timeValueMinutes(1),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Maximum number of shards to try and close concurrently. Defaults to the smaller of {@code node.processors} and {@code 10}, but can be
+     * set to any positive integer.
+     */
+    public static final Setting<Integer> CONCURRENT_SHARD_CLOSE_LIMIT = Setting.intSetting(
+        "indices.store.max_concurrent_closing_shards",
+        settings -> Integer.toString(Math.min(10, EsExecutors.NODE_PROCESSORS_SETTING.get(settings).roundUp())),
+        1,
+        Integer.MAX_VALUE,
         Setting.Property.NodeScope
     );
 
@@ -227,7 +239,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * Kind of a hack tbh, we can't be sure the shard locks are fully released when this is completed so there's all sorts of retries and
      * other lenience to handle that. It'd be better to wait for the shard locks to be released and then delete the data. See #74149.
      */
-    private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.newSucceeded(null);
+    private volatile SubscribableListener<Void> lastClusterStateShardsClosedListener = SubscribableListener.nullSuccess();
 
     @Nullable // if not currently applying a cluster state
     private RefCountingListener currentClusterStateShardsClosedListeners;
@@ -380,7 +392,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 );
             } else if (previousState.metadata().hasIndex(index)) {
                 // The deleted index was part of the previous cluster state, but not loaded on the local node
-                indexServiceClosedListener = SubscribableListener.newSucceeded(null);
+                indexServiceClosedListener = SubscribableListener.nullSuccess();
                 final IndexMetadata metadata = previousState.metadata().index(index);
                 indexSettings = new IndexSettings(metadata, settings);
                 indicesService.deleteUnassignedIndex("deleted index was not assigned to local node", metadata, state);
@@ -394,7 +406,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 // previous cluster state is not initialized/recovered.
                 assert state.metadata().indexGraveyard().containsIndex(index)
                     || previousState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-                indexServiceClosedListener = SubscribableListener.newSucceeded(null);
+                indexServiceClosedListener = SubscribableListener.nullSuccess();
                 final IndexMetadata metadata = indicesService.verifyIndexIsDeleted(index, event.state());
                 if (metadata != null) {
                     indexSettings = new IndexSettings(metadata, settings);
@@ -457,7 +469,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final IndexMetadata indexMetadata = state.metadata().index(index);
             final IndexMetadata existingMetadata = indexService.getIndexSettings().getIndexMetadata();
 
-            AllocatedIndices.IndexRemovalReason reason = null;
+            IndexRemovalReason reason = null;
             if (indexMetadata != null && indexMetadata.getState() != existingMetadata.getState()) {
                 reason = indexMetadata.getState() == IndexMetadata.State.CLOSE ? CLOSED : REOPENED;
             } else if (localRoutingNode == null || localRoutingNode.hasIndex(index) == false) {
@@ -1294,50 +1306,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException, InterruptedException,
             ShardLockObtainFailedException;
-
-        enum IndexRemovalReason {
-            /**
-             * Shard of this index were previously assigned to this node but all shards have been relocated.
-             * The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-             */
-            NO_LONGER_ASSIGNED,
-
-            /**
-             * The index is deleted. Persistent parts of the index  like the shards files, state and transaction logs are removed once
-             * all resources are released.
-             */
-            DELETED,
-
-            /**
-             * The index has been closed. The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-             */
-            CLOSED,
-
-            /**
-             * Something around index management has failed and the index should be removed.
-             * Persistent parts of the index like the shards files, state and transaction logs are kept around in the
-             * case of a disaster recovery.
-             */
-            FAILURE,
-
-            /**
-             * The index has been reopened. The index should be removed and all associated resources released. Persistent parts of the index
-             * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-             */
-            REOPENED,
-
-            /**
-             * The index is closed as part of the node shutdown process. The index should be removed and all associated resources released.
-             * Persistent parts of the index like the shards files, state and transaction logs should be kept around in the case the node
-             * restarts.
-             */
-            SHUTDOWN,
-        }
     }
 
-    private static class ShardCloseExecutor implements Executor {
+    static class ShardCloseExecutor implements Executor {
 
         private final ThrottledTaskRunner throttledTaskRunner;
 
@@ -1350,8 +1321,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // can't close the old ones down fast enough. Maybe we could block or throttle new shards starting while old shards are still
             // shutting down, given that starting new shards is already async. Since this seems unlikely in practice, we opt for the simple
             // approach here.
-            final var maxThreads = Math.max(EsExecutors.NODE_PROCESSORS_SETTING.get(settings).roundUp(), 10);
-            throttledTaskRunner = new ThrottledTaskRunner(IndicesClusterStateService.class.getCanonicalName(), maxThreads, delegate);
+            throttledTaskRunner = new ThrottledTaskRunner(
+                IndicesClusterStateService.class.getCanonicalName(),
+                CONCURRENT_SHARD_CLOSE_LIMIT.get(settings),
+                delegate
+            );
         }
 
         @Override

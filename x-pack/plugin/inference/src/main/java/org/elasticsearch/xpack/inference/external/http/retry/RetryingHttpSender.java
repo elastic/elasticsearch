@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_P
 
 public class RetryingHttpSender implements RequestSender {
 
-    static final int MAX_RETIES = 3;
+    public static final int MAX_RETIES = 3;
 
     private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;
@@ -116,14 +116,25 @@ public class RetryingHttpSender implements RequestSender {
             try {
                 if (request.isStreaming() && responseHandler.canHandleStreamingResponses()) {
                     httpClient.stream(request.createHttpRequest(), context, retryableListener.delegateFailure((l, r) -> {
-                        var streamingResponseHandler = new StreamingResponseHandler(throttlerManager, logger, request, responseHandler);
-                        r.subscribe(streamingResponseHandler);
-                        l.onResponse(responseHandler.parseResult(request, streamingResponseHandler));
+                        if (r.isSuccessfulResponse()) {
+                            l.onResponse(responseHandler.parseResult(request, r.toHttpResult()));
+                        } else {
+                            r.readFullResponse(l.delegateFailureAndWrap((ll, httpResult) -> {
+                                try {
+                                    responseHandler.validateResponse(throttlerManager, logger, request, httpResult, true);
+                                    InferenceServiceResults inferenceResults = responseHandler.parseResult(request, httpResult);
+                                    ll.onResponse(inferenceResults);
+                                } catch (Exception e) {
+                                    logException(logger, request, httpResult, responseHandler.getRequestType(), e);
+                                    listener.onFailure(e); // skip retrying
+                                }
+                            }));
+                        }
                     }));
                 } else {
                     httpClient.send(request.createHttpRequest(), context, retryableListener.delegateFailure((l, r) -> {
                         try {
-                            responseHandler.validateResponse(throttlerManager, logger, request, r);
+                            responseHandler.validateResponse(throttlerManager, logger, request, r, false);
                             InferenceServiceResults inferenceResults = responseHandler.parseResult(request, r);
 
                             l.onResponse(inferenceResults);

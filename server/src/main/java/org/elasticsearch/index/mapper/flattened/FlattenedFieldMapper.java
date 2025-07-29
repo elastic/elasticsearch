@@ -52,6 +52,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -111,8 +112,11 @@ import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
  */
 public final class FlattenedFieldMapper extends FieldMapper {
 
-    public static final NodeFeature IGNORE_ABOVE_SUPPORT = new NodeFeature("flattened.ignore_above_support");
-    public static final NodeFeature IGNORE_ABOVE_WITH_ARRAYS_SUPPORT = new NodeFeature("mapper.flattened.ignore_above_with_arrays_support");
+    public static final NodeFeature IGNORE_ABOVE_SUPPORT = new NodeFeature("flattened.ignore_above_support", true);
+    public static final NodeFeature IGNORE_ABOVE_WITH_ARRAYS_SUPPORT = new NodeFeature(
+        "mapper.flattened.ignore_above_with_arrays_support",
+        true
+    );
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
@@ -666,7 +670,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final int ignoreAbove;
 
-        public RootFlattenedFieldType(
+        RootFlattenedFieldType(
             String name,
             boolean indexed,
             boolean hasDocValues,
@@ -678,7 +682,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this(name, indexed, hasDocValues, meta, splitQueriesOnWhitespace, eagerGlobalOrdinals, Collections.emptyList(), ignoreAbove);
         }
 
-        public RootFlattenedFieldType(
+        RootFlattenedFieldType(
             String name,
             boolean indexed,
             boolean hasDocValues,
@@ -802,6 +806,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return new KeyedFlattenedFieldType(name(), childPath, this);
         }
 
+        public MappedFieldType getKeyedFieldType() {
+            return new KeywordFieldMapper.KeywordFieldType(name() + KEYED_FIELD_SUFFIX);
+        }
+
         @Override
         public boolean isDimension() {
             return isDimension;
@@ -906,14 +914,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            var loader = new FlattenedSortedSetDocValuesSyntheticFieldLoader(
-                fullPath(),
-                fullPath() + KEYED_FIELD_SUFFIX,
-                ignoreAbove() < Integer.MAX_VALUE ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
-                leafName()
+            return new SyntheticSourceSupport.Native(
+                () -> new FlattenedSortedSetDocValuesSyntheticFieldLoader(
+                    fullPath(),
+                    fullPath() + KEYED_FIELD_SUFFIX,
+                    ignoreAbove() < Integer.MAX_VALUE ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                    leafName()
+                )
             );
-
-            return new SyntheticSourceSupport.Native(loader);
         }
 
         return super.syntheticSourceSupport();

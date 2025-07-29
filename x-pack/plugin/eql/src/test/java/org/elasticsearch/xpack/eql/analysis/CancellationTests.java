@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -273,6 +274,9 @@ public class CancellationTests extends ESTestCase {
         when(mockClusterService.localNode()).thenReturn(mockNode);
         when(mockClusterName.value()).thenReturn(randomAlphaOfLength(10));
         when(mockClusterService.getClusterName()).thenReturn(mockClusterName);
+        final ClusterState mockState = mock(ClusterState.class);
+        when(mockState.getMinTransportVersion()).thenReturn(TransportVersion.current());
+        when(mockClusterService.state()).thenReturn(mockState);
         return mockClusterService;
     }
 

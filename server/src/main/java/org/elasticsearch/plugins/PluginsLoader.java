@@ -11,10 +11,12 @@ package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
+import org.elasticsearch.nativeaccess.NativeAccessUtil;
 
 import java.io.IOException;
 import java.lang.ModuleLayer.Controller;
@@ -25,8 +27,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -126,47 +126,31 @@ public class PluginsLoader {
     private final Set<PluginBundle> pluginBundles;
 
     /**
-     * Constructs a new PluginsLoader
+     * Loads a set of PluginBundles from the modules directory
      *
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
-     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
-    public static PluginsLoader createPluginsLoader(Path modulesDirectory, Path pluginsDirectory) {
-        return createPluginsLoader(modulesDirectory, pluginsDirectory, true);
-    }
-
-    /**
-     * Constructs a new PluginsLoader
-     *
-     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
-     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
-     * @param withServerExports {@code true} to add server module exports
-     */
-    public static PluginsLoader createPluginsLoader(Path modulesDirectory, Path pluginsDirectory, boolean withServerExports) {
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports;
-        if (withServerExports) {
-            qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
-            addServerExportsService(qualifiedExports);
-        } else {
-            qualifiedExports = Collections.emptyMap();
-        }
-
-        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
-
+    public static Set<PluginBundle> loadModulesBundles(Path modulesDirectory) {
         // load (elasticsearch) module layers
         final Set<PluginBundle> modules;
         if (modulesDirectory != null) {
             try {
                 modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
         } else {
             modules = Collections.emptySet();
         }
+        return modules;
+    }
 
-        // load plugin layers
+    /**
+     * Loads a set of PluginBundles from the plugins directory
+     *
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     */
+    public static Set<PluginBundle> loadPluginsBundles(Path pluginsDirectory) {
         final Set<PluginBundle> plugins;
         if (pluginsDirectory != null) {
             try {
@@ -174,8 +158,6 @@ public class PluginsLoader {
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
                     plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-
-                    seenBundles.addAll(plugins);
                 } else {
                     plugins = Collections.emptySet();
                 }
@@ -185,6 +167,49 @@ public class PluginsLoader {
         } else {
             plugins = Collections.emptySet();
         }
+        return plugins;
+    }
+
+    /**
+     * Constructs a new PluginsLoader
+     *
+     * @param modules The set of module bundles present on the filesystem
+     * @param plugins The set of plugin bundles present on the filesystem
+     * @param pluginsWithNativeAccess A map plugin name -> set of module names for which we want to enable native access
+     */
+    public static PluginsLoader createPluginsLoader(
+        Set<PluginBundle> modules,
+        Set<PluginBundle> plugins,
+        Map<String, Set<String>> pluginsWithNativeAccess
+    ) {
+        return createPluginsLoader(modules, plugins, pluginsWithNativeAccess, true);
+    }
+
+    /**
+     * Constructs a new PluginsLoader
+     *
+     * @param modules The set of module bundles present on the filesystem
+     * @param plugins The set of plugin bundles present on the filesystem
+     * @param pluginsWithNativeAccess A map plugin name -> set of module names for which we want to enable native access
+     * @param withServerExports {@code true} to add server module exports
+     */
+    public static PluginsLoader createPluginsLoader(
+        Set<PluginBundle> modules,
+        Set<PluginBundle> plugins,
+        Map<String, Set<String>> pluginsWithNativeAccess,
+        boolean withServerExports
+    ) {
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports;
+        if (withServerExports) {
+            qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
+            addServerExportsService(qualifiedExports);
+        } else {
+            qualifiedExports = Collections.emptyMap();
+        }
+
+        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
+        seenBundles.addAll(modules);
+        seenBundles.addAll(plugins);
 
         Map<String, LoadedPluginLayer> loadedPluginLayers = new LinkedHashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
@@ -193,7 +218,8 @@ public class PluginsLoader {
             Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
             for (PluginBundle bundle : sortedBundles) {
                 PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-                loadPluginLayer(bundle, loadedPluginLayers, qualifiedExports);
+                var modulesWithNativeAccess = pluginsWithNativeAccess.getOrDefault(bundle.plugin.getName(), Set.of());
+                loadPluginLayer(bundle, loadedPluginLayers, qualifiedExports, modulesWithNativeAccess);
             }
         }
 
@@ -231,7 +257,8 @@ public class PluginsLoader {
     private static void loadPluginLayer(
         PluginBundle bundle,
         Map<String, LoadedPluginLayer> loaded,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
+        Set<String> modulesWithNativeAccess
     ) {
         String name = bundle.plugin.getName();
         logger.debug(() -> "Loading bundle: " + name);
@@ -262,7 +289,8 @@ public class PluginsLoader {
             pluginParentLoader,
             extendedPlugins,
             spiLayerAndLoader,
-            qualifiedExports
+            qualifiedExports,
+            modulesWithNativeAccess
         );
         final ClassLoader pluginClassLoader = pluginLayerAndLoader.loader();
 
@@ -309,7 +337,8 @@ public class PluginsLoader {
         ClassLoader pluginParentLoader,
         List<LoadedPluginLayer> extendedPlugins,
         LayerAndLoader spiLayerAndLoader,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
+        Set<String> modulesWithNativeAccess
     ) {
         final PluginDescriptor plugin = bundle.plugin;
         if (plugin.getModuleName().isPresent()) {
@@ -318,7 +347,7 @@ public class PluginsLoader {
                 Stream.ofNullable(spiLayerAndLoader != null ? spiLayerAndLoader.layer() : null),
                 extendedPlugins.stream().map(LoadedPluginLayer::spiModuleLayer)
             ).toList();
-            return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers, qualifiedExports);
+            return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers, qualifiedExports, modulesWithNativeAccess);
         } else if (plugin.isStable()) {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular as synthetic module");
             return LayerAndLoader.ofUberModuleLoader(
@@ -327,7 +356,8 @@ public class PluginsLoader {
                     ModuleLayer.boot(),
                     "synthetic." + toModuleName(plugin.getName()),
                     bundle.allUrls,
-                    Set.of("org.elasticsearch.server") // TODO: instead of denying server, allow only jvm + stable API modules
+                    Set.of("org.elasticsearch.server"), // TODO: instead of denying server, allow only jvm + stable API modules
+                    modulesWithNativeAccess
                 )
             );
         } else {
@@ -349,7 +379,8 @@ public class PluginsLoader {
             urlsToPaths(urls),
             parentLoader,
             parentLayers,
-            qualifiedExports
+            qualifiedExports,
+            Set.of()
         );
     }
 
@@ -357,7 +388,8 @@ public class PluginsLoader {
         PluginBundle bundle,
         ClassLoader parentLoader,
         List<ModuleLayer> parentLayers,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
+        Set<String> modulesWithNativeAccess
     ) {
         assert bundle.plugin.getModuleName().isPresent();
         return createModuleLayer(
@@ -366,7 +398,8 @@ public class PluginsLoader {
             urlsToPaths(bundle.urls),
             parentLoader,
             parentLayers,
-            qualifiedExports
+            qualifiedExports,
+            modulesWithNativeAccess
         );
     }
 
@@ -376,7 +409,8 @@ public class PluginsLoader {
         Path[] paths,
         ClassLoader parentLoader,
         List<ModuleLayer> parentLayers,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports,
+        Set<String> modulesWithNativeAccess
     ) {
         logger.debug(() -> "Loading bundle: creating module layer and loader for module " + moduleName);
         var finder = ModuleFinder.of(paths);
@@ -387,15 +421,16 @@ public class PluginsLoader {
             finder,
             Set.of(moduleName)
         );
-        var controller = privilegedDefineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
+        var controller = ModuleLayer.defineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
         var pluginModule = controller.layer().findModule(moduleName).get();
         ensureEntryPointAccessible(controller, pluginModule, className);
         // export/open upstream modules to this plugin module
         exposeQualifiedExportsAndOpens(pluginModule, qualifiedExports);
         // configure qualified exports/opens to other modules/plugins
         addPluginExportsServices(qualifiedExports, controller);
+        enableNativeAccess(moduleName, modulesWithNativeAccess, controller);
         logger.debug(() -> "Loading bundle: created module layer and loader for module " + moduleName);
-        return new LayerAndLoader(controller.layer(), privilegedFindLoader(controller.layer(), moduleName));
+        return new LayerAndLoader(controller.layer(), controller.layer().findLoader(moduleName));
     }
 
     /** Determines the module name of the SPI module, given its URL. */
@@ -453,18 +488,6 @@ public class PluginsLoader {
         }
     }
 
-    @SuppressWarnings("removal")
-    static Controller privilegedDefineModulesWithOneLoader(Configuration cf, List<ModuleLayer> parentLayers, ClassLoader parentLoader) {
-        return AccessController.doPrivileged(
-            (PrivilegedAction<Controller>) () -> ModuleLayer.defineModulesWithOneLoader(cf, parentLayers, parentLoader)
-        );
-    }
-
-    @SuppressWarnings("removal")
-    static ClassLoader privilegedFindLoader(ModuleLayer layer, String name) {
-        return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> layer.findLoader(name));
-    }
-
     private static List<ModuleLayer> parentLayersOrBoot(List<ModuleLayer> parentLayers) {
         if (parentLayers == null || parentLayers.isEmpty()) {
             return List.of(ModuleLayer.boot());
@@ -502,6 +525,20 @@ public class PluginsLoader {
                 }
             };
             addExportsService(qualifiedExports, exportsService, module.getName());
+        }
+    }
+
+    private static void enableNativeAccess(String mainModuleName, Set<String> modulesWithNativeAccess, Controller controller) {
+        for (var moduleName : modulesWithNativeAccess) {
+            var module = controller.layer().findModule(moduleName);
+            module.ifPresentOrElse(m -> NativeAccessUtil.enableNativeAccess(controller, m), () -> {
+                assert false
+                    : Strings.format(
+                        "Native access not enabled for module [%s]: not a valid module name in layer [%s]",
+                        moduleName,
+                        mainModuleName
+                    );
+            });
         }
     }
 }

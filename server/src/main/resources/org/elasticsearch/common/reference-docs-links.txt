@@ -45,3 +45,4 @@ FORMING_SINGLE_NODE_CLUSTERS                                    modules-discover
 JDK_LOCALE_DIFFERENCES                                          mapping-date-format.html#custom-date-format-locales
 ALLOCATION_EXPLAIN_MAX_RETRY                                    cluster-allocation-explain.html#maximum-number-of-retries-exceeded
 SECURE_SETTINGS                                                 secure-settings.html
+CLUSTER_SHARD_LIMIT                                             misc-cluster-settings.html#cluster-shard-limit

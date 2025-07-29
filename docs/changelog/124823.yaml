@@ -1,0 +1,5 @@
+pr: 124823
+summary: Report failures on partial results
+area: "ES|QL"
+type: enhancement
+issues: []

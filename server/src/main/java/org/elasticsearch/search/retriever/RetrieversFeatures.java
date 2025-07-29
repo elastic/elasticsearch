@@ -19,6 +19,7 @@ import java.util.Set;
  * retrievers can be added individually with additional functionality.
  */
 public class RetrieversFeatures implements FeatureSpecification {
+    public static final NodeFeature NEGATIVE_RANK_WINDOW_SIZE_FIX = new NodeFeature("retriever.negative_rank_window_size_fix");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -27,5 +28,10 @@ public class RetrieversFeatures implements FeatureSpecification {
             StandardRetrieverBuilder.STANDARD_RETRIEVER_SUPPORTED,
             KnnRetrieverBuilder.KNN_RETRIEVER_SUPPORTED
         );
+    }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(NEGATIVE_RANK_WINDOW_SIZE_FIX);
     }
 }

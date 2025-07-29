@@ -2,6 +2,12 @@
 [[usage-api]]
 == Usage API
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-xpack[Usage APIs].
+--
+
 Provides usage information about the installed {xpack} features.
 
 [discrete]
@@ -207,16 +213,8 @@ GET /_xpack/usage
   "inference": {
     "available" : true,
     "enabled" : true,
-    "models" : [{
-        "service": "elasticsearch",
-        "task_type": "SPARSE_EMBEDDING",
-        "count": 1
-      },
-      {
-        "service": "elasticsearch",
-        "task_type": "TEXT_EMBEDDING",
-        "count": 1
-      },
+    "models" : [
+      ...
     ]
   },
   "logstash" : {
@@ -245,7 +243,14 @@ GET /_xpack/usage
       "keep" : 0,
       "enrich" : 0,
       "from" : 0,
-      "row" : 0
+      "row" : 0,
+      "lookup" : 0,
+      "inlinestats" : 0,
+      "lookup_join" : 0,
+      "change_point" : 0,
+      "completion": 0,
+      "rerank": 0,
+      "sample": 0
     },
     "queries" : {
       "rest" : {
@@ -523,7 +528,10 @@ GET /_xpack/usage
     "available": true,
     "enabled": false,
     "indices_count": 0,
-    "indices_with_synthetic_source": 0
+    "indices_with_synthetic_source": 0,
+    "num_docs": 0,
+    "size_in_bytes": 0,
+    "has_custom_cutoff_date": false
   }
 }
 ------------------------------------------------------------
@@ -535,6 +543,7 @@ GET /_xpack/usage
 // TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
 // TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
 // TESTRESPONSE[s/"health_api" : \{[^\}]*\}\s*\}/"health_api" : $body.$_path/]
+// TESTRESPONSE[s/"models" : \[[^\]]*\]/"models" : $body.$_path/]
 // TESTRESPONSE[s/"data_streams" : \{[^\}]*\},/"data_streams" : $body.$_path,/]
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
@@ -551,4 +560,5 @@ GET /_xpack/usage
 // 5. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.
-// 6. Ignore the contents of data streams until the failure store is tech preview.
+// 6. Ignore the contents of the `inference.models` array because the models might not yet have been initialized
+// 7. Ignore the contents of data streams until the failure store is tech preview.

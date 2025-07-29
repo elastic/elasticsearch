@@ -1,0 +1,48 @@
+[[release-notes-8.16.4]]
+== {es} version 8.16.4
+
+Also see <<breaking-changes-8.16,Breaking changes in 8.16>>.
+
+[[bug-8.16.4]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Aggregations cancellation after collection {es-pull}120944[#120944] (issue: {es-issue}108701[#108701])
+
+Data streams::
+* Map `scope.name` as a dimension {es-pull}120590[#120590]
+
+ES|QL::
+* Use `field_caps` native nested fields filtering {es-pull}117201[#117201] (issue: {es-issue}117054[#117054])
+
+Mapping::
+* Fix synthetic source issue with deeply nested ignored source fields {es-pull}121715[#121715]
+
+Ranking::
+* Fix LTR rescorer throws 'local model reference is null' on multi-shards index when explained is enabled {es-pull}120717[#120717] (issue: {es-issue}120739[#120739])
+* LTR sometines throw `NullPointerException:` Cannot read field "approximation" because "top" is null {es-pull}120809[#120809]
+* Normalize negative scores for `text_similarity_reranker` retriever {es-pull}120930[#120930] (issue: {es-issue}120201[#120201])
+* Update Text Similarity Reranker to Properly Handle Aliases {es-pull}120062[#120062] (issue: {es-issue}119617[#119617])
+
+Search::
+* Fix potential file leak in ES816BinaryQuantizedVectorsWriter {es-pull}120014[#120014] (issue: {es-issue}119981[#119981])
+
+Snapshot/Restore::
+* Cheaper snapshot-related `toString()` impls {es-pull}121283[#121283]
+* Issue S3 web identity token refresh call with sufficient permissions {es-pull}119748[#119748] (issue: {es-issue}119747[#119747])
+
+[[enhancement-8.16.4]]
+[float]
+=== Enhancements
+
+Ingest Node::
+* Improve memory aspects of enrich cache {es-pull}120256[#120256] (issues: {es-issue}96050[#96050], {es-issue}120021[#120021])
+
+[discrete]
+[[known-issues-8.16.4]]
+=== Known issues
+
+{esql}::
+
+* Some valid queries using an `ENRICH` command can fail when a match field is used that is absent from some indices or shards, either with a 500 status code due to `NullPointerException` or `ClassCastException` or with a 400 status code and `IllegalArgumentException`. This is fixed in {es-pull}126187[#126187].

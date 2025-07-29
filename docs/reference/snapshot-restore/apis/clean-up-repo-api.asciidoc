@@ -4,6 +4,12 @@
 <titleabbrev>Clean up snapshot repository</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Triggers the review of a snapshot repository's contents and deletes any stale
 data that is not referenced by existing snapshots. See
 <<snapshots-repository-cleanup>>.

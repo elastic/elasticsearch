@@ -144,6 +144,14 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return NAME;
     }
 
+    public String getFieldName() {
+        return fieldName;
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_15_0;
@@ -224,9 +232,11 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 TaskType.ANY,
                 inferenceId,
                 null,
+                null,
+                null,
                 List.of(query),
                 Map.of(),
-                InputType.SEARCH,
+                InputType.INTERNAL_SEARCH,
                 InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API,
                 false
             );
@@ -324,11 +334,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     protected boolean doEquals(SemanticQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
-            && Objects.equals(inferenceResults, other.inferenceResults);
+            && Objects.equals(inferenceResults, other.inferenceResults)
+            && Objects.equals(inferenceResultsSupplier, other.inferenceResultsSupplier);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResults);
+        return Objects.hash(fieldName, query, inferenceResults, inferenceResultsSupplier);
     }
 }

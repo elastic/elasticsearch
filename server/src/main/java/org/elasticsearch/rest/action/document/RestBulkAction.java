@@ -18,7 +18,6 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -31,6 +30,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
@@ -70,7 +70,7 @@ public class RestBulkAction extends BaseRestHandler {
     public RestBulkAction(Settings settings, IncrementalBulkService bulkHandler) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.bulkHandler = bulkHandler;
-        this.capabilities = DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(FAILURE_STORE_STATUS_CAPABILITY) : Set.of();
+        this.capabilities = Set.of(FAILURE_STORE_STATUS_CAPABILITY);
     }
 
     @Override
@@ -114,6 +114,7 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
+            bulkRequest.includeSourceOnError(RestUtils.getIncludeSourceOnError(request));
             ReleasableBytesReference content = request.requiredContent();
 
             try {
@@ -168,27 +169,27 @@ public class RestBulkAction extends BaseRestHandler {
 
         private volatile RestChannel restChannel;
         private boolean shortCircuited;
-        private int bytesParsed = 0;
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            this.parser = new BulkRequestParser(true, request.getRestApiVersion()).incrementalParser(
-                request.param("index"),
-                request.param("routing"),
-                FetchSourceContext.parseFromRestRequest(request),
-                request.param("pipeline"),
-                request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
-                request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
-                request.paramAsBoolean("list_executed_pipelines", false),
-                allowExplicitIndex,
-                request.getXContentType(),
-                (indexRequest, type) -> items.add(indexRequest),
-                items::add,
-                items::add
-            );
+            this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
+                .incrementalParser(
+                    request.param("index"),
+                    request.param("routing"),
+                    FetchSourceContext.parseFromRestRequest(request),
+                    request.param("pipeline"),
+                    request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
+                    request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
+                    request.paramAsBoolean("list_executed_pipelines", false),
+                    allowExplicitIndex,
+                    request.getXContentType(),
+                    (indexRequest, type) -> items.add(indexRequest),
+                    items::add,
+                    items::add
+                );
         }
 
         @Override
@@ -214,6 +215,7 @@ public class RestBulkAction extends BaseRestHandler {
                 bytesConsumed = 0;
             } else {
                 try {
+                    handler.getIncrementalOperation().incrementUnparsedBytes(chunk.length());
                     unParsedChunks.add(chunk);
 
                     if (unParsedChunks.size() > 1) {
@@ -222,10 +224,8 @@ public class RestBulkAction extends BaseRestHandler {
                         data = chunk;
                     }
 
-                    // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
-                    // BulkRequest#add is fine
                     bytesConsumed = parser.parse(data, isLast);
-                    bytesParsed += bytesConsumed;
+                    handler.getIncrementalOperation().transferUnparsedBytesToParsed(bytesConsumed);
 
                 } catch (Exception e) {
                     shortCircuit();
@@ -237,7 +237,7 @@ public class RestBulkAction extends BaseRestHandler {
             final ArrayList<Releasable> releasables = accountParsing(bytesConsumed);
             if (isLast) {
                 assert unParsedChunks.isEmpty();
-                if (bytesParsed == 0) {
+                if (handler.getIncrementalOperation().totalParsedBytes() == 0) {
                     shortCircuit();
                     new RestToXContentListener<>(channel).onFailure(new ElasticsearchParseException("request body is required"));
                 } else {
@@ -259,7 +259,9 @@ public class RestBulkAction extends BaseRestHandler {
         @Override
         public void streamClose() {
             assert Transports.assertTransportThread();
-            shortCircuit();
+            if (shortCircuited == false) {
+                shortCircuit();
+            }
         }
 
         private void shortCircuit() {

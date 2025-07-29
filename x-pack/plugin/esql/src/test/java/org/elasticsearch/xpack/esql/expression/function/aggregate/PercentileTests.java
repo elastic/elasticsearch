@@ -53,7 +53,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
             }
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, false, (v, p) -> "numeric except unsigned_long");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, false);
     }
 
     @Override

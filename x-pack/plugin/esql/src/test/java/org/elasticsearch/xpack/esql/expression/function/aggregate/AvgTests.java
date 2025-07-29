@@ -53,7 +53,7 @@ public class AvgTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers, true, (v, p) -> "numeric except unsigned_long or counter types");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, true);
     }
 
     @Override

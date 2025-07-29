@@ -1,0 +1,6 @@
+pr: 125204
+summary: Return a Conflict status code if the model deployment is stopped by a user
+area: Machine Learning
+type: bug
+issues:
+ - 123745

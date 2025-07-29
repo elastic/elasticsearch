@@ -13,6 +13,10 @@ All of the monitoring metrics are stored in {es}, which enables you to easily
 visualize the data in {kib}. By default, the monitoring metrics are stored in
 local indices.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 TIP: In production, we strongly recommend using a separate monitoring cluster.
 Using a separate monitoring cluster prevents production cluster outages from
 impacting your ability to access your monitoring data. It also prevents

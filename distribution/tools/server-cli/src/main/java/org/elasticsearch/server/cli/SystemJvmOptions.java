@@ -11,11 +11,12 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -24,8 +25,10 @@ final class SystemJvmOptions {
 
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
+        String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean useEntitlements = Boolean.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
+
+        boolean useEntitlements = true;
         return Stream.of(
             Stream.of(
                 /*
@@ -62,20 +65,22 @@ final class SystemJvmOptions {
                 "-Dlog4j2.disable.jmx=true",
                 "-Dlog4j2.formatMsgNoLookups=true",
                 "-Djava.locale.providers=" + getLocaleProviders(),
-                // Pass through distribution type
-                "-Des.distribution.type=" + distroType
+                // Enable vectorization for whatever version we are running. This ensures we use vectorization even when running EA builds.
+                "-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + Runtime.version().feature(),
+                // Pass through distribution type and java type
+                "-Des.distribution.type=" + distroType,
+                "-Des.java.type=" + javaType
             ),
-            maybeEnableNativeAccess(),
+            maybeEnableNativeAccess(useEntitlements),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAllowSecurityManager(),
+            maybeAllowSecurityManager(useEntitlements),
             maybeAttachEntitlementAgent(useEntitlements)
         ).flatMap(s -> s).toList();
     }
 
-    @UpdateForV9    // only use CLDR in v9+
     private static String getLocaleProviders() {
         /*
          * When on pre-23, use COMPAT instead to maintain existing date formats as much as we can,
@@ -130,11 +135,18 @@ final class SystemJvmOptions {
         return Stream.empty();
     }
 
-    private static Stream<String> maybeEnableNativeAccess() {
+    private static Stream<String> maybeEnableNativeAccess(boolean useEntitlements) {
+        var enableNativeAccessOptions = new ArrayList<String>();
         if (Runtime.version().feature() >= 21) {
-            return Stream.of("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            enableNativeAccessOptions.add("--enable-native-access=org.elasticsearch.nativeaccess,org.apache.lucene.core");
+            if (useEntitlements) {
+                enableNativeAccessOptions.add("--enable-native-access=ALL-UNNAMED");
+                if (Runtime.version().feature() >= 24) {
+                    enableNativeAccessOptions.add("--illegal-native-access=deny");
+                }
+            }
         }
-        return Stream.empty();
+        return enableNativeAccessOptions.stream();
     }
 
     /*
@@ -148,9 +160,11 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAllowSecurityManager() {
-        // Will become conditional on useEntitlements once entitlements can run without SM
-        return Stream.of("-Djava.security.manager=allow");
+    private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
+        if (RuntimeVersionFeature.isSecurityManagerAvailable() && useEntitlements == false) {
+            return Stream.of("-Djava.security.manager=allow");
+        }
+        return Stream.of();
     }
 
     private static Stream<String> maybeAttachEntitlementAgent(boolean useEntitlements) {
@@ -172,12 +186,16 @@ final class SystemJvmOptions {
         } catch (IOException e) {
             throw new IllegalStateException("Failed to list entitlement jars in: " + dir, e);
         }
+        // We instrument classes in these modules to call the bridge. Because the bridge gets patched
+        // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
+        String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
         return Stream.of(
             "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",
             "--patch-module=java.base=" + bridgeJar,
-            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement"
+            "--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement,"
+                + modulesContainingEntitlementInstrumentation
         );
     }
 }

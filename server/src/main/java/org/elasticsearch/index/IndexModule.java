@@ -44,6 +44,7 @@ import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -208,8 +209,9 @@ public final class IndexModule {
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // Need to have a mutable arraylist for plugins to add listeners to it
         this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
+        SlowLogFields slowLogFields = slowLogFieldProvider.create(indexSettings);
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFields));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFields));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
@@ -474,6 +476,7 @@ public final class IndexModule {
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
         ThreadPool threadPool,
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
         ClusterService clusterService,
         Client client,
@@ -527,6 +530,7 @@ public final class IndexModule {
                 circuitBreakerService,
                 bigArrays,
                 threadPool,
+                threadPoolMergeExecutorService,
                 scriptService,
                 clusterService,
                 client,

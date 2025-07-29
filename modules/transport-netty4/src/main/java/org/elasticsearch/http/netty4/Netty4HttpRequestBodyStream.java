@@ -16,6 +16,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
 
+import org.elasticsearch.common.network.ThreadWatchdog;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.http.HttpBody;
@@ -36,6 +37,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private final ChannelFutureListener closeListener = future -> doClose();
     private final List<ChunkHandler> tracingHandlers = new ArrayList<>(4);
     private final ThreadContext threadContext;
+    private final ThreadWatchdog.ActivityTracker activityTracker;
     private ByteBuf buf;
     private boolean requested = false;
     private boolean closing = false;
@@ -46,10 +48,11 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private volatile int bufSize = 0;
     private volatile boolean hasLast = false;
 
-    public Netty4HttpRequestBodyStream(Channel channel, ThreadContext threadContext) {
+    public Netty4HttpRequestBodyStream(Channel channel, ThreadContext threadContext, ThreadWatchdog.ActivityTracker activityTracker) {
         this.channel = channel;
         this.threadContext = threadContext;
         this.requestContext = threadContext.newStoredContext();
+        this.activityTracker = activityTracker;
         Netty4Utils.addListener(channel.closeFuture(), closeListener);
         channel.config().setAutoRead(false);
     }
@@ -72,19 +75,24 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     @Override
     public void next() {
-        assert closing == false : "cannot request next chunk on closing stream";
         assert handler != null : "handler must be set before requesting next chunk";
         requestContext = threadContext.newStoredContext();
         channel.eventLoop().submit(() -> {
+            activityTracker.startActivity();
             requested = true;
-            if (buf == null) {
-                channel.read();
-            } else {
-                try {
-                    send();
-                } catch (Exception e) {
-                    channel.pipeline().fireExceptionCaught(e);
+            try {
+                if (closing) {
+                    return;
                 }
+                if (buf == null) {
+                    channel.read();
+                } else {
+                    send();
+                }
+            } catch (Throwable e) {
+                channel.pipeline().fireExceptionCaught(e);
+            } finally {
+                activityTracker.stopActivity();
             }
         });
     }

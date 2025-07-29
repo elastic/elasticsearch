@@ -36,6 +36,7 @@ import java.util.Set;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.BYTE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType.FLOAT;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -48,47 +49,71 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         this.indexed = randomBoolean();
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsNonQuantized() {
+    private static DenseVectorFieldMapper.RescoreVector randomRescoreVector() {
+        return new DenseVectorFieldMapper.RescoreVector(randomBoolean() ? 0 : randomFloatBetween(1.0F, 10.0F, false));
+    }
+
+    private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsNonQuantized() {
         return randomFrom(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.FlatIndexOptions()
         );
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsAll() {
+    public static DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsAll() {
         return randomFrom(
             new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
             new DenseVectorFieldMapper.Int8HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
-                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true))
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
             ),
             new DenseVectorFieldMapper.Int4HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
-                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true))
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
             ),
             new DenseVectorFieldMapper.FlatIndexOptions(),
-            new DenseVectorFieldMapper.Int8FlatIndexOptions(randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true))),
-            new DenseVectorFieldMapper.Int4FlatIndexOptions(randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true))),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000)),
-            new DenseVectorFieldMapper.BBQFlatIndexOptions()
+            new DenseVectorFieldMapper.Int8FlatIndexOptions(
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            ),
+            new DenseVectorFieldMapper.Int4FlatIndexOptions(
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            ),
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector())
+            ),
+            new DenseVectorFieldMapper.BBQFlatIndexOptions(randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()))
         );
     }
 
-    private DenseVectorFieldMapper.IndexOptions randomIndexOptionsHnswQuantized() {
+    private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsHnswQuantized() {
+        return randomIndexOptionsHnswQuantized(randomBoolean() ? null : randomRescoreVector());
+    }
+
+    private DenseVectorFieldMapper.DenseVectorIndexOptions randomIndexOptionsHnswQuantized(
+        DenseVectorFieldMapper.RescoreVector rescoreVector
+    ) {
         return randomFrom(
             new DenseVectorFieldMapper.Int8HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
-                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true))
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                rescoreVector
             ),
             new DenseVectorFieldMapper.Int4HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
-                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true))
+                randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true)),
+                rescoreVector
             ),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000))
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), rescoreVector)
         );
     }
 
@@ -101,7 +126,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             indexed,
             VectorSimilarity.COSINE,
             indexed ? randomIndexOptionsAll() : null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
     }
 
@@ -114,7 +140,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsNonQuantized(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
     }
 
@@ -187,13 +214,17 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsAll(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false
             );
             float[] queryVector = new float[dims];
             for (int i = 0; i < dims; i++) {
                 queryVector[i] = randomFloat();
             }
             Query query = field.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, null, producer);
+            if (query instanceof RescoreKnnVectorQuery rescoreKnnVectorQuery) {
+                query = rescoreKnnVectorQuery.innerQuery();
+            }
             assertThat(query, instanceOf(DiversifyingChildrenFloatKnnVectorQuery.class));
         }
         {
@@ -205,7 +236,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsNonQuantized(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false
             );
             byte[] queryVector = new byte[dims];
             float[] floatQueryVector = new float[dims];
@@ -237,7 +269,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsAll(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false
             );
             float[] queryVector = new float[dims];
             for (int i = 0; i < dims; i++) {
@@ -255,7 +288,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsNonQuantized(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false
             );
             byte[] queryVector = new byte[dims];
             for (int i = 0; i < dims; i++) {
@@ -275,7 +309,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             false,
             VectorSimilarity.COSINE,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -299,7 +334,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.DOT_PRODUCT,
             randomIndexOptionsAll(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
         float[] queryVector = new float[BBQ_MIN_DIMS];
         for (int i = 0; i < BBQ_MIN_DIMS; i++) {
@@ -319,7 +355,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsAll(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
         e = expectThrows(
             IllegalArgumentException.class,
@@ -338,13 +375,17 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsAll(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false
             );
             float[] queryVector = new float[4096];
             for (int i = 0; i < 4096; i++) {
                 queryVector[i] = randomFloat();
             }
             Query query = fieldWith4096dims.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, null, null);
+            if (query instanceof RescoreKnnVectorQuery rescoreKnnVectorQuery) {
+                query = rescoreKnnVectorQuery.innerQuery();
+            }
             assertThat(query, instanceOf(KnnFloatVectorQuery.class));
         }
 
@@ -357,7 +398,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 true,
                 VectorSimilarity.COSINE,
                 randomIndexOptionsNonQuantized(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                false
             );
             byte[] queryVector = new byte[4096];
             for (int i = 0; i < 4096; i++) {
@@ -378,7 +420,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             false,
             VectorSimilarity.COSINE,
             randomIndexOptionsNonQuantized(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -394,7 +437,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsNonQuantized(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
         e = expectThrows(
             IllegalArgumentException.class,
@@ -419,7 +463,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsNonQuantized(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
 
         Query knnQuery = nonQuantizedField.createKnnQuery(
@@ -452,23 +497,59 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             true,
             VectorSimilarity.COSINE,
             randomIndexOptionsHnswQuantized(),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            false
         );
 
         // Total results is k, internal k is multiplied by oversample
-        checkRescoreQueryParameters(fieldType, 10, 200, 2.5F, null, 500, 10);
+        checkRescoreQueryParameters(fieldType, 10, 200, 2.5F, 25, 200, 10);
         // If numCands < k, update numCands to k
-        checkRescoreQueryParameters(fieldType, 10, 20, 2.5F, null, 50, 10);
-        // Oversampling limits for num candidates
-        checkRescoreQueryParameters(fieldType, 1000, 1000, 11.0F, null, 10000, 1000);
-        checkRescoreQueryParameters(fieldType, 5000, 7500, 2.5F, null, 10000, 5000);
+        checkRescoreQueryParameters(fieldType, 10, 20, 2.5F, 25, 25, 10);
+        // Oversampling limits for k
+        checkRescoreQueryParameters(fieldType, 1000, 1000, 11.0F, OVERSAMPLE_LIMIT, OVERSAMPLE_LIMIT, 1000);
+    }
+
+    public void testRescoreOversampleQueryOverrides() {
+        // verify we can override to `0`
+        DenseVectorFieldType fieldType = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            3,
+            true,
+            VectorSimilarity.COSINE,
+            randomIndexOptionsHnswQuantized(new DenseVectorFieldMapper.RescoreVector(randomFloatBetween(1.1f, 9.9f, false))),
+            Collections.emptyMap(),
+            false
+        );
+        Query query = fieldType.createKnnQuery(VectorData.fromFloats(new float[] { 1, 4, 10 }), 10, 100, 0f, null, null, null);
+        assertTrue(query instanceof ESKnnFloatVectorQuery);
+
+        // verify we can override a `0` to a positive number
+        fieldType = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            FLOAT,
+            3,
+            true,
+            VectorSimilarity.COSINE,
+            randomIndexOptionsHnswQuantized(new DenseVectorFieldMapper.RescoreVector(0)),
+            Collections.emptyMap(),
+            false
+        );
+        query = fieldType.createKnnQuery(VectorData.fromFloats(new float[] { 1, 4, 10 }), 10, 100, 2f, null, null, null);
+        assertTrue(query instanceof RescoreKnnVectorQuery);
+        assertThat(((RescoreKnnVectorQuery) query).k(), equalTo(10));
+        ESKnnFloatVectorQuery esKnnQuery = (ESKnnFloatVectorQuery) ((RescoreKnnVectorQuery) query).innerQuery();
+        assertThat(esKnnQuery.kParam(), equalTo(20));
+
     }
 
     private static void checkRescoreQueryParameters(
         DenseVectorFieldType fieldType,
-        Integer k,
+        int k,
         int candidates,
-        float numCandsFactor,
+        float oversample,
         Integer expectedK,
         int expectedCandidates,
         int expectedResults
@@ -477,7 +558,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             VectorData.fromFloats(new float[] { 1, 4, 10 }),
             k,
             candidates,
-            numCandsFactor,
+            oversample,
             null,
             null,
             null

@@ -5,6 +5,12 @@
 <titleabbrev>SAML prepare authentication</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Creates a SAML authentication request (`<AuthnRequest>`) as a URL string, based on the configuration of the respective SAML realm in {es}.
 
 NOTE: This API is intended for use by custom web applications other than {kib}.

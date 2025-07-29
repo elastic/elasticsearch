@@ -21,7 +21,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link GroupingAggregatorFunction} implementation for {@link ValuesBytesRefAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
 public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
@@ -42,7 +42,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
 
   public static ValuesBytesRefGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new ValuesBytesRefGroupingAggregatorFunction(channels, ValuesBytesRefAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new ValuesBytesRefGroupingAggregatorFunction(channels, ValuesBytesRefAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -55,7 +55,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
     BytesRefVector valuesVector = valuesBlock.asVector();
@@ -63,7 +63,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
       }
-      return new GroupingAggregatorFunction.AddInput() {
+      var addInput = new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
@@ -78,8 +78,9 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
         public void close() {
         }
       };
+      return ValuesBytesRefAggregator.wrapAddInput(addInput, state, valuesBlock);
     }
-    return new GroupingAggregatorFunction.AddInput() {
+    var addInput = new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
@@ -94,6 +95,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       public void close() {
       }
     };
+    return ValuesBytesRefAggregator.wrapAddInput(addInput, state, valuesVector);
   }
 
   private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {

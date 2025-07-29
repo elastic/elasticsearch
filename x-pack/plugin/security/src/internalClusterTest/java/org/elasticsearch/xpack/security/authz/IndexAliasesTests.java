@@ -802,7 +802,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertAcked(client.admin().indices().prepareAliases().removeIndex("*").get());
         GetAliasesResponse getAliasesResponse = client.admin().indices().prepareGetAliases().setAliases("*").get();
         assertThat(getAliasesResponse.getAliases().size(), equalTo(0));
-        assertAliases(indicesAdmin().prepareGetAliases().setAliases("*"), "bogus_index_1", "bogus_alias_1", "bogus_alias_2");
+        assertAliases(indicesAdmin().prepareGetAliases().setAliases("*", "-.security*"), "bogus_index_1", "bogus_alias_1", "bogus_alias_2");
     }
 
     public void testAliasesForHiddenIndices() {

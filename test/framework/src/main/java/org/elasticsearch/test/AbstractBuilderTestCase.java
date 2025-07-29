@@ -241,6 +241,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return serviceHolder.idxSettings;
     }
 
+    protected static MapperService mapperService() {
+        return serviceHolder.mapperService;
+    }
+
     protected static String expectedFieldName(String builderFieldName) {
         return ALIAS_TO_CONCRETE_FIELD_NAME.getOrDefault(builderFieldName, builderFieldName);
     }
@@ -632,7 +636,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 scriptService,
                 createMockResolvedIndices(),
                 null,
-                createMockQueryRewriteInterceptor()
+                createMockQueryRewriteInterceptor(),
+                false
             );
         }
 

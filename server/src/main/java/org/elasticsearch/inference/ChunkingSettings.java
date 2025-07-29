@@ -12,6 +12,10 @@ package org.elasticsearch.inference;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xcontent.ToXContentObject;
 
+import java.util.Map;
+
 public interface ChunkingSettings extends ToXContentObject, VersionedNamedWriteable {
     ChunkingStrategy getChunkingStrategy();
+
+    Map<String, Object> asMap();
 }

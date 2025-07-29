@@ -34,20 +34,20 @@ public class EnvironmentTests extends ESTestCase {
 
     public void testRepositoryResolution() throws IOException {
         Environment environment = newEnvironment();
-        assertThat(environment.resolveRepoFile("/test/repos/repo1"), nullValue());
-        assertThat(environment.resolveRepoFile("test/repos/repo1"), nullValue());
+        assertThat(environment.resolveRepoDir("/test/repos/repo1"), nullValue());
+        assertThat(environment.resolveRepoDir("test/repos/repo1"), nullValue());
         environment = newEnvironment(
             Settings.builder()
                 .putList(Environment.PATH_REPO_SETTING.getKey(), "/test/repos", "/another/repos", "/test/repos/../other")
                 .build()
         );
-        assertThat(environment.resolveRepoFile("/test/repos/repo1"), notNullValue());
-        assertThat(environment.resolveRepoFile("test/repos/repo1"), notNullValue());
-        assertThat(environment.resolveRepoFile("/another/repos/repo1"), notNullValue());
-        assertThat(environment.resolveRepoFile("/test/repos/../repo1"), nullValue());
-        assertThat(environment.resolveRepoFile("/test/repos/../repos/repo1"), notNullValue());
-        assertThat(environment.resolveRepoFile("/somethingeles/repos/repo1"), nullValue());
-        assertThat(environment.resolveRepoFile("/test/other/repo"), notNullValue());
+        assertThat(environment.resolveRepoDir("/test/repos/repo1"), notNullValue());
+        assertThat(environment.resolveRepoDir("test/repos/repo1"), notNullValue());
+        assertThat(environment.resolveRepoDir("/another/repos/repo1"), notNullValue());
+        assertThat(environment.resolveRepoDir("/test/repos/../repo1"), nullValue());
+        assertThat(environment.resolveRepoDir("/test/repos/../repos/repo1"), notNullValue());
+        assertThat(environment.resolveRepoDir("/somethingeles/repos/repo1"), nullValue());
+        assertThat(environment.resolveRepoDir("/test/other/repo"), notNullValue());
 
         assertThat(environment.resolveRepoURL(new URL("file:///test/repos/repo1")), notNullValue());
         assertThat(environment.resolveRepoURL(new URL("file:/test/repos/repo1")), notNullValue());
@@ -66,7 +66,7 @@ public class EnvironmentTests extends ESTestCase {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), equalTo(new Path[] { pathHome.resolve("data") }));
+        assertThat(environment.dataDirs(), equalTo(new Path[] { pathHome.resolve("data") }));
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
@@ -82,41 +82,41 @@ public class EnvironmentTests extends ESTestCase {
             .put("path.data", createTempDir().toAbsolutePath() + "," + createTempDir().toAbsolutePath())
             .build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), arrayWithSize(2));
+        assertThat(environment.dataDirs(), arrayWithSize(2));
     }
 
     public void testPathLogsWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.logsFile(), equalTo(pathHome.resolve("logs")));
+        assertThat(environment.logsDir(), equalTo(pathHome.resolve("logs")));
     }
 
     public void testDefaultConfigPath() {
         final Path path = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", path).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.configFile(), equalTo(path.resolve("config")));
+        assertThat(environment.configDir(), equalTo(path.resolve("config")));
     }
 
     public void testConfigPath() {
         final Path configPath = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", createTempDir().toAbsolutePath()).build();
         final Environment environment = new Environment(settings, configPath);
-        assertThat(environment.configFile(), equalTo(configPath));
+        assertThat(environment.configDir(), equalTo(configPath));
     }
 
     public void testConfigPathWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.configFile(), equalTo(pathHome.resolve("config")));
+        assertThat(environment.configDir(), equalTo(pathHome.resolve("config")));
     }
 
     public void testNonExistentTempPathValidation() {
         Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, createTempDir().resolve("this_does_not_exist"));
-        FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateTmpFile);
+        FileNotFoundException e = expectThrows(FileNotFoundException.class, environment::validateTmpDir);
         assertThat(e.getMessage(), startsWith("Temporary directory ["));
         assertThat(e.getMessage(), endsWith("this_does_not_exist] does not exist or is not accessible"));
     }
@@ -124,7 +124,7 @@ public class EnvironmentTests extends ESTestCase {
     public void testTempPathValidationWhenRegularFile() throws IOException {
         Settings build = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
         Environment environment = new Environment(build, null, createTempFile("something", ".test"));
-        IOException e = expectThrows(IOException.class, environment::validateTmpFile);
+        IOException e = expectThrows(IOException.class, environment::validateTmpDir);
         assertThat(e.getMessage(), startsWith("Temporary directory ["));
         assertThat(e.getMessage(), endsWith(".test] is not a directory"));
     }

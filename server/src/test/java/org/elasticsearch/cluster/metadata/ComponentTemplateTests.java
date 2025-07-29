@@ -90,7 +90,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             templateBuilder.aliases(randomAliases());
         }
         if (randomBoolean() && supportsDataStreams) {
-            templateBuilder.lifecycle(DataStreamLifecycleTests.randomLifecycle());
+            templateBuilder.lifecycle(DataStreamLifecycleTemplateTests.randomDataLifecycleTemplate());
         }
         if (randomBoolean() && supportsDataStreams) {
             templateBuilder.dataStreamOptions(randomDataStreamOptionsTemplate());
@@ -182,7 +182,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                     );
                     case 3 -> new ComponentTemplate(
                         Template.builder(ot)
-                            .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle))
+                            .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTemplateTests::randomDataLifecycleTemplate))
                             .build(),
                         orig.version(),
                         orig.metadata(),
@@ -273,7 +273,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
-        ResettableValue<DataStreamOptions.Template> dataStreamOptions = ResettableValue.undefined();
+        DataStreamOptions.Template dataStreamOptions = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -284,9 +284,10 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             aliases = randomAliases();
         }
         if (randomBoolean()) {
-            dataStreamOptions = randomDataStreamOptionsTemplate();
+            // Do not set random lifecycle to avoid having data_retention and effective_retention in the response.
+            dataStreamOptions = new DataStreamOptions.Template(DataStreamFailureStore.builder().enabled(randomBoolean()).buildTemplate());
         }
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         ComponentTemplate template = new ComponentTemplate(
             new Template(settings, mappings, aliases, lifecycle, dataStreamOptions),
             randomNonNegativeLong(),
@@ -302,7 +303,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             String serialized = Strings.toString(builder);
             assertThat(serialized, containsString("rollover"));
             for (String label : rolloverConfiguration.resolveRolloverConditions(
-                lifecycle.getEffectiveDataRetention(globalRetention, randomBoolean())
+                lifecycle.toDataStreamLifecycle().getEffectiveDataRetention(globalRetention, randomBoolean())
             ).getConditions().keySet()) {
                 assertThat(serialized, containsString(label));
             }

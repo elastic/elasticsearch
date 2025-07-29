@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -32,7 +31,8 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+            true,
             List.of(
                 new TestCaseSupplier(
                     "Now Test",
@@ -41,7 +41,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
                         List.of(),
                         matchesPattern("LiteralsEvaluator\\[lit=.*]"),
                         DataType.DATETIME,
-                        equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli())
+                        equalTo(TestCaseSupplier.TEST_CONFIGURATION.now().toInstant().toEpochMilli())
                     )
                 )
             )
@@ -55,7 +55,7 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
 
     @Override
     protected Matcher<Object> allNullsMatcher() {
-        return equalTo(EsqlTestUtils.TEST_CFG.now().toInstant().toEpochMilli());
+        return equalTo(testCase.getConfiguration().now().toInstant().toEpochMilli());
     }
 
 }

@@ -34,14 +34,14 @@ buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.9.0") &&
   tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
     useCluster baseCluster
     mustRunAfter("precommit")
+    def beforeEndpoints = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
     doFirst {
       // Getting the endpoints causes a wait for the cluster
-      println "Endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
-      baseCluster.get().nextNodeToNextVersion()
-
-      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c->c.allHttpSocketURI.join(",")))
-      nonInputProperties.systemProperty('tests.clustername', baseName)
+      println "Endpoints are: ${-> beforeEndpoints.get()}"
+      getRegistry().get().nextNodeToNextVersion(baseCluster)
     }
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
+    nonInputProperties.systemProperty('tests.clustername', baseName)
     onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
   }
 

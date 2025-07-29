@@ -105,7 +105,7 @@ Save the refresh token from the response. You'll need this for the connector con
 * "Write all files and folders stored in Box" in Application Scopes
 * "Make API calls using the as-user header" in Advanced Features
 3. Select `App + Enterprise Access` in App Access Level.
-4. Authorize your application from the admin console.
+4. Authorize your application from the admin console. If you do not have permission, you may need to submit the application for authorization.
 Save the *Client Credentials* and *Enterprise ID*. You'll need these to configure the connector.
 
 [discrete#es-connectors-box-configuration]
@@ -121,7 +121,7 @@ The Client ID to authenticate with Box instance.
 The Client Secret to authenticate with Box instance.
 
 `Refresh Token`  (required if Box Account is Box Free)::
-The Refresh Token to generate Access Token. 
+The Refresh Token to generate Access Token.
 *NOTE:* If the process terminates, you'll need to generate a new refresh token.
 
 `Enterprise ID`  (required if Box Account is Box Enterprise)::
@@ -179,7 +179,7 @@ See <<es-connectors-troubleshooting>>.
 
 See <<es-connectors-security>>.
 
-// Closing the collapsible section 
+// Closing the collapsible section
 ===============
 
 
@@ -275,7 +275,7 @@ Save the refresh token from the response. You'll need this for the connector con
 * "Write all files and folders stored in Box" in Application Scopes
 * "Make API calls using the as-user header" in Advanced Features
 3. Select `App + Enterprise Access` in App Access Level.
-4. Authorize your application from the admin console.
+4. Authorize your application from the admin console. If you do not have permission, you may need to submit the application for authorization.
 Save the *Client Credentials* and *Enterprise ID*. You'll need these to configure the connector.
 
 [discrete#es-connectors-box-client-configuration]
@@ -291,7 +291,7 @@ The Client ID to authenticate with Box instance.
 The Client Secret to authenticate with Box instance.
 
 `Refresh Token`  (required if Box Account is Box Free)::
-The Refresh Token to generate Access Token. 
+The Refresh Token to generate Access Token.
 *NOTE:* If the process terminates, you'll need to generate a new refresh token.
 
 `Enterprise ID`  (required if Box Account is Box Enterprise)::
@@ -375,5 +375,5 @@ See <<es-connectors-troubleshooting>>.
 See <<es-connectors-security>>.
 
 
-// Closing the collapsible section 
+// Closing the collapsible section
 ===============

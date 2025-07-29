@@ -60,6 +60,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -93,6 +94,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     public static final String STATUS_CODE_KEY = "es_rest_status_code";
     public static final String HANDLER_NAME_KEY = "es_rest_handler_name";
     public static final String REQUEST_METHOD_KEY = "es_rest_request_method";
+    public static final boolean ERROR_TRACE_DEFAULT = false;
 
     static {
         try (InputStream stream = RestController.class.getResourceAsStream("/config/favicon.ico")) {
@@ -593,10 +595,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final Map<String, Object> attributes = Maps.newMapWithExpectedSize(req.getHeaders().size() + 3);
         req.getHeaders().forEach((key, values) -> {
             final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
-            attributes.put("http.request.headers." + lowerKey, values.size() == 1 ? values.get(0) : String.join("; ", values));
+            attributes.put("http.request.headers." + lowerKey, values == null ? "" : String.join("; ", values));
         });
-        attributes.put("http.method", method);
-        attributes.put("http.url", req.uri());
+        attributes.put("http.method", Objects.requireNonNullElse(method, "<unknown>"));
+        attributes.put("http.url", Objects.requireNonNullElse(req.uri(), "<unknown>"));
         switch (req.getHttpRequest().protocolVersion()) {
             case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
             case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
@@ -673,7 +675,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static void validateErrorTrace(RestRequest request, RestChannel channel) {
         // error_trace cannot be used when we disable detailed errors
         // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
+        if (request.paramAsBoolean("error_trace", ERROR_TRACE_DEFAULT) && channel.detailedErrorsEnabled() == false) {
             throw new IllegalArgumentException("error traces in responses are disabled.");
         }
     }
@@ -908,12 +910,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
+    // exposed for tests
+    static boolean PERMIT_DOUBLE_RESPONSE = false;
+
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
         private final HttpRouteStatsTracker statsTracker;
         private final long startTime;
-        private final AtomicBoolean closed = new AtomicBoolean();
+        private final AtomicBoolean responseSent = new AtomicBoolean();
 
         ResourceHandlingHttpChannel(
             RestChannel delegate,
@@ -932,7 +937,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public void sendResponse(RestResponse response) {
             boolean success = false;
             try {
-                close();
+                // protect against double-response bugs
+                if (responseSent.compareAndSet(false, true) == false) {
+                    final var message = "have already sent a response to this request, cannot send another";
+                    assert PERMIT_DOUBLE_RESPONSE : message;
+                    throw new IllegalStateException(message);
+                }
+                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+
                 statsTracker.addRequestStats(contentLength);
                 statsTracker.addResponseTime(rawRelativeTimeInMillis() - startTime);
                 if (response.isChunked() == false) {
@@ -962,14 +974,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
         private static long rawRelativeTimeInMillis() {
             return TimeValue.nsecToMSec(System.nanoTime());
-        }
-
-        private void close() {
-            // attempt to close once atomically
-            if (closed.compareAndSet(false, true) == false) {
-                throw new IllegalStateException("Channel is already closed");
-            }
-            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
     }
 

@@ -49,7 +49,7 @@ public class ReplaceStatsFilteredAggWithEval extends OptimizerRules.OptimizerRul
                 && alias.child() instanceof AggregateFunction aggFunction
                 && aggFunction.hasFilter()
                 && aggFunction.filter() instanceof Literal literal
-                && Boolean.FALSE.equals(literal.fold())) {
+                && Boolean.FALSE.equals(literal.value())) {
 
                 Object value = aggFunction instanceof Count || aggFunction instanceof CountDistinct ? 0L : null;
                 Alias newAlias = alias.replaceChild(Literal.of(aggFunction, value));

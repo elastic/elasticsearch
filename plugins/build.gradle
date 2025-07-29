@@ -7,10 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-subprojects {
-  apply plugin: 'elasticsearch.internal-testclusters'
-}
-
 configurations {
   allPlugins
 }
@@ -22,12 +18,10 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
 
   esplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
-    name project.name
-
-    licenseFile rootProject.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-    noticeFile rootProject.file('NOTICE.txt')
+    name = project.name
+    licenseFile = layout.settingsDirectory.file('licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+    noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
   }
-
 
   parent.artifacts.add('allPlugins', tasks.named('bundlePlugin'))
 }

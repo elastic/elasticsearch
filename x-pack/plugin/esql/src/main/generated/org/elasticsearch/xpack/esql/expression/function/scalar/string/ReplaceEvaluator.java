@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import java.util.regex.PatternSyntaxException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -21,7 +20,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Replace}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
@@ -111,7 +110,7 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
         }
         try {
           result.appendBytesRef(Replace.process(strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch), regexBlock.getBytesRef(regexBlock.getFirstValueIndex(p), regexScratch), newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch)));
-        } catch (PatternSyntaxException e) {
+        } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
         }
@@ -129,7 +128,7 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
       position: for (int p = 0; p < positionCount; p++) {
         try {
           result.appendBytesRef(Replace.process(strVector.getBytesRef(p, strScratch), regexVector.getBytesRef(p, regexScratch), newStrVector.getBytesRef(p, newStrScratch)));
-        } catch (PatternSyntaxException e) {
+        } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
         }

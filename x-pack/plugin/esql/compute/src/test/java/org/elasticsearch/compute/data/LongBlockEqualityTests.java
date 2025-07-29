@@ -7,7 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.compute.operator.ComputeTestCase;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.TestBlockFactory;
 
 import java.util.BitSet;
 import java.util.List;
@@ -49,7 +50,8 @@ public class LongBlockEqualityTests extends ComputeTestCase {
             blockFactory.newConstantLongBlockWith(0, 0),
             blockFactory.newLongBlockBuilder(0).build(),
             blockFactory.newLongBlockBuilder(0).appendLong(1).build().filter(),
-            blockFactory.newLongBlockBuilder(0).appendNull().build().filter()
+            blockFactory.newLongBlockBuilder(0).appendNull().build().filter(),
+            (ConstantNullBlock) blockFactory.newConstantNullBlock(0)
         );
         assertAllEquals(blocks);
     }
@@ -200,17 +202,20 @@ public class LongBlockEqualityTests extends ComputeTestCase {
         boolean grow = randomBoolean();
         LongBlock.Builder builder1 = blockFactory.newLongBlockBuilder(grow ? 0 : positions);
         LongBlock.Builder builder2 = blockFactory.newLongBlockBuilder(grow ? 0 : positions);
+        ConstantNullBlock.Builder builder3 = new ConstantNullBlock.Builder(blockFactory);
         for (int p = 0; p < positions; p++) {
             builder1.appendNull();
             builder2.appendNull();
+            builder3.appendNull();
         }
         LongBlock block1 = builder1.build();
         LongBlock block2 = builder2.build();
+        Block block3 = builder3.build();
         assertEquals(positions, block1.getPositionCount());
         assertTrue(block1.mayHaveNulls());
         assertTrue(block1.isNull(0));
 
-        List<LongBlock> blocks = List.of(block1, block2);
+        List<Block> blocks = List.of(block1, block2, block3);
         assertAllEquals(blocks);
     }
 

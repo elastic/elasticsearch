@@ -24,6 +24,7 @@ import java.time.Period;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 import java.util.function.ToLongBiFunction;
@@ -33,8 +34,6 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asMillis;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SubTests extends AbstractScalarFunctionTestCase {
@@ -100,8 +99,8 @@ public class SubTests extends AbstractScalarFunctionTestCase {
                         "SubDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                         DataType.DOUBLE,
                         equalTo(null)
-                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity")
                 ),
                 new TestCaseSupplier(
                     List.of(DataType.DOUBLE, DataType.DOUBLE),
@@ -113,8 +112,8 @@ public class SubTests extends AbstractScalarFunctionTestCase {
                         "SubDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                         DataType.DOUBLE,
                         equalTo(null)
-                    ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                        .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                    ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                        .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity")
                 )
             )
         );
@@ -245,7 +244,8 @@ public class SubTests extends AbstractScalarFunctionTestCase {
                 "SubUnsignedLongsEvaluator"
             )
         );
-        suppliers = anyNullIsNull(suppliers, (nullPosition, nullValueDataType, original) -> {
+
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(suppliers, (nullPosition, nullValueDataType, original) -> {
             if (nullValueDataType == DataType.NULL) {
                 return original.getData().get(nullPosition == 0 ? 1 : 0).type();
             }
@@ -255,26 +255,28 @@ public class SubTests extends AbstractScalarFunctionTestCase {
                 return equalTo("LiteralsEvaluator[lit=null]");
             }
             return original;
-        });
+        }), SubTests::subErrorMessageString);
 
-        suppliers.add(new TestCaseSupplier("MV", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
-            // Ensure we don't have an overflow
-            int rhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            int lhs = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            int lhs2 = randomIntBetween((Integer.MIN_VALUE >> 1) - 1, (Integer.MAX_VALUE >> 1) - 1);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(List.of(lhs, lhs2), DataType.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.INTEGER, "rhs")
-                ),
-                "SubIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataType.INTEGER,
-                is(nullValue())
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
-        }));
-
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
         return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    private static String subErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+        if (types.get(1) == DataType.DATETIME) {
+            if (types.get(0).isNumeric() || DataType.isMillisOrNanos(types.get(0))) {
+                return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [datetime]";
+            }
+            if (DataType.isNull(types.get(0))) {
+                return "[-] arguments are in unsupported order: cannot subtract a [DATETIME] value [datetime] from a [NULL] amount [null]";
+            }
+        }
+
+        try {
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "date_nanos, datetime or numeric");
+        } catch (IllegalStateException e) {
+            // This means all the positional args were okay, so the expected error is from the combination
+            return "[-] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
+        }
     }
 
     @Override

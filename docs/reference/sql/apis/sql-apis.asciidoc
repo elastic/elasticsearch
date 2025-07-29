@@ -2,6 +2,12 @@
 [[sql-apis]]
 == SQL APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-sql[SQL APIs].
+--
+
 {es}'s SQL APIs let you run SQL queries on {es} indices and data streams.
 For an overview of {es}'s SQL features and related tutorials, see <<xpack-sql>>.
 

@@ -245,6 +245,10 @@ public class NestedObjectMapper extends ObjectMapper {
         this.indexSettings = indexSettings;
     }
 
+    public IndexSettings indexSettings() {
+        return indexSettings;
+    }
+
     public Query parentTypeFilter() {
         return parentTypeFilter;
     }

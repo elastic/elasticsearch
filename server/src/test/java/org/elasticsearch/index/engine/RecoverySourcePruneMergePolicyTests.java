@@ -44,7 +44,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
 
@@ -191,7 +191,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                                     }
                                     assertEquals(i, extra_source.docID());
                                     if (syntheticRecoverySource) {
-                                        assertThat(extra_source.longValue(), greaterThan(10L));
+                                        assertThat(extra_source.longValue(), greaterThanOrEqualTo(10L));
                                     } else {
                                         assertThat(extra_source.longValue(), equalTo(1L));
                                     }

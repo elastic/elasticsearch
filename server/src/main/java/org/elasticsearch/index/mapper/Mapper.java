@@ -30,7 +30,7 @@ import java.util.function.Function;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
-    public static final NodeFeature SYNTHETIC_SOURCE_KEEP_FEATURE = new NodeFeature("mapper.synthetic_source_keep");
+    public static final NodeFeature SYNTHETIC_SOURCE_KEEP_FEATURE = new NodeFeature("mapper.synthetic_source_keep", true);
 
     public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
@@ -107,9 +107,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         private String leafName;
 
-        @SuppressWarnings("this-escape")
         protected Builder(String leafName) {
-            setLeafName(leafName);
+            this.leafName = leafName;
         }
 
         public final String leafName() {
@@ -120,7 +119,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         public abstract Mapper build(MapperBuilderContext context);
 
         void setLeafName(String leafName) {
-            this.leafName = internFieldName(leafName);
+            this.leafName = leafName;
         }
     }
 
@@ -216,4 +215,19 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * Defines how this mapper counts towards {@link MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING}.
      */
     public abstract int getTotalFieldsCount();
+
+    /**
+     * @return whether this mapper supports storing leaf array elements natively when synthetic source is enabled.
+     */
+    public final boolean supportStoringArrayOffsets() {
+        return getOffsetFieldName() != null;
+    }
+
+    /**
+     * @return the offset field name used to store offsets iff {@link #supportStoringArrayOffsets()} returns
+     * <code>true</code>.
+     */
+    public String getOffsetFieldName() {
+        return null;
+    }
 }

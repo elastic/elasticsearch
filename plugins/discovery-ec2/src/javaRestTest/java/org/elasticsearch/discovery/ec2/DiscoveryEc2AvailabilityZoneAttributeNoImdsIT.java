@@ -11,23 +11,21 @@ package org.elasticsearch.discovery.ec2;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 
-public class DiscoveryEc2AvailabilityZoneAttributeNoImdsIT extends ESRestTestCase {
+public class DiscoveryEc2AvailabilityZoneAttributeNoImdsIT extends DiscoveryEc2AvailabilityZoneAttributeTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .plugin("discovery-ec2")
-        .setting(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), "true")
-        .build();
+    // use an address which definitely isn't running an IMDS, just in case we're running these tests in EC2
+    public static ElasticsearchCluster cluster = DiscoveryEc2AvailabilityZoneAttributeTestCase.buildCluster(() -> "http://127.0.0.1:1");
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
     }
 
+    @Override // the base class asserts that the attribute is set, but we don't want that here
     public void testAvailabilityZoneAttribute() throws IOException {
         final var nodesInfoResponse = assertOKAndCreateObjectPath(client().performRequest(new Request("GET", "/_nodes/_all/_none")));
         for (final var nodeId : nodesInfoResponse.evaluateMapKeys("nodes")) {

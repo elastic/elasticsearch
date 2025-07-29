@@ -17,12 +17,14 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.rest.RestResponseUtils.setUpXContentMock;
+import static org.mockito.Mockito.mock;
 
 public final class RestMultiSearchTemplateActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
@@ -31,8 +33,8 @@ public final class RestMultiSearchTemplateActionTests extends RestActionTestCase
     public void setUpAction() {
         controller().registerHandler(new RestMultiSearchTemplateAction(Settings.EMPTY));
         // todo how to workaround this? we get AssertionError without this
-        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiSearchTemplateResponse.class));
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiSearchTemplateResponse.class));
+        verifyingClient.setExecuteVerifier((actionType, request) -> setUpXContentMock(mock(MultiSearchTemplateResponse.class)));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> setUpXContentMock(mock(MultiSearchTemplateResponse.class)));
     }
 
     public void testTypeInPath() {

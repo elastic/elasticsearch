@@ -7,22 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
-$if(BytesRef)$
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
-
-$else$
 import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
-$endif$
 /**
  * Vector implementation that stores a constant $type$ value.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ConstantVector.java.st} instead.
  */
 final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
 

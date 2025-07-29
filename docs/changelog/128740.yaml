@@ -1,0 +1,5 @@
+pr: 128740
+summary: Optimize sparse vector stats collection
+area: Stats
+type: enhancement
+issues: []

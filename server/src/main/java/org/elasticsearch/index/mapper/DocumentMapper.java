@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
@@ -21,7 +22,7 @@ import org.elasticsearch.index.IndexVersions;
 import java.util.List;
 
 public class DocumentMapper {
-    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested");
+    static final NodeFeature INDEX_SORTING_ON_NESTED = new NodeFeature("mapper.index_sorting_on_nested", true);
 
     private final String type;
     private final CompressedXContent mappingSource;
@@ -166,29 +167,27 @@ public class DocumentMapper {
                 throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
             }
             for (String field : settings.getValue(IndexSortConfig.INDEX_SORT_FIELD_SETTING)) {
-                for (NestedObjectMapper nestedObjectMapper : mappers().nestedLookup().getNestedMappers().values()) {
-                    if (field.startsWith(nestedObjectMapper.fullPath())) {
-                        throw new IllegalArgumentException(
-                            "cannot apply index sort to field [" + field + "] under nested object [" + nestedObjectMapper.fullPath() + "]"
-                        );
-                    }
+                NestedObjectMapper nestedMapper = mappers().nestedLookup().getNestedMappers().get(field);
+                String nestedParent = nestedMapper != null ? nestedMapper.fullPath() : mappers().nestedLookup().getNestedParent(field);
+                if (nestedParent != null) {
+                    throw new IllegalArgumentException(
+                        "cannot apply index sort to field [" + field + "] under nested object [" + nestedParent + "]"
+                    );
                 }
             }
         }
         List<String> routingPaths = settings.getIndexMetadata().getRoutingPaths();
         for (String path : routingPaths) {
-            for (String match : mappingLookup.getMatchingFieldNames(path)) {
-                mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
+            if (settings.getMode() == IndexMode.TIME_SERIES) {
+                for (String match : mappingLookup.getMatchingFieldNames(path)) {
+                    mappingLookup.getFieldType(match).validateMatchedRoutingPath(path);
+                }
             }
             for (String objectName : mappingLookup.objectMappers().keySet()) {
                 // object type is not allowed in the routing paths
                 if (path.equals(objectName)) {
                     throw new IllegalArgumentException(
-                        "All fields that match routing_path must be configured with [time_series_dimension: true] "
-                            + "or flattened fields with a list of dimensions in [time_series_dimensions] "
-                            + "and without the [script] parameter. ["
-                            + objectName
-                            + "] was [object]."
+                        "All fields that match routing_path must be flattened fields. [" + objectName + "] was [object]."
                     );
                 }
             }

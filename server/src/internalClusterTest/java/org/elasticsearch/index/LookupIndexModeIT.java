@@ -49,7 +49,7 @@ public class LookupIndexModeIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().execute(TransportCreateIndexAction.TYPE, createRequest));
         Settings settings = client().admin().indices().prepareGetSettings("hosts").get().getIndexToSettings().get("hosts");
         assertThat(settings.get("index.mode"), equalTo("lookup"));
-        assertThat(settings.get("index.auto_expand_replicas"), equalTo("0-all"));
+        assertNull(settings.get("index.auto_expand_replicas"));
         Map<String, String> allHosts = Map.of(
             "192.168.1.2",
             "Windows",
@@ -141,7 +141,6 @@ public class LookupIndexModeIT extends ESIntegTestCase {
         Settings settings = client().admin().indices().prepareGetSettings("lookup-2").get().getIndexToSettings().get("lookup-2");
         assertThat(settings.get("index.mode"), equalTo("lookup"));
         assertThat(settings.get("index.number_of_shards"), equalTo("1"));
-        assertThat(settings.get("index.auto_expand_replicas"), equalTo("0-all"));
 
         ResizeRequest split = new ResizeRequest("lookup-3", "lookup-1");
         split.setResizeType(ResizeType.SPLIT);

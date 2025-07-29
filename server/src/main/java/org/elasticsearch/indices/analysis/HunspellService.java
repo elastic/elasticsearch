@@ -99,7 +99,7 @@ public final class HunspellService {
             try {
                 return loadDictionary(locale, settings, env);
             } catch (Exception e) {
-                throw new IllegalStateException("failed to load hunspell dictionary for locale: " + locale, e);
+                throw new IllegalArgumentException("failed to load hunspell dictionary for locale: " + locale, e);
             }
         };
         if (HUNSPELL_LAZY_LOAD.get(settings) == false) {
@@ -122,7 +122,7 @@ public final class HunspellService {
     }
 
     private static Path resolveHunspellDirectory(Environment env) {
-        return env.configFile().resolve("hunspell");
+        return env.configDir().resolve("hunspell");
     }
 
     /**
@@ -193,7 +193,7 @@ public final class HunspellService {
 
             affixStream = Files.newInputStream(affixFiles[0]);
 
-            try (Directory tmp = new NIOFSDirectory(env.tmpFile())) {
+            try (Directory tmp = new NIOFSDirectory(env.tmpDir())) {
                 return new Dictionary(tmp, "hunspell", affixStream, dicStreams, ignoreCase);
             }
 

@@ -266,7 +266,8 @@ public class ReadOnlyEngine extends Engine {
                 translogDeletionPolicy,
                 config.getGlobalCheckpointSupplier(),
                 config.getPrimaryTermSupplier(),
-                seqNo -> {}
+                seqNo -> {},
+                TranslogOperationAsserter.DEFAULT
             )
         ) {
             return translog.stats();
@@ -444,7 +445,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
-        listener.onResponse(RefreshResult.NO_REFRESH);
+        ActionListener.completeWith(listener, () -> refresh(source));
     }
 
     @Override

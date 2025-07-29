@@ -244,7 +244,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
             createIndexAnalyzers(),
             ScriptCompiler.NONE,
             Integer.MAX_VALUE,
-            IndexVersion.current()
+            IndexVersion.current(),
+            randomFrom(Mapper.SourceKeepMode.values())
         ).normalizer("lowercase").build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of("value"), fetchSourceValue(normalizerMapper, "VALUE"));
         assertEquals(List.of("42"), fetchSourceValue(normalizerMapper, 42L));

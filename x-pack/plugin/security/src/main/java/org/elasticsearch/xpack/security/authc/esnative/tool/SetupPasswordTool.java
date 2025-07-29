@@ -95,11 +95,11 @@ class SetupPasswordTool extends MultiCommand {
 
     SetupPasswordTool() {
         this(environment -> new CommandLineHttpClient(environment), environment -> {
-            KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(environment.configFile());
+            KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(environment.configDir());
             if (keyStoreWrapper == null) {
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Elasticsearch keystore file is missing [" + KeyStoreWrapper.keystorePath(environment.configFile()) + "]"
+                    "Elasticsearch keystore file is missing [" + KeyStoreWrapper.keystorePath(environment.configDir()) + "]"
                 );
             }
             return keyStoreWrapper;
@@ -142,7 +142,7 @@ class SetupPasswordTool extends MultiCommand {
 
         @Override
         public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-            terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
+            terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configDir());
             setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
@@ -198,7 +198,7 @@ class SetupPasswordTool extends MultiCommand {
 
         @Override
         public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
-            terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configFile());
+            terminal.println(Verbosity.VERBOSE, "Running with configuration path: " + env.configDir());
             setupOptions(terminal, options, env);
             checkElasticKeystorePasswordValid(terminal, env);
             checkClusterHealth(terminal);
@@ -298,7 +298,7 @@ class SetupPasswordTool extends MultiCommand {
             Settings settings = settingsBuilder.build();
             elasticUserPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(settings);
 
-            final Environment newEnv = new Environment(settings, env.configFile());
+            final Environment newEnv = new Environment(settings, env.configDir());
             Environment.assertEquivalent(newEnv, env);
 
             client = clientFunction.apply(newEnv);
@@ -354,7 +354,7 @@ class SetupPasswordTool extends MultiCommand {
                     terminal.errorPrintln("Possible causes include:");
                     terminal.errorPrintln(" * The password for the '" + elasticUser + "' user has already been changed on this cluster");
                     terminal.errorPrintln(" * Your elasticsearch node is running against a different keystore");
-                    terminal.errorPrintln("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configFile()));
+                    terminal.errorPrintln("   This tool used the keystore at " + KeyStoreWrapper.keystorePath(env.configDir()));
                     terminal.errorPrintln("");
                     terminal.errorPrintln(
                         "You can use the `elasticsearch-reset-password` CLI tool to reset the password of the '" + elasticUser + "' user"
@@ -398,7 +398,7 @@ class SetupPasswordTool extends MultiCommand {
                 terminal.errorPrintln("");
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Failed to establish SSL connection to elasticsearch at " + route.toString() + ". ",
+                    "Failed to establish SSL connection to elasticsearch at " + route.toString() + ".",
                     e
                 );
             } catch (IOException e) {
@@ -557,7 +557,7 @@ class SetupPasswordTool extends MultiCommand {
                     terminal.errorPrintln("* Try running this tool again.");
                     terminal.errorPrintln("* Try running with the --verbose parameter for additional messages.");
                     terminal.errorPrintln("* Check the elasticsearch logs for additional error details.");
-                    terminal.errorPrintln("* Use the change password API manually. ");
+                    terminal.errorPrintln("* Use the change password API manually.");
                     terminal.errorPrintln("");
                     throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to set password for user [" + user + "].");
                 }

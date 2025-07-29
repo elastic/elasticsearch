@@ -64,6 +64,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
     private final MetadataIndexAliasesService indexAliasesService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RequestValidators<IndicesAliasesRequest> requestValidators;
     private final SystemIndices systemIndices;
 
@@ -85,11 +86,11 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             threadPool,
             actionFilters,
             IndicesAliasesRequest::new,
-            indexNameExpressionResolver,
             IndicesAliasesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexAliasesService = indexAliasesService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
     }

@@ -7,6 +7,12 @@
 
 deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-rollup[Rollup APIs].
+--
+
 Returns the capabilities of any {rollup-jobs} that have been configured for a
 specific index or index pattern.
 

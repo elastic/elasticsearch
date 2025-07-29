@@ -52,16 +52,13 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
         assertTrue(Strings.hasText(profileName));
 
         final var credentialsResponse = handleRequest(handler, "GET", SECURITY_CREDENTIALS_URI + profileName);
-        assertEquals(RestStatus.OK, credentialsResponse.status());
 
         assertThat(generatedCredentials, aMapWithSize(1));
-        final var accessKey = generatedCredentials.keySet().iterator().next();
-        final var sessionToken = generatedCredentials.values().iterator().next();
-
-        final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);
-        assertEquals(Set.of("AccessKeyId", "Expiration", "RoleArn", "SecretAccessKey", "Token"), responseMap.keySet());
-        assertEquals(accessKey, responseMap.get("AccessKeyId"));
-        assertEquals(sessionToken, responseMap.get("Token"));
+        assertValidCredentialsResponse(
+            credentialsResponse,
+            generatedCredentials.keySet().iterator().next(),
+            generatedCredentials.values().iterator().next()
+        );
     }
 
     public void testImdsV2Disabled() {
@@ -78,6 +75,7 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
         final var tokenResponse = handleRequest(handler, "PUT", "/latest/api/token");
         assertEquals(RestStatus.OK, tokenResponse.status());
+        assertEquals(List.of("86400" /* seconds in a day */), tokenResponse.responseHeaders().get("x-aws-ec2-metadata-token-ttl-seconds"));
         final var token = tokenResponse.body().utf8ToString();
 
         final var roleResponse = checkImdsV2GetRequest(handler, SECURITY_CREDENTIALS_URI, token);
@@ -86,16 +84,13 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
         assertTrue(Strings.hasText(profileName));
 
         final var credentialsResponse = checkImdsV2GetRequest(handler, SECURITY_CREDENTIALS_URI + profileName, token);
-        assertEquals(RestStatus.OK, credentialsResponse.status());
 
         assertThat(generatedCredentials, aMapWithSize(1));
-        final var accessKey = generatedCredentials.keySet().iterator().next();
-        final var sessionToken = generatedCredentials.values().iterator().next();
-
-        final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);
-        assertEquals(Set.of("AccessKeyId", "Expiration", "RoleArn", "SecretAccessKey", "Token"), responseMap.keySet());
-        assertEquals(accessKey, responseMap.get("AccessKeyId"));
-        assertEquals(sessionToken, responseMap.get("Token"));
+        assertValidCredentialsResponse(
+            credentialsResponse,
+            generatedCredentials.keySet().iterator().next(),
+            generatedCredentials.values().iterator().next()
+        );
     }
 
     public void testAvailabilityZone() {
@@ -113,7 +108,54 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
         assertEquals(generatedAvailabilityZones, Set.of(availabilityZone));
     }
 
-    private record TestHttpResponse(RestStatus status, BytesReference body) {}
+    public void testAlternativeCredentialsEndpoint() throws IOException {
+        expectThrows(
+            IllegalArgumentException.class,
+            new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).alternativeCredentialsEndpoints(Set.of("/should-not-work"))::buildHandler
+        );
+
+        final var alternativePaths = randomList(1, 5, () -> "/" + randomIdentifier());
+        final Map<String, String> generatedCredentials = new HashMap<>();
+
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).alternativeCredentialsEndpoints(alternativePaths)
+            .newCredentialsConsumer(generatedCredentials::put)
+            .buildHandler();
+
+        final var credentialsResponse = handleRequest(handler, "GET", randomFrom(alternativePaths));
+
+        assertThat(generatedCredentials, aMapWithSize(1));
+        assertValidCredentialsResponse(
+            credentialsResponse,
+            generatedCredentials.keySet().iterator().next(),
+            generatedCredentials.values().iterator().next()
+        );
+    }
+
+    private static void assertValidCredentialsResponse(TestHttpResponse credentialsResponse, String accessKey, String sessionToken)
+        throws IOException {
+        assertEquals(RestStatus.OK, credentialsResponse.status());
+        final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);
+        assertEquals(Set.of("AccessKeyId", "Expiration", "RoleArn", "SecretAccessKey", "Token"), responseMap.keySet());
+        assertEquals(accessKey, responseMap.get("AccessKeyId"));
+        assertEquals(sessionToken, responseMap.get("Token"));
+    }
+
+    public void testInstanceIdentityDocument() {
+        final Set<String> generatedRegions = new HashSet<>();
+        final var handler = new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V1).instanceIdentityDocument((builder, params) -> {
+            final var newRegion = randomIdentifier();
+            generatedRegions.add(newRegion);
+            return builder.field("region", newRegion);
+        }).buildHandler();
+
+        final var instanceIdentityResponse = handleRequest(handler, "GET", "/latest/dynamic/instance-identity/document");
+        assertEquals(RestStatus.OK, instanceIdentityResponse.status());
+        final var instanceIdentityString = instanceIdentityResponse.body().utf8ToString();
+
+        assertEquals(Strings.format("{\"region\":\"%s\"}", generatedRegions.iterator().next()), instanceIdentityString);
+    }
+
+    private record TestHttpResponse(RestStatus status, Headers responseHeaders, BytesReference body) {}
 
     private static TestHttpResponse checkImdsV2GetRequest(Ec2ImdsHttpHandler handler, String uri, String token) {
         final var unauthorizedResponse = handleRequest(handler, "GET", uri, null);
@@ -145,7 +187,11 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
             fail(e);
         }
         assertNotEquals(0, httpExchange.getResponseCode());
-        return new TestHttpResponse(RestStatus.fromCode(httpExchange.getResponseCode()), httpExchange.getResponseBodyContents());
+        return new TestHttpResponse(
+            RestStatus.fromCode(httpExchange.getResponseCode()),
+            httpExchange.getResponseHeaders(),
+            httpExchange.getResponseBodyContents()
+        );
     }
 
     private static class TestHttpExchange extends HttpExchange {

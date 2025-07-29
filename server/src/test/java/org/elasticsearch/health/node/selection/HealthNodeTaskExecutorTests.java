@@ -77,8 +77,8 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
         clusterService = createClusterService(threadPool);
         localNodeId = clusterService.localNode().getId();
         persistentTasksService = mock(PersistentTasksService.class);
-        featureService = new FeatureService(List.of(new HealthFeatures()));
         settings = Settings.builder().build();
+        featureService = new FeatureService(List.of(new HealthFeatures()));
         clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     }
 
@@ -196,6 +196,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 localNodeId,
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(localNodeId)
+                    .setNodeEphemeralId(localNodeId)
                     .setReason("shutdown for a unit test")
                     .setType(type)
                     .setStartedAtMillis(randomNonNegativeLong())

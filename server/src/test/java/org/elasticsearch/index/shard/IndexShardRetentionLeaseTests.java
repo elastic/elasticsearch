@@ -41,8 +41,8 @@ public class IndexShardRetentionLeaseTests extends IndexShardTestCase {
     private final AtomicLong currentTimeMillis = new AtomicLong();
 
     @Override
-    protected ThreadPool setUpThreadPool() {
-        return new TestThreadPool(getClass().getName(), threadPoolSettings()) {
+    protected ThreadPool setUpThreadPool(Settings settings) {
+        return new TestThreadPool(getClass().getName(), settings) {
             @Override
             public long absoluteTimeInMillis() {
                 return currentTimeMillis.get();

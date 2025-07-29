@@ -5,3 +5,9 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
 }
+
+dependencies {
+  javaRestTestImplementation project(xpackModule('esql-core'))
+  javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+}

@@ -6,8 +6,13 @@
 
 preview::[]
 
-The time series aggregation queries data created using a time series index. This is typically data such as metrics
+The time series aggregation queries data created using a <<tsds,Time series data stream (TSDS)>>. This is typically data such as metrics
 or other data streams with a time component, and requires creating an index using the time series mode.
+
+[NOTE]
+====
+Refer to the <<differences-from-regular-data-stream, TSDS documentation>> to learn more about the key differences from regular data streams.
+====
 
 //////////////////////////
 

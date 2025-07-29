@@ -5,6 +5,12 @@
 <titleabbrev>Execute snapshot retention policy</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-slm[{slm-cap} APIs].
+--
+
 Deletes any snapshots that are expired according to the policy's retention rules.
 
 [[slm-api-execute-retention-request]]

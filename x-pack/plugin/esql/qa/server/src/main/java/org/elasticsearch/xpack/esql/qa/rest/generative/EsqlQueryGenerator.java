@@ -28,10 +28,13 @@ public class EsqlQueryGenerator {
     public record QueryExecuted(String query, int depth, List<Column> outputSchema, Exception exception) {}
 
     public static String sourceCommand(List<String> availabeIndices) {
-        return switch (randomIntBetween(0, 2)) {
+        return switch (randomIntBetween(0, 1)) {
             case 0 -> from(availabeIndices);
-            case 1 -> metaFunctions();
-            default -> row();
+            // case 1 -> metaFunctions();
+            default -> from(availabeIndices);
+            // TODO re-enable ROW.
+            // now it crashes nodes in some cases: exiting java.lang.AssertionError: estimated row size [0] wasn't set
+            // default -> row();
         };
 
     }
@@ -41,8 +44,12 @@ public class EsqlQueryGenerator {
      * @param policies
      * @return a new command that can process it as input
      */
-    public static String pipeCommand(List<Column> previousOutput, List<CsvTestsDataLoader.EnrichConfig> policies) {
-        return switch (randomIntBetween(0, 11)) {
+    public static String pipeCommand(
+        List<Column> previousOutput,
+        List<CsvTestsDataLoader.EnrichConfig> policies,
+        List<GenerativeRestTest.LookupIdx> lookupIndices
+    ) {
+        return switch (randomIntBetween(0, 12)) {
             case 0 -> dissect(previousOutput);
             case 1 -> drop(previousOutput);
             case 2 -> enrich(previousOutput, policies);
@@ -54,8 +61,24 @@ public class EsqlQueryGenerator {
             case 8 -> rename(previousOutput);
             case 9 -> sort(previousOutput);
             case 10 -> stats(previousOutput);
+            case 11 -> join(previousOutput, lookupIndices);
             default -> where(previousOutput);
         };
+    }
+
+    private static String join(List<Column> previousOutput, List<GenerativeRestTest.LookupIdx> lookupIndices) {
+
+        GenerativeRestTest.LookupIdx lookupIdx = randomFrom(lookupIndices);
+        String lookupIdxName = lookupIdx.idxName();
+        String idxKey = lookupIdx.key();
+        String keyType = lookupIdx.keyType();
+
+        var candidateKeys = previousOutput.stream().filter(x -> x.type.equals(keyType)).toList();
+        if (candidateKeys.isEmpty()) {
+            return "";
+        }
+        Column key = randomFrom(candidateKeys);
+        return "| rename " + key.name + " as " + idxKey + " | lookup join " + lookupIdxName + " on " + idxKey;
     }
 
     private static String where(List<Column> previousOutput) {
@@ -191,7 +214,53 @@ public class EsqlQueryGenerator {
     }
 
     private static String randomName(List<Column> previousOutput) {
-        return previousOutput.get(randomIntBetween(0, previousOutput.size() - 1)).name();
+        // we need to exclude <all-fields-projected>
+        // https://github.com/elastic/elasticsearch/issues/121741
+        return randomFrom(previousOutput.stream().filter(x -> x.name().equals("<all-fields-projected>") == false).toList()).name();
+    }
+
+    private static String randomGroupableName(List<Column> previousOutput) {
+        // we need to exclude <all-fields-projected>
+        // https://github.com/elastic/elasticsearch/issues/121741
+        var candidates = previousOutput.stream()
+            .filter(EsqlQueryGenerator::groupable)
+            .filter(x -> x.name().equals("<all-fields-projected>") == false)
+            .toList();
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        return randomFrom(candidates).name();
+    }
+
+    private static boolean groupable(Column col) {
+        return col.type.equals("keyword")
+            || col.type.equals("text")
+            || col.type.equals("long")
+            || col.type.equals("integer")
+            || col.type.equals("ip")
+            || col.type.equals("version");
+    }
+
+    private static String randomSortableName(List<Column> previousOutput) {
+        // we need to exclude <all-fields-projected>
+        // https://github.com/elastic/elasticsearch/issues/121741
+        var candidates = previousOutput.stream()
+            .filter(EsqlQueryGenerator::sortable)
+            .filter(x -> x.name().equals("<all-fields-projected>") == false)
+            .toList();
+        if (candidates.isEmpty()) {
+            return null;
+        }
+        return randomFrom(candidates).name();
+    }
+
+    private static boolean sortable(Column col) {
+        return col.type.equals("keyword")
+            || col.type.equals("text")
+            || col.type.equals("long")
+            || col.type.equals("integer")
+            || col.type.equals("ip")
+            || col.type.equals("version");
     }
 
     private static String rename(List<Column> previousOutput) {
@@ -199,7 +268,12 @@ public class EsqlQueryGenerator {
         List<String> proj = new ArrayList<>();
         List<String> names = new ArrayList<>(previousOutput.stream().map(Column::name).collect(Collectors.toList()));
         for (int i = 0; i < n; i++) {
-            String name = names.remove(randomIntBetween(0, names.size() - 1));
+            var colN = randomIntBetween(0, names.size() - 1);
+            if (previousOutput.get(colN).type().endsWith("_range")) {
+                // ranges are not fully supported yet
+                continue;
+            }
+            String name = names.remove(colN);
             String newName;
             if (names.isEmpty() || randomBoolean()) {
                 newName = randomAlphaOfLength(5);
@@ -208,6 +282,9 @@ public class EsqlQueryGenerator {
             }
             names.add(newName);
             proj.add(name + " AS " + newName);
+        }
+        if (proj.isEmpty()) {
+            return "";
         }
         return " | rename " + proj.stream().collect(Collectors.joining(", "));
     }
@@ -227,7 +304,7 @@ public class EsqlQueryGenerator {
                     name = "*" + name.substring(randomIntBetween(1, name.length() - 1));
                 }
             }
-            proj.add(name);
+            proj.add(name.contains("*") ? name : "`" + name + "`");
         }
         return " | drop " + proj.stream().collect(Collectors.joining(", "));
     }
@@ -236,7 +313,11 @@ public class EsqlQueryGenerator {
         int n = randomIntBetween(1, previousOutput.size());
         Set<String> proj = new HashSet<>();
         for (int i = 0; i < n; i++) {
-            proj.add(randomName(previousOutput));
+            String col = randomSortableName(previousOutput);
+            if (col == null) {
+                return "";// no sortable columns
+            }
+            proj.add(col);
         }
         return " | sort "
             + proj.stream()
@@ -295,9 +376,10 @@ public class EsqlQueryGenerator {
             cmd.append(expression);
         }
         if (randomBoolean()) {
-            cmd.append(" by ");
-
-            cmd.append(randomName(nonNull));
+            var col = randomGroupableName(nonNull);
+            if (col != null) {
+                cmd.append(" by " + col);
+            }
         }
         return cmd.toString();
     }

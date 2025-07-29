@@ -140,7 +140,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
         // AnomalyDetectionAuditor constructor. Instead we generate a random boolean value for that purpose.
         boolean includeNodeInfo = randomBoolean();
-        auditor = new AnomalyDetectionAuditor(client(), clusterService, includeNodeInfo);
+        auditor = new AnomalyDetectionAuditor(client(), clusterService, TestIndexNameExpressionResolver.newInstance(), includeNodeInfo);
         waitForMlTemplates();
     }
 

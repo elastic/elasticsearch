@@ -350,9 +350,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     @Override
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("repositories[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(repositories), ",", "", "", 512, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(repositories), ",", 512, stringBuilder);
         stringBuilder.append("], snapshots[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", 1024, stringBuilder);
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

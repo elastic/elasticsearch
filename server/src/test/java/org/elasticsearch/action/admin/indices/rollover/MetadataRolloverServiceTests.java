@@ -9,11 +9,11 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
@@ -63,6 +63,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -204,23 +206,23 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Metadata metadata = metadataBuilder.build();
         CreateIndexRequest req = new CreateIndexRequest();
 
-        IllegalArgumentException exception = expectThrows(
+        Exception exception = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, aliasWithNoWriteIndex, randomAlphaOfLength(5), req, false)
+            () -> MetadataRolloverService.validate(metadata, aliasWithNoWriteIndex, randomAlphaOfLength(5), req)
         );
         assertThat(exception.getMessage(), equalTo("rollover target [" + aliasWithNoWriteIndex + "] does not point to a write index"));
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, randomFrom(index1, index2), randomAlphaOfLength(5), req, false)
+            () -> MetadataRolloverService.validate(metadata, randomFrom(index1, index2), randomAlphaOfLength(5), req)
         );
         assertThat(exception.getMessage(), equalTo("rollover target is a [concrete index] but one of [alias,data_stream] was expected"));
         final String aliasName = randomAlphaOfLength(5);
         exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, aliasName, randomAlphaOfLength(5), req, false)
+            ResourceNotFoundException.class,
+            () -> MetadataRolloverService.validate(metadata, aliasName, randomAlphaOfLength(5), req)
         );
         assertThat(exception.getMessage(), equalTo("rollover target [" + aliasName + "] does not exist"));
-        MetadataRolloverService.validate(metadata, aliasWithWriteIndex, randomAlphaOfLength(5), req, false);
+        MetadataRolloverService.validate(metadata, aliasWithWriteIndex, randomAlphaOfLength(5), req);
     }
 
     public void testDataStreamValidation() throws IOException {
@@ -233,18 +235,18 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Metadata metadata = md.build();
         CreateIndexRequest req = new CreateIndexRequest();
 
-        MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, req, false);
+        MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, req);
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), randomAlphaOfLength(5), req, false)
+            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), randomAlphaOfLength(5), req)
         );
         assertThat(exception.getMessage(), equalTo("new index name may not be specified when rolling over a data stream"));
 
         CreateIndexRequest aliasReq = new CreateIndexRequest().alias(new Alias("no_aliases_permitted"));
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, aliasReq, false)
+            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, aliasReq)
         );
         assertThat(
             exception.getMessage(),
@@ -255,7 +257,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         CreateIndexRequest mappingReq = new CreateIndexRequest().mapping(mapping);
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, mappingReq, false)
+            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, mappingReq)
         );
         assertThat(
             exception.getMessage(),
@@ -265,7 +267,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         CreateIndexRequest settingReq = new CreateIndexRequest().settings(Settings.builder().put("foo", "bar"));
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, settingReq, false)
+            () -> MetadataRolloverService.validate(metadata, randomDataStream.getName(), null, settingReq)
         );
         assertThat(
             exception.getMessage(),
@@ -638,7 +640,14 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 false
             );
             long after = testThreadPool.absoluteTimeInMillis();
-
+            Settings rolledOverIndexSettings = rolloverResult.clusterState()
+                .metadata()
+                .index(rolloverResult.rolloverIndexName())
+                .getSettings();
+            Set<String> rolledOverIndexSettingNames = rolledOverIndexSettings.keySet();
+            for (String settingName : dataStream.getEffectiveSettings(clusterState.metadata()).keySet()) {
+                assertTrue(rolledOverIndexSettingNames.contains(settingName));
+            }
             String newIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
@@ -674,9 +683,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
         dataStream.getIndices().forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
-        dataStream.getFailureIndices()
-            .getIndices()
-            .forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
+        dataStream.getFailureIndices().forEach(index -> builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index)));
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
         final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
@@ -710,26 +717,30 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 true
             );
             long after = testThreadPool.absoluteTimeInMillis();
-
+            Settings rolledOverIndexSettings = rolloverResult.clusterState()
+                .metadata()
+                .index(rolloverResult.rolloverIndexName())
+                .getSettings();
+            Set<String> rolledOverIndexSettingNames = rolledOverIndexSettings.keySet();
+            for (String settingName : dataStream.getSettings().keySet()) {
+                assertFalse(rolledOverIndexSettingNames.contains(settingName));
+            }
             var epochMillis = System.currentTimeMillis();
             String sourceIndexName = DataStream.getDefaultFailureStoreName(dataStream.getName(), dataStream.getGeneration(), epochMillis);
             String newIndexName = DataStream.getDefaultFailureStoreName(dataStream.getName(), dataStream.getGeneration() + 1, epochMillis);
             assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
             assertEquals(newIndexName, rolloverResult.rolloverIndexName());
             Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-            assertEquals(
-                dataStream.getIndices().size() + dataStream.getFailureIndices().getIndices().size() + 1,
-                rolloverMetadata.indices().size()
-            );
+            assertEquals(dataStream.getIndices().size() + dataStream.getFailureIndices().size() + 1, rolloverMetadata.indices().size());
             IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
 
             var ds = (DataStream) rolloverMetadata.getIndicesLookup().get(dataStream.getName());
             assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
             assertThat(ds.getIndices(), hasSize(dataStream.getIndices().size()));
-            assertThat(ds.getFailureIndices().getIndices(), hasSize(dataStream.getFailureIndices().getIndices().size() + 1));
-            assertThat(ds.getFailureIndices().getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
-            assertThat(ds.getFailureIndices().getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
-            assertThat(ds.getFailureStoreWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
+            assertThat(ds.getFailureIndices(), hasSize(dataStream.getFailureIndices().size() + 1));
+            assertThat(ds.getFailureIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+            assertThat(ds.getFailureIndices(), hasItem(rolloverIndexMetadata.getIndex()));
+            assertThat(ds.getWriteFailureIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
             RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(dataStream.getName());
             assertThat(info.getTime(), lessThanOrEqualTo(after));
@@ -747,15 +758,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final String defaultRolloverIndexName;
         final boolean useDataStream = randomBoolean();
         final Metadata.Builder builder = Metadata.builder();
-        var defaultSelectorOptions = IndicesOptions.SelectorOptions.DEFAULT;
+        boolean isFailureStoreRollover = false;
         if (useDataStream) {
             DataStream dataStream = DataStreamTestHelper.randomInstance()
                 // ensure no replicate data stream
                 .promoteDataStream();
             rolloverTarget = dataStream.getName();
-            if (dataStream.isFailureStoreEnabled() && randomBoolean()) {
-                defaultSelectorOptions = IndicesOptions.SelectorOptions.FAILURES;
-                sourceIndexName = dataStream.getFailureStoreWriteIndex().getName();
+            if (dataStream.isFailureStoreExplicitlyEnabled() && randomBoolean()) {
+                sourceIndexName = dataStream.getWriteFailureIndex().getName();
+                isFailureStoreRollover = true;
                 defaultRolloverIndexName = DataStream.getDefaultFailureStoreName(
                     dataStream.getName(),
                     dataStream.getGeneration() + 1,
@@ -815,7 +826,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             true,
             null,
             null,
-            IndicesOptions.SelectorOptions.FAILURES.equals(defaultSelectorOptions)
+            isFailureStoreRollover
         );
 
         newIndexName = newIndexName == null ? defaultRolloverIndexName : newIndexName;

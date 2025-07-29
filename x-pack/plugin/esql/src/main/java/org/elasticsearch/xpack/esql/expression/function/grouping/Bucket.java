@@ -15,9 +15,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -56,7 +57,10 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeTo
  * from a number of desired buckets (as a hint) and a range (auto mode).
  * In the former case, two parameters will be provided, in the latter four.
  */
-public class Bucket extends GroupingFunction implements Validatable, TwoOptionalArguments {
+public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
+    implements
+        PostOptimizationVerificationAware,
+        TwoOptionalArguments {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Bucket", Bucket::new);
 
     // TODO maybe we should just cover the whole of representable dates here - like ten years, 100 years, 1000 years, all the way up.
@@ -90,7 +94,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     private final Expression to;
 
     @FunctionInfo(
-        returnType = { "double", "date" },
+        returnType = { "double", "date", "date_nanos" },
         description = """
             Creates groups of values - buckets - out of a datetime or numeric input.
             The size of the buckets can either be provided directly, or chosen based on a recommended count and values range.""",
@@ -163,13 +167,24 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                     grouping part, or that it is invoked with the exact same expression:""",
                 file = "bucket",
                 tag = "reuseGroupingFunctionWithExpression"
+            ),
+            @Example(
+                description = """
+                    Sometimes you need to change the start value of each bucket by a given duration (similar to date histogram
+                    aggregation's <<search-aggregations-bucket-histogram-aggregation,`offset`>> parameter). To do so, you will need to
+                    take into account how the language handles expressions within the `STATS` command: if these contain functions or
+                    arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double
+                    compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance,
+                    inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:""",
+                file = "bucket",
+                tag = "bucketWithOffset"
             ) }
     )
     public Bucket(
         Source source,
         @Param(
             name = "field",
-            type = { "integer", "long", "double", "date" },
+            type = { "integer", "long", "double", "date", "date_nanos" },
             description = "Numeric or date expression from which to derive buckets."
         ) Expression field,
         @Param(
@@ -241,28 +256,28 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (field.dataType() == DataType.DATETIME) {
+        if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
             Rounding.Prepared preparedRounding;
             if (buckets.dataType().isWholeNumber()) {
-                int b = ((Number) buckets.fold()).intValue();
-                long f = foldToLong(from);
-                long t = foldToLong(to);
+                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
+                long f = foldToLong(toEvaluator.foldCtx(), from);
+                long t = foldToLong(toEvaluator.foldCtx(), to);
                 preparedRounding = new DateRoundingPicker(b, f, t).pickRounding().prepareForUnknown();
             } else {
                 assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
-                preparedRounding = DateTrunc.createRounding(buckets.fold(), DEFAULT_TZ);
+                preparedRounding = DateTrunc.createRounding(buckets.fold(toEvaluator.foldCtx()), DEFAULT_TZ);
             }
             return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
             double roundTo;
             if (from != null) {
-                int b = ((Number) buckets.fold()).intValue();
-                double f = ((Number) from.fold()).doubleValue();
-                double t = ((Number) to.fold()).doubleValue();
+                int b = ((Number) buckets.fold(toEvaluator.foldCtx())).intValue();
+                double f = ((Number) from.fold(toEvaluator.foldCtx())).doubleValue();
+                double t = ((Number) to.fold(toEvaluator.foldCtx())).doubleValue();
                 roundTo = pickRounding(b, f, t);
             } else {
-                roundTo = ((Number) buckets.fold()).doubleValue();
+                roundTo = ((Number) buckets.fold(toEvaluator.foldCtx())).doubleValue();
             }
             Literal rounding = new Literal(source(), roundTo, DataType.DOUBLE);
 
@@ -314,8 +329,8 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     }
 
     // supported parameter type combinations (1st, 2nd, 3rd, 4th):
-    // datetime, integer, string/datetime, string/datetime
-    // datetime, rounding/duration, -, -
+    // datetime/date_nanos, integer, string/datetime, string/datetime
+    // datetime/date_nanos, rounding/duration, -, -
     // numeric, integer, numeric, numeric
     // numeric, numeric, -, -
     @Override
@@ -329,7 +344,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        if (fieldType == DataType.DATETIME) {
+        if (fieldType == DataType.DATETIME || fieldType == DataType.DATE_NANOS) {
             TypeResolution resolution = isType(
                 buckets,
                 dt -> dt.isWholeNumber() || DataType.isTemporalAmount(dt),
@@ -397,7 +412,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
     }
 
     @Override
-    public void validate(Failures failures) {
+    public void postOptimizationVerification(Failures failures) {
         String operation = sourceText();
 
         failures.add(isFoldable(buckets, operation, SECOND))
@@ -405,8 +420,8 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
             .add(to != null ? isFoldable(to, operation, FOURTH) : null);
     }
 
-    private long foldToLong(Expression e) {
-        Object value = Foldables.valueOf(e);
+    private long foldToLong(FoldContext ctx, Expression e) {
+        Object value = Foldables.valueOf(ctx, e);
         return DataType.isDateTime(e.dataType()) ? ((Number) value).longValue() : dateTimeToLong(((BytesRef) value).utf8ToString());
     }
 

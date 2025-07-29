@@ -12,8 +12,8 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.'
-  classname 'org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextPlugin'
+  description = 'The Mapper Annotated_text plugin adds support for text fields with markup used to inject annotation tokens into the index.'
+  classname ='org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextPlugin'
 }
 
 restResources {

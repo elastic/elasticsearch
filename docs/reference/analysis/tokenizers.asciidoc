@@ -1,6 +1,14 @@
 [[analysis-tokenizers]]
 == Tokenizer reference
 
+.Difference between {es} tokenization and neural tokenization
+[NOTE]
+====
+{es}'s tokenization process produces linguistic tokens, optimized for search and retrieval.
+This differs from neural tokenization in the context of machine learning and natural language processing. Neural tokenizers translate strings into smaller, subword tokens, which are encoded into vectors for consumptions by neural networks.
+{es} does not have built-in neural tokenizers.
+====
+
 A _tokenizer_ receives a stream of characters, breaks it up into individual
 _tokens_ (usually individual words), and outputs a stream of _tokens_. For
 instance, a <<analysis-whitespace-tokenizer,`whitespace`>> tokenizer breaks

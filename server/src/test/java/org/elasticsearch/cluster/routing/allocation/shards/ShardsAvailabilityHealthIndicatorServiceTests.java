@@ -1922,6 +1922,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                                 .build(),
                             Map.of(),
                             List.of("test"),
+                            "test",
                             new ExecutorNames(
                                 ThreadPool.Names.SYSTEM_CRITICAL_READ,
                                 ThreadPool.Names.SYSTEM_READ,
@@ -2254,6 +2255,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         it -> it.nodeId,
                         it -> SingleNodeShutdownMetadata.builder()
                             .setNodeId(it.nodeId)
+                            .setNodeEphemeralId(it.nodeId)
                             .setType(it.type)
                             .setReason("test")
                             .setNodeSeen(true)

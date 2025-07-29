@@ -20,7 +20,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -39,6 +38,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -104,7 +104,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private transient String index;
     private transient String clusterAlias;
 
-    private Map<String, Object> sourceAsMap;
+    // For asserting that the method #getSourceAsMap is called just once on the lifetime of this object
+    private boolean sourceAsMapCalled = false;
 
     private Map<String, SearchHits> innerHits;
 
@@ -142,7 +143,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             null,
             null,
             null,
-            null,
             new HashMap<>(),
             new HashMap<>(),
             refCounted
@@ -166,7 +166,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         SearchShardTarget shard,
         String index,
         String clusterAlias,
-        Map<String, Object> sourceAsMap,
         Map<String, SearchHits> innerHits,
         Map<String, DocumentField> documentFields,
         Map<String, DocumentField> metaFields,
@@ -188,7 +187,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.shard = shard;
         this.index = index;
         this.clusterAlias = clusterAlias;
-        this.sourceAsMap = sourceAsMap;
         this.innerHits = innerHits;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
@@ -279,7 +277,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shardTarget,
             index,
             clusterAlias,
-            null,
             innerHits,
             documentFields,
             metaFields,
@@ -447,7 +444,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public SearchHit sourceRef(BytesReference source) {
         this.source = source;
-        this.sourceAsMap = null;
         return this;
     }
 
@@ -476,19 +472,18 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * The source of the document as a map (can be {@code null}).
+     * The source of the document as a map (can be {@code null}). This method is expected
+     * to be called at most once during the lifetime of the object as the generated map
+     * is expensive to generate and it does not get cache.
      */
     public Map<String, Object> getSourceAsMap() {
         assert hasReferences();
+        assert sourceAsMapCalled == false : "getSourceAsMap() called twice";
+        sourceAsMapCalled = true;
         if (source == null) {
             return null;
         }
-        if (sourceAsMap != null) {
-            return sourceAsMap;
-        }
-
-        sourceAsMap = Source.fromBytes(source).source();
-        return sourceAsMap;
+        return Source.fromBytes(source).source();
     }
 
     /**
@@ -517,10 +512,15 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.metaFields.putAll(metaFields);
     }
 
+    public DocumentField removeDocumentField(String field) {
+        return documentFields.remove(field);
+    }
+
     /**
      * @return a map of metadata fields for this hit
      */
     public Map<String, DocumentField> getMetadataFields() {
+        assert hasReferences();
         return Collections.unmodifiableMap(metaFields);
     }
 
@@ -528,6 +528,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * @return a map of non-metadata fields requested for this hit
      */
     public Map<String, DocumentField> getDocumentFields() {
+        assert hasReferences();
         return Collections.unmodifiableMap(documentFields);
     }
 
@@ -536,6 +537,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * were required to be loaded. Includes both document and metadata fields.
      */
     public Map<String, DocumentField> getFields() {
+        assert hasReferences();
         if (metaFields.size() > 0 || documentFields.size() > 0) {
             final Map<String, DocumentField> fields = new HashMap<>();
             fields.putAll(metaFields);
@@ -557,6 +559,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * Resolve the lookup fields with the given results and merge them as regular fetch fields.
      */
     public void resolveLookupFields(Map<LookupField, List<Object>> lookupResults) {
+        assert hasReferences();
         if (lookupResults.isEmpty()) {
             return;
         }
@@ -586,6 +589,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      * A map of highlighted fields.
      */
     public Map<String, HighlightField> getHighlightFields() {
+        assert hasReferences();
         return highlightFields == null ? emptyMap() : highlightFields;
     }
 
@@ -725,6 +729,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             r.decRef();
         }
         SearchHit.this.source = null;
+        clearIfMutable(documentFields);
+        clearIfMutable(metaFields);
+        this.highlightFields = null;
+    }
+
+    private static void clearIfMutable(Map<String, DocumentField> fields) {
+        // check that we're dealing with a HashMap, instances read from the wire that are empty be of an immutable type
+        assert fields instanceof HashMap<?, ?> || fields.isEmpty() : fields;
+        if (fields instanceof HashMap<?, ?> hm) {
+            hm.clear();
+        }
     }
 
     @Override
@@ -754,14 +769,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shard,
             index,
             clusterAlias,
-            sourceAsMap,
             innerHits == null
                 ? null
                 : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
-            documentFields,
-            metaFields,
+            cloneIfHashMap(documentFields),
+            cloneIfHashMap(metaFields),
             ALWAYS_REFERENCED
         );
+    }
+
+    private Map<String, DocumentField> cloneIfHashMap(Map<String, DocumentField> map) {
+        return map instanceof HashMap<String, DocumentField> hashMap ? new HashMap<>(hashMap) : map;
     }
 
     public boolean isPooled() {

@@ -1,7 +1,13 @@
 [[infer-service-openai]]
-=== OpenAI {infer} service
+=== OpenAI {infer} integration
 
-Creates an {infer} endpoint to perform an {infer} task with the `openai` service.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
+Creates an {infer} endpoint to perform an {infer} task with the `openai` service or `openai` compatible APIs. 
 
 
 [discrete]
@@ -25,9 +31,17 @@ include::inference-shared.asciidoc[tag=task-type]
 --
 Available task types:
 
+* `chat_completion`,
 * `completion`,
 * `text_embedding`.
 --
+
+[NOTE]
+====
+The `chat_completion` task type only supports streaming and only through the `_stream` API.
+
+include::inference-shared.asciidoc[tag=chat-completion-docs]
+====
 
 [discrete]
 [[infer-service-openai-api-request-body]]
@@ -37,7 +51,7 @@ Available task types:
 (Optional, object)
 include::inference-shared.asciidoc[tag=chunking-settings]
 
-`max_chunking_size`:::
+`max_chunk_size`:::
 (Optional, integer)
 include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
 
@@ -55,7 +69,7 @@ include::inference-shared.asciidoc[tag=chunking-settings-strategy]
 
 `service`::
 (Required, string)
-The type of service supported for the specified task type. In this case, 
+The type of service supported for the specified task type. In this case,
 `openai`.
 
 `service_settings`::

@@ -39,6 +39,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
 
     private final SettingsFilter settingsFilter;
     private final IndexScopedSettings indexScopedSettings;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportGetSettingsAction(
@@ -57,12 +58,12 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
             threadPool,
             actionFilters,
             GetSettingsRequest::new,
-            indexNameExpressionResolver,
             GetSettingsResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.settingsFilter = settingsFilter;
         this.indexScopedSettings = indexedScopedSettings;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

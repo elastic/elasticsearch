@@ -152,7 +152,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     protected Path getKeytabPath(Environment env) {
         final Setting<String> setting = KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getConcreteSettingForNamespace(REALM_NAME);
-        return env.configFile().resolve(setting.get(settings));
+        return env.configDir().resolve(setting.get(settings));
     }
 
     /**

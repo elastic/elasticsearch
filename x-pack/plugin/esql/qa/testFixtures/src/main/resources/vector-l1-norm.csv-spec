@@ -3,16 +3,16 @@
  similarityWithVectorField
  required_capability: l1_norm_vector_similarity_function
  
-// tag::vector-l1-norm-similarity[]
+// tag::vector-l1-norm[]
  from colors
  | eval similarity = v_l1_norm(rgb_vector, [0, 255, 255]) 
  | sort similarity desc, color asc 
-// end::vector-l1-norm-similarity[]
+// end::vector-l1-norm[]
  | limit 10
  | keep color, similarity
  ;
  
-// tag::vector-l1-norm-similarity-result[]
+// tag::vector-l1-norm-result[]
 color:text | similarity:double
 red        | 765.0
 crimson    | 650.0
@@ -24,7 +24,7 @@ brown      | 591.0
 chocolate  | 585.0
 coral      | 558.0
 gold       | 550.0
-// end::vector-l1-norm-similarity-result[] 
+// end::vector-l1-norm-result[] 
 ;
 
  similarityAsPartOfExpression

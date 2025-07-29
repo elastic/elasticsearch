@@ -533,6 +533,9 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: testDenseVectorMappingUpdate {initialType=bbq_flat updateType=bbq_hnsw}
   issue: https://github.com/elastic/elasticsearch/issues/132112
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=hnsw updateType=int4_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132113
 
 # Examples:
 #

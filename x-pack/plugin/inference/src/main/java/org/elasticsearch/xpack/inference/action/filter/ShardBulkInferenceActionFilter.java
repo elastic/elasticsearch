@@ -728,7 +728,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             if (useLegacyFormat) {
                 var newDocMap = indexRequest.sourceAsMap();
                 for (var entry : inferenceFieldsMap.entrySet()) {
-                    SemanticTextUtils.insertValue(entry.getKey(), newDocMap, entry.getValue());
+                    XContentMapValues.insertValue(entry.getKey(), newDocMap, entry.getValue());
                 }
                 indexRequest.source(newDocMap, indexRequest.getContentType());
             } else {

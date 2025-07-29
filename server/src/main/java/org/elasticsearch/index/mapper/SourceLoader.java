@@ -476,7 +476,7 @@ public interface SourceLoader {
         for (SyntheticVectorPatch patch : patches) {
             if (patch instanceof LeafSyntheticVectorPath leaf) {
                 String key = extractRelativePath(rootPath, leaf.fullPath());
-                map.put(key, leaf.value());
+                XContentMapValues.insertValue(key, map, leaf.value(), false);
             } else if (patch instanceof NestedSyntheticVectorPath nested) {
                 String nestedPath = extractRelativePath(rootPath, nested.fullPath());
                 List<Map<?, ?>> nestedMaps = XContentMapValues.extractNestedSources(nestedPath, map);

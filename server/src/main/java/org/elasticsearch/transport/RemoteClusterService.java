@@ -40,7 +40,6 @@ import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteC
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -633,10 +632,6 @@ public final class RemoteClusterService extends RemoteClusterAware
             case FAIL_IF_DISCONNECTED -> false;
             case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
         });
-    }
-
-    Collection<RemoteClusterConnection> getConnections() {
-        return remoteClusters.values();
     }
 
     static void registerRemoteClusterHandshakeRequestHandler(TransportService transportService) {

@@ -1221,6 +1221,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         @FixForMultiProject(description = "Remove the API call once https://elasticco.atlassian.net/browse/ES-11454 is resolved")
         final var request = new DeleteProjectAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, projectId);
         assertTrue(safeGet(client().execute(DeleteProjectAction.INSTANCE, request)).isAcknowledged());
+        assertThat(internalCluster().clusterService().state().blocks().projectBlocks(projectId).isEmpty(), is(true));
     }
 
     private static String getRepositoryJson(RepositoryMetadata repositoryMetadata) throws IOException {

@@ -33,22 +33,9 @@ Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically.
 
-{applies_to}`stack: preview 9.1` If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service (ELSER on EIS), you can
-set up `semantic_text` with the following API request:
+## Default and custom endpoints
 
-```console
-PUT my-index-000001
-{
-  "mappings": {
-    "properties": {
-      "inference_field": {
-        "type": "semantic_text",
-        "inference_id": ".elser-2-elastic"
-      }
-    }
-  }
-}
-```
+### Using the default ELSER endpoint
 
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
 `semantic_text` with the following API request:
@@ -65,6 +52,8 @@ PUT my-index-000001
   }
 }
 ```
+
+### Using a custom endpoint
 
 To use a custom {{infer}} endpoint instead of the default
 `.elser-2-elasticsearch`, you
@@ -108,6 +97,32 @@ PUT my-index-000003
   }
 }
 ```
+
+### Using ELSER on EIS
+
+```{applies_to}
+stack: preview 9.1
+serverless: preview
+```
+
+If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
+set up `semantic_text` with the following API request:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": ".elser-2-elastic"
+      }
+    }
+  }
+}
+```
+
+While we do encourage experimentation, we do not recommend implementing production use cases on top of this feature while it is in Technical Preview.
 
 ## Parameters for `semantic_text` fields [semantic-text-params]
 

@@ -20,8 +20,10 @@ import java.util.OptionalLong;
 final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
 
     // These arrays represent both the positive and the negative buckets.
-    // They store all buckets for the negative range first, in ascending index order,
-    // followed by all buckets for the positive range, also in ascending index order.
+    // To avoid confusion, we refer to positions within the array as "slots" instead of indices in this file
+    // When we use term "index", we mean the exponential histogram bucket index.
+    // They store all buckets for the negative range first, with the bucket indices in ascending order,
+    // followed by all buckets for the positive range, also with their indices in ascending order.
     // This means we store the buckets ordered by their boundaries in ascending order (from -INF to +INF).
     private final long[] bucketIndices;
     private final long[] bucketCounts;
@@ -197,35 +199,35 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
 
     private class BucketArrayIterator implements CopyableBucketIterator {
 
-        int current;
+        int currentSlot;
         final int limit;
 
-        private BucketArrayIterator(int start, int limit) {
-            this.current = start;
+        private BucketArrayIterator(int startSlot, int limit) {
+            this.currentSlot = startSlot;
             this.limit = limit;
         }
 
         @Override
         public boolean hasNext() {
-            return current < limit;
+            return currentSlot < limit;
         }
 
         @Override
         public long peekCount() {
             ensureEndNotReached();
-            return bucketCounts[current];
+            return bucketCounts[currentSlot];
         }
 
         @Override
         public long peekIndex() {
             ensureEndNotReached();
-            return bucketIndices[current];
+            return bucketIndices[currentSlot];
         }
 
         @Override
         public void advance() {
             ensureEndNotReached();
-            current++;
+            currentSlot++;
         }
 
         @Override
@@ -235,7 +237,7 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
 
         @Override
         public CopyableBucketIterator copy() {
-            return new BucketArrayIterator(current, limit);
+            return new BucketArrayIterator(currentSlot, limit);
         }
 
         private void ensureEndNotReached() {

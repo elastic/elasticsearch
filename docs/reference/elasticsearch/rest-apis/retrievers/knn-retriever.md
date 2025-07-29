@@ -60,7 +60,7 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
     Read more here: [knn similarity search](docs-content://solutions/search/vector/knn.md#knn-similarity-search)
 
 
-`rescore_vector`
+`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
 :   (Optional, object) Apply oversampling and rescoring to quantized vectors.
 
 ::::{note}

@@ -102,6 +102,11 @@ public class FieldNameUtils {
 
         var canRemoveAliases = new Holder<>(true);
         var needsAllFields = new Holder<>(parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false);
+        if (needsAllFields.get()) {
+            // no explicit columns selection, for example "from employees"
+            // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
+            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
+        }
 
         var processingLambda = new Holder<Function<LogicalPlan, Boolean>>();
         processingLambda.set((LogicalPlan p) -> {// go over each plan top-down
@@ -117,7 +122,8 @@ public class FieldNameUtils {
                     assert return_result;
                     if (referencesBuilder.get().isEmpty()) {
                         needsAllFields.set(true);
-                        return true;
+                        // Early return.
+                        return false;
                     }
                     forkRefsResult.addAll(referencesBuilder.get());
                 }
@@ -210,8 +216,6 @@ public class FieldNameUtils {
         parsed.forEachDownMayReturnEarly(processingLambda.get());
 
         if (needsAllFields.get()) {
-            // no explicit columns selection, for example "from employees"
-            // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
             return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
         }
 

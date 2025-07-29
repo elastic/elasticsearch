@@ -171,14 +171,12 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     @Override
     public boolean equals(Object o) {
-        if (o instanceof BulkResponse that) {
-            return tookInMillis == that.tookInMillis
-                && ingestTookInMillis == that.ingestTookInMillis
-                && Arrays.equals(responses, that.responses)
-                && Objects.equals(incrementalState, that.incrementalState);
-        } else {
-            return false;
-        }
+    return o == this || (o instanceof BulkResponse that
+        && tookInMillis == that.tookInMillis
+        && ingestTookInMillis == that.ingestTookInMillis
+        && Arrays.equals(responses, that.responses)
+        && Objects.equals(incrementalState, that.incrementalState));
+}
     }
 
     @Override

@@ -33,6 +33,11 @@ import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeployment
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
 
 public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAssignmentAction.Response> {
+    public enum Source {
+        API,
+        ADAPTIVE_ALLOCATIONS,
+        INFERENCE
+    }
 
     public static final UpdateTrainedModelDeploymentAction INSTANCE = new UpdateTrainedModelDeploymentAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/deployment/update";
@@ -74,8 +79,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         private String deploymentId;
         private Integer numberOfAllocations;
         private AdaptiveAllocationsSettings adaptiveAllocationsSettings;
-        private boolean isInternal;
-        private boolean fromInference;
+        private Source source = Source.API;
 
         private Request() {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
@@ -92,13 +96,18 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
                 numberOfAllocations = in.readVInt();
                 adaptiveAllocationsSettings = null;
-                isInternal = false;
+                source = Source.API;
             } else {
                 numberOfAllocations = in.readOptionalVInt();
                 adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-                isInternal = in.readBoolean();
+                if (in.getTransportVersion().before(INFERENCE_UPDATE_ML)) {
+                    // we changed over from a boolean to an enum
+                    // when it was a boolean, true came from adaptive allocations and false came from the rest api
+                    source = in.readBoolean() ? Source.ADAPTIVE_ALLOCATIONS : Source.API;
+                } else {
+                    source = in.readEnum(Source.class);
+                }
             }
-            fromInference = in.getTransportVersion().onOrAfter(INFERENCE_UPDATE_ML) && in.readBoolean();
         }
 
         public final void setDeploymentId(String deploymentId) {
@@ -122,20 +131,15 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         }
 
         public boolean isInternal() {
-            return isInternal;
+            return source == Source.INFERENCE || source == Source.ADAPTIVE_ALLOCATIONS;
         }
 
-        public void setIsInternal(boolean isInternal) {
-            this.isInternal = isInternal;
+        public void setSource(Source source) {
+            this.source = source != null ? source : this.source;
         }
 
-        public boolean fromInference() {
-            return fromInference;
-        }
-
-        public void setFromInference(boolean fromInference) {
-            this.fromInference = fromInference;
-            this.isInternal = fromInference;
+        public Source getSource() {
+            return source;
         }
 
         public AdaptiveAllocationsSettings getAdaptiveAllocationsSettings() {
@@ -151,10 +155,14 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             } else {
                 out.writeOptionalVInt(numberOfAllocations);
                 out.writeOptionalWriteable(adaptiveAllocationsSettings);
-                out.writeBoolean(isInternal);
-            }
-            if (out.getTransportVersion().onOrAfter(INFERENCE_UPDATE_ML)) {
-                out.writeBoolean(fromInference);
+                if (out.getTransportVersion().before(INFERENCE_UPDATE_ML)) {
+                    // we changed over from a boolean to an enum
+                    // when it was a boolean, true came from adaptive allocations and false came from the rest api
+                    // treat "inference" as if it came from the api
+                    out.writeBoolean(isInternal());
+                } else {
+                    out.writeEnum(source);
+                }
             }
         }
 
@@ -176,10 +184,10 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (numberOfAllocations != null) {
-                if (numberOfAllocations < 0 || (isInternal == false && numberOfAllocations == 0)) {
+                if (numberOfAllocations < 0 || (isInternal() == false && numberOfAllocations == 0)) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
                 }
-                if (isInternal == false
+                if (isInternal() == false
                     && adaptiveAllocationsSettings != null
                     && adaptiveAllocationsSettings.getEnabled() == Boolean.TRUE) {
                     validationException.addValidationError(
@@ -198,7 +206,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings, isInternal, fromInference);
+            return Objects.hash(deploymentId, numberOfAllocations, adaptiveAllocationsSettings, source);
         }
 
         @Override
@@ -213,8 +221,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
             return Objects.equals(deploymentId, other.deploymentId)
                 && Objects.equals(numberOfAllocations, other.numberOfAllocations)
                 && Objects.equals(adaptiveAllocationsSettings, other.adaptiveAllocationsSettings)
-                && isInternal == other.isInternal
-                && fromInference == other.fromInference;
+                && source == other.source;
         }
 
         @Override

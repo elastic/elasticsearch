@@ -163,7 +163,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
             return null;
         }
         assert values.size() == 1;
-        return values.getFirst().toString();
+        return values.get(0).toString();
     }
 
     public Map<String, List<Object>> fields() {

@@ -33,4 +33,8 @@ public enum StreamType {
         };
     }
 
+    public boolean matchesStreamPrefix(String indexName) {
+        return indexName.startsWith(streamName + ".");
+    }
+
 }

@@ -413,16 +413,15 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         for (StreamType streamType : enabledStreamTypes) {
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> req = bulkRequestModifier.bulkRequest.requests.get(i);
-                String StreamTypePrefix = streamType.getStreamName() + ".";
 
-                if (req instanceof IndexRequest ir && ir.index().startsWith(prefix) && ir.isPipelineResolved() == false) {
+                if (req instanceof IndexRequest ir && streamType.matchesStreamPrefix(req.index()) && ir.isPipelineResolved() == false) {
                     IllegalArgumentException e = new IllegalArgumentException(
                         "Direct writes to child streams are prohibited. Index directly into the ["
                             + streamType.getStreamName()
                             + "] stream instead"
                     );
                     Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
-                    if (Boolean.TRUE.equals(failureStore)) {
+                    if (Boolean.TRUE.equals(failureStoreEnabled)) {
                         bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
                     } else {
                         bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);

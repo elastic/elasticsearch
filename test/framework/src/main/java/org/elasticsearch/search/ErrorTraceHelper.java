@@ -12,15 +12,21 @@ package org.elasticsearch.search;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction;
+import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction.NodeQueryResponse;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,6 +48,7 @@ public enum ErrorTraceHelper {
         internalCluster.getDataNodeInstances(TransportService.class).forEach(ts -> {
             var mockTs = asInstanceOf(MockTransportService.class, ts);
             mockTs.addMessageListener(new TransportMessageListener() {
+                // This is called when error_trace is false
                 @Override
                 public void onResponseSent(long requestId, String action, Exception error) {
                     TransportMessageListener.super.onResponseSent(requestId, action, error);
@@ -50,13 +57,28 @@ public enum ErrorTraceHelper {
                     }
                 }
 
+                // This is called when error_trace is true
                 @Override
                 public void onBeforeResponseSent(long requestId, String action, TransportResponse response) {
                     if (SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME.equals(action)) {
-                        var r = asInstanceOf(SearchQueryThenFetchAsyncAction.NodeQueryResponse.class, response);
-                        for (Object result : r.getResults()) {
-                            if (result instanceof Exception error) {
-                                checkStacktraceStateAndRemove(error, mockTs);
+                        var bytes = asInstanceOf(BytesTransportResponse.class, response);
+                        NodeQueryResponse nodeQueryResponse = null;
+                        try (StreamInput in = bytes.bytes().streamInput()) {
+                            var namedWriteableAwareInput = new NamedWriteableAwareStreamInput(
+                                in,
+                                internalCluster.getNamedWriteableRegistry()
+                            );
+                            nodeQueryResponse = new NodeQueryResponse(namedWriteableAwareInput);
+                            for (Object result : nodeQueryResponse.getResults()) {
+                                if (result instanceof Exception error) {
+                                    checkStacktraceStateAndRemove(error, mockTs);
+                                }
+                            }
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        } finally {
+                            if (nodeQueryResponse != null) {
+                                nodeQueryResponse.decRef();
                             }
                         }
                     }
@@ -75,9 +97,9 @@ public enum ErrorTraceHelper {
     /**
      * Adds expectations for debug logging of a message and exception on each shard of the given index.
      *
-     * @param numShards                 the number of shards in the index (an expectation will be added for each shard)
-     * @param mockLog                   the mock log
-     * @param errorTriggeringIndex      the name of the index that will trigger the error
+     * @param numShards            the number of shards in the index (an expectation will be added for each shard)
+     * @param mockLog              the mock log
+     * @param errorTriggeringIndex the name of the index that will trigger the error
      */
     public static void addSeenLoggingExpectations(int numShards, MockLog mockLog, String errorTriggeringIndex) {
         String nodesDisjunction = format(

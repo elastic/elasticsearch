@@ -379,7 +379,7 @@ public class LlamaService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_LLAMA_ADDED;
+        return TransportVersions.ML_INFERENCE_LLAMA_REFACTORED;
     }
 
     @Override

@@ -34,7 +34,7 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to embeddings
-     * @param taskSettings the settings for the task, such as user or other parameters
+     * @param taskSettings the settings for the task
      * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the secret settings for the model, such as API keys or tokens
      * @param context the context for parsing configuration settings
@@ -88,7 +88,7 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to embeddings
-     * @param taskSettings the settings for the task, such as user or other parameters
+     * @param taskSettings the settings for the task
      * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the secret settings for the model, such as API keys or tokens
      */
@@ -113,7 +113,7 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      * If the request does not specify task settings, the original model is returned.
      *
      * @param model the original LlamaEmbeddingsModel
-     * @param taskSettings the task settings to override, which may include parameters like user
+     * @param taskSettings the task settings to override
      * @return a new LlamaEmbeddingsModel with overridden task settings or the original model if no overrides are specified
      */
     public static LlamaEmbeddingsModel of(LlamaEmbeddingsModel model, Map<String, Object> taskSettings) {

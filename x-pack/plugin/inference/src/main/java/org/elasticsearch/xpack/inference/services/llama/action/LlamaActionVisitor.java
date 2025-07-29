@@ -22,7 +22,7 @@ public interface LlamaActionVisitor {
      * Creates an executable action for the given Llama embeddings model.
      *
      * @param model the Llama embeddings model
-     * @param taskSettings the settings for the task, which may include parameters like user
+     * @param taskSettings the settings for the task
      * @return an executable action for the embeddings model
      */
     ExecutableAction create(LlamaEmbeddingsModel model, Map<String, Object> taskSettings);
@@ -31,7 +31,7 @@ public interface LlamaActionVisitor {
      * Creates an executable action for the given Llama chat completion model.
      *
      * @param model the Llama chat completion model
-     * @param taskSettings the settings for the task, which may include parameters like user
+     * @param taskSettings the settings for the task
      * @return an executable action for the chat completion model
      */
     ExecutableAction create(LlamaChatCompletionModel model, Map<String, Object> taskSettings);

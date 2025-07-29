@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,10 +40,10 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
     private static final SimilarityMeasure SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
     private static final int MAX_INPUT_TOKENS = 128;
     private static final int RATE_LIMIT = 2;
-    private static final Boolean DIMENSIONS_SET_BY_USER = Boolean.TRUE;
+    private static final Boolean DIMENSIONS_SET_BY_USER_TRUE = Boolean.TRUE;
     private static final String DIMENSIONS_SET_BY_USER_FIELD = "dimensions_set_by_user";
 
-    public void testFromMap_AllFields_Success() {
+    public void testFromMap_AllFields_Persistent_Success() {
         var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 MODEL_ID,
@@ -50,7 +51,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 SIMILARITY_MEASURE.toString(),
                 DIMENSIONS,
                 MAX_INPUT_TOKENS,
-                DIMENSIONS_SET_BY_USER,
+                DIMENSIONS_SET_BY_USER_TRUE,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
             ),
             ConfigurationParseContext.PERSISTENT
@@ -65,7 +66,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     DIMENSIONS,
                     SIMILARITY_MEASURE,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new RateLimitSettings(RATE_LIMIT)
                 )
             )
@@ -82,7 +83,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -104,7 +105,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -126,7 +127,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -148,7 +149,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -157,8 +158,9 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
         assertThat(
             thrownException.getMessage(),
             containsString(
-                "Validation Failed: 1: [service_settings] Invalid url [^^^] received for field [url]. "
-                    + "Error: unable to parse url [^^^]. Reason: Illegal character in path;"
+                """
+                    Validation Failed: 1: [service_settings] Invalid url [^^^] received for field [url]. \
+                    Error: unable to parse url [^^^]. Reason: Illegal character in path;"""
             )
         );
     }
@@ -171,7 +173,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 null,
                 DIMENSIONS,
                 MAX_INPUT_TOKENS,
-                DIMENSIONS_SET_BY_USER,
+                DIMENSIONS_SET_BY_USER_TRUE,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
             ),
             ConfigurationParseContext.PERSISTENT
@@ -186,7 +188,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     DIMENSIONS,
                     null,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new RateLimitSettings(RATE_LIMIT)
                 )
             )
@@ -203,7 +205,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     "by_size",
                     DIMENSIONS,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -212,43 +214,255 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
         assertThat(
             thrownException.getMessage(),
             containsString(
-                "Validation Failed: 1: [service_settings] Invalid value [by_size] received. "
-                    + "[similarity] must be one of [cosine, dot_product, l2_norm];"
+                """
+                    Validation Failed: 1: [service_settings] Invalid value [by_size] received. \
+                    [similarity] must be one of [cosine, dot_product, l2_norm];"""
             )
         );
     }
 
-    public void testFromMap_NoDimensions_Success() {
+    // Test cases for dimensions_set_by_user and dimensions fields
+
+    public void testFromMap_RequestContext_DimensionsSetByUserTrue_DimensionsPositive_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            DIMENSIONS,
+            DIMENSIONS_SET_BY_USER_TRUE,
+            ConfigurationParseContext.REQUEST,
+            "Validation Failed: 1: [service_settings] does not allow the setting [dimensions_set_by_user];"
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserTrue_DimensionsZero_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            0,
+            DIMENSIONS_SET_BY_USER_TRUE,
+            ConfigurationParseContext.REQUEST,
+            """
+                Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;\
+                2: [service_settings] does not allow the setting [dimensions_set_by_user];"""
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserTrue_DimensionsNegative_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            -1,
+            DIMENSIONS_SET_BY_USER_TRUE,
+            ConfigurationParseContext.REQUEST,
+            """
+                Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;\
+                2: [service_settings] does not allow the setting [dimensions_set_by_user];"""
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserTrue_DimensionsNull_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            null,
+            DIMENSIONS_SET_BY_USER_TRUE,
+            ConfigurationParseContext.REQUEST,
+            "Validation Failed: 1: [service_settings] does not allow the setting [dimensions_set_by_user];"
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserFalse_DimensionsPositive_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            DIMENSIONS,
+            false,
+            ConfigurationParseContext.REQUEST,
+            "Validation Failed: 1: [service_settings] does not allow the setting [dimensions_set_by_user];"
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserFalse_DimensionsZero_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            0,
+            false,
+            ConfigurationParseContext.REQUEST,
+            """
+                Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;\
+                2: [service_settings] does not allow the setting [dimensions_set_by_user];"""
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserFalse_DimensionsNegative_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            -1,
+            false,
+            ConfigurationParseContext.REQUEST,
+            """
+                Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;\
+                2: [service_settings] does not allow the setting [dimensions_set_by_user];"""
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserFalse_DimensionsNull_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            null,
+            false,
+            ConfigurationParseContext.REQUEST,
+            "Validation Failed: 1: [service_settings] does not allow the setting [dimensions_set_by_user];"
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserNull_DimensionsPositive_Success() {
+        testFromMap_Dimensions_AssertValidationSuccess(DIMENSIONS, null, DIMENSIONS_SET_BY_USER_TRUE, ConfigurationParseContext.REQUEST);
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserNull_DimensionsZero_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            0,
+            null,
+            ConfigurationParseContext.REQUEST,
+            "Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;"
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserNull_DimensionsNegative_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            -1,
+            null,
+            ConfigurationParseContext.REQUEST,
+            "Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;"
+        );
+    }
+
+    public void testFromMap_RequestContext_DimensionsSetByUserNull_DimensionsNull_Success() {
+        testFromMap_Dimensions_AssertValidationSuccess(null, null, false, ConfigurationParseContext.REQUEST);
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserTrue_DimensionsZero_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            0,
+            DIMENSIONS_SET_BY_USER_TRUE,
+            ConfigurationParseContext.PERSISTENT,
+            "Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;"
+        );
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserTrue_DimensionsNegative_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            -1,
+            DIMENSIONS_SET_BY_USER_TRUE,
+            ConfigurationParseContext.PERSISTENT,
+            "Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;"
+        );
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserTrue_DimensionsNull_Success() {
+        testFromMap_Dimensions_AssertValidationSuccess(
+            null,
+            DIMENSIONS_SET_BY_USER_TRUE,
+            DIMENSIONS_SET_BY_USER_TRUE,
+            ConfigurationParseContext.PERSISTENT
+        );
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserFalse_DimensionsPositive_Success() {
+        testFromMap_Dimensions_AssertValidationSuccess(DIMENSIONS, false, false, ConfigurationParseContext.PERSISTENT);
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserFalse_DimensionsZero_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            0,
+            false,
+            ConfigurationParseContext.PERSISTENT,
+            "Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;"
+        );
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserFalse_DimensionsNegative_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            -1,
+            false,
+            ConfigurationParseContext.PERSISTENT,
+            "Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;"
+        );
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserFalse_DimensionsNull_Success() {
+        testFromMap_Dimensions_AssertValidationSuccess(null, false, false, ConfigurationParseContext.PERSISTENT);
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserNull_DimensionsPositive_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            DIMENSIONS,
+            null,
+            ConfigurationParseContext.PERSISTENT,
+            "Validation Failed: 1: [service_settings] does not contain the required setting [dimensions_set_by_user];"
+        );
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserNull_DimensionsZero_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            0,
+            null,
+            ConfigurationParseContext.PERSISTENT,
+            """
+                Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;\
+                2: [service_settings] does not contain the required setting [dimensions_set_by_user];"""
+        );
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserNull_DimensionsNegative_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            -1,
+            null,
+            ConfigurationParseContext.PERSISTENT,
+            """
+                Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;\
+                2: [service_settings] does not contain the required setting [dimensions_set_by_user];"""
+        );
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserNull_DimensionsNull_Failed() {
+        testFromMap_Dimensions_AssertValidationException(
+            null,
+            null,
+            ConfigurationParseContext.PERSISTENT,
+            "Validation Failed: 1: [service_settings] does not contain the required setting [dimensions_set_by_user];"
+        );
+    }
+
+    private static void testFromMap_Dimensions_AssertValidationSuccess(
+        Integer dimensions,
+        Boolean dimensionsSetByUser,
+        Boolean expectedDimensionsSetByUser,
+        ConfigurationParseContext configurationParseContext
+    ) {
         var serviceSettings = LlamaEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(
                 MODEL_ID,
                 CORRECT_URL,
                 SIMILARITY_MEASURE.toString(),
-                null,
+                dimensions,
                 MAX_INPUT_TOKENS,
-                DIMENSIONS_SET_BY_USER,
+                dimensionsSetByUser,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
             ),
-            ConfigurationParseContext.PERSISTENT
+            configurationParseContext
         );
 
-        assertThat(
+        MatcherAssert.assertThat(
             serviceSettings,
             is(
                 new LlamaEmbeddingsServiceSettings(
                     MODEL_ID,
                     CORRECT_URL,
-                    null,
+                    dimensions,
                     SIMILARITY_MEASURE,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    expectedDimensionsSetByUser,
                     new RateLimitSettings(RATE_LIMIT)
                 )
             )
         );
     }
 
-    public void testFromMap_ZeroDimensions_Failure() {
+    private static void testFromMap_Dimensions_AssertValidationException(
+        Integer dimensions,
+        Boolean dimensionsSetByUser,
+        ConfigurationParseContext configurationParseContext,
+        String errorMessage
+    ) {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> LlamaEmbeddingsServiceSettings.fromMap(
@@ -256,40 +470,16 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     MODEL_ID,
                     CORRECT_URL,
                     SIMILARITY_MEASURE.toString(),
-                    0,
+                    dimensions,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    dimensionsSetByUser,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
-                ConfigurationParseContext.PERSISTENT
+                configurationParseContext
             )
         );
-        assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
-        );
-    }
 
-    public void testFromMap_NegativeDimensions_Failure() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> LlamaEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(
-                    MODEL_ID,
-                    CORRECT_URL,
-                    SIMILARITY_MEASURE.toString(),
-                    -10,
-                    MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
-                ),
-                ConfigurationParseContext.PERSISTENT
-            )
-        );
-        assertThat(
-            thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [-10]. [dimensions] must be a positive integer;")
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), containsString(errorMessage));
     }
 
     public void testFromMap_NoInputTokens_Success() {
@@ -300,7 +490,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 SIMILARITY_MEASURE.toString(),
                 DIMENSIONS,
                 null,
-                DIMENSIONS_SET_BY_USER,
+                DIMENSIONS_SET_BY_USER_TRUE,
                 new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
             ),
             ConfigurationParseContext.PERSISTENT
@@ -315,7 +505,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     DIMENSIONS,
                     SIMILARITY_MEASURE,
                     null,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new RateLimitSettings(RATE_LIMIT)
                 )
             )
@@ -332,7 +522,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     0,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -354,7 +544,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     SIMILARITY_MEASURE.toString(),
                     DIMENSIONS,
                     -10,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, RATE_LIMIT))
                 ),
                 ConfigurationParseContext.PERSISTENT
@@ -374,7 +564,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 SIMILARITY_MEASURE.toString(),
                 DIMENSIONS,
                 MAX_INPUT_TOKENS,
-                DIMENSIONS_SET_BY_USER,
+                DIMENSIONS_SET_BY_USER_TRUE,
                 null
             ),
             ConfigurationParseContext.PERSISTENT
@@ -389,7 +579,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                     DIMENSIONS,
                     SIMILARITY_MEASURE,
                     MAX_INPUT_TOKENS,
-                    DIMENSIONS_SET_BY_USER,
+                    DIMENSIONS_SET_BY_USER_TRUE,
                     new RateLimitSettings(3000)
                 )
             )
@@ -403,7 +593,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
             DIMENSIONS,
             SIMILARITY_MEASURE,
             MAX_INPUT_TOKENS,
-            DIMENSIONS_SET_BY_USER,
+            DIMENSIONS_SET_BY_USER_TRUE,
             new RateLimitSettings(3)
         );
 
@@ -434,7 +624,7 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
             DIMENSIONS,
             SIMILARITY_MEASURE,
             MAX_INPUT_TOKENS,
-            DIMENSIONS_SET_BY_USER,
+            DIMENSIONS_SET_BY_USER_TRUE,
             new RateLimitSettings(3)
         );
         settings.writeTo(outputBuffer);

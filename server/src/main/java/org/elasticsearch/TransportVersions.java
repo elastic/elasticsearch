@@ -353,7 +353,7 @@ public class TransportVersions {
     public static final TransportVersion NODE_WEIGHTS_ADDED_TO_NODE_BALANCE_STATS = def(9_129_0_00);
     public static final TransportVersion RERANK_SNIPPETS = def(9_130_0_00);
     public static final TransportVersion PIPELINE_TRACKING_INFO = def(9_131_0_00);
-    public static final TransportVersion ML_INFERENCE_LLAMA_OPEN_AI_API_FIX = def(9_132_0_00);
+    public static final TransportVersion ML_INFERENCE_LLAMA_REFACTORED = def(9_132_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

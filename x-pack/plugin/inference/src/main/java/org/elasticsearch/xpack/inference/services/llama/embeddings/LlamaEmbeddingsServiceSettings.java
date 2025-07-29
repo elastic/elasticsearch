@@ -90,8 +90,9 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
             }
             dimensionsSetByUser = dimensions != null;
         } else if (context == ConfigurationParseContext.PERSISTENT && dimensionsSetByUser == null) {
-            // If the context is persistent and dimensionsSetByUser is not specified, we default it to false
-            dimensionsSetByUser = Boolean.FALSE;
+            validationException.addValidationError(
+                ServiceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+            );
         }
 
         var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, LlamaService.NAME, context);
@@ -123,11 +124,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         this.dimensions = in.readOptionalVInt();
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.maxInputTokens = in.readOptionalVInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_LLAMA_OPEN_AI_API_FIX)) {
-            this.dimensionsSetByUser = in.readBoolean();
-        } else {
-            this.dimensionsSetByUser = false;
-        }
+        this.dimensionsSetByUser = in.readBoolean();
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
@@ -190,7 +187,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_LLAMA_ADDED;
+        return TransportVersions.ML_INFERENCE_LLAMA_REFACTORED;
     }
 
     @Override
@@ -247,9 +244,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         out.writeOptionalVInt(dimensions);
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(maxInputTokens);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_LLAMA_OPEN_AI_API_FIX)) {
-            out.writeBoolean(dimensionsSetByUser);
-        }
+        out.writeBoolean(dimensionsSetByUser);
         rateLimitSettings.writeTo(out);
     }
 
@@ -257,9 +252,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         toXContentFragmentOfExposedFields(builder, params);
-        if (dimensionsSetByUser != null) {
-            builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
-        }
+        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         builder.endObject();
         return builder;
     }

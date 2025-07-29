@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -116,8 +117,8 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
             }
 
             @Override
-            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                return LlamaServiceTests.createServiceSettingsMap(taskType);
+            protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext configurationParseContext) {
+                return LlamaServiceTests.createServiceSettingsMap(taskType, configurationParseContext);
             }
 
             @Override
@@ -159,6 +160,8 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
     private static void assertTextEmbeddingModel(Model model) {
         var llamaModel = assertCommonModelFields(model);
         assertThat(llamaModel.getTaskSettings(), Matchers.is(new OpenAiEmbeddingsTaskSettings("user")));
+        assertThat(llamaModel.getServiceSettings().dimensions(), Matchers.is(1536));
+        assertThat(llamaModel.getServiceSettings().dimensionsSetByUser(), Matchers.is(true));
         assertThat(llamaModel.getTaskType(), Matchers.is(TaskType.TEXT_EMBEDDING));
     }
 
@@ -193,7 +196,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
         return new LlamaService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
     }
 
-    private static Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+    private static Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext configurationParseContext) {
         Map<String, Object> settingsMap = new HashMap<>(
             Map.of(ServiceFields.URL, "http://www.abc.com", ServiceFields.MODEL_ID, "model_id")
         );
@@ -209,6 +212,9 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
                     512
                 )
             );
+            if (configurationParseContext == ConfigurationParseContext.PERSISTENT) {
+                settingsMap.put("dimensions_set_by_user", true);
+            }
         }
 
         return settingsMap;

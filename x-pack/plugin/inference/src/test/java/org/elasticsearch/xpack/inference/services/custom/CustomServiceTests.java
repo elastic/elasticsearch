@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.custom.response.CompletionResponseParser;
@@ -80,7 +81,7 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
             }
 
             @Override
-            protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
+            protected Map<String, Object> createServiceSettingsMap(TaskType taskType, ConfigurationParseContext configurationParseContext) {
                 return CustomServiceTests.createServiceSettingsMap(taskType);
             }
 

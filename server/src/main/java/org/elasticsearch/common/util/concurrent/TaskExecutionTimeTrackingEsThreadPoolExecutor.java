@@ -157,7 +157,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * Utilization is measured as {@code all-threads-total-execution-time / (total-thread-count * interval)}.
      * This metric is updated once per interval, and returns last completed measurement. For example:
      * if interval is 30 seconds, at clock time 00:30-01:00 it will return utilization from 00:00-00:30.
-     * Thou there is no synchronization with clocks and system time.
+     * There is no synchronization with clocks and system time.
      *
      * If caller needs longer intervals it should poll on every tracker-interval and aggregate on it's own. Another option is to extend
      * framedTimeTracker to remember multiple past frames, and return aggregated view from here.
@@ -254,7 +254,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     /**
-     * Tracks treads execution in continuous, non-overlapping, and even time frames. Provides accurate total execution time measurement
+     * Tracks threads execution in continuous, non-overlapping, and even time frames. Provides accurate total execution time measurement
      * for past frames, specifically previous frame (now - 1 frame) to measure utilization.
      *
      * Can be extended to remember multiple past frames.
@@ -327,7 +327,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             var now = timeNow.get();
             updateFrame0(now);
             ongoingTasks.incrementAndGet();
-            currentTime.updateAndGet((t) -> t + (currentFrame.get() + 1) * interval - now);
+            currentTime.addAndGet((now + 1) * interval - now);
             rwlock.readLock().unlock();
         }
 
@@ -339,7 +339,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             var now = timeNow.get();
             updateFrame0(now);
             ongoingTasks.decrementAndGet();
-            currentTime.updateAndGet((t) -> t - (currentFrame.get() + 1) * interval + now);
+            currentTime.addAndGet(-((now + 1) * interval - now));
             rwlock.readLock().unlock();
         }
 

@@ -27,7 +27,7 @@ import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.concurrent.TimeUnit;
 
-@Threads(12)
+@Threads(Threads.MAX)
 @Warmup(iterations = 3, time = 200, timeUnit = TimeUnit.MILLISECONDS)
 @Measurement(iterations = 5, time = 600, timeUnit = TimeUnit.MILLISECONDS)
 @BenchmarkMode(Mode.SampleTime)
@@ -36,13 +36,13 @@ import java.util.concurrent.TimeUnit;
 @Fork(1)
 public class ThreadPoolUtilizationBenchmark {
 
-    @Param({ "10000" })
+    @Param({ "1000" })
     private int callIntervalTicks;
 
     /**
      * This makes very little difference, all the overhead is in the synchronization
      */
-    @Param({ "10" })
+    @Param({ "30000" })
     private int utilizationIntervalMs;
     private TaskExecutionTimeTrackingEsThreadPoolExecutor.FramedTimeTracker timeTracker;
 

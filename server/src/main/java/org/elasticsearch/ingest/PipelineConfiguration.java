@@ -251,6 +251,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         }
     }
 
+    /** Remove system properties from config if they aren't supported by the transport version */
     private Map<String, Object> configForTransport(final TransportVersion transportVersion) {
         final boolean transportSupportsNewProperties = transportVersion.onOrAfter(TransportVersions.PIPELINE_TRACKING_INFO);
         final boolean noNewProperties = config.containsKey(Pipeline.CREATED_DATE_MILLIS) == false

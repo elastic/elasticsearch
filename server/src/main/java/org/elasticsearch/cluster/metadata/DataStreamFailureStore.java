@@ -44,10 +44,10 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
     public static final ParseField ENABLED_FIELD = new ParseField(ENABLED);
     public static final ParseField LIFECYCLE_FIELD = new ParseField(LIFECYCLE);
 
-    public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = ConstructingObjectParser.forRecord(
         FAILURE_STORE,
         false,
-        (args, unused) -> new DataStreamFailureStore((Boolean) args[0], (DataStreamLifecycle) args[1])
+        DataStreamFailureStore.class
     );
 
     static {

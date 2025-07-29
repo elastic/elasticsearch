@@ -126,16 +126,10 @@ public record ProfileDocument(
     }
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<ProfileDocumentUser, Void> PROFILE_DOC_USER_PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<ProfileDocumentUser, Void> PROFILE_DOC_USER_PARSER = ConstructingObjectParser.forRecord(
         "user_profile_document_user",
         false,
-        (args, v) -> new ProfileDocumentUser(
-            (String) args[0],
-            (List<String>) args[1],
-            (Authentication.RealmRef) args[2],
-            (String) args[3],
-            (String) args[4]
-        )
+        ProfileDocumentUser.class
     );
 
     @SuppressWarnings("unchecked")

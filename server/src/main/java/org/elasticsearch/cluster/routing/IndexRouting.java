@@ -54,7 +54,6 @@ import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.expectValueToken;
 
 /**
  * Generates the shard id for {@code (id, routing)} pairs.
@@ -449,7 +448,9 @@ public abstract class IndexRouting {
 
             private void extractArray(@Nullable String path, XContentParser source) throws IOException {
                 while (source.currentToken() != Token.END_ARRAY) {
-                    expectValueToken(source.currentToken(), source);
+                    // TODO: Fails on nested objects. I think this might work with the current implementation due to filtering which is not
+                    // implemented for ESON
+                    // expectValueToken(source.currentToken(), source);
                     extractItem(path, source);
                 }
             }

@@ -879,3 +879,333 @@ setup:
 
   - not_exists: test-index-options-sparse.mappings.properties.semantic_field.index_options
 
+---
+"Users can set sparse vector index options and index documents using those options":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 18.0
+                      tokens_weight_threshold: 0.6
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.6 }
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_1
+        body:
+          semantic_field: "these are not the droids you're looking for. He's free to go around"
+          _inference_fields.semantic_field:
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                semantic_field:
+                  - start_offset: 0
+                    end_offset: 44
+                    embeddings:
+                      dr: 1.6103356
+                      these: 1.1396849
+                  - start_offset: 44
+                    end_offset: 67
+                    embeddings:
+                      free: 1.693662
+                      around: 1.4376559
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.6 }
+
+---
+"Specifying invalid sparse vector index options will fail":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      catch: /\[index_options\] unknown field \[ef_construction\]/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    ef_construction: 100
+
+  - match: { status: 400 }
+
+  - do:
+      catch: /\[index_options\] field \[pruning_config\] should only be set if \[prune\] is set to true/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: false
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 18.0
+                      tokens_weight_threshold: 0.6
+
+  - match: { status: 400 }
+
+  - do:
+      catch: /\[tokens_freq_ratio_threshold\] must be between \[1\] and \[100\]/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 101
+                      tokens_weight_threshold: 0.6
+
+  - match: { status: 400 }
+
+  - do:
+      catch: /unknown field \[some_other_param\]/
+      indices.create:
+        index: test-incompatible-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 18.0
+                      tokens_weight_threshold: 0.6
+                      some_other_param: true
+
+  - match: { status: 400 }
+
+---
+"Specifying sparse vector index options requires sparse vector model":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      catch: /Model settings must be set to validate index options/
+      indices.create:
+        index: my-custom-semantic-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: nonexistent-inference-id
+                index_options:
+                  dense_vector:
+                    type: bbq_hnsw
+                    m: 16
+                    ef_construction: 100
+
+  - match: { status: 400 }
+
+---
+"Updating sparse vector index options":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      indices.create:
+        index: test-index-options
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 18.0
+                      tokens_weight_threshold: 0.6
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.6 }
+
+  - do:
+      indices.put_mapping:
+        index: test-index-options
+        body:
+          properties:
+            semantic_field:
+              type: semantic_text
+              inference_id: sparse-inference-id
+              index_options:
+                sparse_vector:
+                  prune: true
+                  pruning_config:
+                    tokens_freq_ratio_threshold: 12.0
+                    tokens_weight_threshold: 0.1
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options
+
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 12.0 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.1 }
+
+---
+"Displaying default sparse vector index_options with and without include_defaults":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      indices.create:
+        index: test-index-options-sparse
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-sparse
+
+  - not_exists: test-index-options-sparse.mappings.semantic_field.mapping.index_options
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-sparse
+        fields: semantic_field
+        include_defaults: true
+
+  - match: { "test-index-options-sparse.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options-sparse.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 5.0 }
+  - match: { "test-index-options-sparse.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }
+
+  # Validate that actually specifying the same values as our defaults will still serialize the user provided index_options
+  - do:
+      indices.create:
+        index: test-index-options-sparse2
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: true
+                    pruning_config:
+                      tokens_freq_ratio_threshold: 18.0
+                      tokens_weight_threshold: 0.4
+
+  - do:
+      indices.get_mapping:
+        index: test-index-options-sparse2
+
+  - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
+  - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }
+
+  - do:
+      indices.get_field_mapping:
+        index: test-index-options-sparse2
+        fields: semantic_field
+        include_defaults: true
+
+  - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.prune": true }
+  - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
+  - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }

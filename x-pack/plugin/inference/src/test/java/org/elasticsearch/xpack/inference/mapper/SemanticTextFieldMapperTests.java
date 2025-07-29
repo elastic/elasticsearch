@@ -722,10 +722,18 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             String fieldName = "field";
 
             MapperService mapperService = createMapperService(
-                mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, chunkingSettings, indexOptions)),
+                mapping(b -> addSemanticTextMapping(
+                    b,
+                    fieldName,
+                    model.getInferenceEntityId(),
+                    null,
+                    chunkingSettings,
+                    indexOptions,
+                    new MinimalServiceSettings(model)
+                )),
                 useLegacyFormat
             );
-            assertSemanticTextField(mapperService, fieldName, false, chunkingSettings, indexOptions);
+            assertSemanticTextField(mapperService, fieldName, true, chunkingSettings, indexOptions);
 
             final SemanticTextIndexOptions newIndexOptions = randomSemanticTextIndexOptions(TaskType.SPARSE_EMBEDDING);
             ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
@@ -733,7 +741,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 mapperService,
                 mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, newChunkingSettings, newIndexOptions))
             );
-            assertSemanticTextField(mapperService, fieldName, false, newChunkingSettings, newIndexOptions);
+            assertSemanticTextField(mapperService, fieldName, true, newChunkingSettings, newIndexOptions);
         }
     }
 
@@ -926,7 +934,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     model1.getInferenceEntityId(),
                     setSearchInferenceId ? searchInferenceId : null,
                     chunkingSettings,
-                    indexOptions
+                    indexOptions,
+                    new MinimalServiceSettings(model1)
                 );
                 addSemanticTextMapping(
                     b,
@@ -934,19 +943,20 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     model2.getInferenceEntityId(),
                     setSearchInferenceId ? searchInferenceId : null,
                     chunkingSettings,
-                    indexOptions
+                    indexOptions,
+                    new MinimalServiceSettings(model2)
                 );
             });
 
             MapperService mapperService = createMapperService(mapping, useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName1, false, null, indexOptions);
+            assertSemanticTextField(mapperService, fieldName1, true, null, indexOptions);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName1,
                 model1.getInferenceEntityId(),
                 setSearchInferenceId ? searchInferenceId : model1.getInferenceEntityId()
             );
-            assertSemanticTextField(mapperService, fieldName2, false, null, indexOptions);
+            assertSemanticTextField(mapperService, fieldName2, true, null, indexOptions);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName2,
@@ -1207,7 +1217,14 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
 
         MapperService mapperService = createMapperService(
-            mapping(b -> addSemanticTextMapping(b, "field", model.getInferenceEntityId(), null, chunkingSettings, indexOptions)),
+            mapping(b -> addSemanticTextMapping(
+                b,
+                "field",
+                model.getInferenceEntityId(),
+                null,
+                chunkingSettings,
+                indexOptions
+            )),
             useLegacyFormat
         );
         SourceToParse source = source(b -> addSemanticTextInferenceResults(useLegacyFormat, b, List.of(inferenceResults)));
@@ -1709,7 +1726,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         // Until a doc is indexed, the query is rewritten as match no docs
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
-
     private static void addSemanticTextMapping(
         XContentBuilder mappingBuilder,
         String fieldName,
@@ -1718,9 +1734,25 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         ChunkingSettings chunkingSettings,
         SemanticTextIndexOptions indexOptions
     ) throws IOException {
+        addSemanticTextMapping(mappingBuilder, fieldName, inferenceId, searchInferenceId, chunkingSettings, indexOptions, null);
+    }
+
+    private static void addSemanticTextMapping(
+        XContentBuilder mappingBuilder,
+        String fieldName,
+        String inferenceId,
+        String searchInferenceId,
+        ChunkingSettings chunkingSettings,
+        SemanticTextIndexOptions indexOptions,
+        MinimalServiceSettings modelSettings
+    ) throws IOException {
         mappingBuilder.startObject(fieldName);
         mappingBuilder.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
         mappingBuilder.field("inference_id", inferenceId);
+        if (modelSettings != null) {
+            mappingBuilder.field("model_settings");
+            modelSettings.toXContent(mappingBuilder, null);
+        }
         if (searchInferenceId != null) {
             mappingBuilder.field("search_inference_id", searchInferenceId);
         }

@@ -464,9 +464,6 @@ tests:
 - class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
   method: testCancellationViaTimeoutWithAllowPartialResultsSetToFalse
   issue: https://github.com/elastic/elasticsearch/issues/131248
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/131508
 - class: org.elasticsearch.action.admin.cluster.node.tasks.CancellableTasksIT
   method: testRemoveBanParentsOnDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/131562

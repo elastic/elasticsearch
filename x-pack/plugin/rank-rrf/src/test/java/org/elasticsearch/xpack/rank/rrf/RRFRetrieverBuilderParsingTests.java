@@ -273,7 +273,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             }
             """;
 
-        expectParsingException(multipleRetrieversContent, "only one retriever can be specified");
+        expectParsingException(multipleRetrieversContent, "unknown field [standard] after retriever");
 
         // Test case 2: Weight without retriever
         String weightOnlyContent = """

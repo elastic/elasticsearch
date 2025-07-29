@@ -57,7 +57,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     public static final ParseField RANK_CONSTANT_FIELD = new ParseField("rank_constant");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final ParseField QUERY_FIELD = new ParseField("query");
-    public static final ParseField WEIGHTS_FIELD = new ParseField("weights");
 
     public static final int DEFAULT_RANK_CONSTANT = 60;
 
@@ -92,7 +91,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), RANK_CONSTANT_FIELD);
-        PARSER.declareFloatArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -327,13 +325,6 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
         builder.field(RANK_CONSTANT_FIELD.getPreferredName(), rankConstant);
-        if (weights.length > 0) {
-            builder.startArray(WEIGHTS_FIELD.getPreferredName());
-            for (float weight : weights) {
-                builder.value(weight);
-            }
-            builder.endArray();
-        }
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----

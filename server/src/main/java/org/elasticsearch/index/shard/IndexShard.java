@@ -3443,7 +3443,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Executes an operation while preventing the shard's engine instance to be reset during the execution.
-     * The operation might be executed with a {@code null} engine instance. The engine might be closed while the operation is executed.
+     * The operation might be executed with a {@code null} engine instance in case the engine/shard is closed or the engine is being
+     * reset. The engine might be closed while the operation is executed.
      *
      * @param operation     the operation to execute
      * @return              the result of the operation
@@ -3455,7 +3456,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Executes an operation while preventing the shard's engine instance to be reset during the execution.
-     * The operation might be executed with a {@code null} engine instance. The engine might be closed while the operation is executed.
+     * The operation might be executed with a {@code null} engine instance in case the engine/shard is closed. The engine might be
+     * closed while the operation is executed.
      *
      * @param operation     the operation to execute
      * @return              the result of the operation

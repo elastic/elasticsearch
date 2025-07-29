@@ -170,7 +170,8 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
             lookupIndex,
             lookupIndex,
             loadFields,
-            Source.EMPTY
+            Source.EMPTY,
+            null
         );
     }
 

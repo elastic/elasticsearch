@@ -23,7 +23,6 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -38,6 +37,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,7 +90,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             request.extractFields,
             request.matchFields,
             request.source,
-            request.preJoinFilter
+            request.rightPreJoinPlan
         );
     }
 
@@ -101,6 +102,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         Block inputBlock,
         Warnings warnings
     ) {
+
         List<QueryList> queryLists = new ArrayList<>();
         for (int i = 0; i < request.matchFields.size(); i++) {
             MatchConfig matchField = request.matchFields.get(i);
@@ -113,10 +115,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
             queryLists.add(q);
         }
-        if (queryLists.size() == 1 && request.preJoinFilter == null) {
+        if (queryLists.size() == 1
+            && (request.rightPreJoinPlan == null
+                || request.rightPreJoinPlan instanceof EsQueryExec esQueryExec && esQueryExec.query() == null)) {
             return queryLists.getFirst();
         }
-        return new ExpressionQueryList(queryLists, context, request.preJoinFilter);
+        return new ExpressionQueryList(queryLists, context, request.rightPreJoinPlan, clusterService);
+
     }
 
     @Override
@@ -131,7 +136,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public static class Request extends AbstractLookupService.Request {
         private final List<MatchConfig> matchFields;
-        private final QueryBuilder preJoinFilter;
+        private final PhysicalPlan rightPreJoinPlan;
 
         Request(
             String sessionId,
@@ -141,17 +146,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page inputPage,
             List<NamedExpression> extractFields,
             Source source,
-            QueryBuilder preJoinFilter
+            PhysicalPlan rightPreJoinPlan
         ) {
             super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
             this.matchFields = matchFields;
-            this.preJoinFilter = preJoinFilter;
+            this.rightPreJoinPlan = rightPreJoinPlan;
         }
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
         private final List<MatchConfig> matchFields;
-        private final QueryBuilder preJoinFilter;
+        private final PhysicalPlan rightPreJoinPlan;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
         // The channel information inside the MatchConfig, should say the same thing
@@ -164,11 +169,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields,
             List<MatchConfig> matchFields,
             Source source,
-            QueryBuilder preJoinFilter
+            PhysicalPlan rightPreJoinPlan
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
             this.matchFields = matchFields;
-            this.preJoinFilter = preJoinFilter;
+            this.rightPreJoinPlan = rightPreJoinPlan;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -214,9 +219,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
             }
-            QueryBuilder preJoinFilter = null;
+            PhysicalPlan rightPreJoinPlan = null;
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
-                preJoinFilter = planIn.readOptionalNamedWriteable(QueryBuilder.class);
+                rightPreJoinPlan = planIn.readOptionalNamedWriteable(PhysicalPlan.class);
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -227,7 +232,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 extractFields,
                 matchFields,
                 source,
-                preJoinFilter
+                rightPreJoinPlan
             );
             result.setParentTask(parentTaskId);
             return result;
@@ -271,8 +276,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 out.writeString(source.text());
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
-                planOut.writeOptionalNamedWriteable(preJoinFilter);
-            } else if (preJoinFilter != null) {
+                planOut.writeOptionalNamedWriteable(rightPreJoinPlan);
+            } else if (rightPreJoinPlan != null) {
                 throw new EsqlIllegalArgumentException("LOOKUP JOIN with pre-join filter is not supported on remote node");
             }
         }
@@ -281,8 +286,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         protected String extraDescription() {
             return " ,match_fields="
                 + matchFields.stream().map(x -> x.fieldName().string()).collect(Collectors.joining(", "))
-                + ", pre_join_filter="
-                + preJoinFilter;
+                + ", rightPreJoinPlan="
+                + rightPreJoinPlan;
         }
     }
 

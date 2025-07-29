@@ -1740,3 +1740,63 @@ setup:
   - match: { docs.0.doc._source.abc: "sfdsfsfdsfsfdsfsfdsfsfdsfsfdsf" }
   - match: { docs.0.doc.ignored_fields: [ {"field": "abc"} ] }
   - not_exists: docs.0.doc.error
+
+---
+"Test mapping addition correctly respects mapping of indices without templates":
+  # In this test, we make sure that when we have an index that has mapping but was not built with a template, that the
+  # additional_mapping respects the existing mapping for validation.
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  # A global match-everything legacy template is added to the cluster sometimes (rarely). We have to get rid of this template if it exists
+  # because this test is making sure we get correct behavior when an index matches *no* template:
+  - do:
+      indices.delete_template:
+        name:   '*'
+        ignore: 404
+
+  # We create the index no-template-index with an implicit mapping that has a num field with type long:
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "no-template-index"}}'
+          - '{"num": 3}'
+
+  # Now we make sure that the existing mapping is taken into account when we simulate with a mapping_addition. Since
+  # the pre-existing mapping has num mapped as a long, this ought to fail with a document_parsing_exception because
+  # we are attempting to write a boolean num.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: no-template-index
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "test-id",
+                "_index": "no-template-index",
+                "_source": {
+                  "@timestamp": "2025-07-25T09:06:06.929Z",
+                  "is_valid": true,
+                  "num": true
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "is_valid": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "no-template-index" }
+  - match: { docs.0.doc._source.num: true }
+  - match: { docs.0.doc._source.is_valid: true }
+  - match: { docs.0.doc.error.type: "document_parsing_exception" }

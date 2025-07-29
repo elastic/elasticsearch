@@ -146,17 +146,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     public void executeRequest(
         Task task,
         FieldCapabilitiesRequest request,
-        RemoteRequestExecutor remoteRequestExecutor,
+        LinkedRequestExecutor linkedRequestExecutor,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
-        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, remoteRequestExecutor, l)));
+        searchCoordinationExecutor.execute(ActionRunnable.wrap(listener, l -> doExecuteForked(task, request, linkedRequestExecutor, l)));
     }
 
     private void doExecuteForked(
         Task task,
         FieldCapabilitiesRequest request,
-        RemoteRequestExecutor remoteRequestExecutor,
+        LinkedRequestExecutor linkedRequestExecutor,
         ActionListener<FieldCapabilitiesResponse> listener
     ) {
         if (ccsCheckCompatibility) {
@@ -322,7 +322,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         true,
                         ActionListener.releaseAfter(remoteListener, refs.acquire())
                     ).delegateFailure(
-                        (responseListener, conn) -> remoteRequestExecutor.executeRemoteRequest(
+                        (responseListener, conn) -> linkedRequestExecutor.executeRemoteRequest(
                             transportService,
                             conn,
                             remoteRequest,
@@ -362,7 +362,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         });
     }
 
-    public interface RemoteRequestExecutor {
+    public interface LinkedRequestExecutor {
         void executeRemoteRequest(
             TransportService transportService,
             Transport.Connection conn,
@@ -623,8 +623,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 String index = failure.getKey();
                 Exception e = failure.getValue();
                 /*
-                 * The listener we use to briefly try, and connect to a remote can throw an ElasticsearchTimeoutException
-                 * error if a remote cannot be reached. To make sure we correctly recognise this scenario via
+                 * The listener we use to briefly try, and connect to a linked cluster can throw an ElasticsearchTimeoutException
+                 * error if it cannot be reached. To make sure we correctly recognise this scenario via
                  * ExceptionsHelper.isRemoteUnavailableException(), we wrap this error appropriately.
                  */
                 if (e instanceof ElasticsearchTimeoutException ete) {

@@ -51,18 +51,18 @@ public class EsqlResolveFieldsAction extends HandledTransportAction<FieldCapabil
 
     @Override
     protected void doExecute(Task task, FieldCapabilitiesRequest request, final ActionListener<FieldCapabilitiesResponse> listener) {
-        fieldCapsAction.executeRequest(task, request, this::executeRemoteRequest, listener);
+        fieldCapsAction.executeRequest(task, request, this::executeLinkedRequest, listener);
     }
 
-    void executeRemoteRequest(
+    void executeLinkedRequest(
         TransportService transportService,
         Transport.Connection conn,
-        FieldCapabilitiesRequest remoteRequest,
+        FieldCapabilitiesRequest request,
         ActionListenerResponseHandler<FieldCapabilitiesResponse> responseHandler
     ) {
         var remoteAction = conn.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)
             ? RESOLVE_REMOTE_TYPE
             : TransportFieldCapabilitiesAction.REMOTE_TYPE;
-        transportService.sendRequest(conn, remoteAction.name(), remoteRequest, TransportRequestOptions.EMPTY, responseHandler);
+        transportService.sendRequest(conn, remoteAction.name(), request, TransportRequestOptions.EMPTY, responseHandler);
     }
 }

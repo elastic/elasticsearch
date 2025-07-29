@@ -10,6 +10,7 @@
 package org.elasticsearch.indices.cluster;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.common.settings.Setting;
@@ -29,9 +30,9 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersTestCase {
-    private static final String REMOTE_CLUSTER_1 = "cluster-a";
-    private static final String REMOTE_CLUSTER_2 = "cluster-b";
+public class FieldCapsForceConnectTimeoutIT extends AbstractMultiClustersTestCase {
+    private static final String LINKED_CLUSTER_1 = "cluster-a";
+    private static final String LINKED_CLUSTER_2 = "cluster-b";
 
     public static class ForceConnectTimeoutPlugin extends Plugin implements ClusterPlugin {
         @Override
@@ -47,7 +48,7 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
 
     @Override
     protected List<String> remoteClusterAlias() {
-        return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
+        return List.of(LINKED_CLUSTER_1, LINKED_CLUSTER_2);
     }
 
     @Override
@@ -67,7 +68,7 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
-        return Map.of(REMOTE_CLUSTER_1, true, REMOTE_CLUSTER_2, true);
+        return Map.of(LINKED_CLUSTER_1, true, LINKED_CLUSTER_2, true);
     }
 
     public void testTimeoutSetting() {
@@ -76,7 +77,7 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
             MockTransportService mts = (MockTransportService) cluster(LOCAL_CLUSTER).getInstance(TransportService.class, nodeName);
 
             mts.addConnectBehavior(
-                cluster(REMOTE_CLUSTER_1).getInstance(TransportService.class, (String) null),
+                cluster(LINKED_CLUSTER_1).getInstance(TransportService.class, (String) null),
                 ((transport, discoveryNode, profile, listener) -> {
                     try {
                         latch.await();
@@ -90,27 +91,27 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
         }
 
         // Add some dummy data to prove we are communicating fine with the remote.
-        assertAcked(client(REMOTE_CLUSTER_1).admin().indices().prepareCreate("test-index"));
-        client(REMOTE_CLUSTER_1).prepareIndex("test-index").setSource("sample-field", "sample-value").get();
-        client(REMOTE_CLUSTER_1).admin().indices().prepareRefresh("test-index").get();
+        assertAcked(client(LINKED_CLUSTER_1).admin().indices().prepareCreate("test-index"));
+        client(LINKED_CLUSTER_1).prepareIndex("test-index").setSource("sample-field", "sample-value").get();
+        client(LINKED_CLUSTER_1).admin().indices().prepareRefresh("test-index").get();
 
         /*
          * Do a full restart so that our custom connect behaviour takes effect since it does not apply to
          * pre-existing connections -- they're already established by the time this test runs.
          */
         try {
-            cluster(REMOTE_CLUSTER_1).fullRestart();
+            cluster(LINKED_CLUSTER_1).fullRestart();
         } catch (Exception e) {
             throw new AssertionError(e);
         } finally {
             var fieldCapsRequest = new FieldCapabilitiesRequest();
             /*
-             * We have a local and 2 remote clusters but will target only the remote that we stalled.
-             * This is because when the timeout kicks in, and we move on from the stalled remote, we do not want
+             * We have an origin and 2 linked clusters but will target only the one that we stalled.
+             * This is because when the timeout kicks in, and we move on from the stalled cluster, we do not want
              * the error to be a top-level error. Rather, it must be present in the response object under "failures".
              * All other errors are free to be top-level errors though.
              */
-            fieldCapsRequest.indices(REMOTE_CLUSTER_1 + ":*");
+            fieldCapsRequest.indices(LINKED_CLUSTER_1 + ":*");
             fieldCapsRequest.fields("foo", "bar", "baz");
             var result = safeGet(client().execute(TransportFieldCapabilitiesAction.TYPE, fieldCapsRequest));
 
@@ -126,8 +127,9 @@ public class RemoteFieldCapsForceConnectTimeoutIT extends AbstractMultiClustersT
                 Matchers.containsString("java.lang.IllegalStateException: Unable to open any connections")
             );
 
-            // The actual error that is thrown by the subscribable listener when a remote could not be talked to.
+            // The actual error that is thrown by the subscribable listener when a linked cluster could not be talked to.
             assertThat(failure.getException().getCause(), Matchers.instanceOf(ElasticsearchTimeoutException.class));
+            assertThat(ExceptionsHelper.isRemoteUnavailableException(failure.getException()), Matchers.is(true));
 
             latch.countDown();
             result.decRef();

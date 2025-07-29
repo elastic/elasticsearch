@@ -29,7 +29,6 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Nullable;

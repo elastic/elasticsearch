@@ -425,8 +425,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public void setStructuredSource(ESONSource.ESONObject esonSource) {
         this.useStructuredSource = true;
         this.structuredSource = esonSource;
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        try (XContentBuilder builder = XContentFactory.contentBuilder(contentType)) {
             ESONXContentSerializer.flattedToXContent(esonSource, builder, ToXContent.EMPTY_PARAMS);
             source = BytesReference.bytes(builder);
         } catch (IOException e) {
@@ -964,12 +963,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        // TODO: avoid materializing the source atm when not using extract from source. Extract from source can be changed to use structured
-        // source.
-        if (indexRouting instanceof IndexRouting.ExtractFromSource) {
-            return indexRouting.indexShard(id, routing, contentType, source());
+        if (useStructuredSource) {
+            assert structuredSource != null;
+            return indexRouting.indexShard(id, routing, contentType, structuredSource);
         } else {
-            return indexRouting.indexShard(id, routing, contentType, null);
+            return indexRouting.indexShard(id, routing, contentType, source());
         }
     }
 

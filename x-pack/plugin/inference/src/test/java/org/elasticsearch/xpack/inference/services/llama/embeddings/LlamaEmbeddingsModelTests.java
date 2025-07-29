@@ -17,12 +17,19 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 
 public class LlamaEmbeddingsModelTests extends ESTestCase {
-    public static LlamaEmbeddingsModel createEmbeddingsModel(String modelId, String url, String apiKey, String user) {
+    public static LlamaEmbeddingsModel createEmbeddingsModel(
+        String modelId,
+        String url,
+        String apiKey,
+        String user,
+        Integer dimensions,
+        boolean dimensionsSetByUser
+    ) {
         return new LlamaEmbeddingsModel(
             "id",
             TaskType.TEXT_EMBEDDING,
             "llama",
-            new LlamaEmbeddingsServiceSettings(modelId, url, null, null, null, false, null),
+            new LlamaEmbeddingsServiceSettings(modelId, url, dimensions, null, null, dimensionsSetByUser, null),
             new OpenAiEmbeddingsTaskSettings(user),
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))

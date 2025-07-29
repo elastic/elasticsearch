@@ -650,7 +650,7 @@ public class LlamaServiceTests extends AbstractInferenceServiceTests {
     }
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("id", "url", "api_key", "user");
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("id", "url", "api_key", "user", null, false);
         model.setURI(getUrl(webServer));
 
         testChunkedInfer(model);

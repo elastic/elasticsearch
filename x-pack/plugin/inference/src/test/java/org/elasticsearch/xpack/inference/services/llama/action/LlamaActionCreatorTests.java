@@ -77,15 +77,51 @@ public class LlamaActionCreatorTests extends ESTestCase {
         webServer.close();
     }
 
-    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction() throws IOException {
-        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction("overridden_user");
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_WithUser_WithDimensions_DimensionsSetByUserFalse()
+        throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction("overridden_user", 384, false, null);
     }
 
-    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_WithoutUser() throws IOException {
-        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction(null);
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_NoUser_WithDimensions_DimensionsSetByUserFalse()
+        throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction(null, 384, false, null);
     }
 
-    private void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction(String user) throws IOException {
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_WithUser_NoDimensions_DimensionsSetByUserFalse()
+        throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction("overridden_user", null, false, null);
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_NoUser_NoDimensions_DimensionsSetByUserFalse()
+        throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction(null, null, false, null);
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_WithUser_WithDimensions_DimensionsSetByUserTrue()
+        throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction("overridden_user", 384, true, 384);
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_NoUser_WithDimensions_DimensionsSetByUserTrue()
+        throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction(null, 384, true, 384);
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_WithUser_NoDimensions_DimensionsSetByUserTrue()
+        throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction("overridden_user", null, true, null);
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction_NoUser_NoDimensions_DimensionsSetByUserTrue() throws IOException {
+        testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction(null, null, true, null);
+    }
+
+    private void testExecute_ReturnsSuccessfulResponse_ForEmbeddingsAction(
+        String user,
+        Integer dimensions,
+        boolean dimensionsSetByUser,
+        Integer expectedDimensions
+    ) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
@@ -113,25 +149,68 @@ public class LlamaActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<InferenceServiceResults> listener = createEmbeddingsFuture(sender, createWithEmptySettings(threadPool), user);
+            PlainActionFuture<InferenceServiceResults> listener = createEmbeddingsFuture(
+                sender,
+                createWithEmptySettings(threadPool),
+                user,
+                dimensions,
+                dimensionsSetByUser
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
             assertThat(result.asMap(), is(TextEmbeddingFloatResultsTests.buildExpectationFloat(List.of(new float[] { -0.123F, 0.123F }))));
 
-            assertEmbeddingsRequest(user);
+            assertEmbeddingsRequest(user, expectedDimensions);
         }
     }
 
-    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction() throws IOException {
-        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction("overridden_user");
+    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_WithUser_WithDimensions_DimensionsSetByUserFalse()
+        throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction("overridden_user", 384, false, null);
     }
 
-    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_WithoutUser() throws IOException {
-        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction(null);
+    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_NoUser_WithDimensions_DimensionsSetByUserFalse()
+        throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction(null, 384, false, null);
     }
 
-    private void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction(String user) throws IOException {
+    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_WithUser_NoDimensions_DimensionsSetByUserFalse()
+        throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction("overridden_user", null, false, null);
+    }
+
+    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_NoUser_NoDimensions_DimensionsSetByUserFalse()
+        throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction(null, null, false, null);
+    }
+
+    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_WithUser_WithDimensions_DimensionsSetByUserTrue()
+        throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction("overridden_user", 384, true, 384);
+    }
+
+    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_NoUser_WithDimensions_DimensionsSetByUserTrue()
+        throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction(null, 384, true, 384);
+    }
+
+    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_WithUser_NoDimensions_DimensionsSetByUserTrue()
+        throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction("overridden_user", null, true, null);
+    }
+
+    public void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction_NoUser_NoDimensions_DimensionsSetByUserTrue()
+        throws IOException {
+        testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction(null, null, true, null);
+    }
+
+    private void testExecute_FailsFromInvalidResponseFormat_ForEmbeddingsAction(
+        String user,
+        Integer dimensions,
+        boolean dimensionsSetByUser,
+        Integer expectedDimensions
+    ) throws IOException {
         var settings = buildSettingsWithRetryFields(
             TimeValue.timeValueMillis(1),
             TimeValue.timeValueMinutes(1),
@@ -149,7 +228,13 @@ public class LlamaActionCreatorTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            PlainActionFuture<InferenceServiceResults> listener = createEmbeddingsFuture(sender, createWithEmptySettings(threadPool), user);
+            PlainActionFuture<InferenceServiceResults> listener = createEmbeddingsFuture(
+                sender,
+                createWithEmptySettings(threadPool),
+                user,
+                dimensions,
+                dimensionsSetByUser
+            );
 
             var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
@@ -157,7 +242,7 @@ public class LlamaActionCreatorTests extends ESTestCase {
                 is("Failed to send Llama text_embedding request from inference entity id [id]. Cause: Required [data]")
             );
 
-            assertEmbeddingsRequest(user);
+            assertEmbeddingsRequest(user, expectedDimensions);
         }
     }
 
@@ -262,8 +347,21 @@ public class LlamaActionCreatorTests extends ESTestCase {
         }
     }
 
-    private PlainActionFuture<InferenceServiceResults> createEmbeddingsFuture(Sender sender, ServiceComponents threadPool, String user) {
-        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel("model", getUrl(webServer), "secret", user);
+    private PlainActionFuture<InferenceServiceResults> createEmbeddingsFuture(
+        Sender sender,
+        ServiceComponents threadPool,
+        String user,
+        Integer dimensions,
+        boolean dimensionsSetByUser
+    ) {
+        var model = LlamaEmbeddingsModelTests.createEmbeddingsModel(
+            "model",
+            getUrl(webServer),
+            "secret",
+            user,
+            dimensions,
+            dimensionsSetByUser
+        );
         var actionCreator = new LlamaActionCreator(sender, threadPool);
         var overriddenTaskSettings = createRequestTaskSettingsMap(user);
         var action = actionCreator.create(model, overriddenTaskSettings);
@@ -305,19 +403,15 @@ public class LlamaActionCreatorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertEmbeddingsRequest(String user) throws IOException {
+    private void assertEmbeddingsRequest(String user, Integer dimensions) throws IOException {
         assertCommonRequestProperties();
 
         var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-        if (user == null) {
-            assertThat(requestMap.size(), is(2));
-        } else {
-            assertThat(requestMap.size(), is(3));
-        }
         assertThat(requestMap.get("input"), instanceOf(List.class));
         var inputList = (List<String>) requestMap.get("input");
         assertThat(inputList, contains("abc"));
         assertThat(requestMap.get("user"), is(user));
+        assertThat(requestMap.get("dimensions"), is(dimensions));
     }
 
     private void assertCommonRequestProperties() {

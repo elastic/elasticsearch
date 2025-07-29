@@ -120,7 +120,7 @@ public class LlamaEmbeddingsRequestTests extends ESTestCase {
     }
 
     private static LlamaEmbeddingsRequest createRequest(String user) {
-        var embeddingsModel = LlamaEmbeddingsModelTests.createEmbeddingsModel("llama-embed", "url", "apikey", user);
+        var embeddingsModel = LlamaEmbeddingsModelTests.createEmbeddingsModel("llama-embed", "url", "apikey", user, null, false);
         return new LlamaEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of("ABCD"), new boolean[] { false }),

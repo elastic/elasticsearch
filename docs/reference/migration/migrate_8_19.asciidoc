@@ -32,7 +32,9 @@ to mitigate the impact.
 *Details* +
 In earlier versions of {es} the `discovery-ec2` plugin was based on the AWS SDK v1. AWS will withdraw support for this SDK before the end of the life of {es} {minor-version} so we must migrate to the newer AWS SDK v2.
 Unfortunately there are several differences between the two AWS SDK versions which may require you to adjust your system configuration when upgrading to {es} {minor-version} or later. These differences include, but may not be limited to, the following items.
+
 * AWS SDK v2 does not support the EC2 IMDSv1 protocol.
+
 * AWS SDK v2 does not support the `aws.secretKey` or
   `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system properties.
 
@@ -45,6 +47,7 @@ Unfortunately there are several differences between the two AWS SDK versions whi
 *Impact* +
 If you use the `discovery-ec2` plugin, test your upgrade thoroughly before upgrading any production workloads.
 Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items.
+
 * If you use IMDS to determine the availability zone of a node or to obtain
   credentials for accessing the EC2 API, ensure that it supports the IMDSv2
   protocol.
@@ -68,6 +71,7 @@ Adapt your configuration to the new SDK functionality. This includes, but may no
 *Details* +
 In earlier versions of {es} the `repository-s3` plugin was based on the AWS SDK v1. AWS will withdraw support for this SDK before the end of the life of {es} {minor-version} so we must migrate to the newer AWS SDK v2.
 Unfortunately there are several differences between the two AWS SDK versions which may require you to adjust your system configuration when upgrading to {es} {minor-version} or later. These differences include, but may not be limited to, the following items.
+
 * AWS SDK v2 requires users to specify the region to use for signing
   requests, or else to run in an environment in which it can determine the
   correct region automatically. The older SDK would try to determine the
@@ -77,6 +81,7 @@ Unfortunately there are several differences between the two AWS SDK versions whi
   `us-east-1` if no better value could be found.
 
 * AWS SDK v2 does not support the EC2 IMDSv1 protocol.
+
 * AWS SDK v2 does not support the
   `com.amazonaws.sdk.ec2MetadataServiceEndpointOverride` system property.
 
@@ -92,7 +97,9 @@ Unfortunately there are several differences between the two AWS SDK versions whi
   longer has any effect.
 
 * AWS SDK v2 does not support the `log-delivery-write` canned ACL.
+
 * AWS SDK v2 counts 4xx responses differently in its metrics reporting.
+
 * AWS SDK v2 always uses the regional STS endpoint, whereas AWS SDK v2
   could use either a regional endpoint or the global
   `https://sts.amazonaws.com` one.
@@ -100,6 +107,7 @@ Unfortunately there are several differences between the two AWS SDK versions whi
 *Impact* +
 If you use the `repository-s3` module, test your upgrade thoroughly before upgrading any production workloads.
 Adapt your configuration to the new SDK functionality. This includes, but may not be limited to, the following items.
+
 * Specify the correct signing region using the
   `s3.client.${CLIENT_NAME}.region` setting on each node. {es} will try and
   determine the correct region based on the endpoint URL and other data

@@ -1,5 +1,0 @@
-pr: 131630
-summary: Fix memory usage estimation for ELSER models
-area: Machine Learning
-type: bug
-issues: []

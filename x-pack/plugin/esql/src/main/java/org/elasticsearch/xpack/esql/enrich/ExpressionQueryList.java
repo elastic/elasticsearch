@@ -10,32 +10,84 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
+import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 
 /**
  * A {@link LookupEnrichQueryGenerator} that combines multiple {@link QueryList}s into a single query.
  * Each query in the resulting query will be a conjunction of all queries from the input lists at the same position.
  * In the future we can extend this to support more complex expressions, such as disjunctions or negations.
  */
-public class ExpressionQueryList implements LookupEnrichQueryGenerator {
+public class ExpressionQueryList implements LookupEnrichQueryGenerator, PostJoinFilterable {
     private final List<QueryList> queryLists;
-    private final QueryBuilder preJoinFilter;
+    private final List<Query> preJoinFilters = new ArrayList<>();
+    private FilterExec postJoinFilter;
     private final SearchExecutionContext context;
 
-    public ExpressionQueryList(List<QueryList> queryLists, SearchExecutionContext context, QueryBuilder preJoinFilter) {
-        if (queryLists.size() < 2 && Literal.TRUE.equals(preJoinFilter)) {
+    public ExpressionQueryList(
+        List<QueryList> queryLists,
+        SearchExecutionContext context,
+        PhysicalPlan rightPreJoinPlan,
+        ClusterService clusterService
+    ) {
+        if (queryLists.size() < 2 && rightPreJoinPlan == null) {
             throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists");
         }
         this.queryLists = queryLists;
-        this.preJoinFilter = preJoinFilter;
         this.context = context;
+        buildPrePostJoinFilter(rightPreJoinPlan, clusterService);
+    }
+
+    private void buildPrePostJoinFilter(PhysicalPlan rightPreJoinPlan, ClusterService clusterService) {
+        // we support a FilterExec as the pre-join filter
+        // if we filter Exec is not translatable to a QueryBuilder, we will apply it after the join
+        if (rightPreJoinPlan instanceof FilterExec filterExec) {
+            try {
+                LucenePushdownPredicates lucenePushdownPredicates = LucenePushdownPredicates.from(
+                    SearchContextStats.from(List.of(context)),
+                    new EsqlFlags(clusterService.getClusterSettings())
+                );
+                // If the pre-join filter is a FilterExec, we can convert it to a QueryBuilder
+                // try to convert it to a QueryBuilder, if not possible apply it after the join
+                if (filterExec instanceof TranslationAware translationAware) {
+                    preJoinFilters.add(
+                        translationAware.asQuery(lucenePushdownPredicates, TRANSLATOR_HANDLER).toQueryBuilder().toQuery(context)
+                    );
+                } else {
+                    // if the filter is not translatable, we will apply it after the join
+                    postJoinFilter = filterExec;
+                }
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to translate pre-join filter: " + filterExec, e);
+            }
+
+        } else if (rightPreJoinPlan instanceof EsQueryExec esQueryExec) {
+            try {
+                // check the EsQueryExec for a pre-join filter
+                if (esQueryExec.query() != null) {
+                    preJoinFilters.add(esQueryExec.query().toQuery(context));
+                }
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to translate pre-join filter: " + esQueryExec, e);
+            }
+        } else {
+            throw new IllegalArgumentException("Unsupported pre-join filter type: " + preJoinFilters.getClass().getName());
+        }
     }
 
     @Override
@@ -51,42 +103,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             builder.add(q, BooleanClause.Occur.FILTER);
         }
         // also attach the pre-join filter if it exists
-        /*if (Literal.TRUE.equals(preJoinFilter) == false) {
-            if (preJoinFilter instanceof TranslationAware translationAware) {
-                Query preJoinQuery = tryToGetAsLuceneQuery(translationAware);
-                if (preJoinQuery == null) {
-                    preJoinQuery = tryToGetThroughQueryBuilder(translationAware);
-                }
-                if (preJoinQuery == null) {
-                    throw new UnsupportedOperationException("Cannot translate pre-join filter to Lucene query: " + preJoinFilter);
-                }
-                builder.add(preJoinQuery, BooleanClause.Occur.FILTER);
-            }
-        }*/
-        if (preJoinFilter != null) {
-            // JULIAN TO DO: Can we precompile the query? I don't want to call toQuery for every row
-            builder.add(preJoinFilter.toQuery(context), BooleanClause.Occur.FILTER);
+        for (Query preJoinFilter : preJoinFilters) {
+            builder.add(preJoinFilter, BooleanClause.Occur.FILTER);
         }
         return builder.build();
     }
 
-    /*private Query tryToGetThroughQueryBuilder(TranslationAware translationAware) {
-        // it seems I might need to pass a QueryBuilder, instead of Expression directly????
-        // can a QueryBuilder support nested complex expressions with AND, OR, NOT?
-        return translationAware.asQuery(WHAT_GOES_HERE, WHAT_GOES_HERE).toQueryBuilder().toQuery(queryLists.get(0).searchExecutionContext);
-    }
-
-    private Query tryToGetAsLuceneQuery(TranslationAware translationAware) {
-        // attempt to translate directly to a Lucene Query
-        // not sure how to get the field name from the expression
-        MappedFieldType fieldType = context.getFieldType(WHAT_GOES_HERE.fieldName().string());
-        try {
-            return translationAware.asLuceneQuery(fieldType, CONSTANT_SCORE_REWRITE, context);
-        } catch (Exception e) {}
-        // only a few expression types support asLuceneQuery, it is OK to fail here and we will try a different approach
-        return null;
-    }
-    */
     @Override
     public int getPositionCount() {
         int positionCount = queryLists.get(0).getPositionCount();
@@ -101,5 +123,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
             }
         }
         return positionCount;
+    }
+
+    @Override
+    public FilterExec getPostJoinFilter() {
+        return postJoinFilter;
     }
 }

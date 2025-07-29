@@ -129,14 +129,45 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
             // 2. filter scoped to the right
             // 3. filter that requires both sides to be evaluated
             ScopedFilter scoped = scopeFilter(Predicates.splitAnd(filter.condition()), left, right);
-            // push the left scoped filter down to the left child, keep the rest intact
+            boolean optimizationApplied = false;
+            // push the left scoped filter down to the left child
             if (scoped.leftFilters.size() > 0) {
                 // push the filter down to the left child
                 left = new Filter(left.source(), left, Predicates.combineAnd(scoped.leftFilters));
                 // update the join with the new left child
                 join = (Join) join.replaceLeft(left);
+                // we completely applied the left filters, so we can remove them from the scoped filters
+                scoped = new ScopedFilter(scoped.commonFilters(), List.of(), scoped.rightFilters);
+                optimizationApplied = true;
+            }
+            // push the right scoped filter down to the right child
+            if (scoped.rightFilters().isEmpty() == false) {
+                // push the filter down to the right child
+                right = new Filter(right.source(), right, Predicates.combineAnd(scoped.rightFilters()));
+                // update the join with the new right child
+                join = (Join) join.replaceRight(right);
+                // We still want to reapply the filters that we just applied to the right child,
+                // so we do NOT update scoped, and we do NOT mark optimizationApplied as true.
+                // This is because by pushing them on the right side, we filter what rows we get from the right side
+                // But we do not limit the output rows of the join as the rows are kept as not matched on the left side
+                // So we end up applying the right filters twice, once on the right side and once on top of the join
+                // This will result in major performance optimization when the lookup join is expanding
+                // and applying the right filters reduces the expansion significantly.
+                // For example, consider a lookup join where the right side is a 1Bln rows index with the value join value of 1.
+                // We have 10 rows on the left side with the value join value of 1.
+                // and there is a filter on the right side that filters out all rows on another column
+                // If we push the filter down to the right side, we will have 10 rows after the join (there were no matches)
+                // If we do not push the filter down to the right side, we will have 10 * 1Bln rows after the join (all rows matched)
+                // as the join is expanding.
+                // They would be filtered out in the next operator, but it is too late, as we already expanded the join
+                // In other cases, we might not get any performance benefit of this optimization,
+                // especially when the selectivity of the filter pushed down is very high or the join is not expanding.
 
-                // keep the remaining filters in place, otherwise return the new join;
+                // In the future, once we have inner join support, it is usually possible to convert the lookup join into an inner join
+                // and then we don't need to reapply the filters on top of the join.
+            }
+            if (optimizationApplied) {
+                // if we pushed down some filters, we need to update the filters to reapply above the join
                 Expression remainingFilter = Predicates.combineAnd(CollectionUtils.combine(scoped.commonFilters, scoped.rightFilters));
                 plan = remainingFilter != null ? filter.with(join, remainingFilter) : join;
             }

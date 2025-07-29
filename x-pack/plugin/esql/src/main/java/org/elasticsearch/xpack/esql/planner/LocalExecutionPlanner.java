@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -731,8 +732,8 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
-        if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
+        EsQueryExec localSourceExec = fildEsQueryExec(join.lookup());
+        if (localSourceExec == null || localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");
         }
 
@@ -779,13 +780,6 @@ public class LocalExecutionPlanner {
             }
             matchFields.add(new LookupFromIndexOperator.MatchConfig(right, input));
         }
-        // pass matchFields left
-        // pass matchFields right - why do we even need this? Right can figure out the field names from the expression
-        // pass expression to evaluate e.g.
-        // (left.field1 = right.field2 or left.field1 = right.field3) and right.field4 = 'value'
-        // in this case the left and right size is different, because one field on the left is referenced twice in the join expression
-        // for every column from left side in the expression, we will make sure the corresponding matchField is sent to the right side for
-        // Lucene search
 
         return source.with(
             new LookupFromIndexOperator.Factory(
@@ -798,10 +792,19 @@ public class LocalExecutionPlanner {
                 indexName,
                 join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
                 join.source(),
-                null
+                join.right()
             ),
             layout
         );
+    }
+
+    private EsQueryExec fildEsQueryExec(PhysicalPlan lookup) {
+        if (lookup instanceof EsQueryExec esQueryExec) {
+            return esQueryExec;
+        } else if (lookup instanceof UnaryExec unaryExec) {
+            return fildEsQueryExec(unaryExec.child());
+        }
+        return null;
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

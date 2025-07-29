@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -18,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.datageneration.matchers.source.SourceTransforms;
@@ -41,7 +38,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -172,8 +168,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
                     for (var query : queries) {
                         logger.info("Querying for field [{}] with value [{}]", path, value);
 
-                        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(query)
-                            .size(numberOfDocuments);
+                        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(query).size(numberOfDocuments);
                         final MatchResult matchResult = Matcher.matchSource()
                             .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
                             .settings(getContenderSettings(), getBaselineSettings())

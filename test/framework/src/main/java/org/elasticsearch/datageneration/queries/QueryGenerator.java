@@ -13,11 +13,10 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-
 
 public class QueryGenerator {
 
@@ -29,11 +28,7 @@ public class QueryGenerator {
         this.mappingRaw = mappingRaw;
     }
 
-    public List<QueryBuilder> generateQueries(
-        String path,
-        Map<String, Object> mapping,
-        Object value
-    ) {
+    public List<QueryBuilder> generateQueries(String path, Map<String, Object> mapping, Object value) {
         // This query generator cannot handle fields with periods in the name.
         if (path.equals("host.name")) {
             return List.of();

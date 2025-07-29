@@ -289,6 +289,9 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         populateLookupIndex(REMOTE_CLUSTER_1, "values_lookup", 10);
 
         setSkipUnavailable(REMOTE_CLUSTER_1, true);
+
+        Exception ex;
+
         try (
             // Using local_tag as key which is not present in remote index
             EsqlQueryResponse resp = runQuery(
@@ -362,10 +365,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         }
 
         // TODO: verify whether this should be an error or not when the key field is missing
-        Exception ex = expectThrows(
-            VerificationException.class,
-            () -> runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup ON v", randomBoolean())
-        );
+        ex = expectThrows(VerificationException.class, () -> runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup ON v", randomBoolean()));
         assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
 
         ex = expectThrows(
@@ -373,6 +373,34 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             () -> runQuery("FROM c*:logs-* | EVAL local_tag = to_string(v) | LOOKUP JOIN values_lookup ON local_tag", randomBoolean())
         );
         assertThat(ex.getMessage(), containsString("Unknown column [local_tag] in right side of join"));
+
+        // Add KEEP clause to try and trick the field-caps result parser
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())
+        );
+        assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
+
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM logs-*,c*:logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())
+        );
+        // FIXME: strictly speaking this message is not correct, as the index is available, but the field is not
+        assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available"));
+
+        try (EsqlQueryResponse resp = runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())) {
+            List<List<Object>> values = getValuesList(resp);
+            assertThat(values, hasSize(0));
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.getClusters().size(), equalTo(1));
+            assertTrue(executionInfo.isPartial());
+
+            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remoteCluster.getFailures().size(), equalTo(1));
+            var failure = remoteCluster.getFailures().get(0);
+            assertThat(failure.reason(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+        }
 
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         try (
@@ -393,6 +421,20 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             // FIXME: verify whether we need to succeed or fail here
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
+
+        // Add KEEP clause to try and trick the field-caps result parser
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())
+        );
+        assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM logs-*,c*:logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())
+        );
+        assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+
     }
 
     public void testLookupJoinIndexMode() throws IOException {

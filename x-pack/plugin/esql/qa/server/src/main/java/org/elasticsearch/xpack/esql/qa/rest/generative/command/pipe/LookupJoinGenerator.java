@@ -74,9 +74,6 @@ public class LookupJoinGenerator implements CommandGenerator {
             }
         }
         stringBuilder.append("| LIMIT 10");
-        if (keyNames.size() > 1) {
-            System.out.println("GENERATED JOIN ON MORE THAN ONE COLUMN: " + stringBuilder);
-        }
         String cmdString = stringBuilder.toString();
         return new CommandDescription(LOOKUP_JOIN, this, cmdString, Map.of());
     }

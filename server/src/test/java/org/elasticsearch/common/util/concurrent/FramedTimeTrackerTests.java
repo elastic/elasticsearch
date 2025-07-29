@@ -44,19 +44,19 @@ public class FramedTimeTrackerTests extends ESTestCase {
         tracker.startTask();
         fakeTime.time += 10;
         tracker.endTask();
-        fakeTime.time += tracker.interval;
+        fakeTime.time += tracker.interval();
         assertEquals(10, tracker.previousFrameTime());
     }
 
     public void testTwoFrameTask() {
         var tracker = newTracker(100);
         var startTime = between(0, 100);
-        var taskDuration = tracker.interval;
+        var taskDuration = tracker.interval();
         fakeTime.time += startTime;
         tracker.startTask();
         fakeTime.time += taskDuration;
         tracker.endTask();
-        assertEquals(tracker.interval - startTime, tracker.previousFrameTime());
+        assertEquals(tracker.interval() - startTime, tracker.previousFrameTime());
     }
 
     public void testMultiFrameTask() {
@@ -66,7 +66,7 @@ public class FramedTimeTrackerTests extends ESTestCase {
         var taskDuration = between(3, 100) * interval;
         fakeTime.time += taskDuration;
         tracker.endTask();
-        assertEquals(tracker.interval, tracker.previousFrameTime());
+        assertEquals(tracker.interval(), tracker.previousFrameTime());
     }
 
     public void testOngoingTask() {
@@ -74,8 +74,8 @@ public class FramedTimeTrackerTests extends ESTestCase {
         var tracker = newTracker(interval);
         tracker.startTask();
         for (int i = 0; i < between(10, 100); i++) {
-            fakeTime.time += tracker.interval;
-            assertEquals(tracker.interval, tracker.previousFrameTime());
+            fakeTime.time += tracker.interval();
+            assertEquals(tracker.interval(), tracker.previousFrameTime());
         }
     }
 

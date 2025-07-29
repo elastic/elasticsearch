@@ -27,10 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -260,13 +260,13 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * Can be extended to remember multiple past frames.
      */
     public static class FramedTimeTracker {
-        final long interval;
+        private final long interval;
         private final Supplier<Long> timeNow;
+        private final ReentrantReadWriteLock rwlock = new ReentrantReadWriteLock();
         private final AtomicLong ongoingTasks = new AtomicLong();
         private final AtomicLong currentFrame = new AtomicLong();
         private final AtomicLong currentTime = new AtomicLong();
         private final AtomicLong previousTime = new AtomicLong();
-        private final AtomicBoolean updatingFrame = new AtomicBoolean();
 
         // for testing
         public FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
@@ -279,6 +279,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             assert intervalNano > 0;
             this.interval = intervalNano;
             this.timeNow = System::nanoTime;
+        }
+
+        public long interval() {
+            return interval;
         }
 
         /**
@@ -296,7 +300,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             var now = nowTime / interval;
             var current = currentFrame.get();
             if (current < now) {
-                if (updatingFrame.compareAndSet(false, true)) {
+                rwlock.readLock().unlock();
+                rwlock.writeLock().lock();
+                current = currentFrame.get(); // make sure it didnt change during lock acquisition
+                if (current < now) {
                     var tasks = ongoingTasks.get();
                     if (current == now - 1) {
                         previousTime.set(currentTime.get());
@@ -305,12 +312,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                     }
                     currentTime.set(tasks * interval);
                     currentFrame.set(now);
-                    updatingFrame.set(false);
-                } else {
-                    while (currentFrame.get() != now) {
-                        Thread.onSpinWait();
-                    }
                 }
+                rwlock.readLock().lock();
+                rwlock.writeLock().unlock();
             }
         }
 
@@ -319,28 +323,37 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
          * If task finishes sooner than end of interval {@link FramedTimeTracker#endTask()} will deduct remaining time.
          */
         public void startTask() {
+            rwlock.readLock().lock();
             var now = timeNow.get();
             updateFrame0(now);
             ongoingTasks.incrementAndGet();
             currentTime.updateAndGet((t) -> t + (currentFrame.get() + 1) * interval - now);
+            rwlock.readLock().unlock();
         }
 
         /**
          * Stop task tracking. We already assumed that task runs till end of frame, here we deduct not used time.
          */
         public void endTask() {
+            rwlock.readLock().lock();
             var now = timeNow.get();
             updateFrame0(now);
             ongoingTasks.decrementAndGet();
             currentTime.updateAndGet((t) -> t - (currentFrame.get() + 1) * interval + now);
+            rwlock.readLock().unlock();
         }
 
         /**
          * Returns previous frame total execution time.
          */
         public long previousFrameTime() {
-            updateFrame0(timeNow.get());
-            return previousTime.get();
+            try {
+                rwlock.readLock().lock();
+                updateFrame0(timeNow.get());
+                return previousTime.get();
+            } finally {
+                rwlock.readLock().unlock();
+            }
         }
     }
 }

@@ -2,6 +2,9 @@
 navigation_title: "Semantic text"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/semantic-text.html
+applies_to:
+  stack: ga 9.0
+  serverless: ga
 ---
 
 # Semantic text field type [semantic-text]
@@ -29,7 +32,8 @@ service.
 Using `semantic_text`, you won’t need to specify how to generate embeddings for
 your data, or how to index it. The {{infer}} endpoint automatically determines
 the embedding generation, indexing, and query to use.
-Newly created indices with `semantic_text` fields using dense embeddings will be
+
+{applies_to}`stack: ga 9.1`  Newly created indices with `semantic_text` fields using dense embeddings will be
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically.
 
@@ -182,6 +186,15 @@ For more details on chunking and how to configure chunking settings,
 see [Configuring chunking](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference)
 in the Inference API documentation.
 
+Refer
+to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
+to learn more about semantic search using `semantic_text`.
+
+### Pre-chunking [pre-chunking]
+```{applies_to}
+stack: ga 9.1
+```
+
 You can pre-chunk the input by sending it to Elasticsearch as an array of
 strings.
 Example:
@@ -228,10 +241,6 @@ PUT test-index/_doc/1
     * Others (such as `elastic` and `elasticsearch`) will automatically truncate
       the input.
 
-Refer
-to [this tutorial](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md)
-to learn more about semantic search using `semantic_text`.
-
 ## Extracting relevant fragments from semantic text [semantic-text-highlighting]
 
 You can extract the most relevant fragments from a semantic text field by using
@@ -258,8 +267,29 @@ POST test-index/_search
 ```
 
 1. Specifies the maximum number of fragments to return.
-2. Sorts highlighted fragments by score when set to `score`. By default,
+2. Sorts the most relevant highlighted fragments by score when set to `score`. By default,
    fragments will be output in the order they appear in the field (order: none).
+
+To use the `semantic` highlighter to view chunks in the order which they were indexed with no scoring,
+use the `match_all` query to retrieve them in the order they appear in the document:
+
+```console
+POST test-index/_search
+{
+    "query": {
+        "match_all": {}
+    },
+    "highlight": {
+        "fields": {
+            "my_semantic_field": {
+                "number_of_fragments": 5  <1>
+            }
+        }
+    }
+}
+```
+
+1. This will return the first 5 chunks, set this number higher to retrieve more chunks.
 
 Highlighting is supported on fields other than semantic_text. However, if you
 want to restrict highlighting to the semantic highlighter and return no
@@ -295,6 +325,11 @@ specified. It enables you to quickstart your semantic search by providing
 automatic {{infer}} and a dedicated query so you don’t need to provide further
 details.
 
+### Customizing using `semantic_text` parameters [custom-by-parameters]
+```{applies_to}
+stack: ga 9.1
+```
+
 If you want to override those defaults and customize the embeddings that
 `semantic_text` indexes, you can do so by
 modifying [parameters](#semantic-text-params):
@@ -327,6 +362,24 @@ PUT my-index-000004
   }
 }
 ```
+
+### Customizing using ingest pipelines [custom-by-pipelines]
+```{applies_to}
+stack: ga 9.0
+```
+
+In case you want to customize data indexing, use the
+[`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
+or [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
+field types and create an ingest pipeline with an 
+[{{infer}} processor](/reference/enrich-processor/inference-processor.md) to
+generate the embeddings.
+[This tutorial](docs-content://solutions/search/semantic-search/semantic-search-inference.md)
+walks you through the process. In these cases - when you use `sparse_vector` or
+`dense_vector` field types instead of the `semantic_text` field type to
+customize indexing - using the
+[`semantic_query`](/reference/query-languages/query-dsl/query-dsl-semantic-query.md)
+is not supported for querying the field data.
 
 ## Updates to `semantic_text` fields [update-script]
 

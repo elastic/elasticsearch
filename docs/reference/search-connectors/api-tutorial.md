@@ -35,13 +35,13 @@ If you’re just getting started with connectors, you might want to start in the
 If you already have an {{es}} deployment on Elastic Cloud (*Hosted deployment* or *Serverless project*), you’re good to go. To spin up {{es}} in local dev mode in Docker for testing purposes, open the collapsible section below.
 
 :::::{dropdown} Run local {{es}} in Docker
-```sh
+```sh subs=true
 docker run -p 9200:9200 -d --name elasticsearch \
   -e "discovery.type=single-node" \
   -e "xpack.security.enabled=false" \
   -e "xpack.security.http.ssl.enabled=false" \
   -e "xpack.license.self_generated.type=trial" \
-  docker.elastic.co/elasticsearch/elasticsearch:9.0.0
+  docker.elastic.co/elasticsearch/elasticsearch:{{version.stack}}
 ```
 
 ::::{warning}
@@ -246,13 +246,13 @@ Now that we have the configuration file set up, we can run the connector service
 
 Run the following Docker command to start the connector service:
 
-```sh
+```sh subs=true
 docker run \
 -v "$HOME/connectors-config:/config" \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

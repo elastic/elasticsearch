@@ -17,9 +17,12 @@
       "branch": "8.17"
     },
     {
+<<<<<<< HEAD
       "branch": "8.16"
     },
     {
+=======
+>>>>>>> 54d0e6f8e58 (Revert "Remove 8.17 from branches.json")
       "branch": "7.17"
     }
   ]

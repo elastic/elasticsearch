@@ -2,13 +2,13 @@ This library provides an implementation of merging and analysis algorithms for e
 
 ## Overview
 
-The library implements base-2 exponential histograms with perfect subsetting. The most imporant properties are:
+The library implements base-2 exponential histograms with perfect subsetting. The most important properties are:
 
 * The histogram has a scale parameter, which defines the accuracy. A higher scale implies a higher accuracy.
 * The `base` for the buckets is defined as `base = 2^(2^-scale)`.
 * The histogram bucket at index `i` has the range `(base^i, base^(i+1)]`
 * Negative values are represented by a separate negative range of buckets with the boundaries `(-base^(i+1), -base^i]`
-* Histograms are perfectly subsetting: increasing the scale by one merges each pair of neighboring buckets
+* Histograms support perfect subsetting: when the scale is decreased by one, each pair of adjacent buckets is merged into a single bucket without introducing error
 * A special zero bucket with a zero-threshold is used to handle zero and close-to-zero values
 
 For more details please refer to the [OpenTelemetry definition](https://opentelemetry.io/docs/specs/otel/metrics/data-model/#exponentialhistogram).
@@ -89,7 +89,7 @@ bucketIndiciesToCounts: {
 ```
 
 Downscaling on the sparse representation only happens if either:
- * The number of populated buckets would become bigger than our maximum bucket count. We have to downscale to make neighboring, populated buckets combine to a single bucket until we are below our limit again.
+ * The number of populated buckets would become bigger than our maximum bucket count. We have to downscale to combine neighboring, populated buckets to a single bucket until we are below our limit again.
  * The highest or smallest indices require more bits to store than we allow. This does not happen in our implementation for normal inputs, because we allow up to 62 bits for index storage, which fits the entire numeric range of IEEE 754 double precision floats at our maximum scale.
 
 ### Handling Explicit Bucket Histograms

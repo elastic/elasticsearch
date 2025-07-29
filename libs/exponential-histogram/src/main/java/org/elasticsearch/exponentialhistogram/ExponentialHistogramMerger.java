@@ -9,6 +9,8 @@
 
 package org.elasticsearch.exponentialhistogram;
 
+import java.util.OptionalLong;
+
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMaximumScaleIncrease;
 
 /**
@@ -97,14 +99,18 @@ public class ExponentialHistogramMerger {
         if (targetScale > b.scale()) {
             if (negBucketsB.hasNext()) {
                 long smallestIndex = negBucketsB.peekIndex();
-                long highestIndex = b.negativeBuckets().maxBucketIndex().getAsLong();
-                int maxScaleIncrease = Math.min(getMaximumScaleIncrease(smallestIndex), getMaximumScaleIncrease(highestIndex));
+                OptionalLong maximumIndex = b.negativeBuckets().maxBucketIndex();
+                assert maximumIndex.isPresent()
+                    : "We checked that the negative bucket range is not empty, therefore the maximum index should be present";
+                int maxScaleIncrease = Math.min(getMaximumScaleIncrease(smallestIndex), getMaximumScaleIncrease(maximumIndex.getAsLong()));
                 targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
             }
             if (posBucketsB.hasNext()) {
                 long smallestIndex = posBucketsB.peekIndex();
-                long highestIndex = b.positiveBuckets().maxBucketIndex().getAsLong();
-                int maxScaleIncrease = Math.min(getMaximumScaleIncrease(smallestIndex), getMaximumScaleIncrease(highestIndex));
+                OptionalLong maximumIndex = b.positiveBuckets().maxBucketIndex();
+                assert maximumIndex.isPresent()
+                    : "We checked that the positive bucket range is not empty, therefore the maximum index should be present";
+                int maxScaleIncrease = Math.min(getMaximumScaleIncrease(smallestIndex), getMaximumScaleIncrease(maximumIndex.getAsLong()));
                 targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
             }
         }

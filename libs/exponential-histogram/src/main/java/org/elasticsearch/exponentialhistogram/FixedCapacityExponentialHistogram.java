@@ -20,27 +20,19 @@ import java.util.OptionalLong;
 final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
 
     // These arrays represent both the positive and the negative buckets.
-    // They store all negative buckets first, in ascending index order, followed by all positive buckets, also in ascending index order.
+    // They store all buckets for the negative range first, in ascending index order,
+    // followed by all buckets for the positive range, also in ascending index order.
+    // This means we store the buckets ordered by their boundaries in ascending order (from -INF to +INF).
     private final long[] bucketIndices;
     private final long[] bucketCounts;
 
     private int bucketScale;
 
-    private final AbstractBuckets negativeBuckets = new AbstractBuckets() {
-        @Override
-        int startSlot() {
-            return 0;
-        }
-    };
+    private final Buckets negativeBuckets = new Buckets(false);
 
     private ZeroBucket zeroBucket;
 
-    private final AbstractBuckets positiveBuckets = new AbstractBuckets() {
-        @Override
-        int startSlot() {
-            return negativeBuckets.numBuckets;
-        }
-    };
+    private final Buckets positiveBuckets = new Buckets(true);
 
     /**
      * Creates an empty histogram with the given capacity and a {@link ZeroBucket#minimalEmpty()} zero bucket.
@@ -57,7 +49,7 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
     /**
      * Resets this histogram to the same state as a newly constructed one with the same capacity.
      */
-    public void reset() {
+    void reset() {
         setZeroBucket(ZeroBucket.minimalEmpty());
         resetBuckets(MAX_SCALE);
     }
@@ -67,7 +59,7 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
      *
      * @param scale the scale to set for this histogram
      */
-    public void resetBuckets(int scale) {
+    void resetBuckets(int scale) {
         if (scale > MAX_SCALE || scale < MIN_SCALE) {
             throw new IllegalArgumentException("scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]");
         }
@@ -88,7 +80,7 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
      *
      * @param zeroBucket the zero bucket to set
      */
-    public void setZeroBucket(ZeroBucket zeroBucket) {
+    void setZeroBucket(ZeroBucket zeroBucket) {
         this.zeroBucket = zeroBucket;
     }
 
@@ -112,7 +104,7 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
      * @param isPositive {@code true} if the bucket belongs to the positive range, {@code false} if it belongs to the negative range
      * @return {@code true} if the bucket was added, {@code false} if it could not be added due to insufficient capacity
      */
-    public boolean tryAddBucket(long index, long count, boolean isPositive) {
+    boolean tryAddBucket(long index, long count, boolean isPositive) {
         if (index < MIN_INDEX || index > MAX_INDEX) {
             throw new IllegalArgumentException("index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]");
         }
@@ -135,29 +127,36 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
     }
 
     @Override
-    public Buckets negativeBuckets() {
+    public ExponentialHistogram.Buckets negativeBuckets() {
         return negativeBuckets;
     }
 
     @Override
-    public Buckets positiveBuckets() {
+    public ExponentialHistogram.Buckets positiveBuckets() {
         return positiveBuckets;
     }
 
-    private abstract class AbstractBuckets implements Buckets {
+    private class Buckets implements ExponentialHistogram.Buckets {
 
+        private final boolean isPositive;
         private int numBuckets;
         private int cachedValueSumForNumBuckets;
         private long cachedValueSum;
 
-        AbstractBuckets() {
+        /**
+         * @param isPositive true, if this object should represent the positive bucket range, false for the negative range
+         */
+        Buckets(boolean isPositive) {
+            this.isPositive = isPositive;
             reset();
         }
 
         /**
          * @return the array index of the first bucket of this set of buckets within {@link #bucketCounts} and {@link #bucketIndices}.
          */
-        abstract int startSlot();
+        int startSlot() {
+            return isPositive ? negativeBuckets.numBuckets : 0;
+        }
 
         final void reset() {
             numBuckets = 0;

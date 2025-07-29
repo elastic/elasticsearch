@@ -380,9 +380,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyFromRow ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/130642
-- class: org.elasticsearch.index.engine.ThreadPoolMergeExecutorServiceDiskSpaceTests
-  method: testUnavailableBudgetBlocksNewMergeTasksFromStartingExecution
-  issue: https://github.com/elastic/elasticsearch/issues/130205
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
@@ -503,9 +500,6 @@ tests:
 - class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
   method: testTimeoutSetting
   issue: https://github.com/elastic/elasticsearch/issues/131656
-- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
-  method: testRelocationWhileForceMerging
-  issue: https://github.com/elastic/elasticsearch/issues/131789
 - class: org.elasticsearch.xpack.stack.StackYamlIT
   method: test {yaml=stack/10_basic/Test wrong data_stream type - logs from 9.2.0}
   issue: https://github.com/elastic/elasticsearch/issues/131803
@@ -518,9 +512,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
   method: testDifferentDimensions {functionName=v_dot_product similarityFunction=DOT_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/131845
-- class: org.elasticsearch.compute.aggregation.ValuesBytesRefGroupingAggregatorFunctionTests
-  method: testSomeFiltered
-  issue: https://github.com/elastic/elasticsearch/issues/131878
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/131964
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS2EnrichUnavailableRemotesIT
+  method: testEsqlEnrichWithSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/131965
+- class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
+  method: test {p0=search/600_flattened_ignore_above/flattened ignore_above multi-value field}
+  issue: https://github.com/elastic/elasticsearch/issues/131967
+- class: org.elasticsearch.search.routing.SearchReplicaSelectionIT
+  method: testNodeSelection
+  issue: https://github.com/elastic/elasticsearch/issues/132017
 
 # Examples:
 #

@@ -965,7 +965,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public int route(IndexRouting indexRouting) {
         if (useStructuredSource) {
             assert structuredSource != null;
-            return indexRouting.indexShard(id, routing, contentType, structuredSource);
+            // TODO: Need to implement filtering
+            // return indexRouting.indexShard(id, routing, contentType, structuredSource);
+            return indexRouting.indexShard(id, routing, contentType, source());
         } else {
             return indexRouting.indexShard(id, routing, contentType, source());
         }

@@ -45,6 +45,19 @@ setup:
               color:
                 type: keyword
   - do:
+      indices.create:
+        index: test-lookup-no-key
+        body:
+          settings:
+            index:
+              mode: lookup
+          mappings:
+            properties:
+              no-key:
+                type: long
+              color:
+                type: keyword
+  - do:
       indices.update_aliases:
         body:
           actions:
@@ -75,6 +88,15 @@ setup:
           - { "key": 1, "color": "cyan" }
           - { "index": { } }
           - { "key": 2, "color": "yellow" }
+  - do:
+      bulk:
+        index: "test-lookup-no-key"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "no-key": 1, "color": "cyan" }
+          - { "index": { } }
+          - { "no-key": 2, "color": "yellow" }
 
 ---
 basic:
@@ -200,3 +222,14 @@ pattern-single:
 
   - match: { error.type: "parsing_exception" }
   - contains: { error.reason: "line 1:36: invalid index pattern [test-lookup-1*], * is not allowed in LOOKUP JOIN" }
+
+---
+lookup-no-key:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | LOOKUP JOIN test-lookup-no-key ON key | KEEP key, color'
+      catch: "bad_request"
+
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Unknown column [key] in right side of join" }

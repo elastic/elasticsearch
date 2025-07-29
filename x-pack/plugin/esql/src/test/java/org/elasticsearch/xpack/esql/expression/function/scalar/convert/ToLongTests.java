@@ -23,7 +23,7 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 public class ToLongTests extends AbstractScalarFunctionTestCase {
@@ -35,15 +35,22 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         String read = "Attribute[channel=0]";
-        Function<String, String> evaluatorName = s -> "ToLongFrom" + s + "Evaluator[field=" + read + "]";
+        BiFunction<String, String, String> evaluatorName = (s, f) -> "ToLongFrom" + s + "Evaluator[" + f + "=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryLong(suppliers, read, DataType.LONG, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, List.of());
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.LONG, b -> b ? 1L : 0L, List.of());
+        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean", "bool"), DataType.LONG, b -> b ? 1L : 0L, List.of());
 
         // datetimes
-        TestCaseSupplier.unary(suppliers, read, TestCaseSupplier.dateCases(), DataType.LONG, v -> ((Instant) v).toEpochMilli(), List.of());
+        TestCaseSupplier.unary(
+            suppliers,
+            read,
+            TestCaseSupplier.dateCases(),
+            DataType.LONG,
+            v -> DateUtils.toLongMillis((Instant) v),
+            List.of()
+        );
         TestCaseSupplier.unary(
             suppliers,
             read,
@@ -55,7 +62,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // random strings that don't look like a long
         TestCaseSupplier.forUnaryStrings(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName.apply("String", "in"),
             DataType.LONG,
             bytesRef -> null,
             bytesRef -> List.of(
@@ -68,7 +75,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // from doubles within long's range
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
+            evaluatorName.apply("Double", "dbl"),
             DataType.LONG,
             Math::round,
             Long.MIN_VALUE,
@@ -78,7 +85,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // from doubles outside long's range, negative
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
+            evaluatorName.apply("Double", "dbl"),
             DataType.LONG,
             d -> null,
             Double.NEGATIVE_INFINITY,
@@ -91,7 +98,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // from doubles outside long's range, positive
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            evaluatorName.apply("Double"),
+            evaluatorName.apply("Double", "dbl"),
             DataType.LONG,
             d -> null,
             Long.MAX_VALUE + 1d,
@@ -105,7 +112,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // from unsigned_long within long's range
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("UnsignedLong"),
+            evaluatorName.apply("UnsignedLong", "ul"),
             DataType.LONG,
             BigInteger::longValue,
             BigInteger.ZERO,
@@ -114,7 +121,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("UnsignedLong"),
+            evaluatorName.apply("UnsignedLong", "ul"),
             DataType.LONG,
             ul -> null,
             BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE),
@@ -129,7 +136,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // from integer
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("Int"),
+            evaluatorName.apply("Int", "i"),
             DataType.LONG,
             l -> (long) l,
             Integer.MIN_VALUE,
@@ -140,7 +147,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // strings of random longs
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName.apply("String", "in"),
             TestCaseSupplier.longCases(Long.MIN_VALUE, Long.MAX_VALUE, true)
                 .stream()
                 .map(
@@ -158,7 +165,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles within long's range
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName.apply("String", "in"),
             TestCaseSupplier.doubleCases(Long.MIN_VALUE, Long.MAX_VALUE, true)
                 .stream()
                 .map(
@@ -176,7 +183,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles outside integer's range, negative
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName.apply("String", "in"),
             TestCaseSupplier.doubleCases(Double.NEGATIVE_INFINITY, Long.MIN_VALUE - 1d, true)
                 .stream()
                 .map(
@@ -199,7 +206,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         // strings of random doubles outside integer's range, positive
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName.apply("String", "in"),
             TestCaseSupplier.doubleCases(Long.MAX_VALUE + 1d, Double.POSITIVE_INFINITY, true)
                 .stream()
                 .map(
@@ -230,7 +237,7 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Int"),
+            evaluatorName.apply("Int", "i"),
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", ESTestCase::randomInt, DataType.COUNTER_INTEGER)),
             DataType.LONG,
             l -> ((Integer) l).longValue(),

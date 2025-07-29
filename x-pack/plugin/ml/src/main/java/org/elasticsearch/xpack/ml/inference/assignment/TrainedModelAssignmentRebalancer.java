@@ -144,9 +144,13 @@ class TrainedModelAssignmentRebalancer {
             for (Map.Entry<AssignmentPlan.Node, Integer> assignment : nodeAssignments.entrySet()) {
                 AssignmentPlan.Node originalNode = originalNodeById.get(assignment.getKey().id());
                 dest.assignModelToNode(m, originalNode, assignment.getValue());
-                // As the node has all its available memory we need to manually account memory of models with
-                // current allocations.
-                dest.accountMemory(m, originalNode);
+                if (m.currentAllocationsByNodeId().containsKey(originalNode.id())) {
+                    // TODO (#101612) requiredMemory should be calculated by the AssignmentPlan.Builder
+                    // As the node has all its available memory we need to manually account memory of models with
+                    // current allocations.
+                    long requiredMemory = m.estimateMemoryUsageBytes(m.currentAllocationsByNodeId().get(originalNode.id()));
+                    dest.accountMemory(m, originalNode, requiredMemory);
+                }
             }
         }
     }
@@ -173,6 +177,7 @@ class TrainedModelAssignmentRebalancer {
                     .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().getTargetAllocations()));
                 return new AssignmentPlan.Deployment(
                     assignment.getDeploymentId(),
+                    assignment.getModelId(),
                     assignment.getTaskParams().getModelBytes(),
                     assignment.getTaskParams().getNumberOfAllocations(),
                     assignment.getTaskParams().getThreadsPerAllocation(),
@@ -190,6 +195,7 @@ class TrainedModelAssignmentRebalancer {
             planDeployments.add(
                 new AssignmentPlan.Deployment(
                     taskParams.getDeploymentId(),
+                    taskParams.getModelId(),
                     taskParams.getModelBytes(),
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),
@@ -230,6 +236,7 @@ class TrainedModelAssignmentRebalancer {
             .map(
                 assignment -> new AssignmentPlan.Deployment(
                     assignment.getDeploymentId(),
+                    assignment.getModelId(),
                     assignment.getTaskParams().getModelBytes(),
                     assignment.getTaskParams().getNumberOfAllocations(),
                     assignment.getTaskParams().getThreadsPerAllocation(),
@@ -247,6 +254,7 @@ class TrainedModelAssignmentRebalancer {
             planDeployments.add(
                 new AssignmentPlan.Deployment(
                     taskParams.getDeploymentId(),
+                    taskParams.getModelId(),
                     taskParams.getModelBytes(),
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),

@@ -11,7 +11,6 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -28,7 +27,6 @@ import java.util.regex.Pattern;
  * {@link #toString()} yields (a string representation of) a URL for the relevant docs. Links are defined in the resource file
  * {@code reference-docs-links.txt} which must include definitions for exactly the set of values of this enum.
  */
-@UpdateForV9(owner = UpdateForV9.Owner.DOCS) // the docs are completely different in v9 so these links all need fixing
 public enum ReferenceDocs {
     /*
      * Note that the docs subsystem parses {@code reference-docs-links.txt} differently. See {@code sub check_elasticsearch_links} in
@@ -89,7 +87,22 @@ public enum ReferenceDocs {
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 
-    private static final Map<String, String> linksBySymbol;
+    private static final Map<String, LinkComponents> linksBySymbol;
+
+    record LinkComponents(String path, String fragment) {
+        static LinkComponents ofLink(String link) {
+            if (link.indexOf('?') != -1) {
+                throw new IllegalStateException("ReferenceDocs does not support links containing pre-existing query parameters: " + link);
+            }
+
+            final var fragmentIndex = link.indexOf('#');
+            if (fragmentIndex == -1) {
+                return new LinkComponents(link, "");
+            } else {
+                return new LinkComponents(link.substring(0, fragmentIndex), link.substring(fragmentIndex));
+            }
+        }
+    }
 
     static {
         try (var resourceStream = readFromJarResourceUrl(ReferenceDocs.class.getResource("reference-docs-links.txt"))) {
@@ -106,30 +119,17 @@ public enum ReferenceDocs {
 
     static final int SYMBOL_COLUMN_WIDTH = 64; // increase as needed to accommodate yet longer symbols
 
-    static Map<String, String> readLinksBySymbol(InputStream inputStream) throws IOException {
+    // exposed for tests
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    static Map<String, LinkComponents> readLinksBySymbol(InputStream inputStream) throws IOException {
+        final var linksBySymbolEntries = new Map.Entry[values().length];
+        createLinkComponentEntries(inputStream, linksBySymbolEntries);
+        return Map.ofEntries(linksBySymbolEntries);
+    }
+
+    private static void createLinkComponentEntries(InputStream inputStream, Map.Entry<?, ?>[] linksBySymbolEntries) throws IOException {
         final var padding = " ".repeat(SYMBOL_COLUMN_WIDTH);
-
-        record LinksBySymbolEntry(String symbol, String link) implements Map.Entry<String, String> {
-            @Override
-            public String getKey() {
-                return symbol;
-            }
-
-            @Override
-            public String getValue() {
-                return link;
-            }
-
-            @Override
-            public String setValue(String value) {
-                assert false;
-                throw new UnsupportedOperationException();
-            }
-        }
-
-        final var symbolCount = values().length;
-        final var linksBySymbolEntries = new LinksBySymbolEntry[symbolCount];
-
+        final var symbolCount = linksBySymbolEntries.length;
         try (var reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             for (int i = 0; i < symbolCount; i++) {
                 final var currentLine = reader.readLine();
@@ -158,15 +158,13 @@ public enum ReferenceDocs {
                         "found auto-generated fragment ID in link [" + link + "] for [" + symbol + "] at line " + (i + 1)
                     );
                 }
-                linksBySymbolEntries[i] = new LinksBySymbolEntry(symbol, link);
+                linksBySymbolEntries[i] = Map.entry(symbol, LinkComponents.ofLink(link));
             }
 
             if (reader.readLine() != null) {
                 throw new IllegalStateException("unexpected trailing content at line " + (symbolCount + 1));
             }
         }
-
-        return Map.ofEntries(linksBySymbolEntries);
     }
 
     /**
@@ -196,13 +194,14 @@ public enum ReferenceDocs {
             return UNRELEASED_VERSION_COMPONENT;
         }
         // Non-semantic, released version -> point to latest information (current release documentation, e.g.
-        // https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-plugins.html)
+        // https://www.elastic.co/docs/modules-plugins?version=current)
         return CURRENT_VERSION_COMPONENT;
     }
 
     @Override
     public String toString() {
-        return "https://www.elastic.co/guide/en/elasticsearch/reference/" + VERSION_COMPONENT + "/" + linksBySymbol.get(name());
+        final var linkComponents = linksBySymbol.get(name());
+        return "https://www.elastic.co/docs/" + linkComponents.path() + "?version=" + VERSION_COMPONENT + linkComponents.fragment();
     }
 
     @SuppressForbidden(reason = "reads resource from jar")

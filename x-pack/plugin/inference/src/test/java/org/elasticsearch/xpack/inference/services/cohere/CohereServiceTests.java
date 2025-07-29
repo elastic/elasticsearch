@@ -1579,7 +1579,7 @@ public class CohereServiceTests extends ESTestCase {
     }
 
     public void testDefaultSimilarity() {
-        assertEquals(SimilarityMeasure.DOT_PRODUCT, CohereService.defaultSimilarity());
+        assertEquals(SimilarityMeasure.COSINE, CohereService.defaultSimilarity());
     }
 
     public void testInfer_StreamRequest() throws Exception {

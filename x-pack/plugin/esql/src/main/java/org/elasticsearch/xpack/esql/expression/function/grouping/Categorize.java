@@ -11,6 +11,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -21,6 +23,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,7 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  *     For the implementation, see {@link org.elasticsearch.compute.aggregation.blockhash.CategorizeBlockHash}
  * </p>
  */
-public class Categorize extends GroupingFunction {
+public class Categorize extends GroupingFunction implements LicenseAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Categorize",
@@ -133,5 +136,10 @@ public class Categorize extends GroupingFunction {
     @Override
     public String toString() {
         return "Categorize{field=" + field + "}";
+    }
+
+    @Override
+    public boolean licenseCheck(XPackLicenseState state) {
+        return MachineLearning.CATEGORIZE_TEXT_AGG_FEATURE.check(state);
     }
 }

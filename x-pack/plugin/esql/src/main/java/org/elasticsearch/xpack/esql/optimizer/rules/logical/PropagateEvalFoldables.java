@@ -26,9 +26,9 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
-        var collectRefs = new AttributeMap<Expression>();
+        AttributeMap.Builder<Expression> collectRefsBuilder = AttributeMap.builder();
 
-        java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
+        java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefsBuilder.build().resolve(r, r);
 
         // collect aliases bottom-up
         plan.forEachExpressionUp(Alias.class, a -> {
@@ -40,10 +40,10 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
                 shouldCollect = c.foldable();
             }
             if (shouldCollect) {
-                collectRefs.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
+                collectRefsBuilder.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
             }
         });
-        if (collectRefs.isEmpty()) {
+        if (collectRefsBuilder.isEmpty()) {
             return plan;
         }
 

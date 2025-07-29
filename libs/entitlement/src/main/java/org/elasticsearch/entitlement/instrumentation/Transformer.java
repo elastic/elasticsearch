@@ -20,10 +20,17 @@ public class Transformer implements ClassFileTransformer {
     private final Instrumenter instrumenter;
     private final Set<String> classesToTransform;
 
-    public Transformer(Instrumenter instrumenter, Set<String> classesToTransform) {
+    private boolean verifyClasses;
+
+    public Transformer(Instrumenter instrumenter, Set<String> classesToTransform, boolean verifyClasses) {
         this.instrumenter = instrumenter;
         this.classesToTransform = classesToTransform;
+        this.verifyClasses = verifyClasses;
         // TODO: Should warn if any MethodKey doesn't match any methods
+    }
+
+    public void enableClassVerification() {
+        this.verifyClasses = true;
     }
 
     @Override
@@ -36,10 +43,10 @@ public class Transformer implements ClassFileTransformer {
     ) {
         if (classesToTransform.contains(className)) {
             // System.out.println("Transforming " + className);
-            return instrumenter.instrumentClass(className, classfileBuffer);
+            return instrumenter.instrumentClass(className, classfileBuffer, verifyClasses);
         } else {
             // System.out.println("Not transforming " + className);
-            return classfileBuffer;
+            return null;
         }
     }
 

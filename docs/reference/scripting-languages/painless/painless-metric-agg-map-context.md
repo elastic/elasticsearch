@@ -5,7 +5,7 @@ mapped_pages:
 
 # Metric aggregation map context [painless-metric-agg-map-context]
 
-Use a Painless script to [map](/reference/data-analysis/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md) values for use in a scripted metric aggregation. A map script is run once per collected document following an optional [initialization script](/reference/scripting-languages/painless/painless-metric-agg-init-context.md) and is required as part of a full metric aggregation.
+Use a Painless script to [map](/reference/aggregations/search-aggregations-metrics-scripted-metric-aggregation.md) values for use in a scripted metric aggregation. A map script is run once per collected document following an optional [initialization script](/reference/scripting-languages/painless/painless-metric-agg-init-context.md) and is required as part of a full metric aggregation.
 
 **Variables**
 

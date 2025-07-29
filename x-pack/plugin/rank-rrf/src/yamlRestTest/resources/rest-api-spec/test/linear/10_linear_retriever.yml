@@ -930,7 +930,7 @@ setup:
 
 
 ---
-"linear retriever with custom sort and score for nested retrievers":
+"linear retriever with custom sort for nested retrievers":
   - do:
       search:
         index: test
@@ -949,17 +949,18 @@ setup:
                                 {
                                   term: {
                                     keyword: {
-                                      value: "one"  # this will give doc 1 a normalized score of 10 because min == max
+                                      value: "one"
                                     }
                                   }
                                 },
                                 {
                                   term: {
                                     keyword: {
-                                      value: "two" # this will give doc 2 a normalized score of 10 because min == max
+                                      value: "two"
                                     }
                                   }
-                                } ]
+                                }
+                              ]
                             }
                           },
                           boost: 10.0
@@ -1058,8 +1059,80 @@ setup:
           size: 2
 
   - match: { hits.total.value: 3 }
-  - length: {hits.hits: 2}
+  - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: "2" }
-  - close_to: { hits.hits.0._score: { value: 10.5, error: 0.001 } }
+  - close_to: { hits.hits.0._score: { value: 1.5, error: 0.001 } }
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._score: 10 }
+  - match: { hits.hits.1._score: 1 }
+
+---
+"should throw when rank_window_size is negative":
+  - requires:
+      cluster_features: [ "retriever.negative_rank_window_size_fix" ]
+      reason: "Fix for negative rank_window_size error message"
+  - do:
+      catch: /\[rank_window_size\] parameter cannot be negative, found \[-10\]/
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        match_all: { }
+                      }
+                    }
+                  },
+                  weight: 10.0,
+                  normalizer: "minmax"
+                },
+                {
+                  retriever: {
+                    knn: {
+                      field: "vector",
+                      query_vector: [ 4 ],
+                      k: 1,
+                      num_candidates: 1
+                    }
+                  },
+                  weight: 2.0
+                }
+              ]
+              rank_window_size: -10
+  - match: { status: 400 }
+
+---
+"minmax normalization properly handles a single doc result set":
+  - requires:
+      cluster_features: [ "linear_retriever.minmax_single_doc_fix" ]
+      reason: "Fix bug where minmax normalizer would emit unnormalized score when handling a single doc result set"
+
+  - do:
+      search:
+        index: test
+        body:
+          retriever:
+            linear:
+              retrievers: [
+                {
+                  retriever: {
+                    standard: {
+                      query: {
+                        term: {
+                          "keyword": {
+                            "value": "one"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  normalizer: "minmax"
+                }
+              ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0._score: 1.0 }

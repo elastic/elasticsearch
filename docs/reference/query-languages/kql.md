@@ -57,11 +57,11 @@ Because this is a `text` field, the order of these search terms does not matter,
 http.request.body.content: "null pointer"
 ```
 
-Certain characters must be escaped by a backslash (unless surrounded by quotes). For example, to search for documents where `http.request.referrer` is [https://example.com](https://example.com), use either of the following queries:
+Certain characters must be escaped by a backslash (unless surrounded by quotes). For example, to search for documents where `http.request.referrer` is `https://<example-url>`, use either of the following queries:
 
 ```yaml
-http.request.referrer: "https://example.com"
-http.request.referrer: https\://example.com
+http.request.referrer: "https://<example-url>"
+http.request.referrer: https\://<example-url>
 ```
 
 You must escape following characters:
@@ -102,7 +102,7 @@ To search for documents matching a pattern, use the wildcard syntax. For example
 http.response.status_code: 4*
 ```
 
-By default, leading wildcards are not allowed for performance reasons. You can modify this with the [`query:allowLeadingWildcards`](kibana://docs/reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
+By default, leading wildcards are not allowed for performance reasons. You can modify this with the [`query:allowLeadingWildcards`](kibana://reference/advanced-settings.md#query-allowleadingwildcards) advanced setting.
 
 ::::{note}
 Only `*` is currently supported. This matches zero or more characters.

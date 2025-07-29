@@ -284,6 +284,23 @@ public class TreeInferenceModelTests extends ESTestCase {
         assertThat(featureImportance[1][0], closeTo(2.5, eps));
     }
 
+    public void testMinAndMaxBoundaries() throws IOException {
+        Tree.Builder builder = Tree.builder().setTargetType(TargetType.REGRESSION);
+        TreeNode.Builder rootNode = builder.addJunction(0, 0, true, 0.5);
+        builder.addLeaf(rootNode.getRightChild(), 0.3);
+        TreeNode.Builder leftChildNode = builder.addJunction(rootNode.getLeftChild(), 1, true, 0.8);
+        builder.addLeaf(leftChildNode.getLeftChild(), 0.1);
+        builder.addLeaf(leftChildNode.getRightChild(), 0.2);
+
+        List<String> featureNames = Arrays.asList("foo", "bar");
+        Tree treeObject = builder.setFeatureNames(featureNames).build();
+        TreeInferenceModel tree = deserializeFromTrainedModel(treeObject, xContentRegistry(), TreeInferenceModel::fromXContent);
+        tree.rewriteFeatureIndices(Collections.emptyMap());
+
+        assertThat(tree.getMinPredictedValue(), equalTo(0.1));
+        assertThat(tree.getMaxPredictedValue(), equalTo(0.3));
+    }
+
     private static Map<String, Object> zipObjMap(List<String> keys, List<? extends Object> values) {
         return IntStream.range(0, keys.size()).boxed().collect(Collectors.toMap(keys::get, values::get));
     }

@@ -60,7 +60,7 @@ A standard retriever returns top documents from a traditional [query](/reference
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies a [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to this retriever, where all documents must match this query but do not contribute to the score.
+    Applies a [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to this retriever, where all documents must match this query but do not contribute to the score.
 
 
 `search_after`
@@ -84,7 +84,7 @@ A standard retriever returns top documents from a traditional [query](/reference
 `min_score`
 :   (Optional, `float`)
 
-    Minimum [`_score`](/reference/query-languages/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
+    Minimum [`_score`](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
 
 
 `collapse`
@@ -263,15 +263,18 @@ A retriever that normalizes and linearly combines the scores of other retrievers
 
 Each entry specifies the following parameters:
 
-* `retriever`:: (Required, a `retriever` object)
+`retriever`
+:   (Required, a `retriever` object)
 
     Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size` results, which will later be merged based on the specified `weight` and `normalizer`.
 
-* `weight`:: (Optional, float)
+`weight`
+:   (Optional, float)
 
     The weight that each score of this retriever’s top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
 
-* `normalizer`:: (Optional, String)
+`normalizer`
+:   (Optional, String)
 
     Specifies how we will normalize the retriever’s scores, before applying the specified `weight`. Available values are: `minmax`, and `none`. Defaults to `none`.
 
@@ -288,13 +291,16 @@ See also [this hybrid search example](docs-content://solutions/search/retrievers
 `rank_window_size`
 :   (Optional, integer)
 
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
+    This value determines the size of the individual result sets per query.
+    A higher value will improve result relevance at the cost of performance.
+    The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+    Defaults to 10.
 
 
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
 
 
@@ -320,13 +326,16 @@ An [RRF](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) retriever
 `rank_window_size`
 :   (Optional, integer)
 
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
+    This value determines the size of the individual result sets per query.
+    A higher value will improve result relevance at the cost of performance.
+    The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
+    Defaults to 10.
 
 
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
 
 
@@ -463,7 +472,7 @@ When using the `rescorer`, an error is returned if the following conditions are 
 `filter`
 :   (Optional. [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies a [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
+    Applies a [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
 
 
 
@@ -560,14 +569,14 @@ Refer to [*Semantic re-ranking*](docs-content://solutions/search/ranking/semanti
 
 ### Prerequisites [_prerequisites_15]
 
-To use `text_similarity_reranker` you must first set up an inference endpoint for the `rerank` task using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put). The endpoint should be set up with a machine learning model that can compute text similarity. Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third-party text similarity models supported by {{es}}.
+To use `text_similarity_reranker`, you can rely on the preconfigured `.rerank-v1-elasticsearch` inference endpoint, which uses the [Elastic Rerank model](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md) and serves as the default if no `inference_id` is provided. This model is optimized for reranking based on text similarity. If you'd like to use a different model, you can set up a custom inference endpoint for the `rerank` task using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put). The endpoint should be configured with a machine learning model capable of computing text similarity. Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third-party text similarity models supported by {{es}}.
 
 You have the following options:
 
-* Use the the built-in [Elastic Rerank](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) cross-encoder model via the inference API’s {{es}} service.
+* Use the built-in [Elastic Rerank](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-rerank.md) cross-encoder model via the inference API’s {{es}} service. See [this example](https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-elasticsearch.html#inference-example-elastic-reranker) for creating an endpoint using the Elastic Rerank model.
 * Use the [Cohere Rerank inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Use the [Google Vertex AI inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
-* Upload a model to {{es}} with [Eland](eland://docs/reference/machine-learning.md#ml-nlp-pytorch) using the `text_similarity` NLP task type.
+* Upload a model to {{es}} with [Eland](eland://reference/machine-learning.md#ml-nlp-pytorch) using the `text_similarity` NLP task type.
 
     * Then set up an [{{es}} service inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
     * Refer to the [example](#text-similarity-reranker-retriever-example-eland) on this page for a step-by-step guide.
@@ -606,9 +615,9 @@ score = ln(score), if score < 0
 
 
 `inference_id`
-:   (Required, `string`)
+:   (Optional, `string`)
 
-    Unique identifier of the inference endpoint created using the {{infer}} API.
+    Unique identifier of the inference endpoint created using the {{infer}} API. If you don’t specify an inference endpoint, the `inference_id` field defaults to `.rerank-v1-elasticsearch`, a preconfigured endpoint for the elasticsearch `.rerank-v1` model.
 
 
 `inference_text`
@@ -632,7 +641,7 @@ score = ln(score), if score < 0
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
 
 
@@ -666,7 +675,7 @@ Follow these steps:
     }
     ```
 
-    1. [Adaptive allocations](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-auto-scale.md#nlp-model-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
+    1. [Adaptive allocations](docs-content://deploy-manage/autoscaling/trained-model-autoscaling.md#enabling-autoscaling-through-apis-adaptive-allocations) will be enabled with the minimum of 1 and the maximum of 10 allocations.
 
 2. Define a `text_similarity_rerank` retriever:
 
@@ -727,7 +736,7 @@ GET /index/_search
 
 ### Example: Semantic re-ranking with a Hugging Face model [text-similarity-reranker-retriever-example-eland]
 
-The following example uses the `cross-encoder/ms-marco-MiniLM-L-6-v2` model from Hugging Face to rerank search results based on semantic similarity. The model must be uploaded to {{es}} using [Eland](eland://docs/reference/machine-learning.md#ml-nlp-pytorch).
+The following example uses the `cross-encoder/ms-marco-MiniLM-L-6-v2` model from Hugging Face to rerank search results based on semantic similarity. The model must be uploaded to {{es}} using [Eland](eland://reference/machine-learning.md#ml-nlp-pytorch).
 
 ::::{tip}
 Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third party text similarity models supported by {{es}}.
@@ -743,7 +752,7 @@ Follow these steps to load the model and create a semantic re-ranker.
     python -m pip install eland[pytorch]
     ```
 
-2. Upload the model to {{es}} using Eland. This example assumes you have an Elastic Cloud deployment and an API key. Refer to the [Eland documentation](eland://docs/reference/machine-learning.md#ml-nlp-pytorch-auth) for more authentication options.
+2. Upload the model to {{es}} using Eland. This example assumes you have an Elastic Cloud deployment and an API key. Refer to the [Eland documentation](eland://reference/machine-learning.md#ml-nlp-pytorch-auth) for more authentication options.
 
     ```sh
     eland_import_hub_model \
@@ -800,7 +809,7 @@ Follow these steps to load the model and create a semantic re-ranker.
 
 ## Query Rules Retriever [rule-retriever]
 
-The `rule` retriever enables fine-grained control over search results by applying contextual [query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries. This retriever has similar functionality to the [rule query](/reference/query-languages/query-dsl-rule-query.md), but works out of the box with other retrievers.
+The `rule` retriever enables fine-grained control over search results by applying contextual [query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries. This retriever has similar functionality to the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md), but works out of the box with other retrievers.
 
 ### Prerequisites [_prerequisites_16]
 
@@ -929,7 +938,7 @@ The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operati
 
 ### Using aggregations with a retriever tree [retriever-aggregations]
 
-[Aggregations](/reference/data-analysis/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl-bool-query.md).
+[Aggregations](/reference/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
 
 
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]

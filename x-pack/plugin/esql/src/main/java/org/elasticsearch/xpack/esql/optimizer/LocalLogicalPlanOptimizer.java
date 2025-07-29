@@ -29,7 +29,8 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  * This class is part of the planner. Data node level logical optimizations.  At this point we have access to
  * {@link org.elasticsearch.xpack.esql.stats.SearchStats} which provides access to metadata about the index.
  *
- * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators()} and {@link LogicalPlanOptimizer#cleanup()}
+ * <p>NB: This class also reapplies all the rules from {@link LogicalPlanOptimizer#operators(boolean)}
+ * and {@link LogicalPlanOptimizer#cleanup()}
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
@@ -51,7 +52,7 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
         var rules = new ArrayList<Batch<LogicalPlan>>();
         rules.add(local);
         // TODO: if the local rules haven't touched the tree, the rest of the rules can be skipped
-        rules.addAll(asList(operators(), cleanup()));
+        rules.addAll(asList(operators(true), cleanup()));
         return replaceRules(rules);
     }
 

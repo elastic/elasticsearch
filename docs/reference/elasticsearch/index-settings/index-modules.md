@@ -85,7 +85,11 @@ $$$routing-partition-size$$$ `index.routing_partition_size`
 $$$ccr-index-soft-deletes$$$
 
 `index.soft_deletes.enabled`
-:   [7.6.0] Indicates whether soft deletes are enabled on the index. Soft deletes can only be configured at index creation and only on indices created on or after {{es}} 6.5.0. Defaults to `true`.
+:   :::{admonition} Deprecated in 7.6.0
+    This setting was deprecated in 7.6.0.
+    :::
+
+    Indicates whether soft deletes are enabled on the index. Soft deletes can only be configured at index creation and only on indices created on or after {{es}} 6.5.0. Defaults to `true`.
 
 $$$ccr-index-soft-deletes-retention-period$$$
 
@@ -93,27 +97,25 @@ $$$ccr-index-soft-deletes-retention-period$$$
 :   The maximum period to retain a shard history retention lease before it is considered expired. Shard history retention leases ensure that soft deletes are retained during merges on the Lucene index. If a soft delete is merged away before it can be replicated to a follower the following process will fail due to incomplete history on the leader. Defaults to `12h`.
 
 $$$load-fixed-bitset-filters-eagerly$$$ `index.load_fixed_bitset_filters_eagerly`
-:   Indicates whether [cached filters](/reference/query-languages/query-filter-context.md) are pre-loaded for nested queries. Possible values are `true` (default) and `false`.
+:   Indicates whether [cached filters](/reference/query-languages/query-dsl/query-filter-context.md) are pre-loaded for nested queries. Possible values are `true` (default) and `false`.
 
 $$$index-shard-check-on-startup$$$ `index.shard.check_on_startup`
-:   :::::{admonition}
-::::{warning}
-Expert users only. This setting enables some very expensive processing at shard startup and is only ever useful while diagnosing a problem in your cluster. If you do use it, you should do so only temporarily and remove it once it is no longer needed.
-::::
+:   ::::{warning}
+    Expert users only. This setting enables some very expensive processing at shard startup and is only ever useful while diagnosing a problem in your cluster. If you do use it, you should do so only temporarily and remove it once it is no longer needed.
+    ::::
 
+    {{es}} automatically performs integrity checks on the contents of shards at various points during their lifecycle. For instance, it verifies the checksum of every file transferred when recovering a replica or taking a snapshot. It also verifies the integrity of many important files when opening a shard, which happens when starting up a node and when finishing a shard recovery or relocation. You can therefore manually verify the integrity of a whole shard while it is running by taking a snapshot of it into a fresh repository or by recovering it onto a fresh node.
 
-{{es}} automatically performs integrity checks on the contents of shards at various points during their lifecycle. For instance, it verifies the checksum of every file transferred when recovering a replica or taking a snapshot. It also verifies the integrity of many important files when opening a shard, which happens when starting up a node and when finishing a shard recovery or relocation. You can therefore manually verify the integrity of a whole shard while it is running by taking a snapshot of it into a fresh repository or by recovering it onto a fresh node.
+    This setting determines whether {{es}} performs additional integrity checks while opening a shard. If these checks detect corruption then they will prevent the shard from being opened. It accepts the following values:
 
-This setting determines whether {{es}} performs additional integrity checks while opening a shard. If these checks detect corruption then they will prevent the shard from being opened. It accepts the following values:
+    `false`
+    :   Don’t perform additional checks for corruption when opening a shard. This is the default and recommended behaviour.
 
-`false`
-:   Don’t perform additional checks for corruption when opening a shard. This is the default and recommended behaviour.
+    `checksum`
+    :   Verify that the checksum of every file in the shard matches its contents. This will detect cases where the data read from disk differ from the data that {{es}} originally wrote, for instance due to undetected disk corruption or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth and may affect cluster performance by evicting important data from your filesystem cache.
 
-`checksum`
-:   Verify that the checksum of every file in the shard matches its contents. This will detect cases where the data read from disk differ from the data that {{es}} originally wrote, for instance due to undetected disk corruption or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth and may affect cluster performance by evicting important data from your filesystem cache.
-
-`true`
-:   Performs the same checks as `checksum` and also checks for logical inconsistencies in the shard, which could for instance be caused by the data being corrupted while it was being written due to faulty RAM or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth, and then performing various checks on the contents of the shard which take substantial time, CPU and memory.
+    `true`
+    :   Performs the same checks as `checksum` and also checks for logical inconsistencies in the shard, which could for instance be caused by the data being corrupted while it was being written due to faulty RAM or other hardware failures. These checks require reading the entire shard from disk which takes substantial time and IO bandwidth, and then performing various checks on the contents of the shard which take substantial time, CPU and memory.
 
 :::::
 
@@ -178,7 +180,7 @@ $$$index-max-ngram-diff$$$
 $$$index-max-shingle-diff$$$
 
 `index.max_shingle_diff`
-:   The maximum allowed difference between max_shingle_size and min_shingle_size for the [`shingle` token filter](/reference/data-analysis/text-analysis/analysis-shingle-tokenfilter.md). Defaults to `3`.
+:   The maximum allowed difference between max_shingle_size and min_shingle_size for the [`shingle` token filter](/reference/text-analysis/analysis-shingle-tokenfilter.md). Defaults to `3`.
 
 `index.max_refresh_listeners`
 :   Maximum number of refresh listeners available on each shard of the index. These listeners are used to implement `refresh=wait_for`.
@@ -206,12 +208,12 @@ $$$index-query-default-field$$$
 `index.query.default_field`
 :   (string or array of strings) Wildcard (`*`) patterns matching one or more fields. The following query types search these matching fields by default:
 
-* [More like this](/reference/query-languages/query-dsl-mlt-query.md)
-* [Multi-match](/reference/query-languages/query-dsl-multi-match-query.md)
-* [Query string](/reference/query-languages/query-dsl-query-string-query.md)
-* [Simple query string](/reference/query-languages/query-dsl-simple-query-string-query.md)
+* [More like this](/reference/query-languages/query-dsl/query-dsl-mlt-query.md)
+* [Multi-match](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md)
+* [Query string](/reference/query-languages/query-dsl/query-dsl-query-string-query.md)
+* [Simple query string](/reference/query-languages/query-dsl/query-dsl-simple-query-string-query.md)
 
-Defaults to `*`, which matches all fields eligible for [term-level queries](/reference/query-languages/term-level-queries.md), excluding metadata fields.
+Defaults to `*`, which matches all fields eligible for [term-level queries](/reference/query-languages/query-dsl/term-level-queries.md), excluding metadata fields.
 
 
 $$$index-routing-allocation-enable-setting$$$

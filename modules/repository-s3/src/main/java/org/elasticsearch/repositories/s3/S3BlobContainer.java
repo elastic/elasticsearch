@@ -701,6 +701,11 @@ class S3BlobContainer extends AbstractBlobContainer {
          * @return {@code true} if there are already ongoing uploads, so we should not proceed with the operation
          */
         private boolean hasPreexistingUploads() {
+            final var timeToLiveMillis = blobStore.getCompareAndExchangeTimeToLive().millis();
+            if (timeToLiveMillis < 0) {
+                return false; // proceed always
+            }
+
             final var uploads = listMultipartUploads();
             logUploads("preexisting uploads", uploads);
 
@@ -709,11 +714,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 return false;
             }
 
-            final var expiryDate = Date.from(
-                Instant.ofEpochMilli(
-                    blobStore.getThreadPool().absoluteTimeInMillis() - blobStore.getCompareAndExchangeTimeToLive().millis()
-                )
-            );
+            final var expiryDate = Date.from(Instant.ofEpochMilli(blobStore.getThreadPool().absoluteTimeInMillis() - timeToLiveMillis));
             if (uploads.stream().anyMatch(upload -> upload.getInitiated().after(expiryDate))) {
                 logger.trace("[{}] fresh preexisting uploads vs {}", blobKey, expiryDate);
                 return true;
@@ -788,7 +789,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final var currentTimeMillis = blobStore.getThreadPool().absoluteTimeInMillis();
                     final var ageMillis = currentTimeMillis - multipartUpload.getInitiated().toInstant().toEpochMilli();
                     final var expectedAgeRangeMillis = blobStore.getCompareAndExchangeTimeToLive().millis();
-                    if (ageMillis < -expectedAgeRangeMillis || ageMillis > expectedAgeRangeMillis) {
+                    if (0 <= expectedAgeRangeMillis && (ageMillis < -expectedAgeRangeMillis || ageMillis > expectedAgeRangeMillis)) {
                         logger.warn(
                             """
                                 compare-and-exchange of blob [{}:{}] was initiated at [{}={}] \
@@ -965,7 +966,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         try (var clientReference = blobStore.clientReference()) {
             final var bucket = blobStore.bucket();
             final var request = new ListMultipartUploadsRequest(bucket).withPrefix(keyPath).withMaxUploads(maxUploads);
-            request.putCustomQueryParameter(S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE, OperationPurpose.SNAPSHOT_DATA.getKey());
+            blobStore.addPurposeQueryParameter(OperationPurpose.SNAPSHOT_DATA, request);
             final var multipartUploadListing = SocketAccess.doPrivileged(() -> clientReference.client().listMultipartUploads(request));
             final var multipartUploads = multipartUploadListing.getMultipartUploads();
             if (multipartUploads.isEmpty()) {
@@ -1005,10 +1006,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             public void onResponse(Void unused) {
                 try (var clientReference = blobStore.clientReference()) {
                     for (final var abortMultipartUploadRequest : abortMultipartUploadRequests) {
-                        abortMultipartUploadRequest.putCustomQueryParameter(
-                            S3BlobStore.CUSTOM_QUERY_PARAMETER_PURPOSE,
-                            OperationPurpose.SNAPSHOT_DATA.getKey()
-                        );
+                        blobStore.addPurposeQueryParameter(OperationPurpose.SNAPSHOT_DATA, abortMultipartUploadRequest);
                         try {
                             SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortMultipartUploadRequest));
                             logger.info(

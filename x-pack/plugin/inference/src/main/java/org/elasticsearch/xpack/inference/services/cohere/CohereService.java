@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -335,15 +336,15 @@ public class CohereService extends SenderService {
     }
 
     /**
-     * Return the default similarity measure for the embedding type.
-     * Cohere embeddings are normalized to unit vectors therefor Dot
-     * Product similarity can be used and is the default for all Cohere
-     * models.
+     * Returns the default similarity measure for the embedding type.
+     * Cohere embeddings are expected to be normalized to unit vectors, but due to floating point precision issues,
+     * our check ({@link DenseVectorFieldMapper#isNotUnitVector(float)}) often fails.
+     * Therefore, we use cosine similarity to ensure compatibility.
      *
-     * @return The default similarity.
+     * @return The default similarity measure.
      */
     static SimilarityMeasure defaultSimilarity() {
-        return SimilarityMeasure.DOT_PRODUCT;
+        return SimilarityMeasure.COSINE;
     }
 
     @Override

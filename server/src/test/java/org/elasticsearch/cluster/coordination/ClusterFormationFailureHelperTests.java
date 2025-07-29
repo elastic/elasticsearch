@@ -114,15 +114,9 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
             );
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "troubleshooting link",
-                    LOGGER_NAME,
-                    Level.WARN,
-                    "* for troubleshooting guidance, see "
-                        + "https://www.elastic.co/guide/en/elasticsearch/reference/*/discovery-troubleshooting.html*"
-                )
-            );
+            mockLog.addExpectation(new MockLog.SeenEventExpectation("troubleshooting link", LOGGER_NAME, Level.WARN, """
+                * for troubleshooting guidance, see \
+                https://www.elastic.co/docs/troubleshoot/elasticsearch/discovery-troubleshooting?version=*"""));
 
             while (warningCount.get() == 0) {
                 assertTrue(clusterFormationFailureHelper.isRunning());

@@ -82,7 +82,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testDenseVectorMappingUpdateOnOldCluster() throws IOException {
-        if (getOldClusterTestVersion().after(Version.V_8_7_0.toString())) {
+        if (oldClusterHasFeature("gte_v8.7.1")) {
             String indexName = "test_index";
             if (isOldCluster()) {
                 Request createIndex = new Request("PUT", "/" + indexName);

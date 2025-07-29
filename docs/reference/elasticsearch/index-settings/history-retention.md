@@ -20,7 +20,11 @@ If a shard copy fails then it stops updating its shard history retention lease, 
 ## History retention settings [_history_retention_settings]
 
 `index.soft_deletes.enabled`
-:   [7.6.0] Indicates whether soft deletes are enabled on the index. Soft deletes can only be configured at index creation and only on indices created on or after {{es}} 6.5.0. Defaults to `true`.
+:   :::{admonition} Deprecated in 7.6.0
+    This setting was deprecated in 7.6.0.
+    :::
+
+    Indicates whether soft deletes are enabled on the index. Soft deletes can only be configured at index creation and only on indices created on or after {{es}} 6.5.0. Defaults to `true`.
 
 `index.soft_deletes.retention_lease.period`
 :   The maximum period to retain a shard history retention lease before it is considered expired. Shard history retention leases ensure that soft deletes are retained during merges on the Lucene index. If a soft delete is merged away before it can be replicated to a follower the following process will fail due to incomplete history on the leader. Defaults to `12h`.

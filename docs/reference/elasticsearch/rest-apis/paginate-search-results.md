@@ -114,7 +114,7 @@ GET twitter/_search
 }
 ```
 
-Repeat this process by updating the `search_after` array every time you retrieve a new page of results. If a [refresh](docs-content://solutions/search/search-approaches/near-real-time-search.md) occurs between these requests, the order of your results may change, causing inconsistent results across pages. To prevent this, you can create a [point in time (PIT)](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) to preserve the current index state over your searches.
+Repeat this process by updating the `search_after` array every time you retrieve a new page of results. If a [refresh](docs-content://manage-data/data-store/near-real-time-search.md) occurs between these requests, the order of your results may change, causing inconsistent results across pages. To prevent this, you can create a [point in time (PIT)](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-open-point-in-time) to preserve the current index state over your searches.
 
 ```console
 POST /my-index-000001/_pit?keep_alive=1m
@@ -287,10 +287,10 @@ Perl
 :   See [Search::Elasticsearch::Client::5_0::Bulk](https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk) and [Search::Elasticsearch::Client::5_0::Scroll](https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Scroll)
 
 Python
-:   See [elasticsearch.helpers.*](https://elasticsearch-py.readthedocs.io/en/stable/helpers.md)
+:   See [elasticsearch.helpers.*](https://elasticsearch-py.readthedocs.io/en/stable/helpers.html)
 
 JavaScript
-:   See [client.helpers.*](elasticsearch-js://docs/reference/client-helpers.md)
+:   See [client.helpers.*](elasticsearch-js://reference/client-helpers.md)
 
 ::::
 

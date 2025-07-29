@@ -7,7 +7,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -26,7 +26,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -45,7 +45,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -64,7 +64,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -83,7 +83,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -102,7 +102,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -121,7 +121,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -140,7 +140,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -159,7 +159,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -178,7 +178,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -197,7 +197,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -216,7 +216,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -235,7 +235,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -254,7 +254,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -273,7 +273,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -292,7 +292,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -311,7 +311,7 @@ steps:
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
@@ -325,17 +325,17 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.17.4 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.17.4#bwcTest
+      - label: 8.17.10 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.17.10#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.17.4
+          BWC_VERSION: 8.17.10
         retry:
           automatic:
             - exit_status: "-1"
@@ -344,17 +344,17 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.18.0 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.18.0#bwcTest
+      - label: 8.18.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.18.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.18.0
+          BWC_VERSION: 8.18.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -363,17 +363,17 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 9.0.0 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.0.0#bwcTest
+      - label: 9.0.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.0.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 9.0.0
+          BWC_VERSION: 9.0.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -387,7 +387,7 @@ steps:
     timeout_in_minutes: 420
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: encryption-at-rest
@@ -395,7 +395,7 @@ steps:
     timeout_in_minutes: 420
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: eql-correctness
@@ -403,7 +403,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - label: example-plugins
@@ -414,7 +414,7 @@ steps:
     timeout_in_minutes: 300
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: custom-32-98304
       buildDirectory: /dev/shm/bk
   - group: java-fips-matrix
@@ -435,7 +435,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -448,10 +448,10 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.16.6", "8.17.4", "8.18.0", "9.0.0"]
+            BWC_VERSION: ["8.17.10", "8.18.5", "9.0.5"]
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -476,7 +476,7 @@ steps:
               - checkRestCompat
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -490,10 +490,10 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
-            BWC_VERSION: ["8.16.6", "8.17.4", "8.18.0", "9.0.0"]
+            BWC_VERSION: ["8.17.10", "8.18.5", "9.0.5"]
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n1-standard-32
           buildDirectory: /dev/shm/bk
         env:
@@ -504,7 +504,7 @@ steps:
     timeout_in_minutes: 360
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - label: single-processor-node-tests
@@ -512,7 +512,7 @@ steps:
     timeout_in_minutes: 420
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       diskSizeGb: 350
       machineType: custom-32-98304
   - group: third-party tests
@@ -528,7 +528,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
       - label: third-party / azure
@@ -542,7 +542,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
       - label: third-party / gcs
@@ -556,7 +556,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
       - label: third-party / geoip
@@ -565,7 +565,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
       - label: third-party / s3
@@ -579,7 +579,7 @@ steps:
         timeout_in_minutes: 30
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: n2-standard-8
           buildDirectory: /dev/shm/bk
   - group: lucene-compat
@@ -597,7 +597,7 @@ steps:
               - "b2cc9d9b8f00ee621f93ddca07ea9c671aab1578" # update to match last commit before lucene bump
         agents:
           provider: gcp
-          image: family/elasticsearch-ubuntu-2004
+          image: family/elasticsearch-ubuntu-2404
           machineType: custom-32-98304
           buildDirectory: /dev/shm/bk
         env:
@@ -610,16 +610,16 @@ steps:
     timeout_in_minutes: 20
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-8
       buildDirectory: /dev/shm/bk
-    if: build.branch == "main" || build.branch == "8.x" || build.branch == "7.17"
+    if: build.branch == "main" || build.branch == "8.19" || build.branch == "7.17"
   - label: check-branch-consistency
     command: .ci/scripts/run-gradle.sh branchConsistency
     timeout_in_minutes: 15
     agents:
       provider: gcp
-      image: family/elasticsearch-ubuntu-2004
+      image: family/elasticsearch-ubuntu-2404
       machineType: n2-standard-2
   - label: check-branch-protection-rules
     command: .buildkite/scripts/branch-protection.sh

@@ -39,15 +39,9 @@ setup:
                 type: keyword
               integer:
                 type: integer
+              inference_text_field:
+                type: text
 
-  - do:
-      index:
-        index: test-index
-        id: doc_1
-        body:
-          text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
-          topic: [ "geography" ]
-          integer: 1
 
   - do:
       index:
@@ -58,6 +52,7 @@ setup:
           topic: [ "science" ]
           subtopic: [ "astronomy" ]
           integer: 2
+          inference_text_field: "0"
 
   - do:
       index:
@@ -68,12 +63,27 @@ setup:
           topic: [ "science" ]
           subtopic: [ "technology" ]
           integer: 3
+          inference_text_field: "1"
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
+          topic: [ "geography" ]
+          integer: 1
+          inference_text_field: "-1"
 
   - do:
       indices.refresh: {}
 
 ---
 "rrf retriever with a nested text similarity reranker":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
 
   - do:
       search:
@@ -86,6 +96,7 @@ setup:
               retrievers:
                 [
                   {
+                    # this one retrieves docs 1 and 2
                     standard: {
                       query: {
                         bool: {
@@ -120,13 +131,14 @@ setup:
                     }
                   },
                   {
+                    # this one retrieves doc 2
                     text_similarity_reranker: {
                       retriever:
                         {
                           standard: {
                             query: {
                               term: {
-                                topic: "science"
+                                subtopic: "astronomy"
                               }
                             }
                           }
@@ -134,7 +146,7 @@ setup:
                       rank_window_size: 10,
                       inference_id: my-rerank-model,
                       inference_text: "How often does the moon hide the sun?",
-                      field: text
+                      field: inference_text_field
                     }
                   }
                 ],
@@ -149,19 +161,20 @@ setup:
                 field: topic
                 size: 10
 
-  - match: { hits.total.value: 3 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 1 }
 
-  - contains: { hits.hits: { _id: "doc_1" } }
-  - contains: { hits.hits: { _id: "doc_3" } }
+  - match: { hits.hits.0._id: "doc_1" }
 
-  - match: { aggregations.topics.buckets.0.key: "science" }
-  - match: { aggregations.topics.buckets.0.doc_count: 2 }
-  - match: { aggregations.topics.buckets.1.key: "geography" }
-  - match: { aggregations.topics.buckets.1.doc_count: 1 }
+  - contains:  { aggregations.topics.buckets: { key: "geography", doc_count: 1 } }
+  - contains:  { aggregations.topics.buckets: { key: "science", doc_count: 1 } }
 
 ---
 "Text similarity reranker on top of an RRF retriever":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
 
   - do:
       search:
@@ -174,10 +187,12 @@ setup:
               text_similarity_reranker: {
                 retriever:
                   {
+                    # this one retrieves docs 1 and 3 so final ranking should be 3 and 1 based on reranking service
                     rrf: {
                       retrievers:
                         [
                           {
+                            # this one retrieves docs 1 and 3
                             standard: {
                               query: {
                                 bool: {
@@ -212,6 +227,7 @@ setup:
                             }
                           },
                           {
+                            # this one retrieves doc 1
                             standard: {
                               query: {
                                 term: {
@@ -228,7 +244,7 @@ setup:
                 rank_window_size: 10,
                 inference_id: my-rerank-model,
                 inference_text: "How often does the moon hide the sun?",
-                field: text
+                field: inference_text_field
               }
             }
           size: 10
@@ -253,6 +269,10 @@ setup:
 ---
 "explain using rrf retriever and text-similarity":
 
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+
   - do:
       search:
         index: test-index
@@ -264,6 +284,7 @@ setup:
               retrievers:
                 [
                   {
+                    # this one retrieves docs 1 and 2
                     standard: {
                       query: {
                         bool: {
@@ -298,6 +319,7 @@ setup:
                     }
                   },
                   {
+                    # this one retrieves doc 2
                     text_similarity_reranker: {
                       retriever:
                         {
@@ -312,7 +334,7 @@ setup:
                       rank_window_size: 10,
                       inference_id: my-rerank-model,
                       inference_text: "How often does the moon hide the sun?",
-                      field: text
+                      field: inference_text_field
                     }
                   }
                 ],
@@ -332,5 +354,5 @@ setup:
   - match: {hits.hits.0._explanation.details.0.details.0.details.0.description: "/ConstantScore.*/" }
   - match: {hits.hits.0._explanation.details.1.value: 1}
   - match: {hits.hits.0._explanation.details.1.description: "/rrf.score:.\\[0.5\\].*/" }
-  - match: {hits.hits.0._explanation.details.1.details.0.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[text\\].*/" }
+  - match: {hits.hits.0._explanation.details.1.details.0.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[inference_text_field\\].*/" }
   - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/weight.*astronomy.*/" }

@@ -10,10 +10,10 @@ mapped_pages:
 The following numeric types are supported:
 
 `long`
-:   A signed 64-bit integer with a minimum value of `-263` and a maximum value of `263-1`.
+:   A signed 64-bit integer with a minimum value of `-2^63` and a maximum value of `2^63 - 1`.
 
 `integer`
-:   A signed 32-bit integer with a minimum value of `-231` and a maximum value of `231-1`.
+:   A signed 32-bit integer with a minimum value of `-2^31` and a maximum value of `2^31 - 1`.
 
 `short`
 :   A signed 16-bit integer with a minimum value of `-32,768` and a maximum value of `32,767`.
@@ -34,7 +34,7 @@ The following numeric types are supported:
 :   A floating point number that is backed by a `long`, scaled by a fixed `double` scaling factor.
 
 `unsigned_long`
-:   An unsigned 64-bit integer with a minimum value of 0 and a maximum value of `264-1`.
+:   An unsigned 64-bit integer with a minimum value of 0 and a maximum value of `2^64 - 1`.
 
 Below is an example of configuring a mapping with numeric fields:
 
@@ -75,20 +75,20 @@ $$$floating_point$$$
 
 | Type | Minimum value | Maximum value | Significant<br>                                                      bits / digits | Example precision loss |
 | --- | --- | --- | --- | --- |
-| `double` | `2-1074` | `(2-2-52)·21023` | `53` / `15.95` | `1.2345678912345678`→<br>                                                                      `1.234567891234568` |
-| `float` | `2-149` | `(2-2-23)·2127` | `24` / `7.22` | `1.23456789`→<br>                                                                      `1.2345679` |
-| `half_float` | `2-24` | `65504` | `11` / `3.31` | `1.2345`→<br>                                                                      `1.234375` |
+| `double` | `2^-1074` | `(2 - 2^-52) * 2^1023` | `53 / 15.95` | `1.2345678912345678`→<br>`1.234567891234568` |
+| `float` | `2^-149` | `(2 - 2^-23) * 2^127` | `24 / 7.22` | `1.23456789`→<br>`1.2345679` |
+| `half_float` | `2^-24` | `65504` | `11 / 3.31` | `1.2345`→<br>`1.234375` |
 
 ::::{admonition} Mapping numeric identifiers
 :class: tip
 
-Not all numeric data should be mapped as a `numeric` field data type. {{es}} optimizes numeric fields, such as `integer` or `long`, for [`range`](/reference/query-languages/query-dsl-range-query.md) queries. However, [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) fields are better for [`term`](/reference/query-languages/query-dsl-term-query.md) and other [term-level](/reference/query-languages/term-level-queries.md) queries.
+Not all numeric data should be mapped as a `numeric` field data type. {{es}} optimizes numeric fields, such as `integer` or `long`, for [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries. However, [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) fields are better for [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) and other [term-level](/reference/query-languages/query-dsl/term-level-queries.md) queries.
 
 Identifiers, such as an ISBN or a product ID, are rarely used in `range` queries. However, they are often retrieved using term-level queries.
 
 Consider mapping a numeric identifier as a `keyword` if:
 
-* You don’t plan to search for the identifier data using [`range`](/reference/query-languages/query-dsl-range-query.md) queries.
+* You don’t plan to search for the identifier data using [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries.
 * Fast retrieval is important. `term` query searches on `keyword` fields are often faster than `term` searches on numeric fields.
 
 If you’re unsure which to use, you can use a [multi-field](/reference/elasticsearch/mapping-reference/multi-fields.md) to map the data as both a `keyword` *and* a numeric data type.
@@ -147,7 +147,8 @@ The following parameters are accepted by numeric types:
 `time_series_metric`
 :   (Optional, string) Marks the field as a [time series metric](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric). The value is the metric type. You can’t update this parameter for existing fields.
 
-    ::::{dropdown} Valid `time_series_metric` values for numeric fields
+    **Valid `time_series_metric` values for numeric fields**:
+
     `counter`
     :   A cumulative metric that only monotonically increases or resets to `0` (zero). For example, a count of errors or completed tasks.
 
@@ -156,9 +157,6 @@ The following parameters are accepted by numeric types:
 
     `null` (Default)
     :   Not a time series metric.
-
-    ::::
-
 
     For a numeric time series metric, the `doc_values` parameter must be `true`. A numeric field can’t be both a time series dimension and a time series metric.
 
@@ -176,15 +174,10 @@ The following parameters are accepted by numeric types:
 
 `scaled_float` is stored as a single `long` value, which is the product of multiplying the original value by the scaling factor. If the multiplication results in a value that is outside the range of a `long`, the value is saturated to the minimum or maximum value of a `long`. For example, if the scaling factor is `100` and the value is `92233720368547758.08`, the expected value is `9223372036854775808`. However, the value that is stored is `9223372036854775807`, the maximum value for a `long`.
 
-This can lead to unexpected results with [range queries](/reference/query-languages/query-dsl-range-query.md) when the scaling factor or provided `float` value are exceptionally large.
+This can lead to unexpected results with [range queries](/reference/query-languages/query-dsl/query-dsl-range-query.md) when the scaling factor or provided `float` value are exceptionally large.
 
 
 ## Synthetic `_source` [numeric-synthetic-source]
-
-::::{important}
-Synthetic `_source` is Generally Available only for TSDB indices (indices that have `index.mode` set to `time_series`). For other indices synthetic `_source` is in technical preview. Features in technical preview may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
-::::
-
 
 All numeric fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) in their default configuration. Synthetic `_source` cannot be used together with [`copy_to`](/reference/elasticsearch/mapping-reference/copy-to.md), or with [`doc_values`](/reference/elasticsearch/mapping-reference/doc-values.md) disabled.
 

@@ -5,7 +5,7 @@ mapped_pages:
 
 # Ingest processor context [painless-ingest-processor-context]
 
-Use a Painless script in an [ingest processor](/reference/ingestion-tools/enrich-processor/script-processor.md) to modify documents upon insertion.
+Use a Painless script in an [ingest processor](/reference/enrich-processor/script-processor.md) to modify documents upon insertion.
 
 **Variables**
 

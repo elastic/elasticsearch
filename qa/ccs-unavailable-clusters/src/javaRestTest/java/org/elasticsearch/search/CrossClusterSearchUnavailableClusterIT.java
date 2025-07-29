@@ -94,7 +94,12 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchShardsRequest::new,
                 (request, channel, task) -> {
-                    channel.sendResponse(new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap()));
+                    var searchShardsResponse = new SearchShardsResponse(List.of(), List.of(), Collections.emptyMap());
+                    try {
+                        channel.sendResponse(searchShardsResponse);
+                    } finally {
+                        searchShardsResponse.decRef();
+                    }
                 }
             );
             newService.registerRequestHandler(
@@ -135,7 +140,12 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                         builder.add(node);
                     }
                     ClusterState build = ClusterState.builder(clusterName).nodes(builder.build()).build();
-                    channel.sendResponse(new ClusterStateResponse(clusterName, build, false));
+                    var clusterStateResponse = new ClusterStateResponse(clusterName, build, false);
+                    try {
+                        channel.sendResponse(clusterStateResponse);
+                    } finally {
+                        clusterStateResponse.decRef();
+                    }
                 }
             );
             newService.start();

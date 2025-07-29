@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -69,6 +70,7 @@ import static org.mockito.Mockito.when;
  * This suite loads the data into either the local cluster or the remote cluster, then run spec tests with CCQ.
  * TODO: Some spec tests prevents us from splitting data across multiple shards/indices/clusters
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "double to keyword issue")
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
 

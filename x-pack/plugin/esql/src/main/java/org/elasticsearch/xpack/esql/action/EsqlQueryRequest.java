@@ -55,6 +55,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private ZoneId timeZone;
     private Locale locale;
     private QueryBuilder filter;
+    // TODO: discuss how to wire the approximation functionality in the API
     private boolean approximate;
     private QueryPragmas pragmas = new QueryPragmas(Settings.EMPTY);
     private QueryParams params = new QueryParams();

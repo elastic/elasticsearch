@@ -143,6 +143,18 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block valuesUncast = page.getBlock(channels.get(0));
+    if (valuesUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefBlock values = (BytesRefBlock) valuesUncast;
+    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
+  }
+
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, BytesRefBlock values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -177,6 +189,18 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block valuesUncast = page.getBlock(channels.get(0));
+    if (valuesUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefBlock values = (BytesRefBlock) valuesUncast;
+    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
@@ -201,11 +225,6 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
-  }
-
-  @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
@@ -214,11 +233,12 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       return;
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      ValuesBytesRefAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
-    }
+    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

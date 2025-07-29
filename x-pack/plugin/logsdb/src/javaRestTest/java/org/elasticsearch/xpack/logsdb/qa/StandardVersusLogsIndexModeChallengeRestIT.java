@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb.qa;
 
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -18,32 +19,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datageneration.FieldType;
-import org.elasticsearch.datageneration.Template;
-import org.elasticsearch.datageneration.fields.leaf.BooleanFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.ByteFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.ConstantKeywordFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.CountedKeywordFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.DateFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.DoubleFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.FloatFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.GeoPointFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.IntegerFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.IpFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.KeywordFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.LongFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.ShortFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.TextFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
-import org.elasticsearch.datageneration.fields.leaf.WildcardFieldDataGenerator;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.datageneration.matchers.source.SourceTransforms;
-import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.datageneration.queries.QueryGenerator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.similarity.ScriptedSimilarity;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -66,7 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -167,169 +147,6 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
-    private List<String> getSearchableFields(String type, Map<String, Map<String, Object>> mappingLookup) {
-        var fields = new ArrayList<String>();
-        for (var e : mappingLookup.entrySet()) {
-            var mapping = e.getValue();
-            if (mapping != null && type.equals(mapping.get("type"))) {
-                boolean isIndexed = (Boolean) mapping.getOrDefault("index", true);
-                if (isIndexed) {
-                    fields.add(e.getKey());
-                }
-            }
-        }
-        return fields;
-    }
-
-    @SuppressWarnings("unchecked")
-    List<String> getNestedPathPrefixes(String[] path) {
-        Map<String, Object> mapping = dataGenerationHelper.mapping().raw();
-        mapping = (Map<String, Object>) mapping.get("_doc");
-        mapping = (Map<String, Object>) mapping.get("properties");
-
-        var result = new ArrayList<String>();
-        for (int i = 0; i < path.length - 1; i++) {
-            var field = path[i];
-            mapping = (Map<String, Object>) mapping.get(field);
-            boolean nested = "nested".equals(mapping.get("type"));
-            if (nested) {
-                result.add(String.join(".", Arrays.copyOfRange(path, 0, i + 1)));
-            }
-            mapping = (Map<String, Object>) mapping.get("properties");
-        }
-
-        mapping = (Map<String, Object>) mapping.get(path[path.length - 1]);
-        assert mapping.containsKey("properties") == false;
-        return result;
-    }
-
-    private QueryBuilder wrapInNestedQuery(String path, QueryBuilder leafQuery) {
-        String[] parts = path.split("\\.");
-        List<String> nestedPaths = getNestedPathPrefixes(parts);
-        QueryBuilder query = leafQuery;
-        for (String nestedPath : nestedPaths.reversed()) {
-            query = QueryBuilders.nestedQuery(nestedPath, query, ScoreMode.Max);
-        }
-        return query;
-    }
-
-    private boolean isEnabled(String path) {
-        String[] parts = path.split("\\.");
-        var mappingLookup = dataGenerationHelper.mapping().lookup();
-        for (int i = 0; i < parts.length - 1; i++) {
-            var pathToHere = String.join(".", Arrays.copyOfRange(parts, 0, i + 1));
-            Map<String, Object> mapping = mappingLookup.get(pathToHere);
-
-
-            boolean enabled = true;
-            if (mapping.containsKey("enabled") && mapping.get("enabled") instanceof Boolean) {
-                enabled = (Boolean) mapping.get("enabled");
-            }
-            if (mapping.containsKey("enabled") && mapping.get("enabled") instanceof String) {
-                enabled = Boolean.parseBoolean((String) mapping.get("enabled"));
-            }
-
-            if (enabled == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    public void testPhraseQuery() throws IOException {
-        int numberOfDocuments = ESTestCase.randomIntBetween(20, 80);
-        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
-
-        var mappingLookup = dataGenerationHelper.mapping().lookup();
-        var fieldsOfType = getSearchableFields("text", mappingLookup);
-
-        if (fieldsOfType.isEmpty()) {
-            return;
-        }
-
-        var path = randomFrom(fieldsOfType);
-
-        XContentBuilder doc = randomFrom(documents);
-        final Map<String, Object> document = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(doc), true);
-        var normalized = SourceTransforms.normalize(document, mappingLookup);
-        List<Object> values = normalized.get(path);
-        if (values == null || values.isEmpty()) {
-            return;
-        }
-        String needle = (String) randomFrom(values);
-        var tokens = Arrays.asList(needle.split("[^a-zA-Z0-9]"));
-
-        if (tokens.isEmpty()) {
-            return;
-        }
-
-        int low = ESTestCase.randomIntBetween(0, tokens.size() - 1);
-        int hi = ESTestCase.randomIntBetween(low+1, tokens.size());
-        var phrase = String.join(" ", tokens.subList(low, hi));
-        System.out.println("phrase: " + phrase);
-
-        indexDocuments(documents);
-
-        QueryBuilder queryBuilder = wrapInNestedQuery(path, QueryBuilders.matchPhraseQuery(path, phrase));
-        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder)
-            .size(numberOfDocuments);
-
-        final MatchResult matchResult = Matcher.matchSource()
-            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
-            .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
-            .ignoringSort(true)
-            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
-        assertTrue(matchResult.getMessage(), matchResult.isMatch());
-    }
-
-    private static QueryBuilder phraseQuery(String path, Object value) {
-        String needle = (String) value;
-        var tokens = Arrays.asList(needle.split("[^a-zA-Z0-9]"));
-
-        if (tokens.isEmpty()) {
-            return null;
-        }
-
-        int low = ESTestCase.randomIntBetween(0, tokens.size() - 1);
-        int hi = ESTestCase.randomIntBetween(low+1, tokens.size());
-        var phrase = String.join(" ", tokens.subList(low, hi));
-
-        return QueryBuilders.matchPhraseQuery(path, phrase);
-    }
-
-    private static List<QueryBuilder> buildLeafQueries(String type, String path, Object value, Map<String, Object> mapping) {
-        FieldType fieldType = FieldType.tryParse(type);
-        if (fieldType == null) {
-            return List.of();
-        }
-        return switch (fieldType) {
-            case KEYWORD ->  {
-                var ignoreAbove = (Integer) mapping.getOrDefault("ignore_above", Integer.MAX_VALUE);
-                yield ignoreAbove >= ((String) value).length() ? List.of(QueryBuilders.termQuery(path, value)) : List.of();
-            }
-            case TEXT -> {
-                List<QueryBuilder> result = new ArrayList<>(List.of(QueryBuilders.matchQuery(path, value)));
-                var phrase = phraseQuery(path, value);
-                if (phrase != null) {
-                    result.add(phrase);
-                }
-                yield result;
-            }
-            case WILDCARD -> {
-                var ignoreAbove = (Integer) mapping.getOrDefault("ignore_above", Integer.MAX_VALUE);
-                if (ignoreAbove >= ((String) value).length()) {
-                    yield List.of(
-                        QueryBuilders.termQuery(path, value),
-                        QueryBuilders.wildcardQuery(path, value + "*")
-                    );
-                }
-                yield List.of();
-            }
-            default -> List.of();
-        };
-    }
-
     public void testRandomQueries() throws IOException {
         int numberOfDocuments = ESTestCase.randomIntBetween(20, 80);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
@@ -341,54 +158,31 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
         indexDocuments(documents);
 
+        QueryGenerator queryGenerator = new QueryGenerator(mappingLookup, dataGenerationHelper.mapping().raw());
         for (var e : mappingLookup.entrySet()) {
             var path = e.getKey();
             var mapping = e.getValue();
-
-            // This test cannot handle fields with periods in name
-            if (path.equals("host.name")) {
-                continue;
-            }
-            if (mapping == null || isEnabled(path) == false) {
-                continue;
-            }
-            boolean isIndexed = (Boolean) mapping.getOrDefault("index", true);
-            if (isIndexed == false) {
-                continue;
-            }
             var docsWithFields = docsNormalized.stream().filter(d -> d.containsKey(path)).toList();
-            if (docsWithFields.isEmpty()) {
-                continue;
-            }
+            if (docsWithFields.isEmpty() == false) {
+                var doc = randomFrom(docsWithFields);
+                List<Object> values = doc.get(path).stream().filter(Objects::nonNull).toList();
+                if (values.isEmpty() == false) {
+                    Object value = randomFrom(values);
+                    List<QueryBuilder> queries = queryGenerator.generateQueries(path, mapping, value);
+                    for (var query : queries) {
+                        logger.info("Querying for field [{}] with value [{}]", path, value);
 
-            var doc = randomFrom(docsWithFields);
-            List<Object> values = doc.get(path);
-            if (values == null) {
-                continue;
-            }
-            List<Object> valuesNonNull = values.stream().filter(Objects::nonNull).toList();
-            if (valuesNonNull.isEmpty()) {
-                continue;
-            }
-
-            Object needle = randomFrom(valuesNonNull);
-
-            var type = (String) mapping.get("type");
-            var leafQueries = buildLeafQueries(type, path, needle, mapping).stream().filter(Objects::nonNull).toList();
-
-            for (var leafQuery : leafQueries) {
-                QueryBuilder queryBuilder = wrapInNestedQuery(path, leafQuery);
-                final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(queryBuilder)
-                    .size(numberOfDocuments);
-
-                logger.info("Querying for field [{}] with value [{}]", path, needle);
-                final MatchResult matchResult = Matcher.matchSource()
-                    .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
-                    .settings(getContenderSettings(), getBaselineSettings())
-                    .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
-                    .ignoringSort(true)
-                    .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
-                assertTrue(matchResult.getMessage(), matchResult.isMatch());
+                        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(query)
+                            .size(numberOfDocuments);
+                        final MatchResult matchResult = Matcher.matchSource()
+                            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
+                            .settings(getContenderSettings(), getBaselineSettings())
+                            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
+                            .ignoringSort(true)
+                            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+                        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+                    }
+                }
             }
         }
     }

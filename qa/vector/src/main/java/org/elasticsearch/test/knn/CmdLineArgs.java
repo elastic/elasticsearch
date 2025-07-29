@@ -53,7 +53,7 @@ record CmdLineArgs(
     VectorEncoding vectorEncoding,
     int dimensions,
     boolean earlyTermination,
-    String mergePolicy
+    KnnIndexTester.MergePolicyType mergePolicy
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -182,7 +182,7 @@ record CmdLineArgs(
         private boolean earlyTermination;
         private float filterSelectivity = 1f;
         private long seed = 1751900822751L;
-        private String mergePolicy = null;
+        private KnnIndexTester.MergePolicyType mergePolicy = null;
 
         public Builder setDocVectors(List<String> docVectors) {
             if (docVectors == null || docVectors.isEmpty()) {
@@ -309,7 +309,7 @@ record CmdLineArgs(
         }
 
         public Builder setMergePolicy(String mergePolicy) {
-            this.mergePolicy = mergePolicy;
+            this.mergePolicy = KnnIndexTester.MergePolicyType.valueOf(mergePolicy.toUpperCase(Locale.ROOT));
             return this;
         }
 

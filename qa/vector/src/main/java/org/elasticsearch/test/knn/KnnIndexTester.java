@@ -74,6 +74,13 @@ public class KnnIndexTester {
         IVF
     }
 
+    enum MergePolicyType {
+        TIERED,
+        LOG_BYTE,
+        NO,
+        LOG_DOC
+    }
+
     private static String formatIndexPath(CmdLineArgs args) {
         List<String> suffix = new ArrayList<>();
         if (args.indexType() == IndexType.FLAT) {
@@ -201,18 +208,7 @@ public class KnnIndexTester {
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
             Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
-            MergePolicy mergePolicy = null;
-            if (cmdLineArgs.mergePolicy() != null && cmdLineArgs.mergePolicy().isEmpty() == false) {
-                if ("tmp".equalsIgnoreCase(cmdLineArgs.mergePolicy())) {
-                    mergePolicy = new TieredMergePolicy();
-                } else if ("lbmp".equalsIgnoreCase(cmdLineArgs.mergePolicy())) {
-                    mergePolicy = new LogByteSizeMergePolicy();
-                } else if ("no".equalsIgnoreCase(cmdLineArgs.mergePolicy())) {
-                    mergePolicy = NoMergePolicy.INSTANCE;
-                } else if ("ldmp".equalsIgnoreCase(cmdLineArgs.mergePolicy())) {
-                    mergePolicy = new LogDocMergePolicy();
-                }
-            }
+            MergePolicy mergePolicy = getMergePolicy(cmdLineArgs);
             if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {
                 KnnIndexer knnIndexer = new KnnIndexer(
                     cmdLineArgs.docVectors(),
@@ -248,6 +244,24 @@ public class KnnIndexTester {
             formattedResults.indexResults.add(indexResults);
         }
         logger.info("Results: \n" + formattedResults);
+    }
+
+    private static MergePolicy getMergePolicy(CmdLineArgs args) {
+        MergePolicy mergePolicy = null;
+        if (args.mergePolicy() != null) {
+            if (args.mergePolicy() == MergePolicyType.TIERED) {
+                mergePolicy = new TieredMergePolicy();
+            } else if (args.mergePolicy() == MergePolicyType.LOG_BYTE) {
+                mergePolicy = new LogByteSizeMergePolicy();
+            } else if (args.mergePolicy() == MergePolicyType.NO) {
+                mergePolicy = NoMergePolicy.INSTANCE;
+            } else if (args.mergePolicy() == MergePolicyType.LOG_DOC) {
+                mergePolicy = new LogDocMergePolicy();
+            } else {
+                throw new IllegalArgumentException("Invalid merge policy: " + args.mergePolicy());
+            }
+        }
+        return mergePolicy;
     }
 
     static class FormattedResults {

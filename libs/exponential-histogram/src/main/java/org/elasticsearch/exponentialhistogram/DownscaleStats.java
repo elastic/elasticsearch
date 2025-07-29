@@ -95,6 +95,6 @@ class DownscaleStats {
                 return i + 1;
             }
         }
-        throw new IllegalArgumentException("Cannot reduce the bucket count by " + desiredCollapsedBucketCount);
+        throw new IllegalStateException("Cannot reduce the bucket count by " + desiredCollapsedBucketCount);
     }
 }

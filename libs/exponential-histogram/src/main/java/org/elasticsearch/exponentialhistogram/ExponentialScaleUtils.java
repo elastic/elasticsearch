@@ -245,15 +245,11 @@ public class ExponentialScaleUtils {
     }
 
     private static void checkScaleBounds(int scale) {
-        if (scale < MIN_SCALE || scale > MAX_SCALE) {
-            throw new IllegalArgumentException("scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]");
-        }
+        assert scale >= MIN_SCALE && scale <= MAX_SCALE : "scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]";
     }
 
     private static void checkIndexBounds(long index) {
-        if (index < MIN_INDEX || index > MAX_INDEX) {
-            throw new IllegalArgumentException("index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]");
-        }
+        assert index >= MIN_INDEX && index <= MAX_INDEX : "index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]";
     }
 
     /**

@@ -60,9 +60,7 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
      * @param scale the scale to set for this histogram
      */
     void resetBuckets(int scale) {
-        if (scale > MAX_SCALE || scale < MIN_SCALE) {
-            throw new IllegalArgumentException("scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]");
-        }
+        assert scale >= MIN_SCALE && scale <= MAX_SCALE : "scale must be in range [" + MIN_SCALE + ".." + MAX_SCALE + "]";
         negativeBuckets.reset();
         positiveBuckets.reset();
         bucketScale = scale;
@@ -105,15 +103,9 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
      * @return {@code true} if the bucket was added, {@code false} if it could not be added due to insufficient capacity
      */
     boolean tryAddBucket(long index, long count, boolean isPositive) {
-        if (index < MIN_INDEX || index > MAX_INDEX) {
-            throw new IllegalArgumentException("index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]");
-        }
-        if (isPositive == false && positiveBuckets.numBuckets > 0) {
-            throw new IllegalArgumentException("Cannot add negative buckets after a positive bucket has been added");
-        }
-        if (count <= 0) {
-            throw new IllegalArgumentException("Cannot add an empty or negative bucket");
-        }
+        assert index >= MIN_INDEX && index <= MAX_INDEX : "index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]";
+        assert isPositive || positiveBuckets.numBuckets == 0 : "Cannot add negative buckets after a positive bucket has been added";
+        assert count > 0 : "Cannot add an empty or negative bucket";
         if (isPositive) {
             return positiveBuckets.tryAddBucket(index, count);
         } else {

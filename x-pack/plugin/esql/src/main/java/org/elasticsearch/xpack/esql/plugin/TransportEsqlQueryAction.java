@@ -170,6 +170,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
 
         this.computeService = new ComputeService(
+            client,
             services,
             enrichLookupService,
             lookupFromIndexService,

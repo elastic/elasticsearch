@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
+import org.elasticsearch.compute.operator.CollectOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
@@ -93,6 +94,7 @@ import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.CollectExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -268,8 +270,10 @@ public class LocalExecutionPlanner {
             return planChangePoint(changePoint, context);
         } else if (node instanceof CompletionExec completion) {
             return planCompletion(completion, context);
-        } else if (node instanceof SampleExec Sample) {
-            return planSample(Sample, context);
+        } else if (node instanceof SampleExec sample) {
+            return planSample(sample, context);
+        } else if (node instanceof CollectExec collect) {
+            return planCollect(collect, context);
         }
 
         // source nodes
@@ -906,6 +910,11 @@ public class LocalExecutionPlanner {
         PhysicalOperation source = plan(rsx.child(), context);
         var probability = (double) Foldables.valueOf(context.foldCtx(), rsx.probability());
         return source.with(new SampleOperator.Factory(probability), source.layout);
+    }
+
+    private PhysicalOperation planCollect(CollectExec collect, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(collect.child(), context);
+        return physicalOperationProviders.collect(collect, source, context);
     }
 
     /**

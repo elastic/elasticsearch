@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.telemetry;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.Collect;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -72,7 +73,8 @@ public enum FeatureMetric {
     FORK(Fork.class::isInstance),
     RRF(RrfScoreEval.class::isInstance),
     COMPLETION(Completion.class::isInstance),
-    SAMPLE(Sample.class::isInstance);
+    SAMPLE(Sample.class::isInstance),
+    COLLECT(Collect.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

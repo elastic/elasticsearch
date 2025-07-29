@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -128,6 +129,7 @@ public class ComputeService {
     private final BigArrays bigArrays;
     private final BlockFactory blockFactory;
 
+    private final Client client;
     private final TransportService transportService;
     private final DriverTaskRunner driverRunner;
     private final EnrichLookupService enrichLookupService;
@@ -143,6 +145,7 @@ public class ComputeService {
 
     @SuppressWarnings("this-escape")
     public ComputeService(
+        Client client,
         TransportActionServices transportActionServices,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
@@ -150,6 +153,7 @@ public class ComputeService {
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
+        this.client = client;
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
         this.exchangeService = transportActionServices.exchangeService();
@@ -614,6 +618,7 @@ public class ComputeService {
         EsPhysicalOperationProviders physicalOperationProviders = new EsPhysicalOperationProviders(
             context.foldCtx(),
             contexts,
+            client,
             searchService.getIndicesService().getAnalysis(),
             physicalSettings
         );

@@ -86,7 +86,7 @@ public class XContentRowEncoder implements ExpressionEvaluator {
             PositionToXContent[] toXContents = new PositionToXContent[fieldsValueEvaluators.length];
             for (int b = 0; b < fieldValueBlocks.length; b++) {
                 fieldValueBlocks[b] = fieldsValueEvaluators[b].eval(page);
-                toXContents[b] = PositionToXContent.positionToXContent(columnsInfo[b], fieldValueBlocks[b], new BytesRef());
+                toXContents[b] = PositionToXContent.positionToXContent(columnsInfo[b].type(), fieldValueBlocks[b], new BytesRef());
             }
 
             for (int pos = 0; pos < page.getPositionCount(); pos++) {

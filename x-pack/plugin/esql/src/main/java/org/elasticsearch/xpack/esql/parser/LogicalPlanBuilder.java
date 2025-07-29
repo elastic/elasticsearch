@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.Collect;
 import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
@@ -379,6 +380,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         aggregates.addAll(groupings);
         // TODO: add support for filters
         return input -> new InlineStats(source(ctx), new Aggregate(source(ctx), input, new ArrayList<>(groupings), aggregates));
+    }
+
+    @Override
+    public PlanFactory visitCollectCommand(EsqlBaseParser.CollectCommandContext ctx) {
+        if (false == EsqlPlugin.COLLECT_FEATURE_FLAG) {
+            throw new ParsingException(source(ctx), "COLLECT command currently requires a snapshot build");
+        }
+        Source src = source(ctx);
+        ReferenceAttribute rowsEmittedAttribute = new ReferenceAttribute(src, "rows_emitted", DataType.LONG);
+        Literal index = Literal.keyword(source(ctx.COLLECT_INDEX()), ctx.COLLECT_INDEX().getText());
+        return input -> new Collect(src, input, rowsEmittedAttribute, index);
     }
 
     @Override

@@ -60,6 +60,7 @@ processingCommand
     | sampleCommand
     | forkCommand
     // in development
+    | {this.isDevVersion()}? collectCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
@@ -301,6 +302,10 @@ completionCommand
 //
 lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+collectCommand
+    : COLLECT COLLECT_INDEX
     ;
 
 inlinestatsCommand

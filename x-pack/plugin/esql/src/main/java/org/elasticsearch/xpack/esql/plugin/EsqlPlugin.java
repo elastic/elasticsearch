@@ -91,6 +91,8 @@ import java.util.function.Supplier;
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final boolean INLINESTATS_FEATURE_FLAG = new FeatureFlag("esql_inlinestats").isEnabled();
 
+    public static final boolean COLLECT_FEATURE_FLAG = new FeatureFlag("esql_collect").isEnabled();
+
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     public static final Setting<Integer> QUERY_RESULT_TRUNCATION_MAX_SIZE = Setting.intSetting(

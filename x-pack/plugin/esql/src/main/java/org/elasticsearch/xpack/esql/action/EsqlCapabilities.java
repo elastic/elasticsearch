@@ -1333,6 +1333,11 @@ public class EsqlCapabilities {
         CATEGORIZE_OPTIONS,
 
         /**
+         * The {@code | COLLECT} operator.
+         */
+        COLLECT(EsqlPlugin.COLLECT_FEATURE_FLAG),
+
+        /**
          * Support correct counting of skipped shards.
          */
         CORRECT_SKIPPED_SHARDS_COUNT;

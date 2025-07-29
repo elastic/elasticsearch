@@ -81,7 +81,7 @@ final class ResponseXContentUtils {
                 Iterators.single(((builder, params) -> builder.startArray())),
                 Iterators.flatMap(pages.iterator(), page -> {
                     PositionToXContent toXContent = PositionToXContent.positionToXContent(
-                        columns.get(column),
+                        columns.get(column).type(),
                         page.getBlock(column),
                         scratch
                     );
@@ -105,7 +105,7 @@ final class ResponseXContentUtils {
             final PositionToXContent[] toXContents = new PositionToXContent[columnCount];
             for (int column = 0; column < columnCount; column++) {
                 Block block = page.getBlock(column);
-                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column), block, scratch);
+                toXContents[column] = PositionToXContent.positionToXContent(columns.get(column).type(), block, scratch);
             }
             return Iterators.forRange(0, page.getPositionCount(), position -> (builder, params) -> {
                 builder.startArray();

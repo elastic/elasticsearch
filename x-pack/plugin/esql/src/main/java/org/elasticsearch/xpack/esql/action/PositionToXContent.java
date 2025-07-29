@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 
@@ -58,11 +59,30 @@ public abstract class PositionToXContent {
         return builder.endArray();
     }
 
+    public XContentBuilder nameAndValueToXContent(String name, XContentBuilder builder, ToXContent.Params params, int position)
+        throws IOException {
+        if (block.isNull(position)) {
+            return builder;
+        }
+        builder.field(name);
+        int count = block.getValueCount(position);
+        int start = block.getFirstValueIndex(position);
+        if (count == 1) {
+            return valueToXContent(builder, params, start);
+        }
+        builder.startArray();
+        int end = start + count;
+        for (int i = start; i < end; i++) {
+            valueToXContent(builder, params, i);
+        }
+        return builder.endArray();
+    }
+
     protected abstract XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
         throws IOException;
 
-    public static PositionToXContent positionToXContent(ColumnInfoImpl columnInfo, Block block, BytesRef scratch) {
-        return switch (columnInfo.type()) {
+    public static PositionToXContent positionToXContent(DataType type, Block block, BytesRef scratch) {
+        return switch (type) {
             case LONG, COUNTER_LONG -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
@@ -191,7 +211,7 @@ public abstract class PositionToXContent {
                 }
             };
             case DATE_PERIOD, TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, SHORT, BYTE, OBJECT, FLOAT, HALF_FLOAT, SCALED_FLOAT,
-                PARTIAL_AGG -> throw new IllegalArgumentException("can't convert values of type [" + columnInfo.type() + "]");
+                PARTIAL_AGG -> throw new IllegalArgumentException("can't convert values of type [" + type + "]");
         };
     }
 }

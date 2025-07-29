@@ -16,11 +16,14 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
@@ -30,6 +33,7 @@ import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.read.TimeSeriesExtractFieldOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.CollectOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
@@ -56,6 +60,8 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xpack.esql.action.PositionToXContent;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -65,6 +71,7 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.plan.physical.CollectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.Sort;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -138,16 +145,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public abstract double storedFieldsSequentialProportion();
     }
 
+    private final Client client;
     private final List<ShardContext> shardContexts;
     private final PhysicalSettings physicalSettings;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
         List<ShardContext> shardContexts,
+        Client client,
         AnalysisRegistry analysisRegistry,
         PhysicalSettings physicalSettings
     ) {
         super(foldContext, analysisRegistry);
+        this.client = client;
         this.shardContexts = shardContexts;
         this.physicalSettings = physicalSettings;
     }
@@ -576,5 +586,21 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public final String toString() {
             return "TypeConvertingBlockLoader[delegate=" + delegate + ", typeConverter=" + typeConverter + "]";
         }
+    }
+
+    @Override
+    public PhysicalOperation collect(CollectExec collect, PhysicalOperation source, LocalExecutionPlannerContext context) {
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(collect.output());
+        BytesRef index = (BytesRef) collect.index().value();
+        List<Function<Block, CollectOperator.Writer>> writers = new ArrayList<>(collect.child().output().size());
+        BytesRef scratch = new BytesRef();
+        for (Attribute a : collect.child().output()) {
+            writers.add(block -> {
+                PositionToXContent toXContent = PositionToXContent.positionToXContent(a.dataType(), block, scratch);
+                return (builder, valueIndex) -> toXContent.nameAndValueToXContent(a.name(), builder, ToXContent.EMPTY_PARAMS, valueIndex);
+            });
+        }
+        return source.with(new CollectOperator.Factory(client, index.utf8ToString(), writers), layout.build());
     }
 }

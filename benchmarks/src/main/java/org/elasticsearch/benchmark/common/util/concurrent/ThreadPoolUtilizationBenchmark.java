@@ -30,13 +30,13 @@ import java.util.concurrent.TimeUnit;
 @Threads(12)
 @Warmup(iterations = 3, time = 200, timeUnit = TimeUnit.MILLISECONDS)
 @Measurement(iterations = 5, time = 600, timeUnit = TimeUnit.MILLISECONDS)
-@BenchmarkMode(Mode.AverageTime)
+@BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Benchmark)
 @Fork(1)
 public class ThreadPoolUtilizationBenchmark {
 
-    @Param({ "0", "10000", "100000" })
+    @Param({ "10000" })
     private int callIntervalTicks;
 
     /**
@@ -44,16 +44,6 @@ public class ThreadPoolUtilizationBenchmark {
      */
     @Param({ "10" })
     private int utilizationIntervalMs;
-
-    @State(Scope.Thread)
-    public static class TaskState {
-        boolean running = false;
-
-        boolean shouldStart() {
-            return (running = running == false);
-        }
-    }
-
     private TaskExecutionTimeTrackingEsThreadPoolExecutor.FramedTimeTracker timeTracker;
 
     @Setup
@@ -69,32 +59,20 @@ public class ThreadPoolUtilizationBenchmark {
         Blackhole.consumeCPU(callIntervalTicks);
     }
 
-    @Group("ReadAndWrite")
+    @Group("StartAndEnd")
     @Benchmark
     public void startAndStopTasks(TaskState state) {
+        timeTracker.startTask();
         Blackhole.consumeCPU(callIntervalTicks);
-        if (state.shouldStart()) {
-            timeTracker.startTask();
-        } else {
-            timeTracker.endTask();
-        }
+        timeTracker.endTask();
     }
 
-    @Benchmark
-    @Group("ReadAndWrite")
-    public void readPrevious(Blackhole blackhole) {
-        Blackhole.consumeCPU(callIntervalTicks);
-        blackhole.consume(timeTracker.previousFrameTime());
-    }
+    @State(Scope.Thread)
+    public static class TaskState {
+        boolean running = false;
 
-    @Benchmark
-    @Group("JustWrite")
-    public void startAndStopTasksOnly(TaskState state) {
-        Blackhole.consumeCPU(callIntervalTicks);
-        if (state.shouldStart()) {
-            timeTracker.startTask();
-        } else {
-            timeTracker.endTask();
+        boolean shouldStart() {
+            return (running = running == false);
         }
     }
 }

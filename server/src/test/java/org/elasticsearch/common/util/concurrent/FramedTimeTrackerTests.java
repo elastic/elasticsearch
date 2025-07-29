@@ -32,7 +32,7 @@ public class FramedTimeTrackerTests extends ESTestCase {
 
     public void testNoTasks() {
         var tracker = newTracker(1);
-        tracker.updateFrame();
+        tracker.previousFrameTime();
         assertEquals(0, tracker.previousFrameTime());
         fakeTime.time += between(1, 100);
         assertEquals(0, tracker.previousFrameTime());

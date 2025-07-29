@@ -244,7 +244,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
         final Runnable waitTillNextFrame = () -> {
             var now = System.nanoTime();
-            var waitTillNext = (now / interval.getNano() + 1) * interval.getNano() - now;
+            var waitTillNext = (now / interval.toNanos() + 1) * interval.toNanos() - now;
             trySleep.accept(Duration.ofNanos(waitTillNext));
         };
 
@@ -274,7 +274,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             waitTillNextFrame.run();
 
             DoubleStream.of(0.1, 0.3, 0.5, 3.).forEach(loadFactor -> {
-                var sleepTime = (long) (interval.getNano() * loadFactor);
+                var sleepTime = (long) (interval.toNanos() * loadFactor);
                 executor.submit(sleepTaskFn.apply(Duration.ofNanos(sleepTime)));
             });
 

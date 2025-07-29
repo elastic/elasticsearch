@@ -27,6 +27,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
@@ -260,10 +262,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     public static class FramedTimeTracker {
         final long interval;
         private final Supplier<Long> timeNow;
-        long ongoingTasks;
-        long currentFrame;
-        long currentTime;
-        long previousTime;
+        private final AtomicLong ongoingTasks = new AtomicLong();
+        private final AtomicLong currentFrame = new AtomicLong();
+        private final AtomicLong currentTime = new AtomicLong();
+        private final AtomicLong previousTime = new AtomicLong();
+        private final AtomicBoolean updatingFrame = new AtomicBoolean();
 
         // for testing
         public FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
@@ -276,10 +279,6 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             assert intervalNano > 0;
             this.interval = intervalNano;
             this.timeNow = System::nanoTime;
-        }
-
-        public synchronized void updateFrame() {
-            updateFrame0(timeNow.get());
         }
 
         /**
@@ -295,14 +294,23 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
          */
         private void updateFrame0(long nowTime) {
             var now = nowTime / interval;
-            if (currentFrame < now) {
-                if (currentFrame == now - 1) {
-                    previousTime = currentTime; //
+            var current = currentFrame.get();
+            if (current < now) {
+                if (updatingFrame.compareAndSet(false, true)) {
+                    var tasks = ongoingTasks.get();
+                    if (current == now - 1) {
+                        previousTime.set(currentTime.get());
+                    } else {
+                        previousTime.set(tasks * interval);
+                    }
+                    currentTime.set(tasks * interval);
+                    currentFrame.set(now);
+                    updatingFrame.set(false);
                 } else {
-                    previousTime = ongoingTasks * interval;
+                    while (currentFrame.get() != now) {
+                        Thread.onSpinWait();
+                    }
                 }
-                currentTime = ongoingTasks * interval;
-                currentFrame = now;
             }
         }
 
@@ -310,29 +318,29 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
          * Start tracking new task, assume that task runs indefinitely, or at least till end of frame.
          * If task finishes sooner than end of interval {@link FramedTimeTracker#endTask()} will deduct remaining time.
          */
-        public synchronized void startTask() {
+        public void startTask() {
             var now = timeNow.get();
             updateFrame0(now);
-            currentTime += (currentFrame + 1) * interval - now;
-            ++ongoingTasks;
+            ongoingTasks.incrementAndGet();
+            currentTime.updateAndGet((t) -> t + (currentFrame.get() + 1) * interval - now);
         }
 
         /**
          * Stop task tracking. We already assumed that task runs till end of frame, here we deduct not used time.
          */
-        public synchronized void endTask() {
+        public void endTask() {
             var now = timeNow.get();
             updateFrame0(now);
-            currentTime -= (currentFrame + 1) * interval - now;
-            --ongoingTasks;
+            ongoingTasks.decrementAndGet();
+            currentTime.updateAndGet((t) -> t - (currentFrame.get() + 1) * interval + now);
         }
 
         /**
          * Returns previous frame total execution time.
          */
-        public synchronized long previousFrameTime() {
+        public long previousFrameTime() {
             updateFrame0(timeNow.get());
-            return previousTime;
+            return previousTime.get();
         }
     }
 }

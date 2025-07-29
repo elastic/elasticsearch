@@ -361,7 +361,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
     /**
      * Convert from the stored {@link long} into the {@link double} to load.
      */
-    public sealed interface ToDouble permits SortableLongToDouble, SortableIntToFloat, SortableShortToHalfFloat, LongToScaledFloat {
+    public sealed interface ToDouble {
         double convert(long v);
 
         ToDouble LONG_TO_DOUBLE = new SortableLongToDouble();

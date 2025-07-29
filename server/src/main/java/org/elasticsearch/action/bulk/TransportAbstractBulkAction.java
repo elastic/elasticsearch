@@ -413,7 +413,7 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         for (StreamType streamType : enabledStreamTypes) {
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> req = bulkRequestModifier.bulkRequest.requests.get(i);
-                String prefix = streamType.getStreamName() + ".";
+                String StreamTypePrefix = streamType.getStreamName() + ".";
 
                 if (req instanceof IndexRequest ir && ir.index().startsWith(prefix) && ir.isPipelineResolved() == false) {
                     IllegalArgumentException e = new IllegalArgumentException(
@@ -421,8 +421,8 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                             + streamType.getStreamName()
                             + "] stream instead"
                     );
-                    Boolean failureStore = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
-                    if (failureStore != null && failureStore) {
+                    Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
+                    if (Boolean.TRUE.equals(failureStore)) {
                         bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
                     } else {
                         bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);

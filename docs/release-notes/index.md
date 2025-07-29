@@ -21,14 +21,11 @@ To check for security updates, go to [Security announcements for the Elastic sta
 % *
 
 ## 9.1.0 [elasticsearch-9.1.0-release-notes]
-```{applies_to}
-stack: coming 9.1.0
-```
 
 ### Highlights [elasticsearch-9.1.0-highlights]
 
 ::::{dropdown} Upgrade `repository-s3` to AWS SDK v2
-In earlier versions of {{es}} the `repository-s3` plugin was based on the AWS SDK v1. AWS will withdraw support for this SDK before the end of the life of {{es}} 9.1 so we have migrated this plugin to the newer AWS SDK v2.
+In earlier versions of {es} the `repository-s3` plugin was based on the AWS SDK v1. AWS will withdraw support for this SDK before the end of the life of {es} {minor-version} so we have migrated this plugin to the newer AWS SDK v2.
 The two SDKs are not quite compatible, so please check the breaking changes documentation and test the new version thoroughly before upgrading any production workloads.
 ::::
 
@@ -54,7 +51,8 @@ Users can enable redirection of ingest failures to the failure store on
 new data streams by specifying it in the new `data_stream_options` field
 inside of a component or index template:
 
-```yaml
+[source,yaml]
+----
 PUT _index_template/my-template
 {
   "index_patterns": ["logs-test-*"],
@@ -66,20 +64,21 @@ PUT _index_template/my-template
       }
     }
   }
-}
-```
+}'
+----
 
 Existing data streams can be configured with the new data stream
 `_options` endpoint:
 
-```yaml
+[source,yaml]
+----
 PUT _data_stream/logs-test-apache/_options
 {
   "failure_store": {
     "enabled": "true"
   }
 }
-```
+----
 
 When redirection is enabled, any ingestion related failures will be
 captured in the failure store if the cluster is able to, along with the
@@ -91,16 +90,18 @@ default as they are stored in different indices than the normal data
 stream data. In order to retrieve the failures, we use the `_search` API
 along with a new bit of index pattern syntax, the `::` selector.
 
-```yaml
+[source,yaml]
+----
 POST logs-test-apache::failures/_search
-```
+----
 
 This index syntax informs the search operation to target the indices in
 its failure store instead of its backing indices. It can be mixed in a
 number of ways with other index patterns to include their failure store
 indices in the search operation:
 
-```yaml
+[source,yaml]
+----
 POST logs-*::failures/_search
 POST logs-*,logs-*::failures/_search
 POST *::failures/_search
@@ -108,7 +109,7 @@ POST _query
 {
   "query": "FROM my_data_stream*::failures"
 }
-```
+----
 ::::
 
 ::::{dropdown} Mark Token Pruning for Sparse Vector as GA
@@ -131,23 +132,24 @@ Conceptually, fork is:
 
 Example:
 
-```yaml
+[source,yaml]
+----------------------------
 FROM test
 | FORK
 ( WHERE content:"fox" )
 ( WHERE content:"dog" )
 | SORT _fork
-```
+----------------------------
 
 The FORK command add a discriminator column called `_fork`:
 
-```yaml
+[source,yaml]
+----------------------------
 | id  | content   | _fork |
 |-----|-----------|-------|
 | 3   | brown fox | fork1 |
 | 4   | white dog | fork2 |
-```
-
+----------------------------
 ::::
 
 ::::{dropdown} ES|QL cross-cluster querying is now generally available
@@ -364,7 +366,6 @@ Machine Learning:
 * Mark token pruning for sparse vector as GA [#128854](https://github.com/elastic/elasticsearch/pull/128854)
 * Move to the Cohere V2 API for new inference endpoints [#129884](https://github.com/elastic/elasticsearch/pull/129884)
 * Semantic Text Chunking Indexing Pressure [#125517](https://github.com/elastic/elasticsearch/pull/125517)
-* Track memory used in the hierarchical results normalizer [#2831](https://github.com/elastic/ml-cpp/pull/2831)
 * Upgrade AWS v2 SDK to 2.30.38 [#124738](https://github.com/elastic/elasticsearch/pull/124738)
 * [Inference API] Propagate product use case http header to EIS [#124025](https://github.com/elastic/elasticsearch/pull/124025)
 * [ML] Add HuggingFace Chat Completion support to the Inference Plugin [#127254](https://github.com/elastic/elasticsearch/pull/127254)

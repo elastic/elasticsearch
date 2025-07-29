@@ -3,16 +3,16 @@
  similarityWithVectorField
  required_capability: dot_product_vector_similarity_function
  
-// tag::vector-dot-product-similarity[]
+// tag::vector-dot-product[]
  from colors
  | eval similarity = v_dot_product(rgb_vector, [0, 255, 255]) 
  | sort similarity desc, color asc 
-// end::vector-dot-product-similarity[]
+// end::vector-dot-product[]
  | limit 10
  | keep color, similarity
  ;
  
-// tag::vector-dot-product-similarity-result[]
+// tag::vector-dot-product-result[]
 color:text | similarity:double
 azure      | 65025.5
 cyan       | 65025.5
@@ -24,7 +24,7 @@ ivory      | 63113.0
 sea shell  | 61583.0
 lavender   | 61200.5
 old lace   | 60563.0
-// end::vector-dot-product-similarity-result[] 
+// end::vector-dot-product-result[] 
 ;
 
  similarityAsPartOfExpression

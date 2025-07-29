@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionUtils;
@@ -38,6 +40,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPostOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.TypeResolutionValidator.forPreOptimizationValidation;
@@ -60,10 +63,13 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         description = "Collects sample values for a field.",
         type = FunctionType.AGGREGATE,
-        examples = @Example(file = "stats_sample", tag = "doc")
+        examples = @Example(file = "stats_sample", tag = "doc"),
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.1.0") }
+
     )
     public Sample(
         Source source,
@@ -82,6 +88,7 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
                 "ip",
                 "keyword",
                 "long",
+                "unsigned_long",
                 "text",
                 "version" },
             description = "The field to collect sample values for."
@@ -113,9 +120,8 @@ public class Sample extends AggregateFunction implements ToAggregator, PostOptim
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        var typeResolution = isType(field(), dt -> dt != DataType.UNSIGNED_LONG, sourceText(), FIRST, "any type except unsigned_long").and(
-            isNotNull(limitField(), sourceText(), SECOND)
-        ).and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
+        var typeResolution = isRepresentableExceptCounters(field(), sourceText(), FIRST).and(isNotNull(limitField(), sourceText(), SECOND))
+            .and(isType(limitField(), dt -> dt == DataType.INTEGER, sourceText(), SECOND, "integer"));
         if (typeResolution.unresolved()) {
             return typeResolution;
         }

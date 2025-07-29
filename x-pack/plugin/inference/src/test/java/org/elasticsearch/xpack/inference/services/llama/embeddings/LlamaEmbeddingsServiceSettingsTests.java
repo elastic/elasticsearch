@@ -155,14 +155,9 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 ConfigurationParseContext.PERSISTENT
             )
         );
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                """
-                    Validation Failed: 1: [service_settings] Invalid url [^^^] received for field [url]. \
-                    Error: unable to parse url [^^^]. Reason: Illegal character in path;"""
-            )
-        );
+        assertThat(thrownException.getMessage(), containsString("""
+            Validation Failed: 1: [service_settings] Invalid url [^^^] received for field [url]. \
+            Error: unable to parse url [^^^]. Reason: Illegal character in path;"""));
     }
 
     public void testFromMap_NoSimilarity_Success() {
@@ -211,14 +206,9 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
                 ConfigurationParseContext.PERSISTENT
             )
         );
-        assertThat(
-            thrownException.getMessage(),
-            containsString(
-                """
-                    Validation Failed: 1: [service_settings] Invalid value [by_size] received. \
-                    [similarity] must be one of [cosine, dot_product, l2_norm];"""
-            )
-        );
+        assertThat(thrownException.getMessage(), containsString("""
+            Validation Failed: 1: [service_settings] Invalid value [by_size] received. \
+            [similarity] must be one of [cosine, dot_product, l2_norm];"""));
     }
 
     // Test cases for dimensions_set_by_user and dimensions fields
@@ -233,25 +223,15 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
     }
 
     public void testFromMap_RequestContext_DimensionsSetByUserTrue_DimensionsZero_Failed() {
-        testFromMap_Dimensions_AssertValidationException(
-            0,
-            DIMENSIONS_SET_BY_USER_TRUE,
-            ConfigurationParseContext.REQUEST,
-            """
-                Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;\
-                2: [service_settings] does not allow the setting [dimensions_set_by_user];"""
-        );
+        testFromMap_Dimensions_AssertValidationException(0, DIMENSIONS_SET_BY_USER_TRUE, ConfigurationParseContext.REQUEST, """
+            Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;\
+            2: [service_settings] does not allow the setting [dimensions_set_by_user];""");
     }
 
     public void testFromMap_RequestContext_DimensionsSetByUserTrue_DimensionsNegative_Failed() {
-        testFromMap_Dimensions_AssertValidationException(
-            -1,
-            DIMENSIONS_SET_BY_USER_TRUE,
-            ConfigurationParseContext.REQUEST,
-            """
-                Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;\
-                2: [service_settings] does not allow the setting [dimensions_set_by_user];"""
-        );
+        testFromMap_Dimensions_AssertValidationException(-1, DIMENSIONS_SET_BY_USER_TRUE, ConfigurationParseContext.REQUEST, """
+            Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;\
+            2: [service_settings] does not allow the setting [dimensions_set_by_user];""");
     }
 
     public void testFromMap_RequestContext_DimensionsSetByUserTrue_DimensionsNull_Failed() {
@@ -273,25 +253,15 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
     }
 
     public void testFromMap_RequestContext_DimensionsSetByUserFalse_DimensionsZero_Failed() {
-        testFromMap_Dimensions_AssertValidationException(
-            0,
-            false,
-            ConfigurationParseContext.REQUEST,
-            """
-                Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;\
-                2: [service_settings] does not allow the setting [dimensions_set_by_user];"""
-        );
+        testFromMap_Dimensions_AssertValidationException(0, false, ConfigurationParseContext.REQUEST, """
+            Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;\
+            2: [service_settings] does not allow the setting [dimensions_set_by_user];""");
     }
 
     public void testFromMap_RequestContext_DimensionsSetByUserFalse_DimensionsNegative_Failed() {
-        testFromMap_Dimensions_AssertValidationException(
-            -1,
-            false,
-            ConfigurationParseContext.REQUEST,
-            """
-                Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;\
-                2: [service_settings] does not allow the setting [dimensions_set_by_user];"""
-        );
+        testFromMap_Dimensions_AssertValidationException(-1, false, ConfigurationParseContext.REQUEST, """
+            Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;\
+            2: [service_settings] does not allow the setting [dimensions_set_by_user];""");
     }
 
     public void testFromMap_RequestContext_DimensionsSetByUserFalse_DimensionsNull_Failed() {
@@ -392,25 +362,15 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
     }
 
     public void testFromMap_PersistentContext_DimensionsSetByUserNull_DimensionsZero_Failed() {
-        testFromMap_Dimensions_AssertValidationException(
-            0,
-            null,
-            ConfigurationParseContext.PERSISTENT,
-            """
-                Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;\
-                2: [service_settings] does not contain the required setting [dimensions_set_by_user];"""
-        );
+        testFromMap_Dimensions_AssertValidationException(0, null, ConfigurationParseContext.PERSISTENT, """
+            Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;\
+            2: [service_settings] does not contain the required setting [dimensions_set_by_user];""");
     }
 
     public void testFromMap_PersistentContext_DimensionsSetByUserNull_DimensionsNegative_Failed() {
-        testFromMap_Dimensions_AssertValidationException(
-            -1,
-            null,
-            ConfigurationParseContext.PERSISTENT,
-            """
-                Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;\
-                2: [service_settings] does not contain the required setting [dimensions_set_by_user];"""
-        );
+        testFromMap_Dimensions_AssertValidationException(-1, null, ConfigurationParseContext.PERSISTENT, """
+            Validation Failed: 1: [service_settings] Invalid value [-1]. [dimensions] must be a positive integer;\
+            2: [service_settings] does not contain the required setting [dimensions_set_by_user];""");
     }
 
     public void testFromMap_PersistentContext_DimensionsSetByUserNull_DimensionsNull_Failed() {

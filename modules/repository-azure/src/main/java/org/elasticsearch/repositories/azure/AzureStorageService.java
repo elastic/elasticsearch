@@ -97,6 +97,15 @@ public class AzureStorageService {
     ) {
         final AzureStorageSettings azureStorageSettings = getClientSettings(clientName);
 
+        return buildClient(locationMode, purpose, requestMetricsHandler, azureStorageSettings);
+    }
+
+    private AzureBlobServiceClient buildClient(
+        LocationMode locationMode,
+        OperationPurpose purpose,
+        AzureClientProvider.RequestMetricsHandler requestMetricsHandler,
+        AzureStorageSettings azureStorageSettings
+    ) {
         RequestRetryOptions retryOptions = getRetryOptions(locationMode, azureStorageSettings);
         ProxyOptions proxyOptions = getProxyOptions(azureStorageSettings);
         return azureClientProvider.createClient(

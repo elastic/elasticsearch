@@ -3765,7 +3765,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             routingEntry().isPromotableToPrimary(),
             mapperService(),
             engineResetLock,
-            mergeMetrics
+            mergeMetrics,
+            Function.identity()
         );
     }
 

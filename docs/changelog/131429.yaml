@@ -1,0 +1,5 @@
+pr: 131429
+summary: Prevent auto-sharding for data streams in LOOKUP index mode
+area: Data streams
+type: bug
+issues: []

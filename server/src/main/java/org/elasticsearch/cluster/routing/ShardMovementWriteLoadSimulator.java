@@ -28,13 +28,13 @@ import java.util.Map;
 public class ShardMovementWriteLoadSimulator {
 
     private final Map<String, NodeUsageStatsForThreadPools> originalNodeUsageStatsForThreadPools;
-    private final ObjectDoubleMap<String> simulatedWriteLoadDeltas;
+    private final ObjectDoubleMap<String> simulatedNodeWriteLoadDeltas;
     private final Map<ShardId, Double> writeLoadsPerShard;
 
     public ShardMovementWriteLoadSimulator(RoutingAllocation routingAllocation) {
         this.originalNodeUsageStatsForThreadPools = routingAllocation.clusterInfo().getNodeUsageStatsForThreadPools();
         this.writeLoadsPerShard = routingAllocation.clusterInfo().getShardWriteLoads();
-        this.simulatedWriteLoadDeltas = new ObjectDoubleHashMap<>();
+        this.simulatedNodeWriteLoadDeltas = new ObjectDoubleHashMap<>();
     }
 
     public void simulateShardStarted(ShardRouting shardRouting) {
@@ -44,13 +44,13 @@ public class ShardMovementWriteLoadSimulator {
                 assert shardRouting.state() == ShardRoutingState.INITIALIZING
                     : "This should only be happening on the destination node (the source node will have status RELOCATING)";
                 // This is a shard being relocated
-                simulatedWriteLoadDeltas.addTo(shardRouting.relocatingNodeId(), -1 * writeLoadForShard);
-                simulatedWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
+                simulatedNodeWriteLoadDeltas.addTo(shardRouting.relocatingNodeId(), -1 * writeLoadForShard);
+                simulatedNodeWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
             } else {
                 // This is a new shard starting, it's unlikely we'll have a write-load value for a new
                 // shard, but we may be able to estimate if the new shard is created as part of a datastream
                 // rollover. See https://elasticco.atlassian.net/browse/ES-12469
-                simulatedWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
+                simulatedNodeWriteLoadDeltas.addTo(shardRouting.currentNodeId(), writeLoadForShard);
             }
         }
     }
@@ -63,13 +63,13 @@ public class ShardMovementWriteLoadSimulator {
             originalNodeUsageStatsForThreadPools.size()
         );
         for (Map.Entry<String, NodeUsageStatsForThreadPools> entry : originalNodeUsageStatsForThreadPools.entrySet()) {
-            if (simulatedWriteLoadDeltas.containsKey(entry.getKey())) {
+            if (simulatedNodeWriteLoadDeltas.containsKey(entry.getKey())) {
                 var adjustedValue = new NodeUsageStatsForThreadPools(
                     entry.getKey(),
                     Maps.copyMapWithAddedOrReplacedEntry(
                         entry.getValue().threadPoolUsageStatsMap(),
                         ThreadPool.Names.WRITE,
-                        replaceWritePoolStats(entry.getValue(), simulatedWriteLoadDeltas.get(entry.getKey()))
+                        replaceWritePoolStats(entry.getValue(), simulatedNodeWriteLoadDeltas.get(entry.getKey()))
                     )
                 );
                 adjustedNodeUsageStatsForThreadPools.put(entry.getKey(), adjustedValue);

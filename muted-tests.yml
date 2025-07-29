@@ -524,6 +524,9 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=update/100_synthetic_source/stored text}
   issue: https://github.com/elastic/elasticsearch/issues/132108
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/132110
 
 # Examples:
 #

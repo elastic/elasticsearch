@@ -49,6 +49,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -158,7 +159,6 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             listener.onResponse(new SimulateIndexTemplateResponse(null, null));
             return;
         }
-
         final ProjectMetadata tempProjectMetadata = resolveTemporaryState(matchingTemplate, request.getIndexName(), projectWithTemplate);
         ComposableIndexTemplate templateV2 = tempProjectMetadata.templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
@@ -167,6 +167,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             matchingTemplate,
             request.getIndexName(),
             projectWithTemplate,
+            state.metadata(),
             isDslOnlyMode,
             xContentRegistry,
             indicesService,
@@ -238,6 +239,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         final String matchingTemplate,
         final String indexName,
         final ProjectMetadata simulatedProject,
+        final ProjectMetadata actualProject,
         final boolean isDslOnlyMode,
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
@@ -245,7 +247,6 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
         Settings templateSettings = resolveSettings(simulatedProject, matchingTemplate);
-
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(simulatedProject, matchingTemplate);
 
         ComposableIndexTemplate template = simulatedProject.templatesV2().get(matchingTemplate);
@@ -271,6 +272,18 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             xContentRegistry,
             simulatedIndexName
         );
+        if (template.getDataStreamTemplate() != null) {
+            DataStream dataStream = actualProject.dataStreams().get(indexName);
+            if (dataStream != null) {
+                CompressedXContent dataStreamMappingOverrides = dataStream.getMappings();
+                if (ComposableIndexTemplate.EMPTY_MAPPINGS.equals(dataStreamMappingOverrides) == false) {
+                    mappings = new ArrayList<>(mappings);
+                    mappings.add(dataStreamMappingOverrides);
+                }
+                templateSettings = templateSettings.merge(dataStream.getSettings());
+            }
+        }
+        final List<CompressedXContent> finalMappings = mappings;
 
         // First apply settings sourced from index settings providers
         final var now = Instant.now();
@@ -337,7 +350,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             indexMetadata,
             tempIndexService -> {
                 MapperService mapperService = tempIndexService.mapperService();
-                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mappings, MapperService.MergeReason.INDEX_TEMPLATE);
+                mapperService.merge(MapperService.SINGLE_MAPPING_NAME, finalMappings, MapperService.MergeReason.INDEX_TEMPLATE);
 
                 DocumentMapper documentMapper = mapperService.documentMapper();
                 return documentMapper != null ? documentMapper.mappingSource() : null;

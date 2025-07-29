@@ -97,6 +97,7 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
             matchingTemplate,
             indexName,
             simulatedProject,
+            simulatedProject,
             isDslOnlyMode,
             xContentRegistry(),
             indicesService,

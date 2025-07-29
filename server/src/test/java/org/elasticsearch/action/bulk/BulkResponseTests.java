@@ -16,6 +16,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponseTests;
 import org.elasticsearch.action.index.IndexResponseTests;
 import org.elasticsearch.action.update.UpdateResponseTests;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Tuple;
@@ -142,6 +143,18 @@ public class BulkResponseTests extends ESTestCase {
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_BOOLEAN));
             assertThat(parser.booleanValue(), equalTo(errors));
         }
+    }
+
+    public void testCombineNoIngest() {
+        BulkResponse first = new BulkResponse(new BulkItemResponse[0], 1, NO_INGEST_TOOK);
+        BulkResponse second = new BulkResponse(new BulkItemResponse[0], 1, NO_INGEST_TOOK);
+        assertThat(BulkResponse.combine(List.of(first, second)).getIngestTookInMillis(), equalTo(NO_INGEST_TOOK));
+    }
+
+    public void testCombineOneIngest() {
+        BulkResponse first = new BulkResponse(new BulkItemResponse[0], 1, NO_INGEST_TOOK);
+        BulkResponse second = new BulkResponse(new BulkItemResponse[0], 1, 2);
+        assertThat(BulkResponse.combine(List.of(first, second)).getIngestTookInMillis(), equalTo(2L));
     }
 
     private static Tuple<? extends DocWriteResponse, ? extends DocWriteResponse> success(

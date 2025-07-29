@@ -33,7 +33,6 @@ import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
-import java.util.function.Supplier;
 
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -75,7 +74,6 @@ public class ExponentialHistogramGenerationBench {
 
         index = 0;
     }
-
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)

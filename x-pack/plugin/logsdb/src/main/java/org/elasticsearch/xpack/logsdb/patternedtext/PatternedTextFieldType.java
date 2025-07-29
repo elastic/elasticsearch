@@ -55,6 +55,7 @@ import java.util.Objects;
 public class PatternedTextFieldType extends StringFieldType {
 
     private static final String TEMPLATE_SUFFIX = ".template";
+    private static final String TEMPLATE_ID_SUFFIX = ".template_id";
     private static final String ARGS_SUFFIX = ".args";
 
     public static final String CONTENT_TYPE = "patterned_text";
@@ -145,7 +146,7 @@ public class PatternedTextFieldType extends StringFieldType {
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        return new FieldExistsQuery(templateFieldName());
+        return new FieldExistsQuery(templateIdFieldName());
     }
 
     @Override
@@ -261,6 +262,10 @@ public class PatternedTextFieldType extends StringFieldType {
 
     String templateFieldName() {
         return name() + TEMPLATE_SUFFIX;
+    }
+
+    String templateIdFieldName() {
+        return name() + TEMPLATE_ID_SUFFIX;
     }
 
     String argsFieldName() {

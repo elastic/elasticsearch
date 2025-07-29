@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class ExponentialHistogramMergeBench {
 
-    @Param({ "1000", "5000" })
+    @Param({ "1000", "2000", "5000" })
     int bucketCount;
 
     @Param({ "0.01", "0.1", "0.25", "0.5", "1.0", "2.0" })
@@ -50,6 +50,8 @@ public class ExponentialHistogramMergeBench {
     ExponentialHistogramMerger histoMerger;
 
     ExponentialHistogram[] toMerge = new ExponentialHistogram[10_000];
+
+    int index;
 
     @Setup
     public void setUp() {
@@ -83,6 +85,8 @@ public class ExponentialHistogramMergeBench {
                 throw new IllegalArgumentException("Expected bucket count to be " + dataPointSize + ", but was " + cnt);
             }
         }
+
+        index = 0;
     }
 
     private static int getBucketCount(ExponentialHistogram histo) {
@@ -96,18 +100,13 @@ public class ExponentialHistogramMergeBench {
         return cnt;
     }
 
-    @State(Scope.Thread)
-    public static class ThreadState {
-        int index = 0;
-    }
-
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
-    public void add(ThreadState state) {
-        if (state.index >= toMerge.length) {
-            state.index = 0;
+    public void add() {
+        if (index >= toMerge.length) {
+            index = 0;
         }
-        histoMerger.add(toMerge[state.index++]);
+        histoMerger.add(toMerge[index++]);
     }
 }

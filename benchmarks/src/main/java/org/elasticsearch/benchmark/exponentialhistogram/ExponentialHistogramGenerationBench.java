@@ -32,6 +32,7 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 
 @BenchmarkMode(Mode.AverageTime)
@@ -54,36 +55,36 @@ public class ExponentialHistogramGenerationBench {
 
     double[] data = new double[1000000];
 
+    int index;
+
     @Setup
     public void setUp() {
         random = ThreadLocalRandom.current();
         histoGenerator = new ExponentialHistogramGenerator(bucketCount);
 
-        Supplier<Double> nextRandom = () -> distribution.equals("GAUSSIAN") ? random.nextGaussian() : random.nextDouble();
+        DoubleSupplier nextRandom = () -> distribution.equals("GAUSSIAN") ? random.nextGaussian() : random.nextDouble();
 
         // Make sure that we start with a non-empty histogram, as this distorts initial additions
         for (int i = 0; i < 10000; ++i) {
-            histoGenerator.add(nextRandom.get());
+            histoGenerator.add(nextRandom.getAsDouble());
         }
 
         for (int i = 0; i < data.length; ++i) {
-            data[i] = nextRandom.get();
+            data[i] = nextRandom.getAsDouble();
         }
+
+        index = 0;
     }
 
-    @State(Scope.Thread)
-    public static class ThreadState {
-        int index = 0;
-    }
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
-    public void add(ThreadState state) {
-        if (state.index >= data.length) {
-            state.index = 0;
+    public void add() {
+        if (index >= data.length) {
+            index = 0;
         }
-        histoGenerator.add(data[state.index++]);
+        histoGenerator.add(data[index++]);
     }
 
     public static void main(String[] args) throws RunnerException {

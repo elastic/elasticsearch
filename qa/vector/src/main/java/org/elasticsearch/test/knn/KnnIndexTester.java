@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
@@ -208,6 +209,8 @@ public class KnnIndexTester {
                     mergePolicy = new LogByteSizeMergePolicy();
                 } else if ("no".equalsIgnoreCase(cmdLineArgs.mergePolicy())) {
                     mergePolicy = NoMergePolicy.INSTANCE;
+                } else if ("ldmp".equalsIgnoreCase(cmdLineArgs.mergePolicy())) {
+                    mergePolicy = new LogDocMergePolicy();
                 }
             }
             if (cmdLineArgs.reindex() || cmdLineArgs.forceMerge()) {

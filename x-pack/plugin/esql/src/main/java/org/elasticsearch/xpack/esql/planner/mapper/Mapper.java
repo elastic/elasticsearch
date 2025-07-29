@@ -120,7 +120,10 @@ public class Mapper {
                         return unaryExec.child();
                     }
                 }
-                // Currently, it's either UnaryExec or LeafExec. Leaf will either resolve to FragmentExec or we'll ignore it.
+                // Here we have the following possibilities:
+                // 1. LeafExec - should resolve to FragmentExec or we can ignore it
+                // 2. Join - must be remote, and thus will go inside FragmentExec
+                // 3. Fork/MergeExec - not currently allowed with remote enrich
                 return f;
             });
 

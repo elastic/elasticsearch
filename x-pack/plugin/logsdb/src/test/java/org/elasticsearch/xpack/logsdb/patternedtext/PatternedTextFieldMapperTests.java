@@ -131,10 +131,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDefaults() throws IOException {
-        boolean enabledDocValuesSkipper = randomBoolean();
-        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), enabledDocValuesSkipper).build();
-
-        DocumentMapper mapper = createMapperService(indexSettings, fieldMapping(this::minimalMapping)).documentMapper();
+        DocumentMapper mapper = createMapperService(fieldMapping(this::minimalMapping)).documentMapper();
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
@@ -162,7 +159,7 @@ public class PatternedTextFieldMapperTests extends MapperTestCase {
             assertThat(fieldType.omitNorms(), equalTo(true));
             assertFalse(fieldType.tokenized());
             assertFalse(fieldType.stored());
-            assertThat(fieldType.indexOptions(), equalTo(enabledDocValuesSkipper ? IndexOptions.NONE : IndexOptions.DOCS));
+            assertThat(fieldType.indexOptions(), equalTo(IndexOptions.NONE));
             assertThat(fieldType.storeTermVectors(), equalTo(false));
             assertThat(fieldType.storeTermVectorOffsets(), equalTo(false));
             assertThat(fieldType.storeTermVectorPositions(), equalTo(false));

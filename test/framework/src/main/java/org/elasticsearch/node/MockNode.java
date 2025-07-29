@@ -54,11 +54,11 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -282,11 +282,12 @@ public class MockNode extends Node {
     }
 
     @Override
-    public synchronized void close() throws IOException {
+    public synchronized boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
         try {
-            super.close();
+            return super.awaitClose(timeout, timeUnit);
         } finally {
-            TestEntitlementBootstrap.unregisterNodeBaseDirs(getEnvironment().settings(), getEnvironment().configDir());
+            // wipePendingDataDirectories requires entitlement delegation to work due to this using FileSystemUtils ES-10920
+            // TestEntitlementBootstrap.unregisterNodeBaseDirs(settings(), getEnvironment().configDir());
         }
     }
 

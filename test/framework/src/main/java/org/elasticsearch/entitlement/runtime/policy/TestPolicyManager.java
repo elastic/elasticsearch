@@ -53,7 +53,7 @@ public class TestPolicyManager extends PolicyManager {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
         this.classpath = classpath;
         this.testOnlyClasspath = testOnlyClasspath;
-        reset();
+        resetAfterTest();
     }
 
     public void setActive(boolean newValue) {
@@ -77,11 +77,19 @@ public class TestPolicyManager extends PolicyManager {
     /**
      * Called between tests so each test is not affected by prior tests
      */
-    public final void reset() {
-        assert moduleEntitlementsMap.isEmpty() : "We're not supposed to be using moduleEntitlementsMap in tests";
-        classEntitlementsMap.clear();
+    public final void resetAfterTest() {
+        clearModuleEntitlementsCache();
         isActive = false;
         isTriviallyAllowingTestCode = true;
+    }
+
+    /**
+     * Clear cached module entitlements.
+     * This is required after updating entries in {@link TestPathLookup}.
+     */
+    public final void clearModuleEntitlementsCache() {
+        assert moduleEntitlementsMap.isEmpty() : "We're not supposed to be using moduleEntitlementsMap in tests";
+        classEntitlementsMap.clear();
     }
 
     @Override

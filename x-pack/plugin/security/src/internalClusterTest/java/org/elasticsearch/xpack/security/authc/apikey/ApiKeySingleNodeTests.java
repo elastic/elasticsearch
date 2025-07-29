@@ -597,7 +597,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             "cross_cluster",
             new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges("read", "view_index_metadata").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges("read", "read_cross_cluster", "view_index_metadata").build() },
             null
         );
         assertThat(actualRoleDescriptor, equalTo(expectedRoleDescriptor));
@@ -646,7 +646,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
             "cross_cluster",
             new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges("read", "view_index_metadata").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges("read", "read_cross_cluster", "view_index_metadata").build() },
             null
         );
         final var createApiKeyRequest = CreateCrossClusterApiKeyRequest.withNameAndAccess(randomAlphaOfLengthBetween(3, 8), """

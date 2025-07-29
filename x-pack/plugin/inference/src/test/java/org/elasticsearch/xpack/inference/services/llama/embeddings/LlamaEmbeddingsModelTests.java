@@ -74,6 +74,15 @@ public class LlamaEmbeddingsModelTests extends ESTestCase {
         assertThat(overriddenModel, is(createEmbeddingsModel("model_name", "url", "api_key", "user_override", null, false)));
     }
 
+    public void testOverrideWith_OverridesNullUser() {
+        var model = createEmbeddingsModel("model_name", "url", "api_key", null, null, false);
+        var requestTaskSettingsMap = createRequestTaskSettingsMap("user_override");
+
+        var overriddenModel = LlamaEmbeddingsModel.of(model, requestTaskSettingsMap);
+
+        assertThat(overriddenModel, is(createEmbeddingsModel("model_name", "url", "api_key", "user_override", null, false)));
+    }
+
     public void testOverrideWith_EmptyMap() {
         var model = createEmbeddingsModel("model_name", "url", "api_key", "user", null, false);
 

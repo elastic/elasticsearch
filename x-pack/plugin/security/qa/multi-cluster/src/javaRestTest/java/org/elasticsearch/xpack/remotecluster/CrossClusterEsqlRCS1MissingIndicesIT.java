@@ -415,13 +415,13 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
               "indices": [
                 {
                   "names": ["points", "squares"],
-                  "privileges": ["read" "create_index", "monitor"]
+                  "privileges": ["read", "create_index", "monitor"]
                 }
               ],
               "remote_indices": [
                 {
                   "names": ["points", "squares"],
-                  "privileges": ["read" "create_index", "monitor"],
+                  "privileges": ["read", "create_index", "monitor"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]

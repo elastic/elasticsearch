@@ -26,7 +26,9 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         project.getPluginManager().apply(LifecycleBasePlugin.class);
 
         DependencyHandler depsHandler = project.getDependencies();
-        Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration();
+        Configuration tvReferencesConfig = project.getConfigurations().create("globalTvReferences");
+        tvReferencesConfig.setCanBeConsumed(false);
+        tvReferencesConfig.setCanBeResolved(true);
         tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
 
         // iterate through all projects, and if the management plugin is applied, add that project back as a dep to check
@@ -48,12 +50,12 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
                 t.setGroup("Transport Versions");
-                t.setDescription("Generate a manifest resource for all the known transport version constants");
+                t.setDescription("Generate a manifest resource for all the known transport version definitions");
                 t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
-            t.into("transport/constants", c -> c.from(generateManifestTask));
+            t.into("transport/defined", c -> c.from(generateManifestTask));
         });
     }
 }

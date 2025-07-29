@@ -722,15 +722,17 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             String fieldName = "field";
 
             MapperService mapperService = createMapperService(
-                mapping(b -> addSemanticTextMapping(
-                    b,
-                    fieldName,
-                    model.getInferenceEntityId(),
-                    null,
-                    chunkingSettings,
-                    indexOptions,
-                    new MinimalServiceSettings(model)
-                )),
+                mapping(
+                    b -> addSemanticTextMapping(
+                        b,
+                        fieldName,
+                        model.getInferenceEntityId(),
+                        null,
+                        chunkingSettings,
+                        indexOptions,
+                        new MinimalServiceSettings(model)
+                    )
+                ),
                 useLegacyFormat
             );
             assertSemanticTextField(mapperService, fieldName, true, chunkingSettings, indexOptions);
@@ -1217,14 +1219,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         );
 
         MapperService mapperService = createMapperService(
-            mapping(b -> addSemanticTextMapping(
-                b,
-                "field",
-                model.getInferenceEntityId(),
-                null,
-                chunkingSettings,
-                indexOptions
-            )),
+            mapping(b -> addSemanticTextMapping(b, "field", model.getInferenceEntityId(), null, chunkingSettings, indexOptions)),
             useLegacyFormat
         );
         SourceToParse source = source(b -> addSemanticTextInferenceResults(useLegacyFormat, b, List.of(inferenceResults)));
@@ -1726,6 +1721,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         // Until a doc is indexed, the query is rewritten as match no docs
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
+
     private static void addSemanticTextMapping(
         XContentBuilder mappingBuilder,
         String fieldName,

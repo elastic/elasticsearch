@@ -22,17 +22,18 @@ import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 
 public class DatasetUtilsTests extends ESTestCase {
 
+    DatasetUtils datasetUtils;
+
     @Before
     public void setup() {  // TODO: abstract out setup in to common GPUTestcase
         assumeTrue("cuvs runtime only supported on 22 or greater, your JDK is " + Runtime.version(), Runtime.version().feature() >= 22);
         try (var resources = GPUVectorsFormat.cuVSResourcesOrNull(false)) {
             assumeTrue("cuvs not supported", resources != null);
         }
+        datasetUtils = DatasetUtils.getInstance();
     }
 
     static final ValueLayout.OfFloat JAVA_FLOAT_LE = ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
-
-    final DatasetUtils datasetUtils = DatasetUtils.getInstance();
 
     public void testBasic() throws Exception {
         try (Directory dir = new MMapDirectory(createTempDir("testBasic"))) {

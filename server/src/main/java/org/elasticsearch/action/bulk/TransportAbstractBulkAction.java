@@ -45,16 +45,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 /**
  * This is an abstract base class for bulk actions. It traverses all indices that the request gets routed to, executes all applicable
@@ -404,13 +400,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
 
         // Validate child stream writes before processing pipelines
         ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-        Set<StreamType> enabledStreamTypes = Arrays.stream(StreamType.values())
-            .filter(t -> t.streamTypeIsEnabled(projectMetadata))
-            .collect(Collectors.toCollection(() -> EnumSet.noneOf(StreamType.class)));
-
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(bulkRequest);
 
-        for (StreamType streamType : enabledStreamTypes) {
+        for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> req = bulkRequestModifier.bulkRequest.requests.get(i);
 

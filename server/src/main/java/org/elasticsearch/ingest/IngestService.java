@@ -1239,27 +1239,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
-                    for (StreamType streamType : StreamType.values()) {
-                        if (streamType.streamTypeIsEnabled(project)) {
-                            if (streamType.matchesStreamPrefix(newIndex)
-                                && ingestDocument.getIndexHistory().stream().noneMatch(s -> s.equals(streamType.getStreamName()))) {
-                                exceptionHandler.accept(
-                                    new IngestPipelineException(
-                                        pipelineId,
-                                        new IllegalArgumentException(
-                                            format(
-                                                "Pipelines can't re-route documents to child streams, but pipeline [%s] tried to reroute "
-                                                    + "this document from index [%s] to index [%s]. Reroute history: %s",
-                                                pipelineId,
-                                                originalIndex,
-                                                newIndex,
-                                                String.join(" -> ", ingestDocument.getIndexHistory())
-                                            )
+                    for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(project)) {
+                        if (streamType.matchesStreamPrefix(newIndex)
+                            && ingestDocument.getIndexHistory().contains(streamType.getStreamName()) == false) {
+                            exceptionHandler.accept(
+                                new IngestPipelineException(
+                                    pipelineId,
+                                    new IllegalArgumentException(
+                                        format(
+                                            "Pipelines can't re-route documents to child streams, but pipeline [%s] tried to reroute "
+                                                + "this document from index [%s] to index [%s]. Reroute history: %s",
+                                            pipelineId,
+                                            originalIndex,
+                                            newIndex,
+                                            String.join(" -> ", ingestDocument.getIndexHistory())
                                         )
                                     )
-                                );
-                                return; // document failed!
-                            }
+                                )
+                            );
+                            return; // document failed!
                         }
                     }
 

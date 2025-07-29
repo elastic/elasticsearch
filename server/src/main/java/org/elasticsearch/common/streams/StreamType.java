@@ -12,6 +12,11 @@ package org.elasticsearch.common.streams;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.StreamsMetadata;
 
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 public enum StreamType {
 
     LOGS("logs");
@@ -34,7 +39,16 @@ public enum StreamType {
     }
 
     public boolean matchesStreamPrefix(String indexName) {
+        if (indexName == null) {
+            return false;
+        }
         return indexName.startsWith(streamName + ".");
+    }
+
+    public static Set<StreamType> getEnabledStreamTypesForProject(ProjectMetadata projectMetadata) {
+        return Arrays.stream(values())
+            .filter(t -> t.streamTypeIsEnabled(projectMetadata))
+            .collect(Collectors.toCollection(() -> EnumSet.noneOf(StreamType.class)));
     }
 
 }

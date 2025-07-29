@@ -521,6 +521,9 @@ tests:
 - class: org.elasticsearch.search.routing.SearchReplicaSelectionIT
   method: testNodeSelection
   issue: https://github.com/elastic/elasticsearch/issues/132017
+- class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
+  method: testEsqlEnrichWithSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/132078
 
 # Examples:
 #

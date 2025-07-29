@@ -339,7 +339,7 @@ public class ESONXContentParser extends AbstractXContentParser {
                 streamInput.read(rawBytes);
             }
 
-            // TODO: Fix
+            // TODO: Fix Length
             return new Text(new XContentString.UTF8Bytes(rawBytes, offset, length), length);
         }
 

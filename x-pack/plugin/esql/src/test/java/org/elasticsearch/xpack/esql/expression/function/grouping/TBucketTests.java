@@ -144,16 +144,16 @@ public class TBucketTests extends AbstractScalarFunctionTestCase {
         return false;
     }
 
-// TODO: With this method commented the V3Doc fails
-//    public static List<DataType> signatureTypes(List<DataType> testCaseTypes) {
-//        // DATE_PERIOD, DATETIME
-//        // DATE_PERIOD, DATE_NANOS
-//
-//        // TIME_DURATION, DATETIME
-//        // TIME_DURATION, DATE_NANOS
-//
-//        assertThat(testCaseTypes, hasSize(2));
-//        // assertThat(testCaseTypes.get(1), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
-//        return List.of(testCaseTypes.get(0), testCaseTypes.get(1));
-//    }
+    // TODO: With this method commented the V3Doc fails
+    // public static List<DataType> signatureTypes(List<DataType> testCaseTypes) {
+    // // DATE_PERIOD, DATETIME
+    // // DATE_PERIOD, DATE_NANOS
+    //
+    // // TIME_DURATION, DATETIME
+    // // TIME_DURATION, DATE_NANOS
+    //
+    // assertThat(testCaseTypes, hasSize(2));
+    // // assertThat(testCaseTypes.get(1), anyOf(equalTo(DataType.DATE_NANOS), equalTo(DataType.DATETIME)));
+    // return List.of(testCaseTypes.get(0), testCaseTypes.get(1));
+    // }
 }

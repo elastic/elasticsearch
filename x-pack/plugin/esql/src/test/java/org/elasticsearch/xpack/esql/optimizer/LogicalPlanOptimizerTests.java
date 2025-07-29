@@ -8164,8 +8164,8 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         Bucket bucket = as(Alias.unwrap(bucketAlias), Bucket.class);
         assertThat(Expressions.attribute(bucket.field()).name(), equalTo("@timestamp"));
         assertThat(bucket.children().get(0), instanceOf(FieldAttribute.class));
-        assertThat(((FieldAttribute)bucket.children().get(0)).name(), equalTo("@timestamp"));
+        assertThat(((FieldAttribute) bucket.children().get(0)).name(), equalTo("@timestamp"));
         assertThat(bucket.children().get(1), instanceOf(Literal.class));
-        assertThat(((Literal)bucket.children().get(1)).value(), equalTo(Duration.ofHours(1)));
+        assertThat(((Literal) bucket.children().get(1)).value(), equalTo(Duration.ofHours(1)));
     }
 }

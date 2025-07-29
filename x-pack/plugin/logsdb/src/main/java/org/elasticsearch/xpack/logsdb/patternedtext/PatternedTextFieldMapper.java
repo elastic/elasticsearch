@@ -62,20 +62,10 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final TextParams.Analyzers analyzers;
 
         public Builder(String name, MappingParserContext context) {
-            this(
-                name,
-                context.indexVersionCreated(),
-                context.getIndexSettings(),
-                context.getIndexAnalyzers()
-            );
+            this(name, context.indexVersionCreated(), context.getIndexSettings(), context.getIndexAnalyzers());
         }
 
-        public Builder(
-            String name,
-            IndexVersion indexCreatedVersion,
-            IndexSettings indexSettings,
-            IndexAnalyzers indexAnalyzers
-        ) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;

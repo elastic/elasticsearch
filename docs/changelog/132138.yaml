@@ -1,5 +1,5 @@
 pr: 132138
-summary: Fix index lookup when field-caps returns empty mapping
+summary: Fix lookup index resolution when field-caps returns empty mapping
 area: ES|QL
 type: bug
 issues:

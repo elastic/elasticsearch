@@ -29,6 +29,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -512,7 +513,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             // force stopping will eventually deregister this retry task from the scheduler
             auditor.warning(
                 params.getId(),
-                String.format(
+                Strings.format(
                     "Failed while starting Transform. Automatically retrying every [%s] seconds. "
                         + "To cancel retries, force stop this transform. Failure: [%s]",
                     retryTimer.seconds(),

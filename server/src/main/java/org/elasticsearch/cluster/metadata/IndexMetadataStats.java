@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.Arrays;
 import java.util.Objects;
 
@@ -134,7 +135,8 @@ public record IndexMetadataStats(IndexWriteLoad indexWriteLoad, AverageShardSize
         private static final ConstructingObjectParser<AverageShardSize, Void> PARSER = ConstructingObjectParser.forRecord(
             "average_shard_size",
             false,
-            AverageShardSize.class
+            AverageShardSize.class,
+            MethodHandles.lookup()
         );
 
         static {

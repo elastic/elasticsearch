@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 
 /**
  * Holds the data stream failure store metadata that enable or disable the failure store of a data stream. Currently, it
@@ -47,7 +48,8 @@ public record DataStreamFailureStore(@Nullable Boolean enabled, @Nullable DataSt
     public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = ConstructingObjectParser.forRecord(
         FAILURE_STORE,
         false,
-        DataStreamFailureStore.class
+        DataStreamFailureStore.class,
+        MethodHandles.lookup()
     );
 
     static {

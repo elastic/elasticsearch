@@ -158,26 +158,6 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
         return new ConstructingObjectParser<>(name, ignoreUnknownFields, (args, context) -> builder.apply(args));
     }
 
-    /**
-     * Build a parser for the given {@code recordClass}.
-     *
-     * @param name The name given to the delegate ObjectParser for error identification. Use what you'd use if the object worked with
-     *        ObjectParser.
-     * @param ignoreUnknownFields Should this parser ignore unknown fields? This should generally be set to true only when parsing responses
-     *        from external systems, never when parsing requests from users.
-     * @param recordClass the {@link Class} of the {@link Record} type to build.
-     *                    It must be a public class with a public canonical constructor, in a package that is exported unconditionally;
-     *                    otherwise, you'll need {@link #forRecord(String, boolean, Class, MethodHandles.Lookup)} instead.
-     * @return a function suitable to use as the {@code builder} argument for one of the constructors of this class.
-     */
-    public static <R extends Record, Context> ConstructingObjectParser<R, Context> forRecord(
-        String name,
-        boolean ignoreUnknownFields,
-        Class<R> recordClass
-    ) {
-        return forRecord(name, ignoreUnknownFields, recordClass, MethodHandles.publicLookup());
-    }
-
     private static <R extends Record> Function<Object[], R> recordBuilder(Class<R> recordClass, MethodHandles.Lookup lookup) {
         Class<?>[] ctorArgs = Arrays.stream(recordClass.getRecordComponents()).map(RecordComponent::getType).toArray(Class<?>[]::new);
         MethodHandle ctor;

@@ -942,5 +942,16 @@ public class IndexSettingsTests extends ESTestCase {
 
         settings.updateIndexMetadata(newIndexMeta("index", Settings.EMPTY));
         assertEquals(IndexSettings.GpuMode.AUTO, settings.useGpuForVectorsIndexing());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.updateIndexMetadata(
+                newIndexMeta("index", Settings.builder().put("index.vectors.indexing.use_gpu", "unknown").build())
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            Matchers.containsString("illegal value can't update [index.vectors.indexing.use_gpu] from [AUTO] to [unknown]")
+        );
     }
 }

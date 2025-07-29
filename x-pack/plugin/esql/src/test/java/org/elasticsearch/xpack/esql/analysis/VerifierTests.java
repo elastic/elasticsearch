@@ -2564,6 +2564,10 @@ public class VerifierTests extends ESTestCase {
             checkVectorSimilarityFunctionsNullArgs("v_l1_norm(null, vector)", "first");
             checkVectorSimilarityFunctionsNullArgs("v_l1_norm(vector, null)", "second");
         }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(null, vector)", "first");
+            checkVectorSimilarityFunctionsNullArgs("v_l2_norm(vector, null)", "second");
+        }
     }
 
     private void checkVectorSimilarityFunctionsNullArgs(String functionInvocation, String argOrdinal) throws Exception {

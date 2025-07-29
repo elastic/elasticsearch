@@ -1250,8 +1250,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
         connection.setSkipUnavailable(skipUnavailable);
     }
 
-    public static void addConnectionListener(RemoteClusterService service, TransportConnectionListener listener) {
-        for (RemoteClusterConnection connection : service.getConnections()) {
+    public static void addConnectionListener(
+        RemoteClusterService service,
+        Set<String> clusterAliases,
+        TransportConnectionListener listener
+    ) {
+        for (final var clusterAlias : clusterAliases) {
+            final var connection = service.getRemoteClusterConnection(clusterAlias);
             ConnectionManager connectionManager = connection.getConnectionManager();
             connectionManager.addListener(listener);
         }

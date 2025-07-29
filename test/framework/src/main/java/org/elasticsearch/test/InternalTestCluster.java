@@ -295,7 +295,8 @@ public final class InternalTestCluster extends TestCluster {
         final int numClientNodes,
         final String nodePrefix,
         final Collection<Class<? extends Plugin>> mockPlugins,
-        final Function<Client, Client> clientWrapper
+        final Function<Client, Client> clientWrapper,
+        NodeGrantProvider nodeGrantProvider
     ) {
         this(
             clusterSeed,
@@ -313,7 +314,7 @@ public final class InternalTestCluster extends TestCluster {
             true,
             false,
             true,
-            (settings, configPath) -> () -> {}
+            nodeGrantProvider
         );
     }
 

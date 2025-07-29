@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.bootstrap;
 
-import org.apache.lucene.search.Multiset;
 import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
@@ -52,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -168,18 +168,20 @@ public class TestEntitlementsRule implements TestRule {
             return configPath != null ? configPath : homeDir().resolve("config");
         }
 
-        private Collection<Path> dataDirs() {
+        private Path[] dataDirs() {
             List<String> dataDirs = PATH_DATA_SETTING.get(settings);
-            return dataDirs.isEmpty() ? List.of(homeDir().resolve("data")) : dataDirs.stream().map(NodeGrant::absolutePath).toList();
+            return dataDirs.isEmpty()
+                ? new Path[] { homeDir().resolve("data") }
+                : dataDirs.stream().map(NodeGrant::absolutePath).toArray(Path[]::new);
         }
 
-        private Collection<Path> sharedDataDir() {
+        private Path[] sharedDataDir() {
             String sharedDataDir = PATH_SHARED_DATA_SETTING.get(settings);
-            return Strings.hasText(sharedDataDir) ? List.of(absolutePath(sharedDataDir)) : List.of();
+            return Strings.hasText(sharedDataDir) ? new Path[] { absolutePath(sharedDataDir) } : new Path[0];
         }
 
-        private Collection<Path> repoDirs() {
-            return PATH_REPO_SETTING.get(settings).stream().map(NodeGrant::absolutePath).toList();
+        private Path[] repoDirs() {
+            return PATH_REPO_SETTING.get(settings).stream().map(NodeGrant::absolutePath).toArray(Path[]::new);
         }
 
         @SuppressForbidden(reason = "must be resolved using the default file system, rather then the mocked test file system")
@@ -205,33 +207,35 @@ public class TestEntitlementsRule implements TestRule {
     }
 
     private void addGrant(NodeGrant nodeGrant) {
-        logger.error("Adding node grant: {}", nodeGrant);
-        BASE_DIR_PATHS.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.add(nodeGrant.configDir())));
-        BASE_DIR_PATHS.compute(BaseDir.DATA, baseDirModifier(paths -> paths.addAll(nodeGrant.dataDirs())));
-        BASE_DIR_PATHS.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.addAll(nodeGrant.sharedDataDir())));
-        BASE_DIR_PATHS.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.addAll(nodeGrant.repoDirs())));
+        logger.debug("Adding node grant: {}", nodeGrant);
+        BASE_DIR_PATHS.compute(BaseDir.CONFIG, baseDirModifier(Collection::add, nodeGrant.configDir()));
+        BASE_DIR_PATHS.compute(BaseDir.DATA, baseDirModifier(Collection::add, nodeGrant.dataDirs()));
+        BASE_DIR_PATHS.compute(BaseDir.SHARED_DATA, baseDirModifier(Collection::add, nodeGrant.sharedDataDir()));
+        BASE_DIR_PATHS.compute(BaseDir.SHARED_REPO, baseDirModifier(Collection::add, nodeGrant.repoDirs()));
         POLICY_MANAGER.clearModuleEntitlementsCache();
     }
 
     private void revokeGrant(NodeGrant nodeGrant) {
-        logger.error("Revoking node grant: {}", nodeGrant);
-        BASE_DIR_PATHS.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.remove(nodeGrant.configDir())));
-        BASE_DIR_PATHS.compute(BaseDir.DATA, baseDirModifier(paths -> paths.removeAll(nodeGrant.dataDirs())));
-        BASE_DIR_PATHS.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.removeAll(nodeGrant.sharedDataDir())));
-        BASE_DIR_PATHS.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.removeAll(nodeGrant.repoDirs())));
+        logger.debug("Revoking node grant: {}", nodeGrant);
+        BASE_DIR_PATHS.compute(BaseDir.CONFIG, baseDirModifier(Collection::remove, nodeGrant.configDir()));
+        BASE_DIR_PATHS.compute(BaseDir.DATA, baseDirModifier(Collection::remove, nodeGrant.dataDirs()));
+        BASE_DIR_PATHS.compute(BaseDir.SHARED_DATA, baseDirModifier(Collection::remove, nodeGrant.sharedDataDir()));
+        BASE_DIR_PATHS.compute(BaseDir.SHARED_REPO, baseDirModifier(Collection::remove, nodeGrant.repoDirs()));
         POLICY_MANAGER.clearModuleEntitlementsCache();
     }
 
-    // this uses a counting multiset to allow duplicates between nodes, e.g. the config dir
-    private static BiFunction<BaseDir, Collection<Path>, Collection<Path>> baseDirModifier(Consumer<Collection<Path>> consumer) {
+    // This must allow for duplicate paths between nodes, the config dir for instance is shared across all nodes.
+    private static BiFunction<BaseDir, Collection<Path>, Collection<Path>> baseDirModifier(
+        BiConsumer<Collection<Path>, Path> operation,
+        Path... updates
+    ) {
         // always return a new unmodifiable copy
         return (BaseDir baseDir, Collection<Path> paths) -> {
-            Collection<Path> newPaths = new Multiset<>();
-            if (paths != null) {
-                newPaths.addAll(paths);
+            paths = paths == null ? new ArrayList<>() : new ArrayList<>(paths);
+            for (Path update : updates) {
+                operation.accept(paths, update);
             }
-            consumer.accept(newPaths);
-            return Collections.unmodifiableCollection(newPaths);
+            return Collections.unmodifiableCollection(paths);
         };
     }
 

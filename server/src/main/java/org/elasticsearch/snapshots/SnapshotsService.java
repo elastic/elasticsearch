@@ -1056,6 +1056,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
                 final SnapshotDeletionsInProgress deletesInProgress = SnapshotDeletionsInProgress.get(currentState);
                 DiscoveryNodes nodes = currentState.nodes();
+                final var perNodeShardSnapshotCounter = new PerNodeShardSnapshotCounter(
+                    shardSnapshotPerNodeLimit,
+                    snapshotsInProgress,
+                    nodes,
+                    isStateless
+                );
                 final EnumSet<SnapshotsInProgress.State> statesToUpdate;
                 if (changedNodes) {
                     // If we are reacting to a change in the cluster node configuration we have to update the shard states of both started
@@ -1148,6 +1154,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                     currentState.routingTable(projectId),
                                     nodes,
                                     snapshotsInProgress::isNodeIdForRemoval,
+                                    perNodeShardSnapshotCounter,
                                     knownFailures
                                 );
                                 if (shards != null) {
@@ -1240,6 +1247,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * failed shard snapshots on the same shard IDs.
      *
      * @param nodeIdRemovalPredicate identify any nodes that are marked for removal / in shutdown mode
+     * @param perNodeShardSnapshotCounter The counter to keep track the number of shard snapshots running per node
      * @param knownFailures already known failed shard snapshots, but more may be found in this method
      * @return an updated map of shard statuses
      */
@@ -1248,6 +1256,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         RoutingTable routingTable,
         DiscoveryNodes nodes,
         Predicate<String> nodeIdRemovalPredicate,
+        PerNodeShardSnapshotCounter perNodeShardSnapshotCounter,
         Map<RepositoryShardId, ShardSnapshotStatus> knownFailures
     ) {
         assert snapshotEntry.isClone() == false : "clones take a different path";
@@ -1306,8 +1315,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                                 Starting shard [{}] with shard generation [{}] that we were waiting to start on node [{}]. Previous \
                                 shard state [{}]
                                 """, shardId, shardStatus.generation(), shardStatus.nodeId(), shardStatus.state());
-                            // TODO: The following should check node capacity
-                            shards.put(shardId, new ShardSnapshotStatus(primaryNodeId, shardStatus.generation()));
+                            if (perNodeShardSnapshotCounter.tryStartShardSnapshotOnNode(primaryNodeId)) {
+                                shards.put(shardId, new ShardSnapshotStatus(primaryNodeId, shardStatus.generation()));
+                            } else {
+                                shards.put(shardId, ShardSnapshotStatus.assignedQueued(primaryNodeId, shardStatus.generation()));
+                            }
                             continue;
                         } else if (shardRouting.primaryShard().initializing() || shardRouting.primaryShard().relocating()) {
                             // Shard that we were waiting for hasn't started yet or still relocating - will continue to wait

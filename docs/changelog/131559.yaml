@@ -1,5 +1,5 @@
 pr: 131559
-summary: Lookup Join on Multiple Columns POC WIP
+summary: Add support for Lookup Join on Multiple Fields
 area: ES|QL
 type: enhancement
-issues: []
+issues: [ ]

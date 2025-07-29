@@ -70,8 +70,8 @@ public class CsvTestsDataLoader {
     );
     private static final TestDataset MULTI_COLUMN_JOINABLE_LOOKUP = new TestDataset(
         "multi_column_joinable_lookup",
-        "mapping-multi_column_joinable2.json",
-        "multi_column_joinable2.csv"
+        "mapping-multi_column_joinable_lookup.json",
+        "multi_column_joinable_lookup.csv"
     ).withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES = new TestDataset("languages");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");

@@ -46,6 +46,16 @@ LOOKUP JOIN <lookup_index> ON <field_name>
 
 If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that if no rows match in the lookup index, the incoming row is retained and `null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
 
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
+`LOOKUP JOIN` on more than one field is also supported. You can specify a comma separated list of fields to join on. 
+
+```esql
+LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>
+```
+
 ## Example
 
 You can run this example for yourself if you'd like to see how it works, by setting up the indices and adding sample data.
@@ -200,8 +210,7 @@ The following are the current limitations with `LOOKUP JOIN`:
 * Indices in [`lookup` mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting) are always single-sharded.
 * Cross cluster search is unsupported initially. Both source and lookup indices must be local.
 * Currently, only matching on equality is supported.
-* `LOOKUP JOIN` can only use a single match field and a single index. Wildcards are not supported.
+* In Stack versions `9.0-9.1`,`LOOKUP JOIN` can only use a single match field and a single index. Wildcards are not supported.
   * Aliases, datemath, and datastreams are supported, as long as the index pattern matches a single concrete index {applies_to}`stack: ga 9.1.0`.
-  * Limitation on matching on a single field is removed. You can use a comma separated list of fields in the `ON` clause {applies_to}`stack: ga 9.2.0`.
 * The name of the match field in `LOOKUP JOIN lu_idx ON match_field` must match an existing field in the query. This may require `RENAME`s or `EVAL`s to achieve.
 * The query will circuit break if there are too many matching documents in the lookup index, or if the documents are too large. More precisely, `LOOKUP JOIN` works in batches of, normally, about 10,000 rows; a large amount of heap space is needed if the matching documents from the lookup index for a batch are multiple megabytes or larger. This is roughly the same as for `ENRICH`.

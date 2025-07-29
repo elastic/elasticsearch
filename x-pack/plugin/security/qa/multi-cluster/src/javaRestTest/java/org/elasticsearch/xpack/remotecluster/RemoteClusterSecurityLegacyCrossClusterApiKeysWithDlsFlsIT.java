@@ -299,7 +299,7 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
             List<String> privileges = (List<String>) index.get("privileges");
             if (Arrays.equals(privileges.toArray(String[]::new), CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES)) {
                 index.put("query", "{\"match_all\": {}}");
-                index.put("privileges", List.of("read", "view_index_metadata")); // ensure privs emulate pre 8.14
+                index.put("privileges", List.of("read", "read_cross_cluster", "view_index_metadata")); // ensure privs emulate pre 8.14
             }
         });
         crossCluster.put("cluster", List.of("cross_cluster_search", "cross_cluster_replication")); // ensure privs emulate pre 8.14

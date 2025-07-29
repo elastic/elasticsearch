@@ -85,7 +85,10 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
                         "cross_cluster",
                         new String[] { "cross_cluster_search", "monitor_enrich" },
                         new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder().indices("logs").privileges("read", "view_index_metadata").build() },
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices("logs")
+                                .privileges("read", "read_cross_cluster", "view_index_metadata")
+                                .build() },
                         null
                     )
                 )

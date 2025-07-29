@@ -340,18 +340,6 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> hits(QueryBuilder query) throws IOException {
-        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(query)
-            .size(10);
-
-        Response response = queryBaseline(searchSourceBuilder);
-
-        final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
-        final Map<String, Object> hitsMap = (Map<String, Object>) map.get("hits");
-        return (List<Map<String, Object>>) hitsMap.get("hits");
-    }
-
-    @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> getQueryHits(final Response response) throws IOException {
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> hitsMap = (Map<String, Object>) map.get("hits");

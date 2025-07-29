@@ -358,3 +358,114 @@ setup:
   - match: {hits.hits.0._explanation.details.1.description: "/rrf.score:.\\[0.5\\].*/" }
   - match: {hits.hits.0._explanation.details.1.details.0.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[inference_text_field\\].*/" }
   - match: {hits.hits.0._explanation.details.1.details.0.details.0.description: "/weight.*astronomy.*/" }
+
+---
+"rrf retriever with failed text similarity reranker":
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            rrf: {
+              retrievers:
+                [
+                  {
+                    standard: {
+                      query: {
+                        bool: {
+                          should:
+                            [
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      integer: 1
+                                    }
+                                  },
+                                  boost: 10
+                                }
+                              },
+                              {
+                                constant_score:
+                                  {
+                                    filter:
+                                      {
+                                        term:
+                                          {
+                                            integer: 2
+                                          }
+                                      },
+                                    boost: 1
+                                  }
+                              }
+                            ]
+                        }
+                      }
+                    }
+                  },
+                  {
+                    text_similarity_reranker: {
+                      retriever:
+                        {
+                          standard: {
+                            query: {
+                              bool: {
+                                should:
+                                  [
+                                    {
+                                      constant_score: {
+                                        filter: {
+                                          term: {
+                                            integer: 1
+                                          }
+                                        },
+                                        boost: 3
+                                      }
+                                    },
+                                    {
+                                      constant_score: {
+                                        filter: {
+                                          term: {
+                                            integer: 2
+                                          }
+                                        },
+                                        boost: 2
+                                      }
+                                    },
+                                    {
+                                      constant_score: {
+                                        filter: {
+                                          term: {
+                                            integer: 3
+                                          }
+                                        },
+                                        boost: 1
+                                      }
+                                    }
+                                  ]
+                              }
+                            }
+                          }
+                        },
+                      rank_window_size: 10,
+                      inference_id: failure-rerank-model,
+                      inference_text: "How often does the moon hide the sun?",
+                      field: text,
+                      allow_rerank_failures: true
+                    }
+                  }
+                ],
+              rank_window_size: 10,
+              rank_constant: 1
+            }
+          size: 10
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_2" }
+  - match: { hits.hits.2._id: "doc_3" }

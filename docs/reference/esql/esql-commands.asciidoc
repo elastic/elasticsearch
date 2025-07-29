@@ -32,6 +32,7 @@ image::images/esql/processing-command.svg[A processing command changing an input
 
 {esql} supports these processing commands:
 
+* experimental:[] <<esql-change_point>>
 * <<esql-dissect>>
 * <<esql-drop>>
 * <<esql-enrich>>
@@ -42,11 +43,10 @@ ifeval::["{release-state}"=="unreleased"]
 endif::[]
 * <<esql-keep>>
 * <<esql-limit>>
-ifeval::["{release-state}"=="unreleased"]
-//* experimental:[] <<esql-lookup>>
-endif::[]
+* <<esql-lookup-join>>
 * experimental:[] <<esql-mv_expand>>
 * <<esql-rename>>
+* experimental:[] <<esql-sample>>
 * <<esql-sort>>
 * <<esql-stats-by>>
 * <<esql-where>>
@@ -57,6 +57,7 @@ include::source-commands/from.asciidoc[]
 include::source-commands/row.asciidoc[]
 include::source-commands/show.asciidoc[]
 
+include::processing-commands/change_point.asciidoc[]
 include::processing-commands/dissect.asciidoc[]
 include::processing-commands/drop.asciidoc[]
 include::processing-commands/enrich.asciidoc[]
@@ -67,11 +68,10 @@ ifeval::["{release-state}"=="unreleased"]
 endif::[]
 include::processing-commands/keep.asciidoc[]
 include::processing-commands/limit.asciidoc[]
-ifeval::["{release-state}"=="unreleased"]
-//include::processing-commands/lookup.asciidoc[]
-endif::[]
+include::processing-commands/lookup.asciidoc[]
 include::processing-commands/mv_expand.asciidoc[]
 include::processing-commands/rename.asciidoc[]
+include::processing-commands/sample.asciidoc[]
 include::processing-commands/sort.asciidoc[]
 include::processing-commands/stats.asciidoc[]
 include::processing-commands/where.asciidoc[]

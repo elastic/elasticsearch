@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -289,8 +288,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 );
                 inferenceResults.publisher().subscribe(taskProcessor);
 
-                var instrumentedStream = new PublisherWithMetrics(timer, model);
-                taskProcessor.subscribe(instrumentedStream);
+                var instrumentedStream = publisherWithMetrics(timer, model, taskProcessor);
 
                 var streamErrorHandler = streamErrorHandler(instrumentedStream);
 
@@ -305,7 +303,46 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         }));
     }
 
-    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Processor<T, T> upstream) {
+    private <T> Flow.Publisher<T> publisherWithMetrics(InferenceTimer timer, Model model, Flow.Processor<T, T> upstream) {
+        return downstream -> {
+            upstream.subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    downstream.onSubscribe(new Flow.Subscription() {
+                        @Override
+                        public void request(long n) {
+                            subscription.request(n);
+                        }
+
+                        @Override
+                        public void cancel() {
+                            recordMetrics(model, timer, null);
+                            subscription.cancel();
+                        }
+                    });
+                }
+
+                @Override
+                public void onNext(T item) {
+                    downstream.onNext(item);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    recordMetrics(model, timer, throwable);
+                    downstream.onError(throwable);
+                }
+
+                @Override
+                public void onComplete() {
+                    recordMetrics(model, timer, null);
+                    downstream.onComplete();
+                }
+            });
+        };
+    }
+
+    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Publisher<T> upstream) {
         return upstream;
     }
 
@@ -347,7 +384,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private static ElasticsearchStatusException unknownServiceException(String service, String inferenceId) {
-        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]. ", RestStatus.BAD_REQUEST, service, inferenceId);
+        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]", RestStatus.BAD_REQUEST, service, inferenceId);
     }
 
     private static ElasticsearchStatusException requestModelTaskTypeMismatchException(TaskType requested, TaskType expected) {
@@ -357,40 +394,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             requested,
             expected
         );
-    }
-
-    private class PublisherWithMetrics extends DelegatingProcessor<InferenceServiceResults.Result, InferenceServiceResults.Result> {
-
-        private final InferenceTimer timer;
-        private final Model model;
-
-        private PublisherWithMetrics(InferenceTimer timer, Model model) {
-            this.timer = timer;
-            this.model = model;
-        }
-
-        @Override
-        protected void next(InferenceServiceResults.Result item) {
-            downstream().onNext(item);
-        }
-
-        @Override
-        public void onError(Throwable throwable) {
-            recordMetrics(model, timer, throwable);
-            super.onError(throwable);
-        }
-
-        @Override
-        protected void onCancel() {
-            recordMetrics(model, timer, null);
-            super.onCancel();
-        }
-
-        @Override
-        public void onComplete() {
-            recordMetrics(model, timer, null);
-            super.onComplete();
-        }
     }
 
     private record NodeRoutingDecision(boolean currentNodeShouldHandleRequest, DiscoveryNode targetNode) {

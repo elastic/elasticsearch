@@ -148,7 +148,9 @@ public final class TimeSeriesAggregationOperatorFactories {
                     case INT -> new org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier();
                     case LONG -> new org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier();
                     case BOOLEAN -> new org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier();
-                    case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("unsupported grouping type");
+                    case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN, AGGREGATE_METRIC_DOUBLE -> throw new IllegalArgumentException(
+                        "unsupported grouping type"
+                    );
                 });
                 final List<Integer> channels = List.of(g.channel());
                 aggregators.add(aggregatorSupplier.groupingAggregatorFactory(AggregatorMode.SINGLE, channels));

@@ -21,12 +21,15 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -173,13 +176,13 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
     }
 
     public static AttributeSet computeReferences(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
-        AttributeSet result = Expressions.references(groupings).combine(Expressions.references(aggregates));
+        var result = Expressions.references(groupings).combine(Expressions.references(aggregates)).asBuilder();
         for (Expression grouping : groupings) {
             if (grouping instanceof Alias) {
                 result.remove(((Alias) grouping).toAttribute());
             }
         }
-        return result;
+        return result.build();
     }
 
     @Override
@@ -206,7 +209,7 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        AttributeSet groupRefs = new AttributeSet();
+        var groupRefsBuilder = AttributeSet.builder();
         // check grouping
         // The grouping can not be an aggregate function
         groupings.forEach(e -> {
@@ -233,12 +236,13 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             // keep the grouping attributes (common case)
             Attribute attr = Expressions.attribute(e);
             if (attr != null) {
-                groupRefs.add(attr);
+                groupRefsBuilder.add(attr);
             }
             if (e instanceof FieldAttribute f && f.dataType().isCounter()) {
                 failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", f.dataType().typeName(), e.sourceText()));
             }
         });
+        var groupRefs = groupRefsBuilder.build();
 
         // check aggregates - accept only aggregate functions or expressions over grouping
         // don't allow the group by itself to avoid duplicates in the output
@@ -261,7 +265,22 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
             );
         }
         checkCategorizeGrouping(failures);
+        checkMultipleScoreAggregations(failures);
+    }
 
+    private void checkMultipleScoreAggregations(Failures failures) {
+        Holder<Boolean> hasScoringAggs = new Holder<>();
+        forEachExpression(FilteredExpression.class, fe -> {
+            if (fe.delegate() instanceof AggregateFunction aggregateFunction) {
+                if (aggregateFunction.field() instanceof MetadataAttribute metadataAttribute) {
+                    if (MetadataAttribute.SCORE.equals(metadataAttribute.name())) {
+                        if (fe.filter().anyMatch(e -> e instanceof FullTextFunction)) {
+                            failures.add(fail(fe, "cannot use _score aggregations with a WHERE filter in a STATS command"));
+                        }
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -316,14 +335,15 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         );
 
         // Forbid CATEGORIZE being referenced as a child of an aggregation function
-        AttributeMap<Categorize> categorizeByAttribute = new AttributeMap<>();
+        AttributeMap.Builder<Categorize> categorizeByAttributeBuilder = AttributeMap.builder();
         groupings.forEach(g -> {
             g.forEachDown(Alias.class, alias -> {
                 if (alias.child() instanceof Categorize categorize) {
-                    categorizeByAttribute.put(alias.toAttribute(), categorize);
+                    categorizeByAttributeBuilder.put(alias.toAttribute(), categorize);
                 }
             });
         });
+        AttributeMap<Categorize> categorizeByAttribute = categorizeByAttributeBuilder.build();
         aggregates.forEach(a -> a.forEachDown(AggregateFunction.class, aggregate -> aggregate.forEachDown(Attribute.class, attribute -> {
             var categorize = categorizeByAttribute.get(attribute);
             if (categorize != null) {

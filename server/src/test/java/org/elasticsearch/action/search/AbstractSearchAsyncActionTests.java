@@ -204,12 +204,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         List<Tuple<String, String>> nodeLookups = new ArrayList<>();
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = phaseResults(requestIds, nodeLookups, 0);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
-        action.onPhaseFailure(new SearchPhase("test") {
-            @Override
-            public void run() {
-
-            }
-        }, "message", null);
+        action.onPhaseFailure("test", "message", null);
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("message", searchPhaseExecutionException.getMessage());
@@ -228,9 +223,17 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numShards);
         AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
         // skip one to avoid the "all shards failed" failure.
-        SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
-        skipIterator.skip(true);
-        action.skipShard(skipIterator);
+        action.onShardResult(new SearchPhaseResult() {
+            @Override
+            public int getShardIndex() {
+                return 0;
+            }
+
+            @Override
+            public SearchShardTarget getSearchShardTarget() {
+                return new SearchShardTarget(null, null, null);
+            }
+        });
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
         assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());

@@ -34,7 +34,7 @@ public class PrefixQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         return prefixQuery(field, query).caseInsensitive(caseInsensitive);
     }
 
@@ -60,5 +60,10 @@ public class PrefixQuery extends Query {
     @Override
     protected String innerToString() {
         return field + ":" + query;
+    }
+
+    @Override
+    public boolean containsPlan() {
+        return false;
     }
 }

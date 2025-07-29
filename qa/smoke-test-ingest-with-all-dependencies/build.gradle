@@ -7,22 +7,16 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
-  yamlRestTestImplementation project(':modules:lang-mustache')
-}
-
-testClusters.configureEach {
-  setting 'xpack.security.enabled', 'false'
-  extraConfigFile 'ingest-geoip/GeoLite2-City.mmdb', file("src/yamlRestTest/resources/GeoLite2-City.mmdb")
-}
-
-tasks.named("yamlRestTestTestingConventions").configure {
-  baseClass 'org.elasticsearch.ingest.AbstractScriptTestCase'
-  baseClass 'org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase'
-}
-
-tasks.named("forbiddenPatterns").configure {
-  exclude '**/*.mmdb'
+  internalClusterTestImplementation project(':test:framework')
+  internalClusterTestImplementation project(':modules:lang-mustache')
+  clusterModules project(":modules:ingest-common")
+  clusterModules project(":modules:lang-mustache")
+  clusterModules project(":modules:reindex")
+  clusterModules project(":modules:data-streams")
+  clusterModules project(":modules:ingest-geoip")
+  clusterModules project(":modules:mapper-extras")
 }

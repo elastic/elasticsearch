@@ -20,6 +20,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.index.IndexVersion;
@@ -224,10 +225,9 @@ public class RestBulkActionTests extends ESTestCase {
             .build();
         FakeRestChannel channel = new FakeRestChannel(request, true, 1);
 
-        RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(
-            true,
-            request,
-            () -> new IncrementalBulkService.Handler(null, null, null, null, null) {
+        IndexingPressure indexingPressure = new IndexingPressure(Settings.EMPTY);
+        RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(true, request, () -> {
+            return new IncrementalBulkService.Handler(null, indexingPressure, null, null, null) {
 
                 @Override
                 public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
@@ -241,8 +241,8 @@ public class RestBulkActionTests extends ESTestCase {
                     docs.addAll(items);
                     isLast.set(true);
                 }
-            }
-        );
+            };
+        });
 
         chunkHandler.accept(channel);
         ReleasableBytesReference r1 = new ReleasableBytesReference(new BytesArray("{\"index\":{\"_index\":\"index_name\"}}\n"), () -> {});

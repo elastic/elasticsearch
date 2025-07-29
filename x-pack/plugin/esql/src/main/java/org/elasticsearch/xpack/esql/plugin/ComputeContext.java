@@ -19,7 +19,9 @@ import java.util.function.Supplier;
 
 record ComputeContext(
     String sessionId,
+    String taskDescription,
     String clusterAlias,
+    EsqlFlags flags,
     List<SearchContext> searchContexts,
     Configuration configuration,
     FoldContext foldCtx,

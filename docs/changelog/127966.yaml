@@ -1,0 +1,5 @@
+pr: 127966
+summary: "[ML] Add Rerank support to the Inference Plugin"
+area: Machine Learning
+type: enhancement
+issues: []

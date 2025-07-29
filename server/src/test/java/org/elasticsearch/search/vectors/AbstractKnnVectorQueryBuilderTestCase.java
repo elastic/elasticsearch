@@ -46,6 +46,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.hamcrest.Matchers.containsString;
@@ -144,7 +145,7 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             fieldName,
             k,
             numCands,
-            randomRescoreVectorBuilder(),
+            isIndextypeBBQ() ? randomBBQRescoreVectorBuilder() : randomRescoreVectorBuilder(),
             randomFloat()
         );
 
@@ -161,12 +162,20 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         return queryBuilder;
     }
 
+    private boolean isIndextypeBBQ() {
+        return indexType.equals("bbq_hnsw") || indexType.equals("bbq_flat");
+    }
+
+    protected RescoreVectorBuilder randomBBQRescoreVectorBuilder() {
+        return new RescoreVectorBuilder(randomBoolean() ? DEFAULT_OVERSAMPLE : randomFloatBetween(1.0f, 10.0f, false));
+    }
+
     protected RescoreVectorBuilder randomRescoreVectorBuilder() {
         if (randomBoolean()) {
             return null;
         }
 
-        return new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false));
+        return new RescoreVectorBuilder(randomBoolean() ? 0f : randomFloatBetween(1.0f, 10.0f, false));
     }
 
     @Override
@@ -181,9 +190,13 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             k = context.requestSize() == null || context.requestSize() < 0 ? DEFAULT_SIZE : context.requestSize();
         }
         if (queryBuilder.rescoreVectorBuilder() != null && isQuantizedElementType()) {
-            RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
-            assertEquals(k.intValue(), (rescoreQuery.k()));
-            query = rescoreQuery.innerQuery();
+            if (queryBuilder.rescoreVectorBuilder().oversample() > 0) {
+                RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
+                assertEquals(k.intValue(), (rescoreQuery.k()));
+                query = rescoreQuery.innerQuery();
+            } else {
+                assertFalse(query instanceof RescoreKnnVectorQuery);
+            }
         }
         switch (elementType()) {
             case FLOAT -> assertTrue(query instanceof ESKnnFloatVectorQuery);

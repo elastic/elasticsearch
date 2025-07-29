@@ -47,4 +47,10 @@ Snapshot/Restore::
 * Improve message about insecure S3 settings {es-pull}116915[#116915]
 * Split searchable snapshot into multiple repo operations {es-pull}116918[#116918]
 
+[discrete]
+[[known-issues-8.16.1]]
+=== Known issues
 
+{esql}::
+
+* Some valid queries using an `ENRICH` command can fail when a match field is used that is absent from some indices or shards, either with a 500 status code due to `NullPointerException` or `ClassCastException` or with a 400 status code and `IllegalArgumentException`. This is fixed in {es-pull}126187[#126187].

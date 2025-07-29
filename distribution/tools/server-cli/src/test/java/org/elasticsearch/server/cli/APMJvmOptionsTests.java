@@ -41,7 +41,6 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
-@ESTestCase.WithoutSecurityManager
 public class APMJvmOptionsTests extends ESTestCase {
 
     private Path installDir;

@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "color": {
+      "type": "text"
+    },
+    "hex_code": {
+      "type": "keyword"
+    },
+    "primary": {
+      "type": "boolean"
+    },
+    "rgb_vector": {
+      "type": "dense_vector",
+      "similarity": "l2_norm",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
+    }
+  }
+}

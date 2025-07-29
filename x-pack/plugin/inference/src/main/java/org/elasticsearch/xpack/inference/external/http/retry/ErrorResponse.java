@@ -34,4 +34,16 @@ public class ErrorResponse {
     public boolean errorStructureFound() {
         return errorStructureFound;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        ErrorResponse that = (ErrorResponse) o;
+        return errorStructureFound == that.errorStructureFound && Objects.equals(errorMessage, that.errorMessage);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(errorMessage, errorStructureFound);
+    }
 }

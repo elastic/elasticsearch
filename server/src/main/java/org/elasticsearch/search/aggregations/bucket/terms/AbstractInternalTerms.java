@@ -220,7 +220,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         private final int size;
 
         private long sumDocCountError = 0;
-        private final long[] otherDocCount = new long[] { 0 };
+        private long otherDocCount = 0;
         private A referenceTerms = null;
         /*
          * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
@@ -255,7 +255,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             } else if (thisReduceOrder != getOrder() && thisReduceOrder.equals(terms.getReduceOrder()) == false) {
                 thisReduceOrder = getOrder();
             }
-            otherDocCount[0] += terms.getSumOfOtherDocCounts();
+            otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError = getDocCountError(terms);
             setDocCountError(thisAggDocCountError);
             if (sumDocCountError != -1) {
@@ -297,14 +297,14 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                         reduceContext.consumeBucketsAndMaybeBreak(1);
                         result.add(bucket.reduced(AbstractInternalTerms.this::reduceBucket, reduceContext));
                     } else {
-                        otherDocCount[0] += bucket.getDocCount();
+                        otherDocCount += bucket.getDocCount();
                     }
                 });
             } else if (reduceContext.isFinalReduce()) {
                 TopBucketBuilder<B> top = TopBucketBuilder.build(
                     getRequiredSize(),
                     getOrder(),
-                    removed -> otherDocCount[0] += removed.getDocCount(),
+                    removed -> otherDocCount += removed.getDocCount(),
                     AbstractInternalTerms.this::reduceBucket,
                     reduceContext
                 );
@@ -334,7 +334,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             if (sumDocCountError != -1) {
                 docCountError = size == 1 ? 0 : sumDocCountError;
             }
-            return create(name, result, reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError, otherDocCount[0]);
+            return create(name, result, reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError, otherDocCount);
         }
 
         private BucketOrder getThisReduceOrder() {

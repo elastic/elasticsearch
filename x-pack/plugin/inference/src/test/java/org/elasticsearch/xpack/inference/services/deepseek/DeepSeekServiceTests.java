@@ -54,6 +54,7 @@ import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
@@ -146,10 +147,7 @@ public class DeepSeekServiceTests extends ESTestCase {
                 }
                 """,
             assertNoSuccessListener(
-                e -> assertThat(
-                    e.getMessage(),
-                    equalTo("Model configuration contains settings [{so=extra}] unknown to the [deepseek] service")
-                )
+                e -> assertThat(e.getMessage(), equalTo("Configuration contains settings [{so=extra}] unknown to the [deepseek] service"))
             )
         );
     }
@@ -232,7 +230,7 @@ public class DeepSeekServiceTests extends ESTestCase {
         try (var service = createService()) {
             var model = createModel(service, TaskType.COMPLETION);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("hello"), false, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            service.infer(model, null, null, null, List.of("hello"), false, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             var result = listener.actionGet(TIMEOUT);
             assertThat(result, isA(ChatCompletionResults.class));
             var completionResults = (ChatCompletionResults) result;
@@ -255,7 +253,7 @@ public class DeepSeekServiceTests extends ESTestCase {
         try (var service = createService()) {
             var model = createModel(service, TaskType.COMPLETION);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(model, null, List.of("hello"), true, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
+            service.infer(model, null, null, null, List.of("hello"), true, Map.of(), InputType.UNSPECIFIED, TIMEOUT, listener);
             InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream().hasNoErrors().hasEvent("""
                 {"completion":[{"delta":"hello, world"}]}""");
         }
@@ -276,8 +274,10 @@ public class DeepSeekServiceTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "Received an unsuccessful status code for request from inference entity id [inference-id] status"
-                    + " [404]. Error message: [The model `deepseek-not-chat` does not exist or you do not have access to it.]"
+                "Resource not found at ["
+                    + getUrl(webServer)
+                    + "] for request from inference entity id [inference-id]"
+                    + " status [404]. Error message: [The model `deepseek-not-chat` does not exist or you do not have access to it.]"
             )
         );
     }

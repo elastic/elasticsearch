@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -170,22 +169,19 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
      */
     private SubscribableListener<Void> createSnapshotDeletionListener(String repositoryName) {
         AtomicBoolean deleteHasStarted = new AtomicBoolean(false);
-        return ClusterServiceUtils.addTemporaryStateListener(
-            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
-            state -> {
-                SnapshotDeletionsInProgress deletionsInProgress = (SnapshotDeletionsInProgress) state.getCustoms()
-                    .get(SnapshotDeletionsInProgress.TYPE);
-                if (deletionsInProgress == null) {
-                    return false;
-                }
-                if (deleteHasStarted.get() == false) {
-                    deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(repositoryName));
-                    return false;
-                } else {
-                    return deletionsInProgress.hasExecutingDeletion(repositoryName) == false;
-                }
+        return ClusterServiceUtils.addMasterTemporaryStateListener(state -> {
+            SnapshotDeletionsInProgress deletionsInProgress = (SnapshotDeletionsInProgress) state.getCustoms()
+                .get(SnapshotDeletionsInProgress.TYPE);
+            if (deletionsInProgress == null) {
+                return false;
             }
-        );
+            if (deleteHasStarted.get() == false) {
+                deleteHasStarted.set(deletionsInProgress.hasExecutingDeletion(repositoryName));
+                return false;
+            } else {
+                return deletionsInProgress.hasExecutingDeletion(repositoryName) == false;
+            }
+        });
     }
 
     public void testRerouteWhenShardSnapshotsCompleted() throws Exception {
@@ -209,13 +205,10 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", originalNode)
         );
 
-        final var shardMovedListener = ClusterServiceUtils.addTemporaryStateListener(
-            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
-            state -> {
-                final var primaryShard = state.routingTable().index(indexName).shard(0).primaryShard();
-                return primaryShard.started() && originalNode.equals(state.nodes().get(primaryShard.currentNodeId()).getName()) == false;
-            }
-        );
+        final var shardMovedListener = ClusterServiceUtils.addMasterTemporaryStateListener(state -> {
+            final var primaryShard = state.routingTable().index(indexName).shard(0).primaryShard();
+            return primaryShard.started() && originalNode.equals(state.nodes().get(primaryShard.currentNodeId()).getName()) == false;
+        });
         assertFalse(shardMovedListener.isDone());
 
         unblockAllDataNodes(repoName);

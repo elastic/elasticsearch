@@ -9,11 +9,11 @@
 
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.http.HttpMethodName;
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.InstanceState;
-import com.amazonaws.services.ec2.model.InstanceStateName;
-import com.amazonaws.services.ec2.model.Tag;
+import software.amazon.awssdk.http.SdkHttpMethod;
+import software.amazon.awssdk.services.ec2.model.Instance;
+import software.amazon.awssdk.services.ec2.model.InstanceState;
+import software.amazon.awssdk.services.ec2.model.InstanceStateName;
+import software.amazon.awssdk.services.ec2.model.Tag;
 
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
@@ -90,7 +90,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         try (Ec2DiscoveryPlugin plugin = new Ec2DiscoveryPlugin(buildSettings(accessKey))) {
             AwsEc2SeedHostsProvider provider = new AwsEc2SeedHostsProvider(nodeSettings, transportService, plugin.ec2Service);
             httpServer.createContext("/", exchange -> {
-                if (exchange.getRequestMethod().equals(HttpMethodName.POST.name())) {
+                if (SdkHttpMethod.POST.name().equals(exchange.getRequestMethod())) {
                     final String request = new String(exchange.getRequestBody().readAllBytes(), UTF_8);
                     final String userAgent = exchange.getRequestHeaders().getFirst("User-Agent");
                     if (userAgent != null && userAgent.startsWith("aws-sdk-java")) {
@@ -103,7 +103,8 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                         final String[] params = request.split("&");
                         Arrays.stream(params).filter(entry -> entry.startsWith("Filter.") && entry.contains("=tag%3A")).forEach(entry -> {
                             final int startIndex = "Filter.".length();
-                            final int filterId = Integer.parseInt(entry.substring(startIndex, entry.indexOf(".", startIndex)));
+                            // TODO ensure the filterId is an ASCII int when https://github.com/aws/aws-sdk-java-v2/issues/5968 fixed
+                            final var filterId = entry.substring(startIndex, entry.indexOf(".", startIndex));
                             tagsIncluded.put(
                                 entry.substring(entry.indexOf("=tag%3A") + "=tag%3A".length()),
                                 Arrays.stream(params)
@@ -114,25 +115,26 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
                         });
                         final List<Instance> instances = IntStream.range(1, nodes + 1).mapToObj(node -> {
                             final String instanceId = "node" + node;
-                            final Instance instance = new Instance().withInstanceId(instanceId)
-                                .withState(new InstanceState().withName(InstanceStateName.Running))
-                                .withPrivateDnsName(PREFIX_PRIVATE_DNS + instanceId + SUFFIX_PRIVATE_DNS)
-                                .withPublicDnsName(PREFIX_PUBLIC_DNS + instanceId + SUFFIX_PUBLIC_DNS)
-                                .withPrivateIpAddress(PREFIX_PRIVATE_IP + node)
-                                .withPublicIpAddress(PREFIX_PUBLIC_IP + node);
+                            final Instance.Builder instanceBuilder = Instance.builder()
+                                .instanceId(instanceId)
+                                .state(InstanceState.builder().name(InstanceStateName.RUNNING).build())
+                                .privateDnsName(PREFIX_PRIVATE_DNS + instanceId + SUFFIX_PRIVATE_DNS)
+                                .publicDnsName(PREFIX_PUBLIC_DNS + instanceId + SUFFIX_PUBLIC_DNS)
+                                .privateIpAddress(PREFIX_PRIVATE_IP + node)
+                                .publicIpAddress(PREFIX_PUBLIC_IP + node);
                             if (tagsList != null) {
-                                instance.setTags(tagsList.get(node - 1));
+                                instanceBuilder.tags(tagsList.get(node - 1));
                             }
-                            return instance;
+                            return instanceBuilder.build();
                         })
                             .filter(
                                 instance -> tagsIncluded.entrySet()
                                     .stream()
                                     .allMatch(
-                                        entry -> instance.getTags()
+                                        entry -> instance.tags()
                                             .stream()
-                                            .filter(t -> t.getKey().equals(entry.getKey()))
-                                            .map(Tag::getValue)
+                                            .filter(t -> t.key().equals(entry.getKey()))
+                                            .map(Tag::value)
                                             .toList()
                                             .containsAll(entry.getValue())
                                     )
@@ -253,10 +255,10 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         for (int node = 0; node < nodes; node++) {
             List<Tag> tags = new ArrayList<>();
             if (randomBoolean()) {
-                tags.add(new Tag("stage", "prod"));
+                tags.add(tag("stage", "prod"));
                 prodInstances++;
             } else {
-                tags.add(new Tag("stage", "dev"));
+                tags.add(tag("stage", "dev"));
             }
             tagsList.add(tags);
         }
@@ -264,6 +266,10 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         logger.info("started [{}] instances with [{}] stage=prod tag", nodes, prodInstances);
         List<TransportAddress> dynamicHosts = buildDynamicHosts(nodeSettings, nodes, tagsList);
         assertThat(dynamicHosts, hasSize(prodInstances));
+    }
+
+    private static Tag tag(String key, String value) {
+        return Tag.builder().key(key).value(value).build();
     }
 
     public void testFilterByMultipleTags() {
@@ -276,15 +282,15 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
         for (int node = 0; node < nodes; node++) {
             List<Tag> tags = new ArrayList<>();
             if (randomBoolean()) {
-                tags.add(new Tag("stage", "prod"));
+                tags.add(tag("stage", "prod"));
                 if (randomBoolean()) {
-                    tags.add(new Tag("stage", "preprod"));
+                    tags.add(tag("stage", "preprod"));
                     prodInstances++;
                 }
             } else {
-                tags.add(new Tag("stage", "dev"));
+                tags.add(tag("stage", "dev"));
                 if (randomBoolean()) {
-                    tags.add(new Tag("stage", "preprod"));
+                    tags.add(tag("stage", "preprod"));
                 }
             }
             tagsList.add(tags);
@@ -311,7 +317,7 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
 
         for (int node = 0; node < nodes; node++) {
             List<Tag> tags = new ArrayList<>();
-            tags.add(new Tag("foo", "node" + (node + 1)));
+            tags.add(tag("foo", "node" + (node + 1)));
             tagsList.add(tags);
         }
 

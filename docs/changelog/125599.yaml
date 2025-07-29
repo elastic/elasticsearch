@@ -1,0 +1,6 @@
+pr: 125599
+summary: Allow zero for `rescore_vector.oversample` to indicate by-passing oversample
+  and rescoring
+area: Vector Search
+type: enhancement
+issues: []

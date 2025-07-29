@@ -12,14 +12,14 @@ Also see <<breaking-changes-8.17,Breaking changes in 8.17>>.
 [float]
 === License changes
 
-[float] 
+[float]
 ==== Change to synthetic `_source` licensing
 
-Starting with this release, the <<synthetic-source,synthetic `_source`>> feature is available exclusively with the Enterprise subscription. Synthetic `_source` is used in logs data streams (`logsdb` index mode), time series data streams (TSDS, using `time_series` index mode), application performance monitoring (APM), and Universal Profiling. 
+Starting with this release, the <<synthetic-source,synthetic `_source`>> feature is available exclusively with the Enterprise subscription. Synthetic `_source` is used in logs data streams (`logsdb` index mode), time series data streams (TSDS, using `time_series` index mode), application performance monitoring (APM), and Universal Profiling.
 
-If you are using these capabilities and are not on an Enterprise license, the change will result in increased storage requirements for new data, as the synthetic `_source` setting will be ignored. Existing indices that used synthetic `_source` will remain seamlessly accessible. 
+If you are using these capabilities and are not on an Enterprise license, the change will result in increased storage requirements for new data, as the synthetic `_source` setting will be ignored. Existing indices that used synthetic `_source` will remain seamlessly accessible.
 
-Refer to the subscription page for https://www.elastic.co/subscriptions/cloud[Elastic Cloud] and {subscriptions}[Elastic Stack/self-managed] for the breakdown of available features and their associated subscription tiers. For further details and subscription options, contact your Elastic sales representative or https://www.elastic.co/contact[contact us]. 
+Refer to the subscription page for https://www.elastic.co/subscriptions/cloud[Elastic Cloud] and {subscriptions}[Elastic Stack/self-managed] for the breakdown of available features and their associated subscription tiers. For further details and subscription options, contact your Elastic sales representative or https://www.elastic.co/contact[contact us].
 
 [[bug-8.17.0]]
 [float]
@@ -81,6 +81,8 @@ Machine Learning::
 * Mitigate IOSession timeouts {es-pull}115414[#115414] (issues: {es-issue}114385[#114385], {es-issue}114327[#114327], {es-issue}114105[#114105], {es-issue}114232[#114232])
 * Propagate scoring function through random sampler {es-pull}116957[#116957] (issue: {es-issue}110134[#110134])
 * Wait for the worker service to shutdown before closing task processor {es-pull}117920[#117920] (issue: {es-issue}117563[#117563])
+* Increase the upper limits for the Boost.JSON SAX parser {ml-pull}2809[#2809]
+* Correct handling of config updates {ml-pull}2821[#2821]
 
 Mapping::
 * Address mapping and compute engine runtime field issues {es-pull}117792[#117792] (issue: {es-issue}117644[#117644])
@@ -206,4 +208,10 @@ Search::
 Security::
 * Upgrade Bouncy Castle FIPS dependencies {es-pull}112989[#112989]
 
+[discrete]
+[[known-issues-8.17.0]]
+=== Known issues
 
+{esql}::
+
+* Some valid queries using an `ENRICH` command can fail when a match field is used that is absent from some indices or shards, either with a 500 status code due to `NullPointerException` or `ClassCastException` or with a 400 status code and `IllegalArgumentException`. This is fixed in {es-pull}126187[#126187].

@@ -76,9 +76,9 @@ public class StXMin extends UnaryScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
-            return new StXMinFromWKBGeoEvaluator.Factory(toEvaluator.apply(field()), source());
+            return new StXMinFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
         }
-        return new StXMinFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
+        return new StXMinFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

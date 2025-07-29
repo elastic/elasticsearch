@@ -26,6 +26,7 @@
 * <<esql-pi>>
 * <<esql-pow>>
 * <<esql-round>>
+* <<esql-round_to>>
 * <<esql-signum>>
 * <<esql-sin>>
 * <<esql-sinh>>
@@ -53,6 +54,7 @@ include::layout/log10.asciidoc[]
 include::layout/pi.asciidoc[]
 include::layout/pow.asciidoc[]
 include::layout/round.asciidoc[]
+include::layout/round_to.asciidoc[]
 include::layout/signum.asciidoc[]
 include::layout/sin.asciidoc[]
 include::layout/sinh.asciidoc[]

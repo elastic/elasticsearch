@@ -12,7 +12,6 @@ package org.elasticsearch.index;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -48,7 +47,6 @@ public class IndexVersions {
         return new IndexVersion(id, luceneVersion);
     }
 
-    @UpdateForV9 // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, Version.LUCENE_8_0_0);
 
@@ -71,12 +69,14 @@ public class IndexVersions {
     public static final IndexVersion V_7_15_0 = def(7_15_00_99, Version.LUCENE_8_9_0);
     public static final IndexVersion V_7_16_0 = def(7_16_00_99, Version.LUCENE_8_10_1);
     public static final IndexVersion V_7_17_0 = def(7_17_00_99, Version.LUCENE_8_11_1);
+    public static final IndexVersion V_7_17_19 = def(7_17_19_99, Version.LUCENE_8_11_3);
     public static final IndexVersion V_8_0_0 = def(8_00_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_1_0 = def(8_01_00_99, Version.LUCENE_9_0_0);
     public static final IndexVersion V_8_2_0 = def(8_02_00_99, Version.LUCENE_9_1_0);
     public static final IndexVersion V_8_3_0 = def(8_03_00_99, Version.LUCENE_9_2_0);
     public static final IndexVersion V_8_4_0 = def(8_04_00_99, Version.LUCENE_9_3_0);
     public static final IndexVersion V_8_5_0 = def(8_05_00_99, Version.LUCENE_9_4_1);
+    public static final IndexVersion V_8_5_3 = def(8_05_03_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_6_0 = def(8_06_00_99, Version.LUCENE_9_4_2);
     public static final IndexVersion V_8_7_0 = def(8_07_00_99, Version.LUCENE_9_5_0);
     public static final IndexVersion V_8_8_0 = def(8_08_00_99, Version.LUCENE_9_6_0);
@@ -127,7 +127,17 @@ public class IndexVersions {
     public static final IndexVersion INFERENCE_METADATA_FIELDS_BACKPORT = def(8_524_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT = def(8_525_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT = def(8_526_0_00, Version.LUCENE_9_12_1);
-    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD = def(8_527_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY = def(8_527_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS = def(8_528_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion RESCORE_PARAMS_ALLOW_ZERO_TO_QUANTIZED_VECTORS = def(8_529_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion DEFAULT_OVERSAMPLE_VALUE_FOR_BBQ_BACKPORT_8_X = def(8_530_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X = def(8_531_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion INDEX_INT_SORT_INT_TYPE_8_19 = def(8_532_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19 = def(8_533_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_12_2 = def(8_534_0_00, Version.LUCENE_9_12_2);
+    public static final IndexVersion SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT_BACKPORT_8_X = def(8_535_0_00, Version.LUCENE_9_12_2);
+    public static final IndexVersion MATCH_ONLY_TEXT_STORED_AS_BYTES_BACKPORT_8_X = def(8_536_0_00, Version.LUCENE_9_12_2);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

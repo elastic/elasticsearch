@@ -9,27 +9,28 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.datageneration.FieldType;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends BlockLoaderTestCase {
-    public NumberFieldBlockLoaderTestCase(FieldType fieldType) {
-        super(fieldType);
+    public NumberFieldBlockLoaderTestCase(FieldType fieldType, Params params) {
+        super(fieldType.toString(), params);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = fieldMapping.get("null_value") != null ? convert((Number) fieldMapping.get("null_value"), fieldMapping) : null;
 
         if (value instanceof List<?> == false) {
             return convert(value, nullValue, fieldMapping);
         }
 
-        if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        if (hasDocValues) {
             // Sorted
             var resultList = ((List<Object>) value).stream()
                 .map(v -> convert(v, nullValue, fieldMapping))

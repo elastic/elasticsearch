@@ -35,7 +35,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -215,7 +214,6 @@ public class DiscoveryModule extends AbstractModule {
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
     }
 
-    @UpdateForV9
     private static void checkLegacyMultiNodeDiscoveryType(String discoveryType) {
         if (LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
             DeprecationLogger.getLogger(DiscoveryModule.class)

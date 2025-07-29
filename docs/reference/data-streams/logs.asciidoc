@@ -14,13 +14,15 @@ stream. The exact impact varies by data set.
 [[how-to-use-logsds]]
 === Create a logs data stream
 
+IMPORTANT: Fleet integrations use <<index-templates,index templates>> managed by Elastic. To modify these backing templates, update their {observability-guide}/logs-index-template.html#custom-logs-template-edit[composite `custom` templates].
+
 To create a logs data stream, set your <<index-templates,template>> `index.mode` to `logsdb`:
 
 [source,console]
 ----
 PUT _index_template/my-index-template
 {
-  "index_patterns": ["logs-*"],
+  "index_patterns": ["my-datastream-*"],
   "data_stream": { },
   "template": {
      "settings": {
@@ -184,8 +186,9 @@ can be indexed without causing ingestion failures.
 ==== `ignore_above`
 
 In `logsdb` index mode, the `index.mapping.ignore_above` setting is applied by default at the index level to ensure
-efficient storage and indexing of large keyword fields.The index-level default for `ignore_above` is 8191
-_characters._ Using UTF-8 encoding, this results in a limit of 32764 bytes, depending on character encoding.
+efficient storage and indexing of large keyword fields. This applies to all members of the keyword type family (keyword,
+constant_keyword, and wildcard). The index-level default for `ignore_above` is 8191 _characters._ Using UTF-8 encoding,
+this results in a limit of 32764 bytes, depending on character encoding.
 
 The mapping-level `ignore_above` setting takes precedence. If a specific field has an `ignore_above` value
 defined in its mapping, that value overrides the index-level `index.mapping.ignore_above` value. This default

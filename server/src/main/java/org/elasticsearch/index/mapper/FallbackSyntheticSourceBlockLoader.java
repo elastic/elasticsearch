@@ -75,6 +75,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             var ignoredSource = storedFields.storedFields().get(IgnoredSourceFieldMapper.NAME);
             if (ignoredSource == null) {
+                builder.appendNull();
                 return;
             }
 
@@ -235,13 +236,6 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         }
 
         private void parseWithReader(XContentParser parser, List<T> blockValues) throws IOException {
-            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    reader.parse(parser, blockValues);
-                }
-                return;
-            }
-
             reader.parse(parser, blockValues);
         }
 
@@ -274,10 +268,15 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         void writeToBlock(List<T> values, Builder blockBuilder);
     }
 
-    public abstract static class ReaderWithNullValueSupport<T> implements Reader<T> {
+    /**
+     * Reader for field types that don't parse arrays (arrays are always treated as multiple values)
+     * as opposed to field types that treat arrays as special cases (for example point).
+     * @param <T>
+     */
+    public abstract static class SingleValueReader<T> implements Reader<T> {
         private final Object nullValue;
 
-        public ReaderWithNullValueSupport(Object nullValue) {
+        public SingleValueReader(Object nullValue) {
             this.nullValue = nullValue;
         }
 
@@ -286,6 +285,18 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 if (nullValue != null) {
                     convertValue(nullValue, accumulator);
+                }
+                return;
+            }
+            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                        if (nullValue != null) {
+                            convertValue(nullValue, accumulator);
+                        }
+                    } else {
+                        parseNonNullValue(parser, accumulator);
+                    }
                 }
                 return;
             }

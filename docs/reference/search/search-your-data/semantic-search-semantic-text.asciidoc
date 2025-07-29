@@ -4,8 +4,6 @@
 <titleabbrev>Semantic search with `semantic_text`</titleabbrev>
 ++++
 
-beta[]
-
 This tutorial shows you how to use the semantic text feature to perform semantic search on your data.
 
 Semantic text simplifies the {infer} workflow by providing {infer} at ingestion time and sensible default values automatically.
@@ -21,7 +19,7 @@ This tutorial uses the <<infer-service-elasticsearch,`elasticsearch` service>> f
 [[semantic-text-requirements]]
 ==== Requirements
 
-This tutorial uses the <<infer-service-elasticsearch,`elasticsearch` service>> for demonstration, which is created automatically as needed. 
+This tutorial uses the <<infer-service-elasticsearch,`elasticsearch` service>> for demonstration, which is created automatically as needed.
 To use the `semantic_text` field type with an {infer} service other than `elasticsearch` service, you must create an inference endpoint using the <<put-inference-api>>.
 
 
@@ -92,7 +90,7 @@ The reindexed data will be processed by the {infer} endpoint associated with the
 ------------------------------------------------------------
 POST _reindex?wait_for_completion=false
 {
-  "source": { 
+  "source": {
     "index": "test-data",
     "size": 10 <1>
   },
@@ -130,7 +128,12 @@ POST _tasks/<task_id>/_cancel
 [[semantic-text-semantic-search]]
 ==== Semantic search
 
-After the data set has been enriched with the embeddings, you can query the data using semantic search.
+After the data set has been enriched with the embeddings, you can query the data using semantic search. You can use Query DSL or {esql} syntax.
+
+[discrete]
+[[semantic-text-semantic-search-query-dsl]]
+===== Query DSL syntax
+
 Provide the `semantic_text` field name and the query text in a `semantic` query type.
 The {infer} endpoint used to generate the embeddings for the `semantic_text` field will be used to process the query text.
 
@@ -139,7 +142,7 @@ The {infer} endpoint used to generate the embeddings for the `semantic_text` fie
 GET semantic-embeddings/_search
 {
   "query": {
-    "semantic": { 
+    "semantic": {
       "field": "content", <1>
       "query": "How to avoid muscle soreness while running?" <2>
     }
@@ -152,6 +155,35 @@ GET semantic-embeddings/_search
 
 As a result, you receive the top 10 documents that are closest in meaning to the
 query from the `semantic-embedding` index.
+
+[discrete]
+[[semantic-text-semantic-search-esql]]
+===== {esql} syntax
+
+The ES|QL approach uses the <<esql-search-operators,match (`:`) operator>>, which automatically detects the `semantic_text` field and performs the search on it. The query uses `METADATA _score` to sort by `_score` in descending order.
+
+[source,console]
+----
+POST /_query?format=txt
+{
+  "query": """
+    FROM semantic-embeddings METADATA _score <1>
+    | WHERE content: "How to avoid muscle soreness while running?" <2>
+    | SORT _score DESC <3>
+    | LIMIT 1000 <4>
+  """
+}
+----
+// TEST[skip:uses ML]
+<1> The `METADATA _score` clause is used to return the score of each document
+<2> The <<esql-search-operators,match (`:`) operator>> is used on the `content` field for standard keyword matching
+<3> Sorts by descending score to display the most relevant results first
+<4> Limits the results to 1000 documents
+
+[TIP]
+====
+Refer to <<esql-for-search, Using {esql} for search>> for more information on using the {esql} language for search use cases.
+====
 
 [discrete]
 [[semantic-text-further-examples]]

@@ -10,8 +10,8 @@
 package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.List;
 import java.util.Map;
@@ -20,13 +20,17 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
-    public KeywordFieldBlockLoaderTests() {
-        super(FieldType.KEYWORD);
+    public KeywordFieldBlockLoaderTests(Params params) {
+        super(FieldType.KEYWORD.toString(), params);
+    }
+
+    @Override
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
+        return expectedValue(fieldMapping, value, params, testContext);
     }
 
     @SuppressWarnings("unchecked")
-    @Override
-    protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
+    public static Object expectedValue(Map<String, Object> fieldMapping, Object value, Params params, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
 
         var ignoreAbove = fieldMapping.get("ignore_above") == null
@@ -44,7 +48,8 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove))
             .filter(Objects::nonNull);
 
-        if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        if (hasDocValues) {
             // Sorted and no duplicates
             var resultList = convertValues.andThen(Stream::distinct)
                 .andThen(Stream::sorted)
@@ -58,7 +63,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         return maybeFoldList(resultList);
     }
 
-    private BytesRef convert(String value, String nullValue, int ignoreAbove) {
+    private static BytesRef convert(String value, String nullValue, int ignoreAbove) {
         if (value == null) {
             if (nullValue != null) {
                 value = nullValue;

@@ -9,25 +9,24 @@ package org.elasticsearch.xpack.inference.services.voyageai.rerank;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.voyageai.VoyageAIActionVisitor;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
+import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionVisitor;
+import org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
-import static org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils.HOST;
+import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIUtils.HOST;
 
 public class VoyageAIRerankModel extends VoyageAIModel {
     public static VoyageAIRerankModel of(VoyageAIRerankModel model, Map<String, Object> taskSettings) {
@@ -112,11 +111,10 @@ public class VoyageAIRerankModel extends VoyageAIModel {
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
      * @param visitor _
      * @param taskSettings _
-     * @param inputType ignored for rerank task
      * @return the rerank action
      */
     @Override
-    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }
 

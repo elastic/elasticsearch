@@ -10,14 +10,14 @@
 package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.Map;
 
 public class HalfFloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Double> {
-    public HalfFloatFieldBlockLoaderTests() {
-        super(FieldType.HALF_FLOAT);
+    public HalfFloatFieldBlockLoaderTests(Params params) {
+        super(FieldType.HALF_FLOAT, params);
     }
 
     @Override

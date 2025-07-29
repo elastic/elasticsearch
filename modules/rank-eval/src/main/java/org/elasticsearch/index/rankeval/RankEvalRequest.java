@@ -10,9 +10,9 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,7 +27,7 @@ import java.util.Objects;
 /**
  * Request to perform a search ranking evaluation.
  */
-public final class RankEvalRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class RankEvalRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
 
     private RankEvalSpec rankingEvaluationSpec;
 

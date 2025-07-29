@@ -17,6 +17,9 @@
       indices.recovery:
         index: [test_1]
         human: true
+        ignore_unavailable: false
+        allow_no_indices: true
+        expand_wildcards: open
 
   - match: { test_1.shards.0.type:                                 "EMPTY_STORE"           }
   - match: { test_1.shards.0.stage:                                "DONE"                  }

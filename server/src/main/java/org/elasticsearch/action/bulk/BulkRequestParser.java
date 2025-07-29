@@ -19,7 +19,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.document.RestBulkAction;
@@ -555,7 +554,6 @@ public final class BulkRequestParser {
 
     }
 
-    @UpdateForV9
     // Warnings will need to be replaced with XContentEOFException from 9.x
     private static void warnBulkActionNotProperlyClosed(String message) {
         deprecationLogger.compatibleCritical(STRICT_ACTION_PARSING_WARNING_KEY, message);

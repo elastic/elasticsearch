@@ -37,7 +37,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -299,8 +298,7 @@ public class MockTransportService extends TransportService {
             localNodeFactory,
             clusterSettings,
             new StubbableConnectionManager(new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())),
-            taskManager,
-            Tracer.NOOP
+            taskManager
         );
         this.original = transport.getDelegate();
     }
@@ -627,7 +625,6 @@ public class MockTransportService extends TransportService {
             // into a different class that cannot be re-serialized (i.e. JOIN_VALIDATE_ACTION_NAME),
             // in those cases we just copy the raw bytes back to a BytesTransportRequest.
             // This is only needed for the BwC for JOIN_VALIDATE_ACTION_NAME and can be removed in the next major
-            @UpdateForV9
             private static TransportRequest copyRawBytesForBwC(BytesStreamOutput bStream) throws IOException {
                 return new BytesTransportRequest(bStream.bytes().streamInput());
             }

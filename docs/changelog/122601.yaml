@@ -1,6 +1,0 @@
-pr: 122601
-summary: Implicit numeric casting for CASE/GREATEST/LEAST
-area: ES|QL
-type: bug
-issues:
- - 121890

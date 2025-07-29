@@ -9,12 +9,13 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -144,7 +145,6 @@ import static org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositor
  *
  * On success, details of how long everything took are returned. On failure, cancels the remote read tasks to try and avoid consuming
  * unnecessary resources.
- *
  */
 class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request, BlobAnalyzeAction.Response> {
 
@@ -192,10 +192,10 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
     private static class BlobAnalysis {
         private final TransportService transportService;
         private final CancellableTask task;
-        private final BlobAnalyzeAction.Request request;
+        private final Request request;
         private final BlobStoreRepository repository;
         private final BlobContainer blobContainer;
-        private final ActionListener<BlobAnalyzeAction.Response> listener;
+        private final ActionListener<Response> listener;
         private final Random random;
         private final boolean checksumWholeBlob;
         private final long checksumStart;
@@ -210,10 +210,10 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         BlobAnalysis(
             TransportService transportService,
             CancellableTask task,
-            BlobAnalyzeAction.Request request,
+            Request request,
             BlobStoreRepository repository,
             BlobContainer blobContainer,
-            ActionListener<BlobAnalyzeAction.Response> listener
+            ActionListener<Response> listener
         ) {
             this.transportService = transportService;
             this.task = task;
@@ -335,8 +335,12 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
                                 bytesReference,
                                 failIfExists
                             );
-                        } catch (BlobWriteAbortedException e) {
-                            assert request.getAbortWrite() : "write unexpectedly aborted";
+                        } catch (Exception e) {
+                            if (ExceptionsHelper.unwrap(e, BlobWriteAbortedException.class) != null) {
+                                assert request.getAbortWrite() : "write unexpectedly aborted";
+                            } else {
+                                throw e;
+                            }
                         }
                     } else {
                         blobContainer.writeBlob(OperationPurpose.REPOSITORY_ANALYSIS, request.blobName, bytesReference, failIfExists);
@@ -638,7 +642,7 @@ class BlobAnalyzeAction extends HandledTransportAction<BlobAnalyzeAction.Request
         }
     }
 
-    static class Request extends ActionRequest {
+    static class Request extends LegacyActionRequest {
         private final String repositoryName;
         private final String blobPath;
         private final String blobName;

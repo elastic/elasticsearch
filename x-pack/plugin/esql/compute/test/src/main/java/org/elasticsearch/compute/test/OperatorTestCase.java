@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
@@ -46,7 +47,6 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
@@ -98,10 +98,16 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * all pages.
      */
     public final void testSimpleCircuitBreaking() {
-        ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
-        Operator.OperatorFactory simple = simple();
+        /*
+         * Build the input before building `simple` to handle the rare
+         * cases where `simple` need some state from the input - mostly
+         * this is ValuesSourceReaderOperator.
+         */
         DriverContext inputFactoryContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(inputFactoryContext.blockFactory(), between(1_000, 10_000)));
+
+        ByteSizeValue memoryLimitForSimple = enoughMemoryForSimple();
+        Operator.OperatorFactory simple = simple();
         try {
             ByteSizeValue limit = BreakerTestUtil.findBreakerLimit(memoryLimitForSimple, l -> runWithLimit(simple, input, l));
             ByteSizeValue testWithSize = ByteSizeValue.ofBytes(randomLongBetween(0, limit.getBytes()));
@@ -189,12 +195,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         while (source.hasNext()) {
             List<Page> in = source.next();
             try (
-                Driver d = new Driver(
+                Driver d = TestDriverFactory.create(
                     driverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
-                    new PageConsumerOperator(result::add),
-                    () -> {}
+                    new PageConsumerOperator(result::add)
                 )
             ) {
                 runDriver(d);
@@ -241,17 +246,28 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
      * Tests that finish then close without calling {@link Operator#getOutput} to
      * retrieve a potential last page, releases all memory.
      */
-    public void testSimpleFinishClose() throws Exception {
+    public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
-        assert input.size() == 1 : "Expected single page, got: " + input;
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
-        Page page = input.get(0);
         try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
-            operator.addInput(page);
+            for (Page page : input) {
+                if (operator.needsInput()) {
+                    operator.addInput(page);
+                } else {
+                    page.releaseBlocks();
+                }
+            }
             operator.finish();
+            // for async operator, we need to wait for async actions to finish.
+            if (operator instanceof AsyncOperator<?> || randomBoolean()) {
+                driverContext.finish();
+                PlainActionFuture<Void> waitForAsync = new PlainActionFuture<>();
+                driverContext.waitForAsyncActions(waitForAsync);
+                waitForAsync.actionGet(TimeValue.timeValueSeconds(30));
+            }
         }
     }
 
@@ -263,12 +279,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         boolean success = false;
         try (
-            Driver d = new Driver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);
@@ -290,21 +305,15 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         int dummyDrivers = between(0, 10);
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
-                new Driver(
-                    "dummy-session",
-                    0,
-                    0,
+                TestDriverFactory.create(
                     new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, TestBlockFactory.getNonBreakingInstance()),
-                    () -> "dummy-driver",
                     new SequenceLongBlockSourceOperator(
                         TestBlockFactory.getNonBreakingInstance(),
                         LongStream.range(0, between(1, 100)),
                         between(1, 100)
                     ),
                     List.of(),
-                    new PageConsumerOperator(page -> page.releaseBlocks()),
-                    Driver.DEFAULT_STATUS_INTERVAL,
-                    () -> {}
+                    new PageConsumerOperator(Page::releaseBlocks)
                 )
             );
         }

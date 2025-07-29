@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.rest.RestResponseUtils.setUpXContentMock;
 import static org.hamcrest.Matchers.instanceOf;
 
 public final class RestMultiGetActionTests extends RestActionTestCase {
@@ -38,7 +39,7 @@ public final class RestMultiGetActionTests extends RestActionTestCase {
         controller().registerHandler(new RestMultiGetAction(Settings.EMPTY));
         verifyingClient.setExecuteVerifier((actionType, request) -> {
             assertThat(request, instanceOf(MultiGetRequest.class));
-            return Mockito.mock(MultiGetResponse.class);
+            return setUpXContentMock(Mockito.mock(MultiGetResponse.class));
         });
     }
 

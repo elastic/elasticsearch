@@ -1,0 +1,6 @@
+pr: 129455
+summary: Prevent ILM from processing shrunken index before its execution state is copied over
+area: ILM+SLM
+type: bug
+issues:
+ - 109206

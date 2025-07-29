@@ -14,7 +14,6 @@ import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,14 +27,14 @@ public class FieldArrayContext {
     private static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
     private final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
-    void recordOffset(String field, Comparable<?> value) {
+    public void recordOffset(String field, Comparable<?> value) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
         int nextOffset = arrayOffsets.currentOffset++;
         var offsets = arrayOffsets.valueToOffsets.computeIfAbsent(value, s -> new ArrayList<>(2));
         offsets.add(nextOffset);
     }
 
-    void recordNull(String field) {
+    public void recordNull(String field) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
         int nextOffset = arrayOffsets.currentOffset++;
         arrayOffsets.nullValueOffsets.add(nextOffset);
@@ -83,22 +82,24 @@ public class FieldArrayContext {
         return offsetToOrd;
     }
 
-    static String getOffsetsFieldName(
+    public static String getOffsetsFieldName(
         MapperBuilderContext context,
         Mapper.SourceKeepMode indexSourceKeepMode,
         boolean hasDocValues,
         boolean isStored,
         FieldMapper.Builder fieldMapperBuilder,
-        IndexVersion indexCreatedVersion
+        IndexVersion indexCreatedVersion,
+        IndexVersion minSupportedVersion
     ) {
         var sourceKeepMode = fieldMapperBuilder.sourceKeepMode.orElse(indexSourceKeepMode);
         if (context.isSourceSynthetic()
             && sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
             && hasDocValues
             && isStored == false
+            && context.isInNestedContext() == false
             && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
             && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
-            && indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD)) {
+            && indexCreatedVersion.onOrAfter(minSupportedVersion)) {
             // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
             // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
             // logging use cases

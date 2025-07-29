@@ -1,0 +1,5 @@
+pr: 128218
+summary: Improve exception for trained model deployment scale up timeout
+area: Machine Learning
+type: enhancement
+issues: []

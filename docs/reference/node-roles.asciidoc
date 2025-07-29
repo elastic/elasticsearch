@@ -359,7 +359,7 @@ node.roles: [ ingest ]
 ----
 
 [discrete]
-[[coordinating-only-node]]
+[[coordinating-only-node-role]]
 ==== Coordinating only node
 
 If you take away the ability to be able to handle master duties, to hold data,

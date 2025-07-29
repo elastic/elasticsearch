@@ -29,7 +29,9 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -289,15 +291,12 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         }
 
         // Optimization: only load the .geoip_databases for projects that are allocated to this node
-        for (ProjectId projectId : state.metadata().projects().keySet()) {
-            checkDatabases(state.projectState(projectId));
-        }
+        state.forEachProject(this::checkDatabases);
     }
 
     void checkDatabases(ProjectState projectState) {
         ProjectId projectId = projectState.projectId();
         ProjectMetadata projectMetadata = projectState.metadata();
-        ClusterState clusterState = projectState.cluster();
         PersistentTasksCustomMetadata persistentTasks = projectMetadata.custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks == null) {
             logger.trace("Not checking databases for project [{}] because persistent tasks are null", projectId);
@@ -343,7 +342,10 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
 
         // process the geoip task state for the enterprise geoip downloader
         {
-            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(projectState.cluster());
+            @NotMultiProjectCapable(description = "Enterprise GeoIP not supported in serverless")
+            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(
+                projectState.cluster().metadata().getProject(ProjectId.DEFAULT)
+            );
             if (taskState == null) {
                 // Note: an empty state will purge stale entries in databases map
                 taskState = EnterpriseGeoIpTaskState.EMPTY;

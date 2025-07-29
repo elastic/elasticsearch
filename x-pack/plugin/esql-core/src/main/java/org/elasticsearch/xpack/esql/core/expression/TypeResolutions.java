@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatial;
 
 public final class TypeResolutions {
 
@@ -69,6 +70,23 @@ public final class TypeResolutions {
 
     public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, dt -> dt == DATETIME, operationName, paramOrd, "datetime");
+    }
+
+    /**
+     * @see DataType#isRepresentable(DataType)
+     */
+    public static TypeResolution isRepresentableExceptCounters(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, DataType::isRepresentable, operationName, paramOrd, "any type except counter types");
+    }
+
+    public static TypeResolution isRepresentableExceptCountersAndSpatial(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(
+            e,
+            (t) -> isSpatial(t) == false && DataType.isRepresentable(t),
+            operationName,
+            paramOrd,
+            "any type except counter and spatial types"
+        );
     }
 
     public static TypeResolution isExact(Expression e, String message) {

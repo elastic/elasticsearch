@@ -28,7 +28,7 @@ stack: coming 9.1.0
 ### Highlights [elasticsearch-9.1.0-highlights]
 
 ::::{dropdown} Upgrade `repository-s3` to AWS SDK v2
-In earlier versions of {es} the `repository-s3` plugin was based on the AWS SDK v1. AWS will withdraw support for this SDK before the end of the life of {es} {minor-version} so we have migrated this plugin to the newer AWS SDK v2.
+In earlier versions of {{es}} the `repository-s3` plugin was based on the AWS SDK v1. AWS will withdraw support for this SDK before the end of the life of {{es}} 9.1 so we have migrated this plugin to the newer AWS SDK v2.
 The two SDKs are not quite compatible, so please check the breaking changes documentation and test the new version thoroughly before upgrading any production workloads.
 ::::
 

@@ -1,15 +1,16 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the "Elastic License
- * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
- * Public License v 1"; you may not use this file except in compliance with, at
- * your election, the "Elastic License 2.0", the "GNU Affero General Public
- * License v3.0 only", or the "Server Side Public License, v 1".
- */
+* Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+* or more contributor license agreements. Licensed under the "Elastic License
+* 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+* Public License v 1"; you may not use this file except in compliance with, at
+* your election, the "Elastic License 2.0", the "GNU Affero General Public
+* License v3.0 only", or the "Server Side Public License, v 1".
+*/
 
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
+
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.attributes.Attribute;
@@ -23,8 +24,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE;
 
@@ -41,6 +44,10 @@ class TransportVersionUtils {
         public String toString() {
             return name + " " + location;
         }
+    }
+
+    static int getLatestId(Path dataDir, String majorMinor) throws IOException {
+        return getLatestFile(dataDir, majorMinor).ids().getFirst();
     }
 
     static TransportVersionDefinition getLatestFile(Path dataDir, String majorMinor) throws IOException {
@@ -158,4 +165,26 @@ class TransportVersionUtils {
             return newId;
         }
     }
+
+    public static int getPriorLatestId(Path dataDir, String majorMinor) throws IOException {
+        var pattern = Pattern.compile("^(\\d+)\\.(\\d+)\\.csv$");
+
+        var matcher = pattern.matcher(majorMinor);
+        var major = Integer.parseInt(matcher.group(1));
+        var minor = Integer.parseInt(matcher.group(2));
+        if (minor > 0) {
+            return getLatestId(dataDir, major + "." + (minor - 1));
+        }
+
+        try (var pathStream = Files.list(Objects.requireNonNull(dataDir.resolve(LATEST_DIR)))) {
+            var highestMinorOfPrevMajor = pathStream.flatMap(path -> {
+                var m = pattern.matcher(path.getFileName().toString());
+                var fileMajor = Integer.parseInt(m.group(1));
+                var fileMinor = Integer.parseInt(m.group(2));
+                return fileMajor == major - 1 ? Stream.of(fileMinor) : Stream.empty();
+            }).sorted().toList().getLast();
+            return getLatestId(dataDir, (major - 1) + "." + highestMinorOfPrevMajor);
+        }
+    }
+
 }

@@ -9,8 +9,6 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-import com.google.common.collect.Streams;
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
@@ -22,14 +20,17 @@ import org.gradle.api.tasks.TaskAction;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdIncrement;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinedFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getLatestFile;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getLatestId;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getPriorLatestId;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.updateLatestFile;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeDefinitionFile;
 
@@ -78,37 +79,54 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
     @Input
     public abstract Property<Function<String, IdIncrement>> getIdIncrementSupplier();
 
-
     @TaskAction
     public void generateTransportVersionData() throws IOException {
         final Path tvDataDir = Objects.requireNonNull(getDataFileDirectory().getAsFile().get()).toPath();
         final var tvName = Objects.requireNonNull(getTVName().get());
         final var forMinorVersions = Objects.requireNonNull(getMinorVersionsForTV().get());
+        final var idIncrementSupplier = Objects.requireNonNull(getIdIncrementSupplier().get());
 
         // TODO
-        //  - do we need to validate that the minorVersions don't contain duplicates?
-        //  - is there an order we need to apply? ( I don't think so)
+        // - do we need to also validate that the minorVersions don't contain duplicates here? How do we enforce idempotency if we don't?
+        // - is there an order we need to apply? ( I don't think so)
+        // - Do we need to run this iteratively for backport construction, rather than accepting a list like this? (I don't think so)
+        // - also parse args if run alone
+        // - check that duplicate tags don't come in too
 
+        // Load the tvSetData for the specified name, if it exists
+        final var tvDefinition = getDefinedFile(tvDataDir, tvName);
+        boolean tvDefinitionExists = tvDefinition != null;
+        final List<Integer> definitionIds = tvDefinitionExists ? tvDefinition.ids() : List.of();
+
+        var seenIds = new HashSet<Integer>();
+        var ids = new ArrayList<>(definitionIds);
         for (var forMinorVersion : forMinorVersions) {
             // Get the latest transport version data for the specified minor version.
-            final var latestTV = getLatestFile(tvDataDir, forMinorVersion);
+            final int latestTV = getLatestId(tvDataDir, forMinorVersion);
 
             // Create the new version
+            final int newVersion = idIncrementSupplier.apply(forMinorVersion).bumpVersionNumber(latestTV);
 
-            // TODO
-
-            // Load the tvSetData for the specified name, if it exists
-            final var tvSetDataFromFile = getDefinedFile(tvDataDir, tvName);
-            final var tvSetFileExists = tvSetDataFromFile != null;
-
-            // Write the definition file.
-            final var ids = tvSetFileExists
-                ? Streams.concat(tvSetDataFromFile.ids().stream(), Stream.of(newVersion)).sorted().toList().reversed()
-                : List.of(newVersion);
-            writeDefinitionFile(tvDataDir, tvName, ids);
+            // Check that we don't already have an ID for this minor version
+            var priorLatestID = getPriorLatestId(tvDataDir, forMinorVersion);
+            if (containsValueInRange(priorLatestID, newVersion, ids)) {
+                // TODO: Should we log something here?
+                continue;
+            }
 
             // Update the LATEST file.
             updateLatestFile(tvDataDir, forMinorVersion, tvName, newVersion);
         }
+
+        writeDefinitionFile(tvDataDir, tvName, ids.stream().sorted(Comparator.reverseOrder()).toList());
+    }
+
+    private boolean containsValueInRange(int lowerExclusive, int upperInclusive, List<Integer> ids) {
+        for (var id : ids) {
+            if (lowerExclusive < id && id <= upperInclusive) {
+                return true;
+            }
+        }
+        return false;
     }
 }

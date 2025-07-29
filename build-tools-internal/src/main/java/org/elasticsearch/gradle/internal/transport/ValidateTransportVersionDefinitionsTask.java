@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
+
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionReference;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -51,35 +52,30 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         }
 
         // TODO validate that all files:
-        //  - have only have a single ID per release version
-        //  - have TVs in order
-        //  - have the correct name
-        //  - have the correct data format
-        //  - Don't have duplicate IDs across any files
-        //  - no duplicate names? Should be impossible due to filename conflicts
-
+        // - have only have a single ID per release version
+        // - have TVs in order
+        // - have the correct name
+        // - have the correct data format
+        // - Don't have duplicate IDs across any files
+        // - no duplicate names? Should be impossible due to filename conflicts
 
         try (var definitionsStream = Files.list(definitionsDir)) {
             for (var definitionFile : definitionsStream.toList()) {
                 // Validate that all definitions are referenced in the code.
                 var tv = readDefinitionFile(definitionFile, false);
                 if (allTvNames.contains(tv.name()) == false) {
-                    throw new IllegalStateException("Transport version definition " + tv.name()
-                        + " in file " + definitionFile + "is not referenced in the code.");
+                    throw new IllegalStateException(
+                        "Transport version definition " + tv.name() + " in file " + definitionFile + "is not referenced in the code."
+                    );
                 }
 
                 // Validate that all Ids are in decending order:
                 if (Comparators.isInOrder(tv.ids(), Comparator.reverseOrder()) == false) {
-                    throw new IllegalStateException("Transport version definition file " + definitionFile
-                        + " does not have ordered ids");
+                    throw new IllegalStateException("Transport version definition file " + definitionFile + " does not have ordered ids");
                 }
-
-
-
 
             }
         }
     }
-
 
 }

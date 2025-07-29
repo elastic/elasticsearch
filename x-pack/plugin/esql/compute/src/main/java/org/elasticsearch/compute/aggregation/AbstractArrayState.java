@@ -37,6 +37,7 @@ public abstract class AbstractArrayState implements Releasable, GroupingAggregat
      * idempotent and fast if already tracking so it's safe to, say, call it once
      * for every block of values that arrives containing {@code null}.
      */
+    @Override
     public final void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
         if (seen == null) {
             seen = seenGroupIds.seenGroupIds(bigArrays);

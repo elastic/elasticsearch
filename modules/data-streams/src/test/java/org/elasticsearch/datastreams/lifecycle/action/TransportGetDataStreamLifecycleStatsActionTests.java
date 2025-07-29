@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +51,6 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
         mock(ClusterService.class),
         mock(ThreadPool.class),
         mock(ActionFilters.class),
-        mock(IndexNameExpressionResolver.class),
         dataStreamLifecycleService
     );
     private Long lastRunDuration;
@@ -96,7 +94,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
             "dsl-managed-index",
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(10)).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(10)).build(),
             Clock.systemUTC().millis()
         );
         indicesInError.add(dslDataStream.getIndices().get(randomInt(numBackingIndices - 1)).getName());
@@ -132,7 +130,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
             IndexMetadata indexMetadata = indexMetaBuilder.build();
             builder.put(indexMetadata, false);
             backingIndices.add(indexMetadata.getIndex());
-            builder.put(newInstance(dataStreamName, backingIndices, 3, null, false, DataStreamLifecycle.newBuilder().build()));
+            builder.put(newInstance(dataStreamName, backingIndices, 3, null, false, DataStreamLifecycle.dataLifecycleBuilder().build()));
         }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         when(errorStore.getAllIndices()).thenReturn(indicesInError);

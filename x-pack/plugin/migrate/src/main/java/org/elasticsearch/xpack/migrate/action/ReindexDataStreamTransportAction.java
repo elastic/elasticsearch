@@ -13,10 +13,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,13 +39,15 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     private final PersistentTasksService persistentTasksService;
     private final TransportService transportService;
     private final ClusterService clusterService;
+    private final Client client;
 
     @Inject
     public ReindexDataStreamTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
         PersistentTasksService persistentTasksService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        Client client
     ) {
         super(
             ReindexDataStreamAction.NAME,
@@ -56,6 +60,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         this.transportService = transportService;
         this.persistentTasksService = persistentTasksService;
         this.clusterService = clusterService;
+        this.client = client;
     }
 
     @Override
@@ -68,7 +73,10 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             return;
         }
         int totalIndices = dataStream.getIndices().size();
-        int totalIndicesToBeUpgraded = (int) dataStream.getIndices().stream().filter(getReindexRequiredPredicate(metadata, false)).count();
+        int totalIndicesToBeUpgraded = (int) dataStream.getIndices()
+            .stream()
+            .filter(getReindexRequiredPredicate(metadata, false, dataStream.isSystem()))
+            .count();
         ReindexDataStreamTaskParams params = new ReindexDataStreamTaskParams(
             sourceDataStreamName,
             transportService.getThreadPool().absoluteTimeInMillis(),
@@ -77,6 +85,36 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             ClientHelper.getPersistableSafeSecurityHeaders(transportService.getThreadPool().getThreadContext(), clusterService.state())
         );
         String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
+        final var persistentTask = PersistentTasksCustomMetadata.getTaskWithId(clusterService.state(), persistentTaskId);
+
+        if (persistentTask == null) {
+            startTask(listener, persistentTaskId, params);
+        } else {
+            GetMigrationReindexStatusAction.Request statusRequest = new GetMigrationReindexStatusAction.Request(sourceDataStreamName);
+            statusRequest.setParentTask(task.getParentTaskId());
+            client.execute(
+                GetMigrationReindexStatusAction.INSTANCE,
+                statusRequest,
+                listener.delegateFailureAndWrap((getListener, getResponse) -> {
+                    if (getResponse.getEnrichedStatus().complete() == false) {
+                        throw new ResourceAlreadyExistsException("Reindex task for data stream [{}] already exists", sourceDataStreamName);
+                    }
+                    CancelReindexDataStreamAction.Request cancelRequest = new CancelReindexDataStreamAction.Request(sourceDataStreamName);
+                    cancelRequest.setParentTask(task.getParentTaskId());
+                    client.execute(
+                        CancelReindexDataStreamAction.INSTANCE,
+                        cancelRequest,
+                        getListener.delegateFailureAndWrap(
+                            (cancelListener, cancelResponse) -> startTask(cancelListener, persistentTaskId, params)
+                        )
+                    );
+                })
+            );
+        }
+
+    }
+
+    private void startTask(ActionListener<AcknowledgedResponse> listener, String persistentTaskId, ReindexDataStreamTaskParams params) {
         persistentTasksService.sendStartRequest(
             persistentTaskId,
             ReindexDataStreamTask.TASK_NAME,

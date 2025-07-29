@@ -16,16 +16,18 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.reservedstate.service.FileChangedListener;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.ClosedWatchServiceException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
 
 /**
  * A skeleton service for watching and reacting to a single file changing on disk
@@ -119,20 +121,20 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     // platform independent way to tell if a file changed
     // we compare the file modified timestamp, the absolute path (symlinks), and file id on the system
     final boolean watchedFileChanged(Path path) throws IOException {
-        if (Files.exists(path) == false) {
+        if (filesExists(path) == false) {
             return false;
         }
 
         FileUpdateState previousUpdateState = fileUpdateState;
 
-        BasicFileAttributes attr = Files.readAttributes(path, BasicFileAttributes.class);
+        BasicFileAttributes attr = filesReadAttributes(path, BasicFileAttributes.class);
         fileUpdateState = new FileUpdateState(attr.lastModifiedTime().toMillis(), path.toRealPath().toString(), attr.fileKey());
 
         return (previousUpdateState == null || previousUpdateState.equals(fileUpdateState) == false);
     }
 
     protected final synchronized void startWatcher() {
-        if (Files.exists(watchedFileDir.getParent()) == false) {
+        if (filesExists(watchedFileDir.getParent()) == false) {
             logger.warn("File watcher for [{}] cannot start because grandparent directory does not exist", watchedFile);
             return;
         }
@@ -147,7 +149,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         try {
             Path settingsDirPath = watchedFileDir();
             this.watchService = settingsDirPath.getParent().getFileSystem().newWatchService();
-            if (Files.exists(settingsDirPath)) {
+            if (filesExists(settingsDirPath)) {
                 settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDirPath);
             } else {
                 logger.debug("watched directory [{}] not found, will watch for its creation...", settingsDirPath);
@@ -181,7 +183,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
 
             Path path = watchedFile();
 
-            if (Files.exists(path)) {
+            if (filesExists(path)) {
                 logger.debug("found initial operator settings file [{}], applying...", path);
                 processSettingsOnServiceStartAndNotifyListeners();
             } else {
@@ -209,7 +211,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                  * real path of our desired file. We don't actually care what changed, we just re-check ourselves.
                  */
                 Path settingsPath = watchedFileDir();
-                if (Files.exists(settingsPath)) {
+                if (filesExists(settingsPath)) {
                     try {
                         if (logger.isDebugEnabled()) {
                             key.pollEvents().forEach(e -> logger.debug("{}:{}", e.kind().toString(), e.context().toString()));
@@ -332,4 +334,19 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * class to determine if a file has been changed.
      */
     private record FileUpdateState(long timestamp, String path, Object fileKey) {}
+
+    // the following methods are a workaround to ensure exclusive access for files
+    // required by child watchers; this is required because we only check the caller's module
+    // not the entire stack
+    protected abstract boolean filesExists(Path path);
+
+    protected abstract boolean filesIsDirectory(Path path);
+
+    protected abstract <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException;
+
+    protected abstract Stream<Path> filesList(Path dir) throws IOException;
+
+    protected abstract Path filesSetLastModifiedTime(Path path, FileTime time) throws IOException;
+
+    protected abstract InputStream filesNewInputStream(Path path) throws IOException;
 }

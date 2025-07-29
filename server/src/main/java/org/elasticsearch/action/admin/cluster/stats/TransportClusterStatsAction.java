@@ -41,7 +41,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -153,15 +152,15 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     protected SubscribableListener<AdditionalStats> createActionContext(Task task, ClusterStatsRequest request) {
         assert task instanceof CancellableTask;
         final var cancellableTask = (CancellableTask) task;
-        final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
         if (request.isRemoteStats() == false) {
+            final var additionalStatsListener = new SubscribableListener<AdditionalStats>();
             final AdditionalStats additionalStats = new AdditionalStats();
             additionalStats.compute(cancellableTask, request, additionalStatsListener);
+            return additionalStatsListener;
         } else {
             // For remote stats request, we don't need to compute anything
-            additionalStatsListener.onResponse(null);
+            return SubscribableListener.nullSuccess();
         }
-        return additionalStatsListener;
     }
 
     @Override
@@ -312,7 +311,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
     }
 
-    @UpdateForV9 // this can be replaced with TransportRequest.Empty in v9
     public static class ClusterStatsNodeRequest extends TransportRequest {
 
         ClusterStatsNodeRequest() {}

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.action;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
@@ -15,24 +14,20 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
-import org.junit.After;
-import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -44,44 +39,20 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
+public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     private static final String REMOTE_CLUSTER = "cluster-a";
 
     @Override
-    protected Collection<String> remoteClusterAlias() {
+    protected List<String> remoteClusterAlias() {
         return List.of(REMOTE_CLUSTER);
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(InternalExchangePlugin.class);
-        plugins.add(SimplePauseFieldPlugin.class);
-        return plugins;
-    }
-
-    public static class InternalExchangePlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting(
-                    ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
-                    TimeValue.timeValueMillis(between(3000, 4000)),
-                    Setting.Property.NodeScope
-                )
-            );
-        }
-    }
-
-    @Before
-    public void resetPlugin() {
-        SimplePauseFieldPlugin.resetPlugin();
-    }
-
-    @After
-    public void releasePlugin() {
-        SimplePauseFieldPlugin.release();
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
+            .build();
     }
 
     @Override
@@ -164,6 +135,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
         assertThat(error.getMessage(), containsString("proxy timeout"));
     }
 
@@ -285,46 +257,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         }
 
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
+        error = EsqlTestUtils.unwrapIfWrappedInRemoteException(error);
         assertThat(error, instanceOf(TaskCancelledException.class));
-    }
-
-    // Check that closing remote node with skip_unavailable=true produces partial
-    public void testCloseSkipUnavailable() throws Exception {
-        // We are using delay() here because closing cluster while inside pause fields doesn't seem to produce clean closure
-        assumeTrue("Only snapshot builds have delay()", Build.current().isSnapshot());
-        createRemoteIndex(between(1000, 5000));
-        createLocalIndex(10);
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("""
-            FROM test*,cluster-a:test* METADATA _index
-            | EVAL cluster=MV_FIRST(SPLIT(_index, ":"))
-            | WHERE CASE(cluster == "cluster-a", delay(1ms), true)
-            | STATS total = sum(const) | LIMIT 1
-            """);
-        request.pragmas(randomPragmas());
-        var requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
-        assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
-        SimplePauseFieldPlugin.allowEmitting.countDown();
-        cluster(REMOTE_CLUSTER).close();
-        try (var resp = requestFuture.actionGet()) {
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertNotNull(executionInfo);
-            assertThat(executionInfo.isPartial(), equalTo(true));
-
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values.get(0).size(), equalTo(1));
-            // We can't be sure of the exact value here as we don't know if any data from remote came in, but all local data should be there
-            assertThat((long) values.get(0).get(0), greaterThanOrEqualTo(10L));
-
-            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(REMOTE_CLUSTER);
-            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-
-            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-            assertThat(localCluster.getSuccessfulShards(), equalTo(1));
-
-            assertThat(cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-            assertThat(cluster.getSuccessfulShards(), equalTo(0));
-            assertThat(cluster.getFailures().size(), equalTo(1));
-        }
     }
 }

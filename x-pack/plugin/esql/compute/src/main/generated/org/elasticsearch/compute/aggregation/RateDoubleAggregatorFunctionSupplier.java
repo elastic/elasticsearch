@@ -15,22 +15,30 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class RateDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final long unitInMillis;
 
-  public RateDoubleAggregatorFunctionSupplier(List<Integer> channels, long unitInMillis) {
-    this.channels = channels;
+  public RateDoubleAggregatorFunctionSupplier(long unitInMillis) {
     this.unitInMillis = unitInMillis;
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
     throw new UnsupportedOperationException("non-grouping aggregator is not supported");
   }
 
   @Override
-  public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return RateDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  }
+
+  @Override
+  public RateDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return RateDoubleGroupingAggregatorFunction.create(channels, driverContext, unitInMillis);
   }
 

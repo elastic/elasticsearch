@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.inference.services.validation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 
 public class ChatCompletionModelValidator implements ModelValidator {
 
@@ -20,8 +22,8 @@ public class ChatCompletionModelValidator implements ModelValidator {
     }
 
     @Override
-    public void validate(InferenceService service, Model model, ActionListener<Model> listener) {
-        serviceIntegrationValidator.validate(service, model, listener.delegateFailureAndWrap((delegate, r) -> {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<Model> listener) {
+        serviceIntegrationValidator.validate(service, model, timeout, listener.delegateFailureAndWrap((delegate, r) -> {
             delegate.onResponse(postValidate(service, model));
         }));
     }

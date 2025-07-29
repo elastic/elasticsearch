@@ -1,6 +1,0 @@
-pr: 118870
-summary: Rewrite TO_UPPER/TO_LOWER comparisons
-area: ES|QL
-type: enhancement
-issues:
- - 118304

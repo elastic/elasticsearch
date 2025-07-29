@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -88,7 +87,6 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
         );
     }
 
-    @UpdateForV9 // this can be replaced with TransportRequest.Empty in v9
     public static class NodeModelCacheInfoRequest extends TransportRequest {
 
         NodeModelCacheInfoRequest() {}

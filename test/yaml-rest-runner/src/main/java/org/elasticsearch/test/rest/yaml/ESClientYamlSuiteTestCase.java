@@ -25,7 +25,6 @@ import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
@@ -222,7 +221,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
      * Enables support for parsing the legacy version-based node_selector format.
      */
     @Deprecated
-    @UpdateForV9
     public static Iterable<Object[]> createParametersWithLegacyNodeSelectorSupport() throws Exception {
         var executableSectionRegistry = new NamedXContentRegistry(
             Stream.concat(

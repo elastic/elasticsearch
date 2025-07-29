@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -54,7 +53,6 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             mock(NamedXContentRegistry.class),
             mock(XPackLicenseState.class),
             mock(Client.class)

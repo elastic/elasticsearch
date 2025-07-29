@@ -1415,6 +1415,20 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public void assertMergeExecutorIsDone() throws Exception {
+        assertBusy(() -> {
+            for (String nodeName : getNodeNames()) {
+                IndicesService indicesService = getInstance(IndicesService.class, nodeName);
+                if (indicesService.getThreadPoolMergeExecutorService() != null) {
+                    assertTrue(
+                        "thread pool merge executor is not done after test",
+                        indicesService.getThreadPoolMergeExecutorService().allDone()
+                    );
+                }
+            }
+        });
+    }
+
     public void assertNoInFlightDocsInEngine() throws Exception {
         assertBusy(() -> {
             for (String nodeName : getNodeNames()) {
@@ -2521,6 +2535,7 @@ public final class InternalTestCluster extends TestCluster {
         assertRequestsFinished();
         assertSearchContextsReleased();
         assertNoInFlightDocsInEngine();
+        assertMergeExecutorIsDone();
         awaitIndexShardCloseAsyncTasks();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();

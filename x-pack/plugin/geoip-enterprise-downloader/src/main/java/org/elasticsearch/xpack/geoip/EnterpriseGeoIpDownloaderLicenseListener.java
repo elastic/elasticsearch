@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.ingest.EnterpriseGeoIpTask.EnterpriseGeoIpTaskParams;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseStateListener;
@@ -62,7 +61,6 @@ public class EnterpriseGeoIpDownloaderLicenseListener implements LicenseStateLis
         this.licenseState = licenseState;
     }
 
-    @UpdateForV9 // use MINUS_ONE once that means no timeout
     private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
     private volatile boolean licenseStateListenerRegistered;
 

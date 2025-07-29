@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -50,14 +52,17 @@ import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
@@ -65,6 +70,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     implements
         EvaluatorMapper,
         TranslationAware.SingleValueTranslationAware {
+
+    private static final Logger logger = LogManager.getLogger(EsqlBinaryComparison.class);
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
@@ -321,16 +328,16 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
         if (right().foldable()) {
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
-                return true;
+                return Translatable.YES;
             }
             if (LucenePushdownPredicates.isPushableMetadataAttribute(left())) {
-                return this instanceof Equals || this instanceof NotEquals;
+                return this instanceof Equals || this instanceof NotEquals ? Translatable.YES : Translatable.NO;
             }
         }
-        return false;
+        return Translatable.NO;
     }
 
     /**
@@ -349,7 +356,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
      *  input to the operation.
      */
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         Check.isTrue(
             right().foldable(),
             "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
@@ -375,6 +382,16 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         String format = null;
         boolean isDateLiteralComparison = false;
 
+        logger.trace(
+            "Translating binary comparison with right: [{}<{}>], left: [{}<{}>], attribute: [{}<{}>]",
+            right(),
+            right().dataType(),
+            left(),
+            left().dataType(),
+            attribute,
+            attribute.dataType()
+        );
+
         // TODO: This type coersion layer is copied directly from the QL counterpart code. It's probably not necessary or desireable
         // in the ESQL version. We should instead do the type conversions using our casting functions.
         // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
@@ -382,7 +399,12 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
             DateFormatter formatter;
             if (value instanceof ZonedDateTime) {
-                formatter = DEFAULT_DATE_TIME_FORMATTER;
+                // NB: we check the data type of right here because value is the RHS value
+                formatter = switch (right().dataType()) {
+                    case DATETIME -> DEFAULT_DATE_TIME_FORMATTER;
+                    case DATE_NANOS -> DEFAULT_DATE_NANOS_FORMATTER;
+                    default -> throw new EsqlIllegalArgumentException("Found date value in non-date type comparison");
+                };
                 // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime instance
                 // which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
                 // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
@@ -408,10 +430,14 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         }
 
         ZoneId zoneId = null;
-        if (DataType.isDateTime(attribute.dataType())) {
+        if (attribute.dataType() == DATETIME) {
             zoneId = zoneId();
-            value = dateTimeToString((Long) value);
+            value = dateWithTypeToString((Long) value, right().dataType());
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+        } else if (attribute.dataType() == DATE_NANOS) {
+            zoneId = zoneId();
+            value = dateWithTypeToString((Long) value, right().dataType());
+            format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
         if (this instanceof GreaterThan) {
             return new RangeQuery(source(), name, value, false, null, false, format, zoneId);

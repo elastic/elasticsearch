@@ -36,33 +36,125 @@ endif::[]
 // tag::notable-highlights[]
 
 [discrete]
-[[add_new_experimental_rank_vectors_mapping_for_late_interaction_second_order_ranking]]
-=== Add new experimental `rank_vectors` mapping for late-interaction second order ranking
-Late-interaction models are powerful rerankers. While their size and overall cost doesn't lend itself for HNSW indexing, utilizing them as second order reranking can provide excellent boosts in relevance. The new `rank_vectors` mapping allows for rescoring over new and novel multi-vector late-interaction models like ColBERT or ColPali.
+[[upgrade_repository_s3_to_aws_sdk_v2]]
+=== Upgrade `repository-s3` to AWS SDK v2
+In earlier versions of {es} the `repository-s3` plugin was based on the AWS SDK v1. AWS will withdraw support for this SDK before the end of the life of {es} {minor-version} so we have migrated this plugin to the newer AWS SDK v2.
+The two SDKs are not quite compatible, so please check the breaking changes documentation and test the new version thoroughly before upgrading any production workloads.
 
-{es-pull}118804[#118804]
-
-[discrete]
-[[8_x_add_new_experimental_rank_vectors_mapping_for_late_interaction_second_order_ranking]]
-=== [8.x] Add new experimental `rank_vectors` mapping for late-interaction second order ranking
-Backports the following commits to 8.x:  - Add new experimental
-rank_vectors mapping for late-interaction second order ranking (#118804)
-
-{es-pull}119601[#119601]
+{es-pull}126843[#126843]
 
 [discrete]
-[[enable_lookup_join_in_non_snapshot_builds]]
-=== Enable LOOKUP JOIN in non-snapshot builds
-This effectively releases LOOKUP JOIN into tech preview. Docs will
-follow in a separate PR.
+[[add_ability_to_redirect_ingestion_failures_on_data_streams_to_failure_store]]
+=== Add ability to redirect ingestion failures on data streams to a failure store
+Documents that encountered ingest pipeline failures or mapping conflicts
+would previously be returned to the client as errors in the bulk and
+index operations. Many client applications are not equipped to respond
+to these failures. This leads to the failed documents often being
+dropped by the client which cannot hold the broken documents
+indefinitely. In many end user workloads, these failed documents
+represent events that could be critical signals for observability or
+security use cases.
 
-- Enable the lexing/grammar for LOOKUP JOIN in non-snapshot builds.
-- Remove the grammar for the unsupported `| JOIN ...` command (without `LOOKUP` as first keyword). The way the lexer modes work, otherwise we'd also have to enable `| JOIN ...` syntax on non-snapshot builds and would have to add additional validation to provide appropriate error messages.
-- Remove grammar for `LOOKUP JOIN index AS ...` because qualifiers are not yet supported. Otherwise we'd have to put in additional validation as well to prevent such queries.
+To help mitigate this problem, data streams can now maintain a "failure
+store" which is used to accept and hold documents that fail to be
+ingested due to preventable configuration errors. The data stream's
+failure store operates like a separate set of backing indices with their
+own mappings and access patterns that allow Elasticsearch to accept
+documents that would otherwise be rejected due to unhandled ingest
+pipeline exceptions or mapping conflicts.
 
-Also fix https://github.com/elastic/elasticsearch/issues/121185
+Users can enable redirection of ingest failures to the failure store on
+new data streams by specifying it in the new `data_stream_options` field
+inside of a component or index template:
 
-{es-pull}121193[#121193]
+[source,yaml]
+----
+PUT _index_template/my-template
+{
+  "index_patterns": ["logs-test-*"],
+  "data_stream": {},
+  "template": {
+    "data_stream_options": {
+      "failure_store": {
+        "enabled": true
+      }
+    }
+  }
+}'
+----
+
+Existing data streams can be configured with the new data stream
+`_options` endpoint:
+
+[source,yaml]
+----
+PUT _data_stream/logs-test-apache/_options
+{
+  "failure_store": {
+    "enabled": "true"
+  }
+}
+----
+
+When redirection is enabled, any ingestion related failures will be
+captured in the failure store if the cluster is able to, along with the
+timestamp that the failure occurred, details about the error
+encountered, and the document that could not be ingested. Since failure
+stores are a kind of Elasticsearch index, we can search the data stream
+for the failures that it has collected. The failures are not shown by
+default as they are stored in different indices than the normal data
+stream data. In order to retrieve the failures, we use the `_search` API
+along with a new bit of index pattern syntax, the `::` selector.
+
+[source,yaml]
+----
+POST logs-test-apache::failures/_search
+----
+
+This index syntax informs the search operation to target the indices in
+its failure store instead of its backing indices. It can be mixed in a
+number of ways with other index patterns to include their failure store
+indices in the search operation:
+
+[source,yaml]
+----
+POST logs-*::failures/_search
+POST logs-*,logs-*::failures/_search
+POST *::failures/_search
+POST _query
+{
+  "query": "FROM my_data_stream*::failures"
+}
+----
+
+{es-pull}126973[#126973]
+
+[discrete]
+[[upgrade_to_lucene_9_12_2]]
+=== Upgrade to lucene 9.12.2
+* Reduce NeighborArray on-heap memory during HNSW graph building
+* Fix IndexSortSortedNumericDocValuesRangeQuery for integer sorting
+* ValueSource.fromDoubleValuesSource(dvs).getSortField() would throw errors when used if the DoubleValuesSource needed scores
+* Disable connectedComponents logic in HNSW graph building.
+
+{es-pull}129555[#129555]
+
+[discrete]
+[[es_ql_cross_cluster_querying_generally_available]]
+=== ES|QL cross-cluster querying is now generally available
+The ES|QL Cross-Cluster querying feature has been in technical preview since 8.13.
+As of releases 8.19.0 and 9.1.0 this is now generally available.
+This feature allows you to run ES|QL queries across multiple clusters.
+
+{es-pull}130034[#130034]
+
+[discrete]
+[[mark_token_pruning_for_sparse_vector_as_ga]]
+=== Mark Token Pruning for Sparse Vector as GA
+Token pruning for sparse_vector queries has been live since 8.13 as tech preview.
+As of 8.19.0 and 9.1.0, this is now generally available.
+
+{es-pull}130212[#130212]
 
 // end::notable-highlights[]
 

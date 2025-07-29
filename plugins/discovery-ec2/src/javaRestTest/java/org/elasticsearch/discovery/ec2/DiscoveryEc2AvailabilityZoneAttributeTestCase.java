@@ -36,7 +36,7 @@ public abstract class DiscoveryEc2AvailabilityZoneAttributeTestCase extends ESRe
         return ElasticsearchCluster.local()
             .plugin("discovery-ec2")
             .setting(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), "true")
-            .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME, imdsFixtureAddressSupplier)
+            .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, imdsFixtureAddressSupplier)
             .build();
     }
 

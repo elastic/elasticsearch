@@ -26,8 +26,8 @@ public class MinBooleanAggregatorFunctionTests extends AggregatorFunctionTestCas
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MinBooleanAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MinBooleanAggregatorFunctionSupplier();
     }
 
     @Override

@@ -26,8 +26,6 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedExceptionAction;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThan;
@@ -39,6 +37,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
     public void testV7Handshake() throws Exception {
         final BytesRef handshakeRequestBytes;
         final var requestId = randomNonNegativeLong();
+        final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
         try (var outputStream = new BytesStreamOutput()) {
             outputStream.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
             outputStream.writeLong(requestId);
@@ -50,7 +49,6 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
             outputStream.writeString("internal:tcp/handshake");
             outputStream.writeByte((byte) 0); // no parent task ID;
 
-            final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
             assertThat(requestNodeTransportVersionId, allOf(greaterThanOrEqualTo(1 << 22), lessThan(1 << 28))); // 4-byte vInt
             outputStream.writeByte((byte) 4); // payload length
             outputStream.writeVInt(requestNodeTransportVersionId);
@@ -80,7 +78,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
             assertEquals((byte) 0, inputStream.readByte()); // no request headers
             assertEquals((byte) 0, inputStream.readByte()); // no response headers
             inputStream.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
-            assertEquals(TransportVersion.current().id(), inputStream.readVInt());
+            assertEquals(requestNodeTransportVersionId, inputStream.readVInt());
             assertEquals(-1, inputStream.read());
         }
     }
@@ -88,6 +86,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
     public void testV8Handshake() throws Exception {
         final BytesRef handshakeRequestBytes;
         final var requestId = randomNonNegativeLong();
+        final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
         try (var outputStream = new BytesStreamOutput()) {
             outputStream.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
             outputStream.writeLong(requestId);
@@ -100,7 +99,6 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
             outputStream.writeString("internal:tcp/handshake");
             outputStream.writeByte((byte) 0); // no parent task ID;
 
-            final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
             assertThat(requestNodeTransportVersionId, allOf(greaterThanOrEqualTo(1 << 22), lessThan(1 << 28))); // 4-byte vInt
             outputStream.writeByte((byte) 4); // payload length
             outputStream.writeVInt(requestNodeTransportVersionId);
@@ -131,7 +129,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
             assertEquals((byte) 0, inputStream.readByte()); // no request headers
             assertEquals((byte) 0, inputStream.readByte()); // no response headers
             inputStream.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
-            assertEquals(TransportVersion.current().id(), inputStream.readVInt());
+            assertEquals(requestNodeTransportVersionId, inputStream.readVInt());
             assertEquals(-1, inputStream.read());
         }
     }
@@ -139,6 +137,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
     public void testV9Handshake() throws Exception {
         final BytesRef handshakeRequestBytes;
         final var requestId = randomNonNegativeLong();
+        final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
         try (var outputStream = new BytesStreamOutput()) {
             outputStream.setTransportVersion(TransportHandshaker.V9_HANDSHAKE_VERSION);
             outputStream.writeLong(requestId);
@@ -150,7 +149,6 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
             outputStream.writeString("internal:tcp/handshake");
             outputStream.writeByte((byte) 0); // no parent task ID;
 
-            final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
             assertThat(requestNodeTransportVersionId, allOf(greaterThanOrEqualTo(1 << 22), lessThan(1 << 28))); // 4-byte vInt
             final var releaseVersionLength = between(0, 127 - 5); // so that its length, and the length of the payload, is a one-byte vInt
             final var requestNodeReleaseVersion = randomAlphaOfLength(releaseVersionLength);
@@ -184,7 +182,7 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
             assertEquals((byte) 0, inputStream.readByte()); // no request headers
             assertEquals((byte) 0, inputStream.readByte()); // no response headers
             inputStream.setTransportVersion(TransportHandshaker.V9_HANDSHAKE_VERSION);
-            assertEquals(TransportVersion.current().id(), inputStream.readVInt());
+            assertEquals(requestNodeTransportVersionId, inputStream.readVInt());
             assertEquals(Build.current().version(), inputStream.readString());
             assertEquals(-1, inputStream.read());
         }
@@ -239,8 +237,6 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
 
     private Socket openTransportConnection() throws Exception {
         final var transportAddress = randomFrom(getInstanceFromNode(TransportService.class).boundAddress().boundAddresses()).address();
-        return AccessController.doPrivileged(
-            (PrivilegedExceptionAction<Socket>) (() -> new Socket(transportAddress.getAddress(), transportAddress.getPort()))
-        );
+        return new Socket(transportAddress.getAddress(), transportAddress.getPort());
     }
 }

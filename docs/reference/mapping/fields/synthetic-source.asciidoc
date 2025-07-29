@@ -49,6 +49,8 @@ document. Similarly, malformed values of fields that use <<ignore-malformed,`ign
 Some field types have additional restrictions. These restrictions are documented in the **synthetic `_source`** section
 of the field type's <<mapping-types,documentation>>.
 
+Synthetic source is not supported in <<snapshots-source-only-repository,source-only>> snapshot repositories. To store indexes that use synthetic `_source`, choose a different repository type.
+
 [[synthetic-source-modifications]]
 ===== Synthetic `_source` modifications
 

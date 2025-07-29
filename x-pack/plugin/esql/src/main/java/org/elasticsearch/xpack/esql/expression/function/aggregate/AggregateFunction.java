@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 
 import java.io.IOException;
 import java.util.List;
@@ -139,14 +139,14 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            if (p instanceof OrderBy order) {
-                order.order().forEach(o -> {
-                    o.forEachDown(Function.class, f -> {
-                        if (f instanceof AggregateFunction) {
-                            failures.add(fail(f, "Aggregate functions are not allowed in SORT [{}]", f.functionName()));
-                        }
-                    });
-                });
+            if ((p instanceof Aggregate) == false) {
+                p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
+                    if (af instanceof Rate) {
+                        failures.add(fail(af, "aggregate function [{}] not allowed outside METRICS command", af.sourceText()));
+                    } else {
+                        failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
+                    }
+                }));
             }
         };
     }

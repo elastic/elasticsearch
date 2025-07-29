@@ -24,8 +24,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -69,6 +75,7 @@ final class RequestDispatcher {
     RequestDispatcher(
         ClusterService clusterService,
         TransportService transportService,
+        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         Task parentTask,
         FieldCapabilitiesRequest fieldCapsRequest,
         OriginalIndices originalIndices,
@@ -99,8 +106,14 @@ final class RequestDispatcher {
                 onIndexFailure.accept(index, e);
                 continue;
             }
-            final IndexSelector indexResult = new IndexSelector(shardIts);
-            if (indexResult.nodeToShards.isEmpty()) {
+            final IndexSelector indexResult = new IndexSelector(
+                fieldCapsRequest.clusterAlias(),
+                shardIts,
+                fieldCapsRequest.indexFilter(),
+                nowInMillis,
+                coordinatorRewriteContextProvider
+            );
+            if (indexResult.nodeToShards.isEmpty() && indexResult.unmatchedShardIds.isEmpty()) {
                 onIndexFailure.accept(index, new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy"));
             } else {
                 this.indexSelectors.put(index, indexResult);
@@ -249,10 +262,34 @@ final class RequestDispatcher {
         private final Set<ShardId> unmatchedShardIds = new HashSet<>();
         private final Map<ShardId, Exception> failures = new HashMap<>();
 
-        IndexSelector(List<ShardIterator> shardIts) {
+        IndexSelector(
+            String clusterAlias,
+            List<ShardIterator> shardIts,
+            QueryBuilder indexFilter,
+            long nowInMillis,
+            CoordinatorRewriteContextProvider coordinatorRewriteContextProvider
+        ) {
             for (ShardIterator shardIt : shardIts) {
-                for (ShardRouting shard : shardIt) {
-                    nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);
+                boolean canMatch = true;
+                final ShardId shardId = shardIt.shardId();
+                if (indexFilter != null && indexFilter instanceof MatchAllQueryBuilder == false) {
+                    var coordinatorRewriteContext = coordinatorRewriteContextProvider.getCoordinatorRewriteContext(shardId.getIndex());
+                    if (coordinatorRewriteContext != null) {
+                        var shardRequest = new ShardSearchRequest(shardId, nowInMillis, AliasFilter.EMPTY, clusterAlias);
+                        shardRequest.source(new SearchSourceBuilder().query(indexFilter));
+                        try {
+                            canMatch = SearchService.queryStillMatchesAfterRewrite(shardRequest, coordinatorRewriteContext);
+                        } catch (Exception e) {
+                            // treat as if shard is still a potential match
+                        }
+                    }
+                }
+                if (canMatch) {
+                    for (ShardRouting shard : shardIt) {
+                        nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);
+                    }
+                } else {
+                    unmatchedShardIds.add(shardId);
                 }
             }
         }

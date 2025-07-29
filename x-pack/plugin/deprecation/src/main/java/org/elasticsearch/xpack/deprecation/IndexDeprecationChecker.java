@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.LegacyFormatNames;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -96,26 +98,40 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
-            return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
-                "Old index with a compatibility version < 8.0",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-8.0.html#breaking-changes-8.0",
-                "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
-                false,
-                meta(indexMetadata, indexToTransformIds)
-            );
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+            var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
+            if (transforms.isEmpty() == false) {
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
+                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
+                    Strings.format(
+                        "This index was created in version [%s] and requires action before upgrading to %d.0. The following transforms are "
+                            + "configured to write to this index: [%s]. Refer to the migration guide to learn more about how to prepare "
+                            + "transforms destination indices for your upgrade.",
+                        currentCompatibilityVersion.toReleaseVersion(),
+                        Version.CURRENT.major,
+                        String.join(", ", transforms)
+                    ),
+                    false,
+                    Map.of("reindex_required", true, "transform_ids", transforms)
+                );
+            } else {
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Old index with a compatibility version < " + Version.CURRENT.major + ".0",
+                    "https://ela.st/es-deprecation-9-index-version",
+                    "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
+                    false,
+                    Map.of("reindex_required", true)
+                );
+            }
         }
         return null;
     }
 
-    private Map<String, Object> meta(IndexMetadata indexMetadata, Map<String, List<String>> indexToTransformIds) {
-        var transforms = indexToTransformIds.getOrDefault(indexMetadata.getIndex().getName(), List.of());
-        if (transforms.isEmpty()) {
-            return Map.of("reindex_required", true);
-        } else {
-            return Map.of("reindex_required", true, "transform_ids", transforms);
-        }
+    private List<String> transformIdsForIndex(IndexMetadata indexMetadata, Map<String, List<String>> indexToTransformIds) {
+        return indexToTransformIds.getOrDefault(indexMetadata.getIndex().getName(), List.of());
     }
 
     private DeprecationIssue ignoredOldIndicesCheck(
@@ -125,17 +141,39 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
     ) {
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true) && isNotDataStreamIndex(indexMetadata, clusterState)) {
-            return new DeprecationIssue(
-                DeprecationIssue.Level.WARNING,
-                "Old index with a compatibility version < 8.0 Has Been Ignored",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-8.0.html#breaking-changes-8.0",
-                "This read-only index has version: "
-                    + currentCompatibilityVersion.toReleaseVersion()
-                    + " and will be supported as read-only in 9.0",
-                false,
-                meta(indexMetadata, indexToTransformIds)
-            );
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+            var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
+            if (transforms.isEmpty() == false) {
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
+                    "https://www.elastic.co/docs/deploy-manage/upgrade/prepare-to-upgrade#transform-migration",
+                    Strings.format(
+                        "This index was created in version [%s] and will be supported as a read-only index in %d.0. The following "
+                            + "transforms are no longer able to write to this index: [%s]. Refer to the migration guide to learn more "
+                            + "about how to handle your transforms destination indices.",
+                        currentCompatibilityVersion.toReleaseVersion(),
+                        Version.CURRENT.major,
+                        String.join(", ", transforms)
+                    ),
+                    false,
+                    Map.of("reindex_required", true, "transform_ids", transforms)
+                );
+            } else {
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "Old index with a compatibility version < " + Version.CURRENT.major + ".0 has been ignored",
+                    "https://ela.st/es-deprecation-9-index-version",
+                    "This read-only index has version: "
+                        + currentCompatibilityVersion.toReleaseVersion()
+                        + " and will be supported as read-only in "
+                        + Version.CURRENT.major
+                        + 1
+                        + ".0",
+                    false,
+                    Map.of("reindex_required", true)
+                );
+            }
         }
         return null;
     }
@@ -164,7 +202,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "translog retention settings are ignored",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
+                    "https://ela.st/es-deprecation-7-translog-retention",
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored "
                         + "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
                     false,
@@ -182,8 +220,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                 "setting [%s] is deprecated and will be removed in a future version",
                 IndexMetadata.INDEX_DATA_PATH_SETTING.getKey()
             );
-            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/"
-                + "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            final String url = "https://ela.st/es-deprecation-7-index-data-path";
             final String details = "Found index data path configured. Discontinue use of this setting.";
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
@@ -200,7 +237,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
                 "[simplefs] is deprecated and will be removed in future versions",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                "https://ela.st/es-deprecation-7-simplefs",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. "
                     + "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type "
                     + "as it offers superior or equivalent performance to [simplefs].",

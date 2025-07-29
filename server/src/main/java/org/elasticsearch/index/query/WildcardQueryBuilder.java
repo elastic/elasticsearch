@@ -57,6 +57,13 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     private boolean caseInsensitive = DEFAULT_CASE_INSENSITIVITY;
 
     /**
+     * Force string matching instead of the field-type-aware wildcard matching.
+     * When this is true the {@link org.elasticsearch.index.mapper.IndexFieldMapper} will always match of the
+     * {@code cluster_name:index_name} instead of emulating the glob pattern on the URL.
+     */
+    private boolean forceStringMatch = false;
+
+    /**
      * Implements the wildcard search query. Supported wildcards are {@code *}, which
      * matches any character sequence (including the empty one), and {@code ?},
      * which matches any single character. Note this query can be slow, as it
@@ -79,6 +86,16 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     }
 
     /**
+     * @param forceStringMatch Force string matching instead of the field-type-aware wildcard matching.
+     * When this is true the {@link org.elasticsearch.index.mapper.IndexFieldMapper} will always match of the
+     * {@code cluster_name:index_name} instead of emulating the glob pattern on the URL.
+     */
+    public WildcardQueryBuilder(String fieldName, String value, boolean forceStringMatch) {
+        this(fieldName, value);
+        this.forceStringMatch = forceStringMatch;
+    }
+
+    /**
      * Read from a stream.
      */
     public WildcardQueryBuilder(StreamInput in) throws IOException {
@@ -88,6 +105,11 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         rewrite = in.readOptionalString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             caseInsensitive = in.readBoolean();
+            if (expressionTransportSupported(in.getTransportVersion())) {
+                forceStringMatch = in.readBoolean();
+            } else {
+                forceStringMatch = false;
+            }
         }
     }
 
@@ -99,6 +121,16 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeBoolean(caseInsensitive);
         }
+        if (expressionTransportSupported(out.getTransportVersion())) {
+            out.writeBoolean(forceStringMatch);
+        }
+    }
+
+    /**
+     * Returns true if the Transport version is compatible with ESQL_FIXED_INDEX_LIKE
+     */
+    public static boolean expressionTransportSupported(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.ESQL_FIXED_INDEX_LIKE_8_19);
     }
 
     @Override
@@ -222,7 +254,12 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             // This logic is correct for all field types, but by only applying it to constant
             // fields we also have the guarantee that it doesn't perform I/O, which is important
             // since rewrites might happen on a network thread.
-            Query query = constantFieldType.wildcardQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            Query query;
+            if (forceStringMatch) {
+                query = constantFieldType.wildcardLikeQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            } else {
+                query = constantFieldType.wildcardQuery(value, caseInsensitive, context); // the rewrite method doesn't matter
+            }
             if (query instanceof MatchAllDocsQuery) {
                 return new MatchAllQueryBuilder();
             } else if (query instanceof MatchNoDocsQuery) {
@@ -248,7 +285,7 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, rewrite, caseInsensitive);
+        return Objects.hash(fieldName, value, rewrite, caseInsensitive, forceStringMatch);
     }
 
     @Override
@@ -256,7 +293,8 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(value, other.value)
             && Objects.equals(rewrite, other.rewrite)
-            && Objects.equals(caseInsensitive, other.caseInsensitive);
+            && Objects.equals(caseInsensitive, other.caseInsensitive)
+            && Objects.equals(forceStringMatch, other.forceStringMatch);
     }
 
     @Override

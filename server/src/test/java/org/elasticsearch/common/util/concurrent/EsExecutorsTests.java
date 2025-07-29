@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -753,5 +754,154 @@ public class EsExecutorsTests extends ESTestCase {
         assertTrue(expectThrows(EsRejectedExecutionException.class, () -> executor.execute(shouldBeRejected::doRun)).isExecutorShutdown());
         executor.execute(shouldBeRejected);
         assertTrue(rejected.get());
+    }
+
+    public void testScalingWithEmptyCore() {
+        testScalingWithEmptyCore(
+            EsExecutors.newScaling(
+                getTestName(),
+                0,
+                1,
+                0,
+                TimeUnit.MILLISECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getTestName()),
+                threadContext
+            )
+        );
+    }
+
+    public void testScalingWithEmptyCoreAndKeepAlive() {
+        testScalingWithEmptyCore(
+            EsExecutors.newScaling(
+                getTestName(),
+                0,
+                1,
+                1,
+                TimeUnit.MILLISECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getTestName()),
+                threadContext
+            )
+        );
+    }
+
+    public void testScalingWithEmptyCoreAndLargerMaxSize() {
+        // TODO currently the reproduction of the starvation bug does not work if max pool size > 1
+        // https://github.com/elastic/elasticsearch/issues/124867
+        testScalingWithEmptyCore(
+            EsExecutors.newScaling(
+                getTestName(),
+                0,
+                between(2, 5),
+                0,
+                TimeUnit.MILLISECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getTestName()),
+                threadContext
+            )
+        );
+    }
+
+    public void testScalingWithEmptyCoreAndKeepAliveAndLargerMaxSize() {
+        // TODO currently the reproduction of the starvation bug does not work if max pool size > 1
+        // https://github.com/elastic/elasticsearch/issues/124867
+        testScalingWithEmptyCore(
+            EsExecutors.newScaling(
+                getTestName(),
+                0,
+                between(2, 5),
+                1,
+                TimeUnit.MILLISECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getTestName()),
+                threadContext
+            )
+        );
+    }
+
+    public void testScalingWithEmptyCoreAndWorkerPoolProbing() {
+        // https://github.com/elastic/elasticsearch/issues/124667 is difficult to reproduce if max pool size > 1.
+        // if probing mitigates the bug for max pool size = 1, we're good for larger pool sizes as well.
+        // the executor is created directly here, newScaling doesn't use ExecutorScalingQueue & probing if max pool size = 1.
+        testScalingWithEmptyCore(
+            new EsThreadPoolExecutor(
+                getTestName(),
+                0,
+                1,
+                0,
+                TimeUnit.MILLISECONDS,
+                new EsExecutors.ExecutorScalingQueue<>(),
+                EsExecutors.daemonThreadFactory(getTestName()),
+                new EsExecutors.ForceQueuePolicy(true, true),
+                threadContext
+            )
+        );
+    }
+
+    public void testScalingWithEmptyCoreAndKeepAliveAndWorkerPoolProbing() {
+        // https://github.com/elastic/elasticsearch/issues/124667 is difficult to reproduce if max pool size > 1.
+        // if probing mitigates the bug for max pool size = 1, we're good for larger pool sizes as well.
+        // the executor is created directly here, newScaling doesn't use ExecutorScalingQueue & probing if max pool size = 1.
+        testScalingWithEmptyCore(
+            new EsThreadPoolExecutor(
+                getTestName(),
+                0,
+                1,
+                1,
+                TimeUnit.MILLISECONDS,
+                new EsExecutors.ExecutorScalingQueue<>(),
+                EsExecutors.daemonThreadFactory(getTestName()),
+                new EsExecutors.ForceQueuePolicy(true, true),
+                threadContext
+            )
+        );
+    }
+
+    private void testScalingWithEmptyCore(EsThreadPoolExecutor executor) {
+        try {
+            class Task extends AbstractRunnable {
+                private int remaining;
+                private final CountDownLatch doneLatch;
+
+                Task(int iterations, CountDownLatch doneLatch) {
+                    this.remaining = iterations;
+                    this.doneLatch = doneLatch;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    fail(e);
+                }
+
+                @Override
+                protected void doRun() {
+                    if (--remaining == 0) {
+                        doneLatch.countDown();
+                    } else {
+                        logger.trace("--> remaining [{}]", remaining);
+                        final long keepAliveNanos = executor.getKeepAliveTime(TimeUnit.NANOSECONDS);
+                        new Thread(() -> {
+                            if (keepAliveNanos > 0) {
+                                final var targetNanoTime = System.nanoTime() + keepAliveNanos + between(-10_000, 10_000);
+                                while (System.nanoTime() < targetNanoTime) {
+                                    Thread.yield();
+                                }
+                            }
+                            executor.execute(Task.this);
+                        }).start();
+                    }
+                }
+            }
+
+            for (int i = 0; i < 20; i++) {
+                logger.trace("--> attempt [{}]", i);
+                final var doneLatch = new CountDownLatch(1);
+                executor.execute(new Task(between(1, 500), doneLatch));
+                safeAwait(doneLatch, TimeValue.ONE_MINUTE);
+            }
+        } finally {
+            ThreadPool.terminate(executor, 1, TimeUnit.SECONDS);
+        }
     }
 }

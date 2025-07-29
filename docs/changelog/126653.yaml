@@ -1,0 +1,5 @@
+pr: 126653
+summary: Retry shard movements during ESQL query
+area: ES|QL
+type: enhancement
+issues: []

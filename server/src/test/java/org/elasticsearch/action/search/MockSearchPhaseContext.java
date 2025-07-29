@@ -18,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -104,15 +103,14 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
                 searchContextId
             )
         );
-        Releasables.close(releasables);
-        releasables.clear();
+        doneFuture.onResponse(null);
         if (existing != null) {
             existing.decRef();
         }
     }
 
     @Override
-    public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
+    public void onPhaseFailure(String phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
     }
 
@@ -134,12 +132,12 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     }
 
     @Override
-    public void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
+    public void executeNextPhase(String currentPhase, Supplier<SearchPhase> nextPhaseSupplier) {
         var nextPhase = nextPhaseSupplier.get();
         try {
             nextPhase.run();
         } catch (Exception e) {
-            onPhaseFailure(nextPhase, "phase failed", e);
+            onPhaseFailure(nextPhase.getName(), "phase failed", e);
         }
     }
 
@@ -150,7 +148,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         SearchActionListener<SearchPhaseResult> listener
     ) {
         onShardResult(new SearchPhaseResult() {
-        }, shardIt);
+        });
     }
 
     @Override

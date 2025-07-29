@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
 import org.elasticsearch.xpack.downsample.Downsample;
 import org.elasticsearch.xpack.downsample.DownsampleShardPersistentTaskExecutor;
 import org.elasticsearch.xpack.eql.plugin.EqlPlugin;
@@ -112,7 +112,11 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
 
         List<String> shardActions = transportActionBindings.stream()
             .map(binding -> binding.getProvider().get())
-            .filter(action -> IndexPrivilege.get(crossClusterPrivilegeNames).predicate().test(action.actionName))
+            .filter(
+                action -> IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(crossClusterPrivilegeNames)
+                    .predicate()
+                    .test(action.actionName)
+            )
             .filter(this::actionIsLikelyShardAction)
             .map(action -> action.actionName)
             .toList();

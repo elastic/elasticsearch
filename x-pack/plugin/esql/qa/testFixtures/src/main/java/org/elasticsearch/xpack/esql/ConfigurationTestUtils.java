@@ -71,7 +71,8 @@ public class ConfigurationTestUtils {
             query,
             profile,
             tables,
-            System.nanoTime()
+            System.nanoTime(),
+            false
         );
     }
 

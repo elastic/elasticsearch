@@ -53,6 +53,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -229,7 +230,7 @@ public class RetentionLeaseIT extends ESIntegTestCase {
                     .getShardOrNull(new ShardId(resolveIndex("index"), 0));
                 assertThat(
                     RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(replica.getRetentionLeases()).values(),
-                    anyOf(empty(), contains(currentRetentionLease))
+                    anyOf(emptyIterable(), contains(currentRetentionLease))
                 );
             }
 

@@ -14,90 +14,118 @@ import com.sun.tools.attach.AgentLoadException;
 import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedSupplier;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
+import org.elasticsearch.entitlement.runtime.policy.PathLookupImpl;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileAttribute;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
-
-import static java.util.Objects.requireNonNull;
+import java.util.stream.Stream;
 
 public class EntitlementBootstrap {
 
-    public record BootstrapArgs(
-        Map<String, Policy> pluginPolicies,
-        Function<Class<?>, String> pluginResolver,
-        Path[] dataDirs,
-        Path configDir,
-        Path tempDir
-    ) {
-        public BootstrapArgs {
-            requireNonNull(pluginPolicies);
-            requireNonNull(pluginResolver);
-            requireNonNull(dataDirs);
-            if (dataDirs.length == 0) {
-                throw new IllegalArgumentException("must provide at least one data directory");
-            }
-            requireNonNull(configDir);
-            requireNonNull(tempDir);
-        }
-    }
-
-    private static BootstrapArgs bootstrapArgs;
-
-    public static BootstrapArgs bootstrapArgs() {
-        return bootstrapArgs;
-    }
-
     /**
-     * Activates entitlement checking. Once this method returns, calls to methods protected by Entitlements from classes without a valid
+     * Main entry point that activates entitlement checking. Once this method returns,
+     * calls to methods protected by entitlements from classes without a valid
      * policy will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
      *
-     * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
-     * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
-     * @param dataDirs data directories for Elasticsearch
-     * @param configDir the config directory for Elasticsearch
-     * @param tempDir the temp directory for Elasticsearch
+     * @param serverPolicyPatch            additional entitlements to patch the embedded server layer policy
+     * @param pluginPolicies               maps each plugin name to the corresponding {@link Policy}
+     * @param scopeResolver                a functor to map a Java Class to the component and module it belongs to.
+     * @param settingResolver              a functor to resolve a setting name pattern for one or more Elasticsearch settings.
+     * @param dataDirs                     data directories for Elasticsearch
+     * @param sharedDataDir                shared data directory for Elasticsearch (deprecated)
+     * @param sharedRepoDirs               shared repository directories for Elasticsearch
+     * @param configDir                    the config directory for Elasticsearch
+     * @param libDir                       the lib directory for Elasticsearch
+     * @param modulesDir                   the directory where Elasticsearch modules are
+     * @param pluginsDir                   the directory where plugins are installed for Elasticsearch
+     * @param pluginSourcePaths            maps each plugin name to the location of that plugin's code
+     * @param tempDir                      the temp directory for Elasticsearch
+     * @param logsDir                      the log directory for Elasticsearch
+     * @param pidFile                      path to a pid file for Elasticsearch, or {@code null} if one was not specified
+     * @param suppressFailureLogPackages   packages for which we do not need or want to log Entitlements failures
      */
     public static void bootstrap(
+        Policy serverPolicyPatch,
         Map<String, Policy> pluginPolicies,
-        Function<Class<?>, String> pluginResolver,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
+        Function<String, Stream<String>> settingResolver,
         Path[] dataDirs,
+        Path sharedDataDir,
+        Path[] sharedRepoDirs,
         Path configDir,
-        Path tempDir
+        Path libDir,
+        Path modulesDir,
+        Path pluginsDir,
+        Map<String, Collection<Path>> pluginSourcePaths,
+        Path logsDir,
+        Path tempDir,
+        @Nullable Path pidFile,
+        Set<Package> suppressFailureLogPackages
     ) {
         logger.debug("Loading entitlement agent");
-        if (EntitlementBootstrap.bootstrapArgs != null) {
-            throw new IllegalStateException("plugin data is already set");
+        if (EntitlementInitialization.initializeArgs != null) {
+            throw new IllegalStateException("initialization data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir);
+        PathLookupImpl pathLookup = new PathLookupImpl(
+            getUserHome(),
+            configDir,
+            dataDirs,
+            sharedDataDir,
+            sharedRepoDirs,
+            libDir,
+            modulesDir,
+            pluginsDir,
+            logsDir,
+            tempDir,
+            pidFile,
+            settingResolver
+        );
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(
+            pathLookup,
+            suppressFailureLogPackages,
+            createPolicyManager(pluginPolicies, pathLookup, serverPolicyPatch, scopeResolver, pluginSourcePaths)
+        );
         exportInitializationToAgent();
-        loadAgent(findAgentJar());
-        selfTest();
+        loadAgent(findAgentJar(), EntitlementInitialization.class.getName());
+
+        if (EntitlementInitialization.getError() != null) {
+            throw EntitlementInitialization.getError();
+        }
+    }
+
+    private static Path getUserHome() {
+        String userHome = System.getProperty("user.home");
+        if (userHome == null) {
+            throw new IllegalStateException("user.home system property is required");
+        }
+        return PathUtils.get(userHome);
     }
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
-    private static void loadAgent(String agentPath) {
+    static void loadAgent(String agentPath, String entitlementInitializationClassName) {
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
             try {
-                vm.loadAgent(agentPath);
+                vm.loadAgent(agentPath, entitlementInitializationClassName);
             } finally {
                 vm.detach();
             }
         } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            throw new IllegalStateException("Unable to attach entitlement agent", e);
+            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "]", e);
         }
     }
 
@@ -108,7 +136,7 @@ public class EntitlementBootstrap {
         EntitlementInitialization.class.getModule().addExports(initPkg, unnamedModule);
     }
 
-    private static String findAgentJar() {
+    static String findAgentJar() {
         String propertyName = "es.entitlement.agentJar";
         String propertyValue = System.getProperty(propertyName);
         if (propertyValue != null) {
@@ -130,82 +158,23 @@ public class EntitlementBootstrap {
         }
     }
 
-    /**
-     * Attempt a few sensitive operations to ensure that some are permitted and some are forbidden.
-     * <p>
-     *
-     * This serves two purposes:
-     *
-     * <ol>
-     *     <li>
-     *         a smoke test to make sure the entitlements system is not completely broken, and
-     *     </li>
-     *     <li>
-     *         an early test of certain important operations so they don't fail later on at an awkward time.
-     *     </li>
-     * </ol>
-     *
-     * @throws IllegalStateException if the entitlements system can't prevent an unauthorized action of our choosing
-     */
-    private static void selfTest() {
-        ensureCannotStartProcess(ProcessBuilder::start);
-        ensureCanCreateTempFile(EntitlementBootstrap::createTempFile);
+    private static PolicyManager createPolicyManager(
+        Map<String, Policy> pluginPolicies,
+        PathLookup pathLookup,
+        Policy serverPolicyPatch,
+        Function<Class<?>, PolicyManager.PolicyScope> scopeResolver,
+        Map<String, Collection<Path>> pluginSourcePathsResolver
+    ) {
+        FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
-        // Try again with reflection
-        ensureCannotStartProcess(EntitlementBootstrap::reflectiveStartProcess);
-        ensureCanCreateTempFile(EntitlementBootstrap::reflectiveCreateTempFile);
-    }
-
-    private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
-        try {
-            // The command doesn't matter; it doesn't even need to exist
-            startProcess.accept(new ProcessBuilder(""));
-        } catch (NotEntitledException e) {
-            logger.debug("Success: Entitlement protection correctly prevented process creation");
-            return;
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed entitlement protection self-test", e);
-        }
-        throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
-    }
-
-    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
-    private static void ensureCanCreateTempFile(CheckedSupplier<Path, ?> createTempFile) {
-        try {
-            Path p = createTempFile.get();
-            p.toFile().deleteOnExit();
-
-            // Make an effort to clean up the file immediately; also, deleteOnExit leaves the file if the JVM exits abnormally.
-            try {
-                Files.delete(p);
-            } catch (IOException ignored) {
-                // Can be caused by virus scanner
-            }
-        } catch (NotEntitledException e) {
-            throw new IllegalStateException("Entitlement protection self-test was incorrectly forbidden", e);
-        } catch (Exception e) {
-            throw new IllegalStateException("Unable to perform entitlement protection self-test", e);
-        }
-        logger.debug("Success: Entitlement protection correctly permitted temp file creation");
-    }
-
-    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
-    private static Path createTempFile() throws Exception {
-        return Files.createTempFile(null, null);
-    }
-
-    private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {
-        try {
-            var start = ProcessBuilder.class.getMethod("start");
-            start.invoke(pb);
-        } catch (InvocationTargetException e) {
-            throw (Exception) e.getCause();
-        }
-    }
-
-    private static Path reflectiveCreateTempFile() throws Exception {
-        return (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
-            .invoke(null, null, null, new FileAttribute<?>[0]);
+        return new PolicyManager(
+            HardcodedEntitlements.serverPolicy(pathLookup.pidFile(), serverPolicyPatch),
+            HardcodedEntitlements.agentEntitlements(),
+            pluginPolicies,
+            scopeResolver,
+            pluginSourcePathsResolver::get,
+            pathLookup
+        );
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

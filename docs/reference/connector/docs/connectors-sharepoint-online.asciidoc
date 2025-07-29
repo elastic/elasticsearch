@@ -1129,7 +1129,19 @@ If the configuration `Enumerate All Sites?` is enabled, incremental syncs may no
 Drive Item documents that were deleted between incremental syncs may not be detected as deleted.
 +
 *Workaround*: Disable `Enumerate All Sites?`, and configure full site paths for all desired sites.
-
++
+** *ACL is not properly inherited for Site Pages and List Items inside of a folder with Unique Permissions when DLS is enabled with Fetch unique list item permissions, Fetch unique page permissions or Fetch drive item permissions*
++
+There is a known issue with ACL propagation when List Items, Site Pages or Drive Items are located inside of a folder that has Unique permissions enabled. Consider the following example:
++
+```
+[0] Root Site (Access: All)
+[1]  Subsite Travel (Access: inherit)
+[2]    Folder "/es" (Access: Spanish Employees)
+[3]      Page "destinations.html" (Access: inherit)
+```
+Expected permissions for `destinations.html` should be `Access: Spanish Employees`, but will be `Access: All`, because permissions will be assumed from Subsite Travel, rather than folder "/es".
++
 Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
 
 [discrete#es-connectors-sharepoint-online-client-troubleshooting]

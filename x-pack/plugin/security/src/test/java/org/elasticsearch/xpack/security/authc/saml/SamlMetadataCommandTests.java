@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.CoreMatchers;
@@ -60,6 +61,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@WithoutEntitlements
 public class SamlMetadataCommandTests extends SamlTestCase {
 
     private KeyStoreWrapper keyStore;

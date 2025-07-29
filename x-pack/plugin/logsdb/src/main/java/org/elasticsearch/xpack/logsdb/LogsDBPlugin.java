@@ -31,12 +31,12 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.LOGSDB_PRIOR_LOGS_USAGE;
 import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.USAGE_CHECK_MAX_PERIOD;
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
+import static org.elasticsearch.xpack.logsdb.LogsdbLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
-    private final SyntheticSourceLicenseService licenseService;
+    private final LogsdbLicenseService licenseService;
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
         false,
@@ -48,7 +48,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     public LogsDBPlugin(Settings settings) {
         this.settings = settings;
-        this.licenseService = new SyntheticSourceLicenseService(settings);
+        this.licenseService = new LogsdbLicenseService(settings);
         this.logsdbIndexModeSettingsProvider = new LogsdbIndexModeSettingsProvider(licenseService, settings);
     }
 
@@ -87,6 +87,8 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
                 IndexVersion.current(),
                 parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
             ),
+            () -> parameters.clusterService().state().nodes().getMinNodeVersion(),
+            DiscoveryNode.isStateless(settings) == false,
             DiscoveryNode.isStateless(settings) == false
         );
         return List.of(logsdbIndexModeSettingsProvider);

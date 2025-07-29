@@ -1,0 +1,6 @@
+pr: 128036
+summary: Fix inner hits + aggregations concurrency bug
+area: Search
+type: bug
+issues:
+ - 122419

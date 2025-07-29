@@ -1,0 +1,5 @@
+pr: 122708
+summary: Support partial results in CCS in ES|QL
+area: ES|QL
+type: enhancement
+issues: []

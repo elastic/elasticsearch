@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -16,67 +17,106 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
-import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
+import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.StartILMRequest;
+import org.elasticsearch.xpack.core.ilm.StopILMRequest;
+import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.elasticsearch.xpack.frozen.action.TransportFreezeIndexAction;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
-import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.lang.Boolean.parseBoolean;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
-    @After
-    private void cleanup() {
+
+    @Before
+    private void setup() throws Exception {
         safeGet(
             clusterAdmin().execute(
                 DeletePipelineTransportAction.TYPE,
                 new DeletePipelineRequest(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
             )
         );
+
+        assertBusy(() -> {
+            assertTrue(
+                safeGet(
+                    clusterAdmin().execute(
+                        GetPipelineAction.INSTANCE,
+                        new GetPipelineRequest(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
+                    )
+                ).isFound()
+            );
+        });
     }
 
     private static final String MAPPING = """
@@ -98,8 +138,21 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             ReindexPlugin.class,
             MockTransportService.TestPlugin.class,
             DataStreamsPlugin.class,
-            IngestCommonPlugin.class
+            IngestCommonPlugin.class,
+            TestFrozenIndicesPlugin.class,
+            IndexLifecycle.class,
+            LocalStateCompositeXPackPlugin.class
         );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
+            // This just generates less churn and makes it easier to read the log file if needed
+            .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
+            .build();
     }
 
     private static String DATA_STREAM_MAPPING = """
@@ -121,6 +174,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         // add doc without timestamp
         addDoc(sourceIndex, "{\"foo\":\"baz\"}");
 
+        // wait until doc is written to all shards before adding mapping
+        ensureHealth(sourceIndex);
+
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
 
@@ -136,6 +192,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testTimestampNotAddedIfExists() {
+
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
@@ -143,6 +200,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
         addDoc(sourceIndex, doc);
+
+        // wait until doc is written to all shards before adding mapping
+        ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
@@ -188,6 +248,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
         addDoc(sourceIndex, doc);
+
+        // wait until doc is written to all shards before adding mapping
+        ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
@@ -236,8 +299,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertEquals(expectedDestIndexName, response.getDestIndex());
     }
 
-    public void testDestIndexNameSet_withDotPrefix() throws Exception {
-
+    public void testDestIndexNameSet_withDotPrefix() {
         var sourceIndex = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
@@ -250,12 +312,18 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertEquals(expectedDestIndexName, response.getDestIndex());
     }
 
-    public void testDestIndexContainsDocs() throws Exception {
+    public void testDestIndexContainsDocs() {
         // source index with docs
         var numDocs = randomIntBetween(1, 100);
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
         indexDocs(sourceIndex, numDocs);
+
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_METADATA, randomBoolean())
+            .put(IndexMetadata.SETTING_READ_ONLY, randomBoolean())
+            .build();
+        safeGet(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, sourceIndex)));
 
         // call reindex
         var response = safeGet(
@@ -267,29 +335,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
     }
 
-    public void testSetSourceToBlockWrites() throws Exception {
-        var settings = randomBoolean() ? Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build() : Settings.EMPTY;
-
-        // empty source index
-        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
-
-        // call reindex
-        safeGet(client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)));
-
-        // Assert that source index is now read-only but not verified read-only
-        GetSettingsResponse getSettingsResponse = safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(sourceIndex)));
-        assertTrue(parseBoolean(getSettingsResponse.getSetting(sourceIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
-        assertFalse(
-            parseBoolean(getSettingsResponse.getSetting(sourceIndex, MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey()))
-        );
-
-        // assert that write to source fails
-        var indexReq = new IndexRequest(sourceIndex).source(jsonBuilder().startObject().field("field", "1").endObject());
-        expectThrows(ClusterBlockException.class, client().index(indexReq));
-        assertHitCount(prepareSearch(sourceIndex).setSize(0), 0);
-    }
-
     public void testMissingSourceIndex() {
         var nonExistentSourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         expectThrows(
@@ -298,7 +343,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         );
     }
 
-    public void testSettingsAddedBeforeReindex() throws Exception {
+    public void testSettingsAddedBeforeReindex() {
         // start with a static setting
         var numShards = randomIntBetween(1, 10);
         var staticSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
@@ -345,34 +390,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
     }
 
-    public void testFailIfMetadataBlockSet() {
-        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true).build();
-        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
-
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
-            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-        );
-        assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
-
-        cleanupMetadataBlocks(sourceIndex);
-    }
-
-    public void testFailIfReadBlockSet() {
-        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_READ, true).build();
-        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
-
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
-            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-        );
-        assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
-
-        cleanupMetadataBlocks(sourceIndex);
-    }
-
     public void testReadOnlyBlocksNotAddedBack() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var settings = Settings.builder()
@@ -392,7 +409,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
 
-        cleanupMetadataBlocks(sourceIndex);
         cleanupMetadataBlocks(destIndex);
     }
 
@@ -571,13 +587,176 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(destIndex).setSize(0), 1);
     }
 
+    public void testIndexUnfrozen() {
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
+        ensureHealth(sourceIndex);
+        // add doc with timestamp
+        String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
+        addDoc(sourceIndex, doc);
+        FreezeRequest freezeRequest = new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, sourceIndex);
+        freezeRequest.setFreeze(true);
+        FreezeResponse freezeResponse = safeGet(client().execute(FreezeIndexAction.INSTANCE, freezeRequest));
+        assertAcked(freezeResponse);
+        assertThat(
+            safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(sourceIndex))).getIndexToSettings()
+                .get(sourceIndex)
+                .get(FrozenEngine.INDEX_FROZEN.getKey()),
+            not(equalTo(null))
+        );
+
+        String destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
+
+        assertThat(
+            safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(sourceIndex))).getIndexToSettings()
+                .get(sourceIndex)
+                .get(FrozenEngine.INDEX_FROZEN.getKey()),
+            equalTo(null)
+        );
+        assertThat(
+            safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(destIndex))).getIndexToSettings()
+                .get(destIndex)
+                .get(FrozenEngine.INDEX_FROZEN.getKey()),
+            equalTo(null)
+        );
+    }
+
+    public void testIndexLifecycleSettingNotCopied() throws Exception {
+        Map<String, Phase> phases = Map.of(
+            "hot",
+            new Phase(
+                "hot",
+                TimeValue.ZERO,
+                Map.of(
+                    "rollover",
+                    new org.elasticsearch.xpack.core.ilm.RolloverAction(null, null, null, 1L, null, null, null, null, null, null)
+                )
+            )
+        );
+
+        var policyName = "my-policy";
+        LifecyclePolicy policy = new LifecyclePolicy(policyName, phases);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
+
+        // create data stream with a document and wait for ILM to roll it over
+        var dataStream = createDataStream(policyName);
+        createDocument(dataStream);
+
+        assertAcked(safeGet(client().execute(ILMActions.START, new StartILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
+        assertBusy(() -> {
+            var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest().indices(dataStream)));
+            assertTrue(getIndexResponse.indices().length >= 2);
+        });
+        stopILM();
+
+        var dataStreams = safeGet(
+            indicesAdmin().execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStream })
+            )
+        ).getDataStreams();
+
+        assertFalse(dataStreams.isEmpty());
+        String writeIndex = dataStreams.get(0).getDataStream().getWriteIndex().getName();
+        List<String> indices = dataStreams.get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
+        assertTrue(indices.size() >= 2);
+
+        for (var backingIndex : indices) {
+            if (backingIndex.equals(writeIndex) == false) {
+                var destIndex = safeGet(
+                    client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(backingIndex))
+                ).getDestIndex();
+                var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(backingIndex, destIndex)));
+                assertEquals(policyName, settingsResponse.getSetting(backingIndex, IndexMetadata.LIFECYCLE_NAME));
+                assertNull(settingsResponse.getSetting(destIndex, IndexMetadata.LIFECYCLE_NAME));
+            }
+        }
+    }
+
+    private void stopILM() throws Exception {
+        assertAcked(safeGet(client().execute(ILMActions.STOP, new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
+        assertBusy(() -> {
+            var statusResponse = safeGet(
+                client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+            );
+            assertEquals(OperationMode.STOPPED, statusResponse.getMode());
+        });
+    }
+
+    private String createDataStream(String ilmPolicy) throws Exception {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
+
+        Settings settings = ilmPolicy != null ? Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, ilmPolicy).build() : null;
+
+        String mapping = """
+                {
+                    "properties": {
+                        "@timestamp": {
+                            "type":"date"
+                        },
+                        "data":{
+                            "type":"keyword"
+                        }
+                    }
+                }
+            """;
+        Template idxTemplate = new Template(settings, new CompressedXContent(mapping), null);
+
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(idxTemplate)
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+            .build();
+
+        assertAcked(
+            client().execute(
+                TransportPutComposableIndexTemplateAction.TYPE,
+                new TransportPutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(template)
+            )
+        );
+        assertAcked(
+            client().execute(
+                CreateDataStreamAction.INSTANCE,
+                new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+            )
+        );
+        return dataStreamName;
+    }
+
+    private long createDocument(String dataStreamName) throws Exception {
+        // Get some randomized but reasonable timestamps on the data since not all of it is guaranteed to arrive in order.
+        long timeSeed = System.currentTimeMillis();
+        long timestamp = randomLongBetween(timeSeed - TimeUnit.HOURS.toMillis(5), timeSeed);
+        safeGet(
+            client().index(
+                new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        JsonXContent.contentBuilder()
+                            .startObject()
+                            .field("@timestamp", timestamp)
+                            .field("data", randomAlphaOfLength(25))
+                            .endObject()
+                    )
+            )
+        );
+        safeGet(
+            indicesAdmin().refresh(
+                new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden())
+            )
+        );
+        return timestamp;
+    }
+
     private static void cleanupMetadataBlocks(String index) {
         var settings = Settings.builder()
             .putNull(IndexMetadata.SETTING_READ_ONLY)
             .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-            .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
-            .build();
-        safeGet(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)));
+            .putNull(IndexMetadata.SETTING_BLOCKS_METADATA);
+        updateIndexSettings(settings, index);
     }
 
     private static void indexDocs(String index, int numDocs) {
@@ -602,5 +781,31 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc, XContentType.JSON));
         safeGet(client().bulk(bulkRequest));
+    }
+
+    private void ensureHealth(String index) {
+        if (cluster().numDataNodes() > 1) {
+            ensureGreen(index);
+        } else {
+            ensureYellow(index);
+        }
+    }
+
+    /*
+     * This takes the place of the real FrozenIndices plugin. We can't use that one because its EngineFactory conflicts with the one used
+     * by this test. We only need the settings and the mapping of the FreezeIndexAction though.
+     */
+    public static class TestFrozenIndicesPlugin extends Plugin implements ActionPlugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(FrozenEngine.INDEX_FROZEN);
+        }
+
+        @Override
+        public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+            List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+            actions.add(new ActionPlugin.ActionHandler<>(FreezeIndexAction.INSTANCE, TransportFreezeIndexAction.class));
+            return actions;
+        }
     }
 }

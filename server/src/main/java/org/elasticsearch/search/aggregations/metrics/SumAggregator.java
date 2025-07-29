@@ -97,16 +97,15 @@ public class SumAggregator extends NumericMetricsAggregator.SingleDoubleValue {
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
                     maybeGrow(bucket);
-                    computeSum(bucket, values, sums, compensations);
+                    computeSum(bucket, values.doubleValue(), sums, compensations);
                 }
             }
         };
     }
 
-    static void computeSum(long bucket, NumericDoubleValues values, DoubleArray sums, DoubleArray compensations) throws IOException {
+    static void computeSum(long bucket, double added, DoubleArray sums, DoubleArray compensations) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
-        double added = values.doubleValue();
         double value = addIfNonOrInf(added, sums.get(bucket));
         if (Double.isFinite(value)) {
             double delta = compensations.get(bucket);
@@ -122,8 +121,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleDoubleValue {
 
     protected final void maybeGrow(long bucket) {
         if (bucket >= sums.size()) {
-            var bigArrays = bigArrays();
-            doGrow(bucket, bigArrays);
+            doGrow(bucket, bigArrays());
         }
     }
 

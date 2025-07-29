@@ -15,23 +15,31 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class PercentileDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final double percentile;
 
-  public PercentileDoubleAggregatorFunctionSupplier(List<Integer> channels, double percentile) {
-    this.channels = channels;
+  public PercentileDoubleAggregatorFunctionSupplier(double percentile) {
     this.percentile = percentile;
   }
 
   @Override
-  public PercentileDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return PercentileDoubleAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return PercentileDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public PercentileDoubleAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return PercentileDoubleAggregatorFunction.create(driverContext, channels, percentile);
   }
 
   @Override
-  public PercentileDoubleGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+  public PercentileDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return PercentileDoubleGroupingAggregatorFunction.create(channels, driverContext, percentile);
   }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Assert;
 
@@ -62,7 +63,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         // filter includes both indices in the result (all columns, all rows)
         RestEsqlTestCase.RequestObjectBuilder builder = timestampFilter("gte", "2023-01-01").query(from("test*"));
-        assertResultMap(
+        assertQueryResult(
             runEsql(builder),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -73,7 +74,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         // filter includes only test1. Columns from test2 are filtered out, as well (not only rows)!
         builder = timestampFilter("gte", "2024-01-01").query(from("test*"));
-        assertResultMap(
+        assertQueryResult(
             runEsql(builder),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -84,7 +85,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         // filter excludes both indices (no rows); the first analysis step fails because there are no columns, a second attempt succeeds
         // after eliminating the index filter. All columns are returned.
         builder = timestampFilter("gte", "2025-01-01").query(from("test*"));
-        assertResultMap(
+        assertQueryResult(
             runEsql(builder),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -102,7 +103,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         // filter includes only test1. Columns and rows of test2 are filtered out
         RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query(from("test*"));
-        assertResultMap(
+        assertQueryResult(
             runEsql(builder),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -113,7 +114,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         // filter includes only test1. Columns from test2 are filtered out, as well (not only rows)!
         builder = existsFilter("id1").query(from("test*") + " METADATA _index | KEEP _index, id*");
         Map<String, Object> result = runEsql(builder);
-        assertResultMap(
+        assertQueryResult(
             result,
             matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer")),
@@ -138,7 +139,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             from("test*") + " METADATA _index | SORT id2 | KEEP _index, id*"
         );
         Map<String, Object> result = runEsql(builder);
-        assertResultMap(
+        assertQueryResult(
             result,
             matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -194,7 +195,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     }
 
     public void testIndicesDontExist() throws IOException {
-        int docsTest1 = 0; // we are interested only in the created index, not necessarily that it has data
+        int docsTest1 = randomIntBetween(1, 5);
         indexTimestampData(docsTest1, "test1", "2024-11-26", "id1");
 
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo"))));
@@ -207,7 +208,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("verification_exception"));
         assertThat(e.getMessage(), anyOf(containsString("Unknown index [foo*]"), containsString("Unknown index [remote_cluster:foo*]")));
 
-        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query(from("foo", "test1"))));
+        e = expectThrows(ResponseException.class, () -> runEsql(timestampFilter("gte", "2020-01-01").query("FROM foo, test1")));
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("index_not_found_exception"));
         assertThat(e.getMessage(), anyOf(containsString("no such index [foo]"), containsString("no such index [remote_cluster:foo]")));
@@ -224,13 +225,13 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
                 // currently we don't support remote clusters in LOOKUP JOIN
                 // this check happens before resolving actual indices and results in a different error message
                 RemoteClusterAware.isRemoteIndexName(pattern)
-                    ? allOf(containsString("parsing_exception"), containsString("remote clusters are not supported in LOOKUP JOIN"))
+                    ? allOf(containsString("parsing_exception"), containsString("remote clusters are not supported"))
                     : allOf(containsString("verification_exception"), containsString("Unknown index [foo]"))
             );
         }
     }
 
-    private static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {
+    protected static RestEsqlTestCase.RequestObjectBuilder timestampFilter(String op, String date) throws IOException {
         return requestObjectBuilder().filter(b -> {
             b.startObject("range");
             {
@@ -246,6 +247,11 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
         return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
+    }
+
+    public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject, boolean checkPartialResults)
+        throws IOException {
+        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC, checkPartialResults);
     }
 
     protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {
@@ -298,4 +304,9 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
         }
     }
+
+    protected void assertQueryResult(Map<String, Object> result, Matcher<?> columnMatcher, Matcher<?> valuesMatcher) {
+        assertResultMap(result, columnMatcher, valuesMatcher);
+    }
+
 }

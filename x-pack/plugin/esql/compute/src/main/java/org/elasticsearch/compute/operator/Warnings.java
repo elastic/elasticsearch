@@ -31,8 +31,9 @@ public class Warnings {
      * @param sourceText The source text that caused the warning. Same as `source.text()`
      * @return A warnings collector object
      */
+    // TODO: rename to createWarningsTreatedAsNull
     public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, int lineNumber, int columnNumber, String sourceText) {
-        return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "treating result as null");
+        return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "evaluation of [{}] failed, treating result as null");
     }
 
     /**
@@ -50,7 +51,26 @@ public class Warnings {
         int columnNumber,
         String sourceText
     ) {
-        return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "treating result as false");
+        return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "evaluation of [{}] failed, treating result as false");
+    }
+
+    /**
+     * Create a new warnings object based on the given mode which warns that
+     * evaluation resulted in warnings.
+     * @param warningsMode The warnings collection strategy to use
+     * @param lineNumber The line number of the source text. Same as `source.getLineNumber()`
+     * @param columnNumber The column number of the source text. Same as `source.getColumnNumber()`
+     * @param sourceText The source text that caused the warning. Same as `source.text()`
+     * @return A warnings collector object
+     */
+    // TODO: rename to createWarnings
+    public static Warnings createOnlyWarnings(
+        DriverContext.WarningsMode warningsMode,
+        int lineNumber,
+        int columnNumber,
+        String sourceText
+    ) {
+        return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "warnings during evaluation of [{}]");
     }
 
     private static Warnings createWarnings(
@@ -78,14 +98,7 @@ public class Warnings {
 
     private Warnings(int lineNumber, int columnNumber, String sourceText, String first) {
         this.location = format("Line {}:{}: ", lineNumber, columnNumber);
-        this.first = format(
-            null,
-            "{}evaluation of [{}] failed, {}. Only first {} failures recorded.",
-            location,
-            sourceText,
-            first,
-            MAX_ADDED_WARNINGS
-        );
+        this.first = format(null, "{}" + first + ". Only first {} failures recorded.", location, sourceText, MAX_ADDED_WARNINGS);
     }
 
     public void registerException(Exception exception) {

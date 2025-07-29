@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Log;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pi;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tau;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
@@ -94,6 +95,7 @@ public class ScalarFunctionWritables {
         entries.add(Replace.ENTRY);
         entries.add(Reverse.ENTRY);
         entries.add(Round.ENTRY);
+        entries.add(RoundTo.ENTRY);
         entries.add(Sha1.ENTRY);
         entries.add(Sha256.ENTRY);
         entries.add(Split.ENTRY);

@@ -19,7 +19,6 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -40,7 +39,6 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -48,6 +46,7 @@ import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
@@ -142,6 +141,13 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 recordMetrics(unparsedModel, timer, e);
                 listener.onFailure(e);
                 return;
+            }
+
+            // TODO: this is a temporary solution for passing around the product use case.
+            // We want to pass InferenceContext through the various infer methods in InferenceService in the long term
+            var context = request.getContext();
+            if (Objects.nonNull(context)) {
+                threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());
             }
 
             var service = serviceRegistry.getService(serviceName).get();
@@ -276,11 +282,13 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         inferenceStats.requestCount().incrementBy(1, modelAttributes(model));
         inferOnService(model, request, service, ActionListener.wrap(inferenceResults -> {
             if (request.isStreaming()) {
-                var taskProcessor = streamingTaskManager.<ChunkedToXContent>create(STREAMING_INFERENCE_TASK_TYPE, STREAMING_TASK_ACTION);
+                var taskProcessor = streamingTaskManager.<InferenceServiceResults.Result>create(
+                    STREAMING_INFERENCE_TASK_TYPE,
+                    STREAMING_TASK_ACTION
+                );
                 inferenceResults.publisher().subscribe(taskProcessor);
 
-                var instrumentedStream = new PublisherWithMetrics(timer, model);
-                taskProcessor.subscribe(instrumentedStream);
+                var instrumentedStream = publisherWithMetrics(timer, model, taskProcessor);
 
                 var streamErrorHandler = streamErrorHandler(instrumentedStream);
 
@@ -295,7 +303,46 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         }));
     }
 
-    protected Flow.Publisher<ChunkedToXContent> streamErrorHandler(Flow.Processor<ChunkedToXContent, ChunkedToXContent> upstream) {
+    private <T> Flow.Publisher<T> publisherWithMetrics(InferenceTimer timer, Model model, Flow.Processor<T, T> upstream) {
+        return downstream -> {
+            upstream.subscribe(new Flow.Subscriber<>() {
+                @Override
+                public void onSubscribe(Flow.Subscription subscription) {
+                    downstream.onSubscribe(new Flow.Subscription() {
+                        @Override
+                        public void request(long n) {
+                            subscription.request(n);
+                        }
+
+                        @Override
+                        public void cancel() {
+                            recordMetrics(model, timer, null);
+                            subscription.cancel();
+                        }
+                    });
+                }
+
+                @Override
+                public void onNext(T item) {
+                    downstream.onNext(item);
+                }
+
+                @Override
+                public void onError(Throwable throwable) {
+                    recordMetrics(model, timer, throwable);
+                    downstream.onError(throwable);
+                }
+
+                @Override
+                public void onComplete() {
+                    recordMetrics(model, timer, null);
+                    downstream.onComplete();
+                }
+            });
+        };
+    }
+
+    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Publisher<T> upstream) {
         return upstream;
     }
 
@@ -337,7 +384,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     }
 
     private static ElasticsearchStatusException unknownServiceException(String service, String inferenceId) {
-        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]. ", RestStatus.BAD_REQUEST, service, inferenceId);
+        return new ElasticsearchStatusException("Unknown service [{}] for model [{}]", RestStatus.BAD_REQUEST, service, inferenceId);
     }
 
     private static ElasticsearchStatusException requestModelTaskTypeMismatchException(TaskType requested, TaskType expected) {
@@ -347,40 +394,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             requested,
             expected
         );
-    }
-
-    private class PublisherWithMetrics extends DelegatingProcessor<ChunkedToXContent, ChunkedToXContent> {
-
-        private final InferenceTimer timer;
-        private final Model model;
-
-        private PublisherWithMetrics(InferenceTimer timer, Model model) {
-            this.timer = timer;
-            this.model = model;
-        }
-
-        @Override
-        protected void next(ChunkedToXContent item) {
-            downstream().onNext(item);
-        }
-
-        @Override
-        public void onError(Throwable throwable) {
-            recordMetrics(model, timer, throwable);
-            super.onError(throwable);
-        }
-
-        @Override
-        protected void onCancel() {
-            recordMetrics(model, timer, null);
-            super.onCancel();
-        }
-
-        @Override
-        public void onComplete() {
-            recordMetrics(model, timer, null);
-            super.onComplete();
-        }
     }
 
     private record NodeRoutingDecision(boolean currentNodeShouldHandleRequest, DiscoveryNode targetNode) {

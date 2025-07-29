@@ -12,7 +12,6 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -56,7 +55,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getBackingIndices;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfPrimarySegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
@@ -103,7 +101,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.get(0);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
@@ -113,10 +113,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
 
-        assertBusy(() -> {
-            triggerStateChange();
-            assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME));
-        }, 30, TimeUnit.SECONDS);
+        assertBusy(
+            () -> { assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)); },
+            30,
+            TimeUnit.SECONDS
+        );
     }
 
     public void testSearchableSnapshotForceMergesIndexToOneSegment() throws Exception {
@@ -134,7 +135,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             indexDocument(client(), dataStream, true);
         }
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        String backingIndexName = backingIndices.get(0);
         Integer preLifecycleBackingIndexSegments = getNumberOfPrimarySegments(client(), backingIndexName);
         assertThat(preLifecycleBackingIndexSegments, greaterThanOrEqualTo(1));
 
@@ -172,10 +174,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             }
         }, 60, TimeUnit.SECONDS));
 
-        assertBusy(() -> {
-            triggerStateChange();
-            assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME));
-        }, 30, TimeUnit.SECONDS);
+        assertBusy(
+            () -> { assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)); },
+            30,
+            TimeUnit.SECONDS
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -208,7 +211,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.get(0);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
 
         // let's wait for ILM to finish
@@ -300,7 +305,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         indexDocument(client(), dataStream, true);
 
-        var backingIndices = getBackingIndices(client(), dataStream);
+        var backingIndices = getDataStreamBackingIndexNames(dataStream);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndices.get(0);
         assertTrue(waitUntil(() -> {
             try {
@@ -311,7 +316,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
 
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
             assertThat(stepKeyForIndex.phase(), is("hot"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -334,7 +338,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // even though the index is now mounted as a searchable snapshot, the actions that can't operate on it should
         // skip and ILM should not be blocked (not should the managed index move into the ERROR step)
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredIndexName);
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -378,10 +381,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // indexing only one document as we want only one rollover to be triggered
         indexDocument(client(), dataStream, true);
 
-        String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + DataStream.getDefaultBackingIndexName(
-            dataStream,
-            1L
-        );
+        String backingIndexName = getDataStreamBackingIndexNames(dataStream).get(0);
+        String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
                 return indexExists(searchableSnapMountedIndexName);
@@ -391,7 +392,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
 
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("hot"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -482,7 +482,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -544,7 +543,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("frozen"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -627,7 +625,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), fullMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -648,7 +645,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), partiallyMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("frozen"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -738,7 +734,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), partialMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("frozen"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -759,7 +754,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
 
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), restoredPartiallyMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("cold"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -856,7 +850,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // Create the data stream.
         assertOK(client().performRequest(new Request("PUT", "_data_stream/" + dataStream)));
 
-        var backingIndices = getBackingIndices(client(), dataStream);
+        var backingIndices = getDataStreamBackingIndexNames(dataStream);
         String firstGenIndex = backingIndices.get(0);
         Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
         assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
@@ -907,7 +901,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.get(0);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
@@ -917,10 +913,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             }
         }, 30, TimeUnit.SECONDS));
 
-        assertBusy(() -> {
-            triggerStateChange();
-            assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME));
-        }, 30, TimeUnit.SECONDS);
+        assertBusy(
+            () -> { assertThat(explainIndex(client(), restoredIndexName).get("step"), is(PhaseCompleteStep.NAME)); },
+            30,
+            TimeUnit.SECONDS
+        );
     }
 
     public void testSearchableSnapshotTotalShardsPerNode() throws Exception {
@@ -961,7 +958,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             assertTrue(indexExists(searchableSnapMountedIndexName));
         }, 30, TimeUnit.SECONDS);
         assertBusy(() -> {
-            triggerStateChange();
             Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
             assertThat(stepKeyForIndex.phase(), is("frozen"));
             assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
@@ -1011,7 +1007,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.get(0);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
@@ -1023,7 +1021,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // check that the index is in the expected step and has the expected step_info.message
         assertBusy(() -> {
-            triggerStateChange();
             Map<String, Object> explainResponse = explainIndex(client(), restoredIndexName);
             assertThat(explainResponse.get("step"), is(WaitUntilReplicateForTimePassesStep.NAME));
             @SuppressWarnings("unchecked")
@@ -1061,7 +1058,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         // check that the index has progressed because enough time has passed now that the policy is different
         assertBusy(() -> {
-            triggerStateChange();
             Map<String, Object> explainResponse = explainIndex(client(), restoredIndexName);
             assertThat(explainResponse.get("phase"), is("cold"));
             assertThat(explainResponse.get("step"), is(PhaseCompleteStep.NAME));
@@ -1074,14 +1070,5 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             Integer numberOfReplicas = Integer.valueOf((String) indexSettings.get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
             assertThat(numberOfReplicas, is(0));
         }
-    }
-
-    /**
-     * Cause a bit of cluster activity using an empty reroute call in case the `wait-for-index-colour` ILM step missed the
-     * notification that partial-index is now GREEN.
-     */
-    private void triggerStateChange() throws IOException {
-        Request rerouteRequest = new Request("POST", "/_cluster/reroute?metric=none");
-        client().performRequest(rerouteRequest);
     }
 }

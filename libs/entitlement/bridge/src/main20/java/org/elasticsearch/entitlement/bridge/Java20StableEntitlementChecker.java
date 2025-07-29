@@ -11,6 +11,9 @@ package org.elasticsearch.entitlement.bridge;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.spi.FileSystemProvider;
 
 /**
  * Interface with Java20 "stable" functions and types.
@@ -32,4 +35,8 @@ public interface Java20StableEntitlementChecker extends EntitlementChecker {
         FunctionDescriptor function,
         Linker.Option... options
     );
+
+    void checkReadAttributesIfExists(Class<?> callerClass, FileSystemProvider that, Path path, Class<?> type, LinkOption... options);
+
+    void checkExists(Class<?> callerClass, FileSystemProvider that, Path path, LinkOption... options);
 }

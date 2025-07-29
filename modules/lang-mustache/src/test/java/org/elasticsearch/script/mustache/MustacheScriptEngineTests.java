@@ -423,7 +423,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             ex.getCause().getCause(),
             allOf(
                 instanceOf(SizeLimitingStringWriter.SizeLimitExceededException.class),
-                transformedMatch(Throwable::getMessage, endsWith("has exceeded the size limit [1024]"))
+                transformedMatch(Throwable::getMessage, endsWith("has size [1030] which exceeds the size limit [1024]"))
             )
         );
     }

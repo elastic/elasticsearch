@@ -7,17 +7,16 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.xcontent.XContent;
 
+import java.util.Collections;
 import java.util.Iterator;
-import java.util.stream.Stream;
 
 public record ChunkedInferenceError(Exception exception) implements ChunkedInference {
 
     @Override
-    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
-        return Stream.of(exception).map(e -> new Chunk(e.getMessage(), new TextOffset(0, 0), BytesArray.EMPTY)).iterator();
+    public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
+        return Collections.emptyIterator();
     }
 }

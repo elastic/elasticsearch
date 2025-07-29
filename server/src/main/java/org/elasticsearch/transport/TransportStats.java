@@ -18,7 +18,6 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -166,7 +165,6 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         return transportActionStats;
     }
 
-    @UpdateForV9 // Review and simplify the if-else blocks containing this symbol once v9 is released
     private static final boolean IMPOSSIBLE_IN_V9 = true;
 
     private boolean assertHistogramsConsistent() {
@@ -181,7 +179,6 @@ public class TransportStats implements Writeable, ChunkedToXContent {
     }
 
     @Override
-    @UpdateForV9 // review the "if" blocks checking for non-empty once we have
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(Iterators.single((builder, params) -> {
             builder.startObject(Fields.TRANSPORT);

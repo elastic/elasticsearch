@@ -1,5 +1,0 @@
-pr: 120042
-summary: Match dot prefix of migrated DS backing index with the source index
-area: Data streams
-type: bug
-issues: []

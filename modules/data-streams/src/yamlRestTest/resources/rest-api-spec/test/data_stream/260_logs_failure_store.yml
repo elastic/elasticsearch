@@ -1,7 +1,7 @@
 ---
 setup:
   - requires:
-      cluster_features: [ "gte_v9.1.99" ]
+      cluster_features: [ "logs_data_streams.failure_store.enabled" ]
       reason: "failure store became enabled by default for log data streams in 9.2.0"
 
   - do:

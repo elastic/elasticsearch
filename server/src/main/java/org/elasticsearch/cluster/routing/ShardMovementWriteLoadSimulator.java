@@ -68,7 +68,7 @@ public class ShardMovementWriteLoadSimulator {
                     entry.getKey(),
                     Maps.copyMapWithAddedOrReplacedEntry(
                         entry.getValue().threadPoolUsageStatsMap(),
-                        "write",
+                        ThreadPool.Names.WRITE,
                         replaceWritePoolStats(entry.getValue(), simulatedWriteLoadDeltas.get(entry.getKey()))
                     )
                 );

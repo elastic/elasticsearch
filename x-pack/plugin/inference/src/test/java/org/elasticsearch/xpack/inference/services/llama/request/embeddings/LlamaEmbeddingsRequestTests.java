@@ -26,27 +26,52 @@ import static org.hamcrest.Matchers.is;
 
 public class LlamaEmbeddingsRequestTests extends ESTestCase {
 
-    public void testCreateRequest_WithAuth_Success() throws IOException {
-        testCreateRequest_WithAuth_Success("user");
+    public void testCreateRequest_WithAuth_WithUser_NoDimensions_DimensionsSetByUserFalse_Success() throws IOException {
+        testCreateRequest_WithAuth_Success("user", null, false, null);
     }
 
-    public void testCreateRequest_WithAuth_NoUser_Success() throws IOException {
-        testCreateRequest_WithAuth_Success(null);
+    public void testCreateRequest_WithAuth_WithUser_NoDimensions_DimensionsSetByUserTrue_Success() throws IOException {
+        testCreateRequest_WithAuth_Success("user", null, true, null);
     }
 
-    private void testCreateRequest_WithAuth_Success(String user) throws IOException {
-        var request = createRequest(user);
+    public void testCreateRequest_WithAuth_WithUser_WithDimensions_DimensionsSetByUserFalse_Success() throws IOException {
+        testCreateRequest_WithAuth_Success("user", 384, false, null);
+    }
+
+    public void testCreateRequest_WithAuth_WithUser_WithDimensions_DimensionsSetByUserTrue_Success() throws IOException {
+        testCreateRequest_WithAuth_Success("user", 384, true, 384);
+    }
+
+    public void testCreateRequest_WithAuth_NoUser_NoDimensions_DimensionsSetByUserFalse_Success() throws IOException {
+        testCreateRequest_WithAuth_Success(null, null, false, null);
+    }
+
+    public void testCreateRequest_WithAuth_NoUser_NoDimensions_DimensionsSetByUserTrue_Success() throws IOException {
+        testCreateRequest_WithAuth_Success(null, null, true, null);
+    }
+
+    public void testCreateRequest_WithAuth_NoUser_WithDimensions_DimensionsSetByUserFalse_Success() throws IOException {
+        testCreateRequest_WithAuth_Success(null, 384, false, null);
+    }
+
+    public void testCreateRequest_WithAuth_NoUser_WithDimensions_DimensionsSetByUserTrue_Success() throws IOException {
+        testCreateRequest_WithAuth_Success(null, 384, true, 384);
+    }
+
+    private void testCreateRequest_WithAuth_Success(
+        String user,
+        Integer dimensions,
+        boolean dimensionsSetByUser,
+        Integer expectedDimensions
+    ) throws IOException {
+        var request = createRequest(user, dimensions, dimensionsSetByUser);
         var httpRequest = request.createHttpRequest();
         var httpPost = validateRequestUrlAndContentType(httpRequest);
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        if (user == null) {
-            assertThat(requestMap, aMapWithSize(2));
-        } else {
-            assertThat(requestMap, aMapWithSize(3));
-        }
         assertThat(requestMap.get("input"), is(List.of("ABCD")));
         assertThat(requestMap.get("model"), is("llama-embed"));
+        assertThat(requestMap.get("dimensions"), is(expectedDimensions));
         assertThat(requestMap.get("user"), is(user));
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer apikey"));
     }
@@ -85,7 +110,7 @@ public class LlamaEmbeddingsRequestTests extends ESTestCase {
     }
 
     private static void testTruncate_ReducesInputTextSizeByHalf(String user) throws IOException {
-        var request = createRequest(user);
+        var request = createRequest(user, null, false);
         var truncatedRequest = request.truncate();
 
         var httpRequest = truncatedRequest.createHttpRequest();
@@ -104,7 +129,7 @@ public class LlamaEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testIsTruncated_ReturnsTrue() {
-        var request = createRequest("user");
+        var request = createRequest("user", null, false);
         assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
@@ -119,8 +144,15 @@ public class LlamaEmbeddingsRequestTests extends ESTestCase {
         return httpPost;
     }
 
-    private static LlamaEmbeddingsRequest createRequest(String user) {
-        var embeddingsModel = LlamaEmbeddingsModelTests.createEmbeddingsModel("llama-embed", "url", "apikey", user, null, false);
+    private static LlamaEmbeddingsRequest createRequest(String user, Integer dimensions, boolean dimensionsSetByUser) {
+        var embeddingsModel = LlamaEmbeddingsModelTests.createEmbeddingsModel(
+            "llama-embed",
+            "url",
+            "apikey",
+            user,
+            dimensions,
+            dimensionsSetByUser
+        );
         return new LlamaEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of("ABCD"), new boolean[] { false }),

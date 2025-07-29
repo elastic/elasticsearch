@@ -519,16 +519,23 @@ tests:
   method: testNodeSelection
   issue: https://github.com/elastic/elasticsearch/issues/132017
 - class: org.elasticsearch.*YamlTestSuiteIT
-  method: test {yaml=search.vectors/130_knn_query_nested_search/*}
+  methods:
+    - test {yaml=search.vectors/130_knn_query_nested_search/*}
+    - test {p0=search.vectors/130_knn_query_nested_search/*}
   issue: https://github.com/elastic/elasticsearch/issues/131749
 - class: org.elasticsearch.*YamlTestSuiteIT
-  method: test {yaml=search.vectors/100_knn_nested_search/*}
+  methods:
+    - test {yaml=search.vectors/100_knn_nested_search/*}
+    - test {p0=search.vectors/100_knn_nested_search/*}
   issue: https://github.com/elastic/elasticsearch/issues/131749
 - class: org.elasticsearch.*YamlTestSuiteIT
-  method: test {yaml=search.vectors/101_knn_nested_search_bits/*}
-  issue: https://github.com/elastic/elasticsearch/issues/131749
+  methods:
+    - test {yaml=search.vectors/101_knn_nested_search_bits/*}
+    - test {p0=search.vectors/101_knn_nested_search_bits/*}
 - class: org.elasticsearch.*YamlTestSuiteIT
-  method: test {yaml=search.vectors/135_knn_query_nested_search_ivf/*}
+  methods:
+    - test {yaml=search.vectors/135_knn_query_nested_search_ivf/*}
+    - test {p0=search.vectors/135_knn_query_nested_search_ivf/*}
   issue: https://github.com/elastic/elasticsearch/issues/131749
 
 # Examples:

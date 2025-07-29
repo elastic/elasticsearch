@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.lucene.HighlighterExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator;
-import org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -26,15 +29,16 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
@@ -119,73 +123,44 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isString(field, sourceText(), FIRST);
+        TypeResolution resolution = isString(field(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = isString(str, sourceText(), SECOND);
+        resolution = isString(str(), sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = numSnippets == null
+        resolution = numSnippets() == null
             ? TypeResolution.TYPE_RESOLVED
-            : isType(numSnippets, dt -> dt == DataType.INTEGER, sourceText(), THIRD, "integer");
+            : isType(numSnippets(), dt -> dt == DataType.INTEGER, sourceText(), THIRD, "integer");
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        return snippetLength == null
+        return snippetLength() == null
             ? TypeResolution.TYPE_RESOLVED
-            : isType(numSnippets, dt -> dt == DataType.INTEGER, sourceText(), FOURTH, "integer");
+            : isType(snippetLength(), dt -> dt == DataType.INTEGER, sourceText(), FOURTH, "integer");
     }
 
     @Override
     public boolean foldable() {
-        return field.foldable()
-            && str.foldable()
-            && (numSnippets == null || numSnippets.foldable())
-            && (snippetLength == null || snippetLength.foldable());
+        return field().foldable()
+            && str().foldable()
+            && (numSnippets() == null || numSnippets().foldable())
+            && (snippetLength() == null || snippetLength().foldable());
     }
-
-    // @Evaluator
-    // static BytesRef process(BytesRef field, BytesRef str, int numSnippets, int snippetLength) {
-    // if (field == null || field.length == 0 || str == null || str.length == 0) {
-    // return null;
-    // }
-    //
-    // String utf8Field = field.utf8ToString();
-    // String utf8Str = str.utf8ToString();
-    // if (snippetLength > utf8Field.length()) {
-    // return field;
-    // }
-    //
-    // // TODO - actually calculate snippets using search string, this truncation is just a placeholder
-    // List<String> snippets = new ArrayList<>(numSnippets);
-    // int pos = 0;
-    // for (int i = 0; i < numSnippets && pos < utf8Field.length(); i++) {
-    // int end = Math.min(pos + snippetLength, utf8Field.length());
-    // String snippet = utf8Field.substring(pos, end);
-    // snippets.add(snippet);
-    // pos += snippetLength;
-    // }
-    // return snippets.get(0);
-    // }
-    //
-    // @Evaluator(extraName = "NoStart")
-    // static BytesRef process(BytesRef field, BytesRef str) {
-    // return process(field, str, DEFAULT_NUM_SNIPPETS, DEFAULT_SNIPPET_LENGTH);
-    // }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new ExtractSnippets(
             source(),
+            field,
             newChildren.get(0),
-            newChildren.get(1),
             numSnippets == null ? null : newChildren.get(1),
-            snippetLength == null ? null : newChildren.get(2)
+            snippetLength
         );
     }
 
@@ -202,9 +177,16 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
             shardConfigs[i++] = new LuceneQueryEvaluator.ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
-        return new LuceneQueryExpressionEvaluator.Factory(shardConfigs);
+        return new HighlighterExpressionEvaluator.Factory(shardConfigs);
+
     }
 
+    private QueryBuilder queryBuilder() {
+        return new MatchQueryBuilder(field.sourceText(), str.sourceText());
+    }
+
+    Expression field() {
+        return field;
     }
 
     Expression str() {

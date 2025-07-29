@@ -105,6 +105,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTask;
 import co.elastic.elasticsearch.stateless.objectstore.gc.ObjectStoreGCTaskExecutor;
 import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
+import co.elastic.elasticsearch.stateless.recovery.RemedialAllocationSettingService;
 import co.elastic.elasticsearch.stateless.recovery.RemoveRefreshClusterBlockService;
 import co.elastic.elasticsearch.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import co.elastic.elasticsearch.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
@@ -771,6 +772,11 @@ public class Stateless extends Plugin
 
         if (hasSearchRole) {
             setAndGet(this.prefetchExecutor, new SearchCommitPrefetcher.PrefetchExecutor(threadPool));
+        }
+
+        if (hasMasterRole) {
+            var remedialSettingService = new RemedialAllocationSettingService(clusterService);
+            clusterService.addListener(remedialSettingService);
         }
 
         return components;

@@ -16,8 +16,10 @@
  */
 
 import co.elastic.elasticsearch.stateless.allocation.StatelessHeapUsageCollector;
+import co.elastic.elasticsearch.stateless.recovery.StatelessRestoreTransformer;
 
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
+import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
 
 module org.elasticsearch.stateless {
     requires org.elasticsearch.base;
@@ -61,4 +63,5 @@ module org.elasticsearch.stateless {
         with
             co.elastic.elasticsearch.stateless.cache.StatelessOnlinePrewarmingServiceProvider;
     provides EstimatedHeapUsageCollector with StatelessHeapUsageCollector;
+    provides IndexMetadataRestoreTransformer with StatelessRestoreTransformer;
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -196,6 +197,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
             }
         }
 
+        @NotMultiProjectCapable // We're doing something fishy here by updating the Metadata even though we're inside the scope of a single
+        // project. This is generally not correct, but since ILM is not properly project-aware, we're making an exception here.
         Metadata.Builder mb = Metadata.builder(currentState.cluster().metadata());
         ProjectMetadata.Builder newProjectMetadataBuilder = ProjectMetadata.builder(currentProjectMetadata);
 

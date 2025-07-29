@@ -1758,17 +1758,17 @@ setup:
         name:   '*'
         ignore: 404
 
-  # We create the index no-template-index with an implicit mapping that has a num field with type long:
+  # We create the index no-template-index with an implicit mapping that has a foo field with type long:
   - do:
       bulk:
         refresh: true
         body:
           - '{"index": {"_index": "no-template-index"}}'
-          - '{"num": 3}'
+          - '{"foo": 3}'
 
   # Now we make sure that the existing mapping is taken into account when we simulate with a mapping_addition. Since
-  # the pre-existing mapping has num mapped as a long, this ought to fail with a document_parsing_exception because
-  # we are attempting to write a boolean num.
+  # the pre-existing mapping has foo mapped as a long, this ought to fail with a document_parsing_exception because
+  # we are attempting to write a boolean foo.
   - do:
       headers:
         Content-Type: application/json
@@ -1783,7 +1783,7 @@ setup:
                 "_source": {
                   "@timestamp": "2025-07-25T09:06:06.929Z",
                   "is_valid": true,
-                  "num": true
+                  "foo": true
                 }
               }
             ],
@@ -1797,14 +1797,59 @@ setup:
           }
   - length: { docs: 1 }
   - match: { docs.0.doc._index: "no-template-index" }
-  - match: { docs.0.doc._source.num: true }
+  - match: { docs.0.doc._source.foo: true }
+  - match: { docs.0.doc._source.is_valid: true }
+  - match: { docs.0.doc.error.type: "document_parsing_exception" }
+
+  # Now we add a template for this index.
+  - do:
+      indices.put_template:
+        name: my-template-1
+        body:
+          index_patterns: no-template-index
+          mappings:
+            properties:
+              foo:
+                type: boolean
+
+  # And we still expect the index's mapping to be used rather than the template:
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        index: no-template-index
+        body: >
+          {
+            "docs": [
+              {
+                "_id": "test-id",
+                "_index": "no-template-index",
+                "_source": {
+                  "@timestamp": "2025-07-25T09:06:06.929Z",
+                  "is_valid": true,
+                  "foo": true
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "is_valid": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "no-template-index" }
+  - match: { docs.0.doc._source.foo: true }
   - match: { docs.0.doc._source.is_valid: true }
   - match: { docs.0.doc.error.type: "document_parsing_exception" }
 
 ---
 "Test ingest simulate with mapping addition for data streams when write index has different mapping":
-  # In this test, we make sure that when the index template is a data stream template, simulate ingest works the same whether the data
-  # stream has been created or not -- either way, we expect it to use the template rather than the data stream / index mappings and settings.
+  # In this test, we make sure that when a data stream's write index has a mapping that is different from the mapping
+  # in its template, and a mapping_override is given, then the mapping_override is applied to the mapping of the write
+  # index rather than the mapping of the template.
 
   - skip:
       features:

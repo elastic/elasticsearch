@@ -198,9 +198,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         Collection<String> ignoredFields = List.of();
         IndexAbstraction indexAbstraction = project.getIndicesLookup().get(request.index());
         try {
-            if (indexAbstraction != null
-                && componentTemplateSubstitutions.isEmpty()
-                && indexTemplateSubstitutions.isEmpty()) {
+            if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty() && indexTemplateSubstitutions.isEmpty()) {
                 /*
                  * In this case the index exists and we don't have any template overrides. So we can just merge the mappingAddition (which
                  * might not exist) into the existing index mapping.
@@ -281,15 +279,6 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         );
                         final CompressedXContent combinedMappings = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
                         ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
-                    } else if (indexAbstraction != null && mappingAddition.isEmpty() == false) {
-                        /*
-                         * The index matched no templates of any kind, including the substitutions. But it might have a mapping. So we
-                         * merge in the mapping addition if it exists, and validate.
-                         */
-                        MappingMetadata mappingFromIndex = project.index(indexAbstraction.getName()).mapping();
-                        CompressedXContent currentIndexCompressedXContent = mappingFromIndex == null ? null : mappingFromIndex.source();
-                        CompressedXContent combinedMappings = mergeMappings(currentIndexCompressedXContent, mappingAddition);
-                        ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
                     } else {
                         /*
                          * The index matched no templates and had no mapping of its own. If there were component template substitutions
@@ -330,6 +319,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         final IndexMetadata originalIndexMetadata = originalIndexMetadataBuilder.build();
         return validateUpdatedMappingsFromIndexMetadata(originalIndexMetadata, updatedMappings, request, sourceToParse);
     }
+
     private Collection<String> validateUpdatedMappingsFromIndexMetadata(
         IndexMetadata originalIndexMetadata,
         @Nullable CompressedXContent updatedMappings,

@@ -27,6 +27,7 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MIN_INDEX;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,6 +42,15 @@ public class QuantileAccuracyTests extends ESTestCase {
     private static int randomBucketCount() {
         // exponentially distribute the bucket count to test more for smaller sizes
         return (int) Math.round(5 + Math.pow(1995, randomDouble()));
+    }
+
+    public void testNoNegativeZeroReturned() {
+        FixedCapacityExponentialHistogram histogram = new FixedCapacityExponentialHistogram(2);
+        histogram.resetBuckets(MAX_SCALE);
+        // add a single, negative bucket close to zero
+        histogram.tryAddBucket(MIN_INDEX, 3, false);
+        double median = ExponentialHistogramQuantile.getQuantile(histogram, 0.5);
+        assertThat(median, equalTo(0.0));
     }
 
     public void testUniformDistribution() {

@@ -88,7 +88,7 @@ public class ExponentialHistogramMerger {
         CopyableBucketIterator negBucketsB = b.negativeBuckets().iterator();
 
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
-        zeroBucket = zeroBucket.collapseOverlappingBuckets(posBucketsA, negBucketsA, posBucketsB, negBucketsB);
+        zeroBucket = zeroBucket.collapseOverlappingBucketsForAll(posBucketsA, negBucketsA, posBucketsB, negBucketsB);
 
         buffer.setZeroBucket(zeroBucket);
 

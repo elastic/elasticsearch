@@ -49,21 +49,17 @@ public class ExponentialHistogramQuantile {
 
         ValueAndPreviousValue values = getElementAtRank(histo, upperRank);
 
+        double result;
         if (lowerRank == upperRank) {
-            return values.valueAtRank();
+            result = values.valueAtRank();
         } else {
-            return values.valueAtPreviousRank() * (1 - upperFactor) + values.valueAtRank() * upperFactor;
+            result = values.valueAtPreviousRank() * (1 - upperFactor) + values.valueAtRank() * upperFactor;
         }
+        return removeNegativeZero(result);
     }
 
-    /**
-     * @param valueAtPreviousRank the value at the rank before the desired rank, NaN if not applicable.
-     * @param valueAtRank         the value at the desired rank
-     */
-    private record ValueAndPreviousValue(double valueAtPreviousRank, double valueAtRank) {
-        ValueAndPreviousValue negateAndSwap() {
-            return new ValueAndPreviousValue(-valueAtRank, -valueAtPreviousRank);
-        }
+    private static double removeNegativeZero(double result) {
+        return result == 0.0 ? 0.0 : result;
     }
 
     private static ValueAndPreviousValue getElementAtRank(ExponentialHistogram histo, long rank) {
@@ -143,5 +139,15 @@ public class ExponentialHistogramQuantile {
             buckets.advance();
         }
         throw new IllegalStateException("The total number of elements in the buckets is less than the desired rank.");
+    }
+
+    /**
+     * @param valueAtPreviousRank the value at the rank before the desired rank, NaN if not applicable.
+     * @param valueAtRank         the value at the desired rank
+     */
+    private record ValueAndPreviousValue(double valueAtPreviousRank, double valueAtRank) {
+        ValueAndPreviousValue negateAndSwap() {
+            return new ValueAndPreviousValue(-valueAtRank, -valueAtPreviousRank);
+        }
     }
 }

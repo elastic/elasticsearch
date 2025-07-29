@@ -14,6 +14,7 @@ import java.util.Arrays;
 import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.computeIndex;
 
 /**
+ * Only intended for use in tests currently.
  * A class for accumulating raw values into an {@link ExponentialHistogram} with a given maximum number of buckets.
  *
  * If the number of values is less than or equal to the bucket capacity, the resulting histogram is guaranteed
@@ -86,9 +87,13 @@ public class ExponentialHistogramGenerator {
         valueBuffer.reset();
         int scale = valueBuffer.scale();
 
-        // Buckets must be provided in ascending index-order
-        // for the negative range, smaller bigger correspond to -INF and smaller ones closer to zero
-        // therefore we have to iterate the negative values in reverse order, from the value closest to -INF to the value closest to zero
+        // Buckets must be provided with their indices in ascending order.
+        // For the negative range, higher bucket indices correspond to bucket boundaries closer to -INF
+        // and smaller bucket indices correspond to bucket boundaries closer to zero.
+        // therefore we have to iterate the negative values in the sorted rawValueBuffer reverse order,
+        // from the value closest to -INF to the value closest to zero.
+        // not that i here is the index of the value in the rawValueBuffer array
+        // and is unrelated to the histogram bucket index for the value.
         for (int i = negativeValuesCount - 1; i >= 0; i--) {
             long count = 1;
             long index = computeIndex(rawValueBuffer[i], scale);

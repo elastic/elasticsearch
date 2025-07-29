@@ -19,6 +19,9 @@ import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.expon
 /**
  * Represents the bucket for values around zero in an exponential histogram.
  * The range of this bucket is {@code [-zeroThreshold, +zeroThreshold]}.
+ * To allow efficient comparison with bucket boundaries, this class internally
+ * represents the zero threshold as a exponential histogram bucket index with a scale,
+ * computed via {@link ExponentialScaleUtils#computeIndex(double, int)}.
  *
  * @param index The index used with the scale to determine the zero threshold.
  * @param scale The scale used with the index to determine the zero threshold.
@@ -63,7 +66,8 @@ public record ZeroBucket(long index, int scale, long count) {
     /**
      * Merges this zero bucket with another one.
      * <ul>
-     *     <li>If the other zero bucket is empty, this instance is returned unchanged.</li>
+     *     <li>If the other zero bucket or both are empty, this instance is returned unchanged.</li>
+     *     <li>If the this zero bucket is empty and the other one is populated, the other instance is returned unchanged.</li>
      *     <li>Otherwise, the zero threshold is increased if necessary (by taking the maximum of the two), and the counts are summed.</li>
      * </ul>
      *
@@ -73,6 +77,8 @@ public record ZeroBucket(long index, int scale, long count) {
     public ZeroBucket merge(ZeroBucket other) {
         if (other.count == 0) {
             return this;
+        } else if (count == 0) {
+            return other;
         } else {
             long totalCount = count + other.count;
             // Both are populated, so we need to use the higher zero-threshold.
@@ -91,7 +97,7 @@ public record ZeroBucket(long index, int scale, long count) {
      * @param bucketIterators The iterators whose buckets may be collapsed.
      * @return A potentially updated {@link ZeroBucket} with the collapsed buckets' counts and an adjusted threshold.
      */
-    public ZeroBucket collapseOverlappingBuckets(BucketIterator... bucketIterators) {
+    public ZeroBucket collapseOverlappingBucketsForAll(BucketIterator... bucketIterators) {
         ZeroBucket current = this;
         ZeroBucket previous;
         do {

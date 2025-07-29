@@ -87,8 +87,8 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
      * <br>
      * Callers must adhere to the following rules:
      * <ul>
-     *     <li>All buckets from the negative range must be provided before the first one from the positive range.</li>
-     *     <li>For both the negative and positive ranges, buckets must be provided in ascending index order.</li>
+     *     <li>All buckets for the negative values range must be provided before the first one from the positive values range.</li>
+     *     <li>For both the negative and positive ranges, buckets must be provided with their indices in ascending order.</li>
      *     <li>It is not allowed to provide the same bucket more than once.</li>
      *     <li>It is not allowed to add empty buckets ({@code count <= 0}).</li>
      * </ul>
@@ -105,7 +105,7 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
     boolean tryAddBucket(long index, long count, boolean isPositive) {
         assert index >= MIN_INDEX && index <= MAX_INDEX : "index must be in range [" + MIN_INDEX + ".." + MAX_INDEX + "]";
         assert isPositive || positiveBuckets.numBuckets == 0 : "Cannot add negative buckets after a positive bucket has been added";
-        assert count > 0 : "Cannot add an empty or negative bucket";
+        assert count > 0 : "Cannot add a bucket with empty or negative count";
         if (isPositive) {
             return positiveBuckets.tryAddBucket(index, count);
         } else {
@@ -144,7 +144,7 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
         }
 
         /**
-         * @return the array index of the first bucket of this set of buckets within {@link #bucketCounts} and {@link #bucketIndices}.
+         * @return the position of the first bucket of this set of buckets within {@link #bucketCounts} and {@link #bucketIndices}.
          */
         int startSlot() {
             return isPositive ? negativeBuckets.numBuckets : 0;
@@ -158,6 +158,8 @@ final class FixedCapacityExponentialHistogram implements ExponentialHistogram {
 
         boolean tryAddBucket(long index, long count) {
             int slot = startSlot() + numBuckets;
+            assert numBuckets == 0 || bucketIndices[slot - 1] < index
+                : "Histogram buckets must be added with their indices in ascending order";
             if (slot >= bucketCounts.length) {
                 return false; // no more space
             }

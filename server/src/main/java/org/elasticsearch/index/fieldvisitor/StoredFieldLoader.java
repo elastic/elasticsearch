@@ -9,12 +9,14 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -203,9 +205,25 @@ public abstract class StoredFieldLoader {
         private final CustomFieldsVisitor visitor;
         private int doc = -1;
 
+        private static CustomFieldsVisitor getFieldsVisitor(Set<String> fields, boolean loadSource) {
+            if (fields.contains(IgnoredSourceFieldMapper.NAME)) {
+                return new CustomFieldsVisitor(fields, loadSource) {
+                    @Override
+                    public Status needsField(FieldInfo fieldInfo) {
+                        if (fieldInfo.name.startsWith(IgnoredSourceFieldMapper.NAME)) {
+                            return Status.YES;
+                        }
+                        return super.needsField(fieldInfo);
+                    }
+                };
+            }
+
+            return new CustomFieldsVisitor(fields, loadSource);
+        }
+
         ReaderStoredFieldLoader(CheckedBiConsumer<Integer, FieldsVisitor, IOException> reader, boolean loadSource, Set<String> fields) {
             this.reader = reader;
-            this.visitor = new CustomFieldsVisitor(fields, loadSource);
+            this.visitor = getFieldsVisitor(fields, loadSource);
         }
 
         @Override

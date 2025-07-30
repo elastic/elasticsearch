@@ -12,21 +12,31 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -160,17 +170,63 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        for (NameValue nameValue : context.getIgnoredFieldValues()) {
-            String fieldName = NAME;
-            if (context.indexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY)) {
-                fieldName = ignoredFieldName(nameValue.name);
+        if (context.indexSettings().getIndexVersionCreated().before(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY)) {
+            for (NameValue nameValue : context.getIgnoredFieldValues()) {
+                nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
             }
-            nameValue.doc().add(new StoredField(fieldName, encode(nameValue)));
+            return;
+        }
+
+        Map<LuceneDocument, Map<String, List<NameValue>>> entriesMap = new HashMap<>();
+
+        for (NameValue nameValue : context.getIgnoredFieldValues()) {
+            String fieldName = ignoredFieldName(nameValue.name());
+            entriesMap.computeIfAbsent(nameValue.doc(), d -> new HashMap<>())
+                .computeIfAbsent(fieldName, n -> new ArrayList<>())
+                .add(nameValue);
+        }
+
+        for (var docEntry : entriesMap.entrySet()) {
+            for (var fieldEntry : docEntry.getValue().entrySet()) {
+                docEntry.getKey().add(new StoredField(fieldEntry.getKey(), encodeMulti(fieldEntry.getValue())));
+            }
         }
     }
 
     public static String ignoredFieldName(String fieldName) {
         return NAME + "." + fieldName;
+    }
+
+    static BytesRef encodeMulti(List<NameValue> values) {
+        try {
+            BytesStreamOutput stream = new BytesStreamOutput();
+            stream.writeVInt(values.size());
+            for (var value : values) {
+                stream.writeVInt(value.parentOffset);
+                stream.writeString(value.name);
+                stream.writeBytesRef(value.value);
+            }
+            return stream.bytes().toBytesRef();
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to encode _ignored_source", e);
+        }
+    }
+
+    static List<NameValue> decodeMulti(BytesRef value) {
+        try {
+            StreamInput stream = new BytesArray(value).streamInput();
+            var count = stream.readVInt();
+            List<NameValue> values = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                int parentOffset = stream.readVInt();
+                String fieldName = stream.readString();
+                BytesRef valueBytes = stream.readBytesRef();
+                values.add(new NameValue(fieldName, parentOffset, valueBytes, null));
+            }
+            return values;
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failed to decode _ignored_source", e);
+        }
     }
 
     static byte[] encode(NameValue values) {
@@ -205,6 +261,91 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
 
         return fieldsToLoadForSyntheticSource;
+    }
+
+    public enum IgnoredFieldsLoader {
+        SINGLE_IGNORED_SOURCE {
+            @Override
+            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadIgnoredFields(
+                SourceFilter filter,
+                LeafStoredFieldLoader storedFieldLoader,
+                Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders
+            ) {
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
+                for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
+                    SourceLoader.SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
+                    if (loader != null) {
+                        loader.load(e.getValue());
+                    }
+                    if (IgnoredSourceFieldMapper.NAME.equals(e.getKey())) {
+                        for (Object value : e.getValue()) {
+                            if (objectsWithIgnoredFields == null) {
+                                objectsWithIgnoredFields = new HashMap<>();
+                            }
+                            IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                            if (filter != null
+                                && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
+                                // This path is filtered by the include/exclude rules
+                                continue;
+                            }
+                            objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
+                        }
+                    }
+                }
+                return objectsWithIgnoredFields;
+            }
+        },
+        PER_FIELD_IGNORED_SOURCE {
+            @Override
+            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadIgnoredFields(
+                SourceFilter filter,
+                LeafStoredFieldLoader storedFieldLoader,
+                Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders
+            ) {
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
+                for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
+                    SourceLoader.SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
+                    if (loader != null) {
+                        loader.load(e.getValue());
+                    }
+                    if (e.getKey().startsWith(IgnoredSourceFieldMapper.NAME)) {
+                        assert e.getValue().size() == 1;
+
+                        Object value = e.getValue().getFirst();
+                        if (objectsWithIgnoredFields == null) {
+                            objectsWithIgnoredFields = new HashMap<>();
+                        }
+                        List<IgnoredSourceFieldMapper.NameValue> nameValues = IgnoredSourceFieldMapper.decodeMulti((BytesRef) value);
+
+                        for (var nameValue : nameValues) {
+                            if (filter != null
+                                && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
+                                // This path is filtered by the include/exclude rules
+                                continue;
+                            }
+                            objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
+                        }
+                    }
+                }
+                return objectsWithIgnoredFields;
+            }
+        };
+
+        public abstract Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadIgnoredFields(
+            SourceFilter filter,
+            LeafStoredFieldLoader storedFieldLoader,
+            Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders
+        );
+    }
+
+    public IgnoredFieldsLoader ignoredFieldsLoader() {
+        return ignoredFieldsLoader(indexSettings.getIndexVersionCreated());
+    }
+
+    public static IgnoredFieldsLoader ignoredFieldsLoader(IndexVersion indexCreatedVersion) {
+        return indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY)
+            ? IgnoredFieldsLoader.PER_FIELD_IGNORED_SOURCE
+            : IgnoredFieldsLoader.SINGLE_IGNORED_SOURCE;
     }
 
     @Override

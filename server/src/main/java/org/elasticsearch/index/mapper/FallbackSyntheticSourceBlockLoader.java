@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -123,9 +124,13 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
                     if (ignoredSource == null) {
                         continue;
                     }
+                    assert ignoredSource.size() == 1;
 
-                    for (Object value : ignoredSource) {
-                        IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                    List<IgnoredSourceFieldMapper.NameValue> nameValues = IgnoredSourceFieldMapper.decodeMulti(
+                        (BytesRef) ignoredSource.getFirst()
+                    );
+
+                    for (var nameValue : nameValues) {
                         assert fieldPaths.contains(nameValue.name());
                         valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
                     }

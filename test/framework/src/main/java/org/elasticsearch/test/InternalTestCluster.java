@@ -178,8 +178,13 @@ import static org.junit.Assert.fail;
  * </p>
  */
 public final class InternalTestCluster extends TestCluster {
-    public interface NodeGrantProvider {
-        Closeable create(Settings settings, Path configPath);
+
+    /**
+     * Temporarily adds node paths based entitlements based on a node's {@code settings} and {@code configPath}
+     * until the returned handle is closed.
+     */
+    public interface EntitledNodePathsProvider {
+        Closeable addEntitledNodePaths(Settings settings, Path configPath);
     }
 
     private static final Logger logger = LogManager.getLogger(InternalTestCluster.class);
@@ -281,7 +286,7 @@ public final class InternalTestCluster extends TestCluster {
     // index of node to bootstrap as master, or BOOTSTRAP_MASTER_NODE_INDEX_AUTO or BOOTSTRAP_MASTER_NODE_INDEX_DONE
     private int bootstrapMasterNodeIndex = BOOTSTRAP_MASTER_NODE_INDEX_AUTO;
 
-    private final NodeGrantProvider nodeGrantProvider;
+    private final EntitledNodePathsProvider entitledNodePathsProvider;
 
     public InternalTestCluster(
         final long clusterSeed,
@@ -296,7 +301,7 @@ public final class InternalTestCluster extends TestCluster {
         final String nodePrefix,
         final Collection<Class<? extends Plugin>> mockPlugins,
         final Function<Client, Client> clientWrapper,
-        NodeGrantProvider nodeGrantProvider
+        EntitledNodePathsProvider entitledNodePathsProvider
     ) {
         this(
             clusterSeed,
@@ -314,7 +319,7 @@ public final class InternalTestCluster extends TestCluster {
             true,
             false,
             true,
-            nodeGrantProvider
+            entitledNodePathsProvider
         );
     }
 
@@ -334,7 +339,7 @@ public final class InternalTestCluster extends TestCluster {
         final boolean forbidPrivateIndexSettings,
         final boolean forceSingleDataPath,
         final boolean autoManageVotingExclusions,
-        final NodeGrantProvider nodeGrantProvider
+        final EntitledNodePathsProvider entitledNodePathsProvider
     ) {
         super(clusterSeed);
         this.autoManageMasterNodes = autoManageMasterNodes;
@@ -343,7 +348,7 @@ public final class InternalTestCluster extends TestCluster {
         this.baseDir = baseDir;
         this.clusterName = clusterName;
         this.autoManageVotingExclusions = autoManageVotingExclusions;
-        this.nodeGrantProvider = nodeGrantProvider;
+        this.entitledNodePathsProvider = entitledNodePathsProvider;
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
             throw new IllegalArgumentException("minimum and maximum number of data nodes must be >= 0");
         }
@@ -798,7 +803,7 @@ public final class InternalTestCluster extends TestCluster {
             plugins,
             configPath,
             forbidPrivateIndexSettings,
-            nodeGrantProvider.create(settings, configPath)
+            entitledNodePathsProvider.addEntitledNodePaths(settings, configPath)
         );
         node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
             @Override
@@ -1074,7 +1079,12 @@ public final class InternalTestCluster extends TestCluster {
                 .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed)
                 .build();
             Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
-            node = new MockNode(finalSettings, plugins, forbidPrivateIndexSettings, nodeGrantProvider.create(finalSettings, null));
+            node = new MockNode(
+                finalSettings,
+                plugins,
+                forbidPrivateIndexSettings,
+                entitledNodePathsProvider.addEntitledNodePaths(finalSettings, null)
+            );
             node.injector().getInstance(TransportService.class).addLifecycleListener(new LifecycleListener() {
                 @Override
                 public void afterStart() {

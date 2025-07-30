@@ -86,7 +86,7 @@ public class InternalTestClusterTests extends ESTestCase {
             nodePrefix,
             Collections.emptyList(),
             Function.identity(),
-            TEST_ENTITLEMENTS::newNodeGrant
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         InternalTestCluster cluster1 = new InternalTestCluster(
             clusterSeed,
@@ -101,7 +101,7 @@ public class InternalTestClusterTests extends ESTestCase {
             nodePrefix,
             Collections.emptyList(),
             Function.identity(),
-            TEST_ENTITLEMENTS::newNodeGrant
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         assertClusters(cluster0, cluster1, true);
     }
@@ -201,7 +201,7 @@ public class InternalTestClusterTests extends ESTestCase {
             nodePrefix,
             mockPlugins(),
             Function.identity(),
-            TEST_ENTITLEMENTS::newNodeGrant
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         cluster0.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
@@ -218,7 +218,7 @@ public class InternalTestClusterTests extends ESTestCase {
             nodePrefix,
             mockPlugins(),
             Function.identity(),
-            TEST_ENTITLEMENTS::newNodeGrant
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         cluster1.setBootstrapMasterNodeIndex(bootstrapMasterNodeIndex);
 
@@ -285,7 +285,7 @@ public class InternalTestClusterTests extends ESTestCase {
             nodePrefix,
             mockPlugins(),
             Function.identity(),
-            TEST_ENTITLEMENTS::newNodeGrant
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         try {
             cluster.beforeTest(random());
@@ -381,7 +381,7 @@ public class InternalTestClusterTests extends ESTestCase {
             "",
             mockPlugins(),
             Function.identity(),
-            TEST_ENTITLEMENTS::newNodeGrant
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         cluster.beforeTest(random());
         List<DiscoveryNodeRole> roles = new ArrayList<>();
@@ -474,7 +474,7 @@ public class InternalTestClusterTests extends ESTestCase {
             nodePrefix,
             plugins,
             Function.identity(),
-            TEST_ENTITLEMENTS::newNodeGrant
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         try {
             cluster.beforeTest(random());

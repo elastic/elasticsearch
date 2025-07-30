@@ -142,9 +142,10 @@ public class TestEntitlementsRule implements TestRule {
     }
 
     /**
-     * Creates a entitlement grant for node specific paths.
+     * Temporarily adds node paths based entitlements based on a node's {@code settings} and {@code configPath}
+     * until the returned handle is closed.
      */
-    public Closeable newNodeGrant(Settings settings, Path configPath) {
+    public Closeable addEntitledNodePaths(Settings settings, Path configPath) {
         if (POLICY_MANAGER == null) {
             return () -> {}; // noop if not running with entitlements
         }
@@ -153,20 +154,20 @@ public class TestEntitlementsRule implements TestRule {
         while (unwrappedConfigPath instanceof FilterPath fPath) {
             unwrappedConfigPath = fPath.getDelegate();
         }
-        NodeGrant nodeGrant = new NodeGrant(settings, unwrappedConfigPath, this::revokeGrant);
-        addGrant(nodeGrant);
-        return nodeGrant;
+        EntitledNodePaths entitledNodePaths = new EntitledNodePaths(settings, unwrappedConfigPath, this::removeEntitledNodePaths);
+        addEntitledNodePaths(entitledNodePaths);
+        return entitledNodePaths;
     }
 
     /**
-     * Revoke all open node grants.
+     * Revoke all entitled node paths.
      */
-    public void revokeNodeGrants() {
+    public void revokeAllEntitledNodePaths() {
         BASE_DIR_PATHS.keySet().retainAll(List.of(TEMP));
         POLICY_MANAGER.clearModuleEntitlementsCache();
     }
 
-    private record NodeGrant(Settings settings, Path configPath, Consumer<NodeGrant> onClose) implements Closeable {
+    private record EntitledNodePaths(Settings settings, Path configPath, Consumer<EntitledNodePaths> onClose) implements Closeable {
         private Path homeDir() {
             return absolutePath(PATH_HOME_SETTING.get(settings));
         }
@@ -179,7 +180,7 @@ public class TestEntitlementsRule implements TestRule {
             List<String> dataDirs = PATH_DATA_SETTING.get(settings);
             return dataDirs.isEmpty()
                 ? new Path[] { homeDir().resolve("data") }
-                : dataDirs.stream().map(NodeGrant::absolutePath).toArray(Path[]::new);
+                : dataDirs.stream().map(EntitledNodePaths::absolutePath).toArray(Path[]::new);
         }
 
         private Path[] sharedDataDir() {
@@ -188,7 +189,7 @@ public class TestEntitlementsRule implements TestRule {
         }
 
         private Path[] repoDirs() {
-            return PATH_REPO_SETTING.get(settings).stream().map(NodeGrant::absolutePath).toArray(Path[]::new);
+            return PATH_REPO_SETTING.get(settings).stream().map(EntitledNodePaths::absolutePath).toArray(Path[]::new);
         }
 
         @SuppressForbidden(reason = "must be resolved using the default file system, rather then the mocked test file system")
@@ -207,7 +208,7 @@ public class TestEntitlementsRule implements TestRule {
         @Override
         public String toString() {
             return Strings.format(
-                "NodeGrant[configDir=%s, dataDirs=%s, sharedDataDir=%s, repoDirs=%s]",
+                "EntitledNodePaths[configDir=%s, dataDirs=%s, sharedDataDir=%s, repoDirs=%s]",
                 configDir(),
                 dataDirs(),
                 sharedDataDir(),
@@ -216,21 +217,21 @@ public class TestEntitlementsRule implements TestRule {
         }
     }
 
-    private void addGrant(NodeGrant nodeGrant) {
-        logger.debug("Adding node grant: {}", nodeGrant);
-        BASE_DIR_PATHS.compute(BaseDir.CONFIG, baseDirModifier(Collection::add, nodeGrant.configDir()));
-        BASE_DIR_PATHS.compute(BaseDir.DATA, baseDirModifier(Collection::add, nodeGrant.dataDirs()));
-        BASE_DIR_PATHS.compute(BaseDir.SHARED_DATA, baseDirModifier(Collection::add, nodeGrant.sharedDataDir()));
-        BASE_DIR_PATHS.compute(BaseDir.SHARED_REPO, baseDirModifier(Collection::add, nodeGrant.repoDirs()));
+    private void addEntitledNodePaths(EntitledNodePaths entitledNodePaths) {
+        logger.debug("Adding {}", entitledNodePaths);
+        BASE_DIR_PATHS.compute(BaseDir.CONFIG, baseDirModifier(Collection::add, entitledNodePaths.configDir()));
+        BASE_DIR_PATHS.compute(BaseDir.DATA, baseDirModifier(Collection::add, entitledNodePaths.dataDirs()));
+        BASE_DIR_PATHS.compute(BaseDir.SHARED_DATA, baseDirModifier(Collection::add, entitledNodePaths.sharedDataDir()));
+        BASE_DIR_PATHS.compute(BaseDir.SHARED_REPO, baseDirModifier(Collection::add, entitledNodePaths.repoDirs()));
         POLICY_MANAGER.clearModuleEntitlementsCache();
     }
 
-    private void revokeGrant(NodeGrant nodeGrant) {
-        logger.debug("Revoking node grant: {}", nodeGrant);
-        BASE_DIR_PATHS.compute(BaseDir.CONFIG, baseDirModifier(Collection::remove, nodeGrant.configDir()));
-        BASE_DIR_PATHS.compute(BaseDir.DATA, baseDirModifier(Collection::remove, nodeGrant.dataDirs()));
-        BASE_DIR_PATHS.compute(BaseDir.SHARED_DATA, baseDirModifier(Collection::remove, nodeGrant.sharedDataDir()));
-        BASE_DIR_PATHS.compute(BaseDir.SHARED_REPO, baseDirModifier(Collection::remove, nodeGrant.repoDirs()));
+    private void removeEntitledNodePaths(EntitledNodePaths entitledNodePaths) {
+        logger.debug("Removing {}", entitledNodePaths);
+        BASE_DIR_PATHS.compute(BaseDir.CONFIG, baseDirModifier(Collection::remove, entitledNodePaths.configDir()));
+        BASE_DIR_PATHS.compute(BaseDir.DATA, baseDirModifier(Collection::remove, entitledNodePaths.dataDirs()));
+        BASE_DIR_PATHS.compute(BaseDir.SHARED_DATA, baseDirModifier(Collection::remove, entitledNodePaths.sharedDataDir()));
+        BASE_DIR_PATHS.compute(BaseDir.SHARED_REPO, baseDirModifier(Collection::remove, entitledNodePaths.repoDirs()));
         POLICY_MANAGER.clearModuleEntitlementsCache();
     }
 

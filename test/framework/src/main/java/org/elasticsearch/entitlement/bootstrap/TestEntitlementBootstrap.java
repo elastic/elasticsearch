@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.bootstrap;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -19,6 +20,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
 import org.elasticsearch.entitlement.runtime.policy.TestPathLookup;
@@ -32,39 +34,104 @@ import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toCollection;
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
-import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.CONFIG;
 import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TEMP;
+import static org.elasticsearch.env.Environment.PATH_DATA_SETTING;
+import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
+import static org.elasticsearch.env.Environment.PATH_REPO_SETTING;
 
 public class TestEntitlementBootstrap {
 
     private static final Logger logger = LogManager.getLogger(TestEntitlementBootstrap.class);
 
+    private static Map<BaseDir, Collection<Path>> baseDirPaths = new ConcurrentHashMap<>();
     private static TestPolicyManager policyManager;
 
     /**
      * Activates entitlement checking in tests.
      */
-    public static void bootstrap(@Nullable Path tempDir, @Nullable Path configDir) throws IOException {
+    public static void bootstrap(@Nullable Path tempDir) throws IOException {
         if (isEnabledForTest() == false) {
             return;
         }
-        TestPathLookup pathLookup = new TestPathLookup(Map.of(TEMP, zeroOrOne(tempDir), CONFIG, zeroOrOne(configDir)));
+        var previousTempDir = baseDirPaths.put(TEMP, zeroOrOne(tempDir));
+        assert previousTempDir == null : "Test entitlement bootstrap called multiple times";
+        TestPathLookup pathLookup = new TestPathLookup(baseDirPaths);
         policyManager = createPolicyManager(pathLookup);
         EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
         logger.debug("Loading entitlement agent");
         EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
+    }
+
+    public static void registerNodeBaseDirs(Settings settings, Path configPath) {
+        if (policyManager == null) {
+            return;
+        }
+        Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
+        Path configDir = configPath != null ? configPath : homeDir.resolve("config");
+        Collection<Path> dataDirs = dataDirs(settings, homeDir);
+        Collection<Path> repoDirs = repoDirs(settings);
+        logger.debug("Registering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
+        baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.add(configDir)));
+        baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.addAll(dataDirs)));
+        baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.addAll(repoDirs)));
+        policyManager.reset();
+    }
+
+    public static void unregisterNodeBaseDirs(Settings settings, Path configPath) {
+        if (policyManager == null) {
+            return;
+        }
+        Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
+        Path configDir = configPath != null ? configPath : homeDir.resolve("config");
+        Collection<Path> dataDirs = dataDirs(settings, homeDir);
+        Collection<Path> repoDirs = repoDirs(settings);
+        logger.debug("Unregistering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
+        baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.remove(configDir)));
+        baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.removeAll(dataDirs)));
+        baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.removeAll(repoDirs)));
+        policyManager.reset();
+    }
+
+    private static Collection<Path> dataDirs(Settings settings, Path homeDir) {
+        List<String> dataDirs = PATH_DATA_SETTING.get(settings);
+        return dataDirs.isEmpty()
+            ? List.of(homeDir.resolve("data"))
+            : dataDirs.stream().map(TestEntitlementBootstrap::absolutePath).toList();
+    }
+
+    private static Collection<Path> repoDirs(Settings settings) {
+        return PATH_REPO_SETTING.get(settings).stream().map(TestEntitlementBootstrap::absolutePath).toList();
+    }
+
+    private static BiFunction<BaseDir, Collection<Path>, Collection<Path>> baseDirModifier(Consumer<Collection<Path>> consumer) {
+        return (BaseDir baseDir, Collection<Path> paths) -> {
+            if (paths == null) {
+                paths = new HashSet<>();
+            }
+            consumer.accept(paths);
+            return paths;
+        };
+    }
+
+    @SuppressForbidden(reason = "must be resolved using the default file system, rather then the mocked test file system")
+    private static Path absolutePath(String path) {
+        return Paths.get(path).toAbsolutePath().normalize();
     }
 
     private static <T> List<T> zeroOrOne(T item) {
@@ -128,8 +195,6 @@ public class TestEntitlementBootstrap {
         } else {
             classPathEntries = Arrays.stream(classPathProperty.split(separator)).map(PathUtils::get).collect(toCollection(TreeSet::new));
         }
-        Map<String, Collection<Path>> pluginSourcePaths = pluginNames.stream().collect(toMap(n -> n, n -> classPathEntries));
-
         FilesEntitlementsValidation.validate(pluginPolicies, pathLookup);
 
         String testOnlyPathString = System.getenv("es.entitlement.testOnlyPath");
@@ -148,8 +213,8 @@ public class TestEntitlementBootstrap {
             HardcodedEntitlements.agentEntitlements(),
             pluginPolicies,
             scopeResolver,
-            pluginSourcePaths,
             pathLookup,
+            classPathEntries,
             testOnlyClassPath
         );
     }

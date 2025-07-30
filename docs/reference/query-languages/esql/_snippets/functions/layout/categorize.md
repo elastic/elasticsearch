@@ -19,5 +19,8 @@
 :::{include} ../types/categorize.md
 :::
 
+:::{include} ../functionNamedParams/categorize.md
+:::
+
 :::{include} ../examples/categorize.md
 :::

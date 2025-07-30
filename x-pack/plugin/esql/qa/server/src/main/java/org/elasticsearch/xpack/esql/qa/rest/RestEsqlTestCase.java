@@ -1105,7 +1105,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      *     query. It's part of the "configuration" of the query.
      * </p>
      */
-    @AwaitsFix(bugUrl = "Disabled temporarily until JOIN implementation is completed")
     public void testInlineStatsNow() throws IOException {
         assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
@@ -1121,8 +1120,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     .item("value" + i)
                     .item("value" + i)
                     .item(i)
-                    .item(any(String.class))
                     .item(499.5)
+                    .item(any(String.class))
             );
         }
         assertResultMap(
@@ -1131,8 +1130,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 .item(matchesMap().entry("name", "test").entry("type", "text"))
                 .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
                 .item(matchesMap().entry("name", "value").entry("type", "long"))
-                .item(matchesMap().entry("name", "now").entry("type", "date"))
-                .item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+                .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
+                .item(matchesMap().entry("name", "now").entry("type", "date")),
             values
         );
     }

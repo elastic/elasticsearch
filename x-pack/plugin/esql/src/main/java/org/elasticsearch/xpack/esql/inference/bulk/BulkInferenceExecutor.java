@@ -66,7 +66,6 @@ public class BulkInferenceExecutor {
         }
     };
 
-
     /**
      * Constructs a new {@code BulkInferenceExecutor}.
      *
@@ -116,7 +115,6 @@ public class BulkInferenceExecutor {
 
         new BulkInferenceRequest(requests, responseConsumer, completionListener).executePendingRequests();
     }
-
 
     /**
      * Encapsulates the execution state and logic for a single bulk inference operation.

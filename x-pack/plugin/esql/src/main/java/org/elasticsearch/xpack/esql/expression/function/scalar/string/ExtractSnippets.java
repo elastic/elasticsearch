@@ -81,7 +81,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             description = "The length of snippets to return. Defaults to " + DEFAULT_SNIPPET_LENGTH
         ) Expression snippetLength
     ) {
-        super(source, numSnippets == null ? Collections.singletonList(str) : Arrays.asList(str, numSnippets));
+        super(source, List.of(field, str, numSnippets, snippetLength));
         this.field = field;
         this.str = str;
         this.numSnippets = numSnippets;
@@ -157,10 +157,10 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
     public Expression replaceChildren(List<Expression> newChildren) {
         return new ExtractSnippets(
             source(),
-            field,
             newChildren.get(0),
-            numSnippets == null ? null : newChildren.get(1),
-            snippetLength
+            newChildren.get(1),
+            numSnippets == null ? null : newChildren.get(2),
+            newChildren.get(3)
         );
     }
 

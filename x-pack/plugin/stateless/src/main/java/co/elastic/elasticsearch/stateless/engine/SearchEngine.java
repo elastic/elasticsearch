@@ -864,6 +864,16 @@ public class SearchEngine extends Engine {
     }
 
     @Override
+    public void suspendThrottling() {
+
+    }
+
+    @Override
+    public void resumeThrottling() {
+
+    }
+
+    @Override
     public int restoreLocalHistoryFromTranslog(TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
         return 0;
     }

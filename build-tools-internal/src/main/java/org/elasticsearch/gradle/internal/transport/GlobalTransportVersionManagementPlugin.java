@@ -12,56 +12,50 @@ package org.elasticsearch.gradle.internal.transport;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.Copy;
+import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getPluginManager().apply(LifecycleBasePlugin.class);
 
         DependencyHandler depsHandler = project.getDependencies();
-        List<Dependency> tvDependencies = new ArrayList<>();
-        // TODO: created a named configuration so deps can be added dynamically?
-        for (String baseProjectPath : List.of(":modules", ":plugins", ":x-pack:plugin")) {
-            Project baseProject = project.project(baseProjectPath);
-            for (var pluginProject : baseProject.getSubprojects()) {
-                if (pluginProject.getParent() != baseProject) {
-                    continue; // skip nested projects
-                }
-                tvDependencies.add(depsHandler.project(Map.of("path", pluginProject.getPath())));
-            }
-        }
-        tvDependencies.add(depsHandler.project(Map.of("path", ":server")));
-
-        Configuration tvReferencesConfig = project.getConfigurations().detachedConfiguration(tvDependencies.toArray(new Dependency[0]));
+        Configuration tvReferencesConfig = project.getConfigurations().create("globalTvReferences");
+        tvReferencesConfig.setCanBeConsumed(false);
+        tvReferencesConfig.setCanBeResolved(true);
         tvReferencesConfig.attributes(TransportVersionUtils::addTransportVersionReferencesAttribute);
 
+        // iterate through all projects, and if the management plugin is applied, add that project back as a dep to check
+        for (Project subProject : project.getRootProject().getSubprojects()) {
+            subProject.getPlugins().withType(TransportVersionManagementPlugin.class).configureEach(plugin -> {
+                tvReferencesConfig.getDependencies().add(depsHandler.project(Map.of("path", subProject.getPath())));
+            });
+        }
+
         var validateTask = project.getTasks()
-            .register("validateTransportVersionConstants", ValidateTransportVersionDefinitionsTask.class, t -> {
+            .register("validateTransportVersionDefinitions", ValidateTransportVersionDefinitionsTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
-                t.getTVDataDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
+                t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
-
-        project.getTasks().named("check").configure(t -> t.dependsOn(validateTask));
+        project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));
 
         var generateManifestTask = project.getTasks()
             .register("generateTransportVersionManifest", GenerateTransportVersionManifestTask.class, t -> {
                 t.setGroup("Transport Versions");
-                t.setDescription("Generate a manifest resource for all the known transport version constants");
+                t.setDescription("Generate a manifest resource for all the known transport version definitions");
                 t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
                 t.getManifestFile().set(project.getLayout().getBuildDirectory().file("generated-resources/manifest.txt"));
             });
         project.getTasks().named(JavaPlugin.PROCESS_RESOURCES_TASK_NAME, Copy.class).configure(t -> {
-            t.into("transport/constants", c -> c.from(generateManifestTask));
+            t.into("transport/defined", c -> c.from(generateManifestTask));
         });
     }
 }

@@ -12,8 +12,8 @@ package org.elasticsearch.gradle.internal.transport;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
-import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
@@ -33,14 +33,13 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.jar.JarInputStream;
-import java.util.zip.ZipEntry;
 
 /**
  * This task locates all method invocations of org.elasticsearch.TransportVersion#fromName(java.lang.String) in the
  * provided directory, and then records the value of string literals passed as arguments. It then records each
  * string on a newline along with path and line number in the provided output file.
  */
+@CacheableTask
 public abstract class CollectTransportVersionReferencesTask extends DefaultTask {
     public static final String TRANSPORT_VERSION_SET_CLASS = "org/elasticsearch/TransportVersion";
     public static final String TRANSPORT_VERSION_SET_METHOD_NAME = "fromName";
@@ -50,7 +49,6 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
     /**
      * The directory to scan for method invocations.
      */
-    @InputFiles
     @Classpath
     public abstract ConfigurableFileCollection getClassPath();
 
@@ -69,9 +67,6 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
             Path file = cpElement.toPath();
             if (Files.isDirectory(file)) {
                 addNamesFromClassesDirectory(results, file);
-            } else {
-                assert file.getFileName().toString().endsWith(".jar");
-                addNamesFromJar(results, file);
             }
         }
 
@@ -92,18 +87,6 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
                 return FileVisitResult.CONTINUE;
             }
         });
-    }
-
-    private void addNamesFromJar(Set<TransportVersionUtils.TransportVersionReference> results, Path file) throws IOException {
-        try (var jar = new JarInputStream(Files.newInputStream(file))) {
-            ZipEntry entry;
-            while ((entry = jar.getNextEntry()) != null) {
-                String filename = entry.getName();
-                if (filename.endsWith(CLASS_EXTENSION) && filename.endsWith(MODULE_INFO) == false) {
-                    addNamesFromClass(results, jar, classname(entry.toString()));
-                }
-            }
-        }
     }
 
     private void addNamesFromClass(Set<TransportVersionUtils.TransportVersionReference> results, InputStream classBytes, String classname)
@@ -145,6 +128,6 @@ public abstract class CollectTransportVersionReferencesTask extends DefaultTask 
     }
 
     private static String classname(String filename) {
-        return filename.substring(0, filename.length() - CLASS_EXTENSION.length()).replace('/', '.');
+        return filename.substring(0, filename.length() - CLASS_EXTENSION.length()).replaceAll("[/\\\\]", ".");
     }
 }

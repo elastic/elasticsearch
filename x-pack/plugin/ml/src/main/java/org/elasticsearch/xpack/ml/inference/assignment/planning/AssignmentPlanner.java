@@ -79,7 +79,7 @@ public class AssignmentPlanner {
         if (planSatisfyingCurrentAssignments.arePreviouslyAssignedModelsAssigned() || tryAssigningAllPreviouslyAllocatedModels == false) {
             bestPlan = planSatisfyingCurrentAssignments;
         } else {
-            // try to resue any deployment that would otherwise drop to zero allocations
+            // try to reuse any deployment that would otherwise drop to zero allocations
             AssignmentPlan planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated =
                 solveAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated();
             logger.debug(

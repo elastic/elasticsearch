@@ -217,8 +217,8 @@ public class AssignmentPlanTests extends ESTestCase {
             builder.assignModelToNode(m, n, 1);
 
             assertThat(builder.getRemainingCores(n), equalTo(2));
-            // base memory:  240+2*25 = 290MB
-            //since perDeployment memory is specified, we compute the new memory format usage:
+            // base memory: 240+2*25 = 290MB
+            // since perDeployment memory is specified, we compute the new memory format usage:
             // 250 (perDeployment) + 1*25 (perAllocation) + 25 (modelDefinition) = 300MB
             // Then we take the maximum of 290 and 300, which is 300MB
             assertThat(builder.getRemainingMemory(n), equalTo(ByteSizeValue.ofMb(0).getBytes()));
@@ -383,7 +383,7 @@ public class AssignmentPlanTests extends ESTestCase {
             // old memory format
             Deployment m = new Deployment("m_1", "m_1", ByteSizeValue.ofMb(31).getBytes(), 1, 1, Map.of("n_1", 1), 0, null, 0, 0);
             AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
-            //240 + 2*31 = 302MB, this doesn't fit in 300MB. We don't care that the deployment is currently allocated since
+            // 240 + 2*31 = 302MB, this doesn't fit in 300MB. We don't care that the deployment is currently allocated since
             // only previous assignments should be considered
             assertThat(builder.canAssign(m, n, 1), is(false));
         }

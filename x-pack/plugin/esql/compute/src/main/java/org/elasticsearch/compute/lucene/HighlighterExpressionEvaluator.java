@@ -46,12 +46,12 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
     @Override
     protected void appendMatch(BytesRefVector.Builder builder, Scorable scorer) throws IOException {
         // TODO: add snippets here
-        builder.appendBytesRef(new BytesRef("highlighted text")); // Placeholder for actual highlighted text
+        builder.appendBytesRef(new BytesRef("I am a snippet")); // Placeholder for actual highlighted text
     }
 
     @Override
     protected void appendNoMatch(BytesRefVector.Builder builder) {
-        // TODO: No-op?
+        builder.appendBytesRef(null);
     }
 
     @Override
@@ -62,6 +62,7 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
     public record Factory(ShardConfig[] shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            // TODO: Is it possible to add the highlight queyr here, rather than in ExtractSnippets?
             return new HighlighterExpressionEvaluator(context.blockFactory(), shardConfigs);
         }
     }

@@ -52,6 +52,8 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -136,6 +138,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * need one in ten documents.
          */
         public abstract double storedFieldsSequentialProportion();
+
+        public abstract void addHighlightQuery(String field, String str, int numSnippets, int snippetLength, QueryBuilder queryBuilder);
     }
 
     private final List<ShardContext> shardContexts;
@@ -496,6 +500,44 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public double storedFieldsSequentialProportion() {
             return EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.get(ctx.getIndexSettings().getSettings());
+        }
+
+        @Override
+        public void addHighlightQuery(String field, String str, int numSnippets, int snippetLength, QueryBuilder queryBuilder) {
+            try {
+                // TODO: Reduce duplication between this method and TextSimilarityRerankingRankFeaturePhaseRankShardContext#prepareForFetch
+                HighlightBuilder highlightBuilder = new HighlightBuilder();
+                if (queryBuilder != null) {
+                    highlightBuilder.highlightQuery(queryBuilder);
+                }
+                // Stripping pre/post tags as they're not useful for snippet creation
+                highlightBuilder.field(field).preTags("").postTags("");
+                // Return highest scoring fragments
+                highlightBuilder.order(HighlightBuilder.Order.SCORE);
+                highlightBuilder.numOfFragments(numSnippets);
+                highlightBuilder.fragmentSize(snippetLength);
+                highlightBuilder.noMatchSize(snippetLength);
+
+                SearchHighlightContext highlightContext = highlightBuilder.build(ctx);
+
+                // Update the active SearchContext with the highlight context
+                if (releasable instanceof org.elasticsearch.search.internal.SearchContext searchContext) {
+                    searchContext.highlight(highlightContext);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(
+                    "Failed to create highlight context for field ["
+                        + field
+                        + "], str ["
+                        + str
+                        + "], numSnippets: ["
+                        + numSnippets
+                        + "], snippetLength: ["
+                        + snippetLength
+                        + "]",
+                    e
+                );
+            }
         }
 
         @Override

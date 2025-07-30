@@ -15,6 +15,7 @@ import org.elasticsearch.compute.lucene.LuceneQueryEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -157,10 +158,10 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
     public Expression replaceChildren(List<Expression> newChildren) {
         return new ExtractSnippets(
             source(),
-            newChildren.get(0),
-            newChildren.get(1),
+            newChildren.get(0), // field
+            newChildren.get(1), // str
             numSnippets == null ? null : newChildren.get(2),
-            newChildren.get(3)
+            snippetLength == null ? null : newChildren.get(3)
         );
     }
 
@@ -175,6 +176,13 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         LuceneQueryEvaluator.ShardConfig[] shardConfigs = new LuceneQueryEvaluator.ShardConfig[shardContexts.size()];
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
+            shardContext.addHighlightQuery(
+                field.sourceText(),
+                str.sourceText(),
+                Integer.parseInt(numSnippets.sourceText()),
+                Integer.parseInt(snippetLength.sourceText()),
+                queryBuilder()
+            );
             shardConfigs[i++] = new LuceneQueryEvaluator.ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
         }
         return new HighlighterExpressionEvaluator.Factory(shardConfigs);

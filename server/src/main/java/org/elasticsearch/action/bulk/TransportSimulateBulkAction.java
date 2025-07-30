@@ -68,6 +68,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -137,7 +138,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
         Map<String, Object> mappingAddition = ((SimulateBulkRequest) bulkRequest).getMappingAddition();
         MapperService.MergeReason mappingMergeReason = Optional.ofNullable(((SimulateBulkRequest) bulkRequest).getMappingMergeReason())
-            .map(mergeReason -> MapperService.MergeReason.valueOf(mergeReason.toUpperCase()))
+            .map(mergeReason -> MapperService.MergeReason.valueOf(mergeReason.toUpperCase(Locale.ROOT)))
             .orElse(MapperService.MergeReason.MAPPING_UPDATE);
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);

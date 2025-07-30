@@ -350,14 +350,27 @@ public class ReshardIndexService {
         return projectMetadataBuilder.put(IndexMetadata.builder(indexMetadata).reshardingMetadata(null));
     }
 
-    public static RoutingTable.Builder reshardUpdateNumberOfShards(
-        final IndexReshardingMetadata reshardingMetadata,
-        final ProjectState projectState,
-        final ShardRoutingRoleStrategy shardRoutingRoleStrategy,
-        final Index index
+    /**
+     * Update a RoutingTable.Builder to change the number of shards of an existing index
+     * <p>
+     * Currently only supports split into a multiple of the original shard count.
+     * New shards are created unassigned, with their recovery source set to a {@link RecoverySource.ReshardSplitRecoverySource}
+     * that contains a reference to the source node for each new shard. We use a special recovery source instead of deriving
+     * the source node from cluster state because recovery isn't given a handle on node topology when it runs, and the cluster
+     * state it can retrieve from the cluster service may not be up to date with the index metadata available during recovery:
+     * recovery runs during application of a new cluster state, before the changes are committed to the service.
+     * This approach also mimics peer recovery, and we would like to minimize divergence between recovery implementations
+     * as much as we reasonably can.
+     * @param routingTableBuilder      A routing table builder to update
+     * @param index                    The index to reshard
+     * @param reshardingMetadata       Metadata for managing the transition from the original to the new shard count
+     * @return the supplied RoutingTable.Builder updated to modify the shard count of the given index
+     */
+    static RoutingTable.Builder addShardsToRoutingTable(
+        final RoutingTable.Builder routingTableBuilder,
+        final Index index,
+        final IndexReshardingMetadata reshardingMetadata
     ) {
-        RoutingTable.Builder routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, projectState.routingTable());
-
         IndexRoutingTable indexRoutingTable = routingTableBuilder.getIndexRoutingTable(index.getName());
         // TODO: Testing suggests that this is not NULL for a closed index, so when is this NULL ?
         if (indexRoutingTable == null) {
@@ -450,7 +463,11 @@ public class ReshardIndexService {
             validateNumTargetShards(reshardingMetadata.shardCountAfter(), sourceMetadata);
 
             // TODO: Is it possible that routingTableBuilder and newMetadata are not consistent with each other
-            final var routingTableBuilder = reshardUpdateNumberOfShards(reshardingMetadata, projectState, shardRoutingRoleStrategy, index);
+            final var routingTableBuilder = addShardsToRoutingTable(
+                RoutingTable.builder(shardRoutingRoleStrategy, projectState.routingTable()),
+                index,
+                reshardingMetadata
+            );
 
             ProjectMetadata projectMetadata = metadataUpdateNumberOfShards(projectState, reshardingMetadata, index).build();
             // TODO: perhaps do not allow updating metadata of a closed index (are there any other conflicting operations ?)

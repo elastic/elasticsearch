@@ -169,16 +169,14 @@ public class ElasticsearchInternalService implements InferenceService {
         Map<String, Object> serviceSettingsMap,
         ActionListener<Model> modelListener
     ) {
-        var e5ServiceSettings = MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap);
+        var esServiceSettingsBuilder = MultilingualE5SmallInternalServiceSettings.fromMap(serviceSettingsMap);
 
-        if (e5ServiceSettings.getModelId() == null) {
-            e5ServiceSettings.setModelId(selectDefaultModelVariantBasedOnClusterArchitecture(platformArchitectures));
-        }
-
-        if (modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(platformArchitectures, e5ServiceSettings)) {
+        if (esServiceSettingsBuilder.getModelId() == null) {
+            esServiceSettingsBuilder.setModelId(selectDefaultModelVariantBasedOnClusterArchitecture(platformArchitectures));
+        } else if (modelVariantValidForArchitecture(platformArchitectures, esServiceSettingsBuilder.getModelId()) == false) {
             throw new IllegalArgumentException(
                 "Error parsing request config, model id does not match any models available on this platform. Was ["
-                    + e5ServiceSettings.getModelId()
+                    + esServiceSettingsBuilder.getModelId()
                     + "]"
             );
         }
@@ -191,17 +189,18 @@ public class ElasticsearchInternalService implements InferenceService {
                 inferenceEntityId,
                 taskType,
                 NAME,
-                (MultilingualE5SmallInternalServiceSettings) e5ServiceSettings.build()
+                (MultilingualE5SmallInternalServiceSettings) esServiceSettingsBuilder.build()
             )
         );
     }
 
-    private static boolean modelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic(
-        Set<String> platformArchitectures,
-        InternalServiceSettings.Builder e5ServiceSettings
-    ) {
-        return e5ServiceSettings.getModelId().equals(selectDefaultModelVariantBasedOnClusterArchitecture(platformArchitectures)) == false
-            && e5ServiceSettings.getModelId().equals(MULTILINGUAL_E5_SMALL_MODEL_ID) == false;
+    static boolean modelVariantValidForArchitecture(Set<String> platformArchitectures, String modelId) {
+        if (modelId.equals(MULTILINGUAL_E5_SMALL_MODEL_ID)) {
+            // platform agnostic model is always compatible
+            return true;
+        }
+
+        return modelId.equals(selectDefaultModelVariantBasedOnClusterArchitecture(platformArchitectures));
     }
 
     @Override

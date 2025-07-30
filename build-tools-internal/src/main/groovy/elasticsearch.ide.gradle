@@ -170,6 +170,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
               '-Djava.locale.providers=SPI,CLDR',
               '-Djava.library.path=' + testLibraryPath,
               '-Djna.library.path=' + testLibraryPath,
+              '-Dtests.testfeatures.enabled=true',
               // TODO: only open these for mockito when it is modularized
               '--add-opens=java.base/java.security.cert=ALL-UNNAMED',
               '--add-opens=java.base/java.nio.channels=ALL-UNNAMED',

@@ -1,5 +1,0 @@
-pr: 112720
-summary: Fix NPE in `dense_vector` stats
-area: Vector Search
-type: bug
-issues: []

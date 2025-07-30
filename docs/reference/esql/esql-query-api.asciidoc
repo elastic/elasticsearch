@@ -79,6 +79,8 @@ For syntax, refer to <<esql-locale-param>>.
 (Optional, boolean) If provided and `true` the response will include an extra `profile` object
 with information about how the query was executed. It provides insight into the performance
 of each part of the query. This is for human debugging as the object's format might change at any time.
+Think of this like https://www.postgresql.org/docs/current/sql-explain.html[EXPLAIN ANALYZE] or
+https://en.wikipedia.org/wiki/Query_plan[EXPLAIN PLAN].
 
 `query`::
 (Required, string) {esql} query to run. For syntax, refer to <<esql-syntax>>.
@@ -109,4 +111,6 @@ Values for the search results.
 `profile`::
 (object)
 Profile describing the execution of the query. Only returned if `profile` was sent in the body.
-The object itself is for human debugging and can change at any time.
+The object itself is for human debugging and can change at any time. Think of this like
+https://www.postgresql.org/docs/current/sql-explain.html[EXPLAIN ANALYZE] or
+https://en.wikipedia.org/wiki/Query_plan[EXPLAIN PLAN].

@@ -95,6 +95,11 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     @Override
+    public Set<String> supportedCapabilities() {
+        return SearchCapabilities.CAPABILITIES;
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
 
         SearchRequest searchRequest;

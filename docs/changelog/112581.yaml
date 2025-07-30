@@ -1,5 +1,0 @@
-pr: 112581
-summary: Fix missing header in `put_geoip_database` JSON spec
-area: Ingest Node
-type: bug
-issues: []

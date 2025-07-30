@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: allowed_warnings
+      test_runner_features: allowed_warnings_regex
 ---
 teardown:
   - do:
@@ -100,8 +100,8 @@ teardown:
 "Test date processor with no timezone configured":
 
   - do:
-      allowed_warnings:
-        - 'Date format [dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23'
+      allowed_warnings_regex:
+        - 'Date format \[dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23.*'
       ingest.put_pipeline:
         id: "my_pipeline"
         # sample formats from beats, featuring mongodb, icinga, apache
@@ -170,8 +170,8 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      allowed_warnings:
-        - 'Date format [dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23'
+      allowed_warnings_regex:
+        - 'Date format \[dd/MMM/yyyy:H:m:s Z] contains textual field specifiers that could change in JDK 23.*'
       index:
         index: test
         id: "1"
@@ -211,8 +211,8 @@ teardown:
 ---
 "Test week based date parsing":
   - do:
-      allowed_warnings:
-        - 'Date format [YYYY-ww] contains week-date field specifiers that are changing in JDK 23'
+      allowed_warnings_regex:
+        - 'Date format \[YYYY-ww] contains week-date field specifiers that are changing in JDK 23.*'
       indices.create:
         index: test
         body:
@@ -223,8 +223,8 @@ teardown:
                 format: YYYY-ww
 
   - do:
-      allowed_warnings:
-        - 'Date format [YYYY-ww] contains week-date field specifiers that are changing in JDK 23'
+      allowed_warnings_regex:
+        - 'Date format \[YYYY-ww] contains week-date field specifiers that are changing in JDK 23.*'
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >

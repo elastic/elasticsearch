@@ -14,9 +14,13 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
@@ -26,6 +30,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -54,6 +59,18 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         plugins.add(MockSearchService.TestPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalExchangePlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 5000)))
+            .build();
     }
 
     @Before
@@ -113,32 +130,64 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRejection() throws Exception {
-        String[] nodes = internalCluster().getNodeNames();
-        for (String node : nodes) {
-            MockTransportService ts = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
-            ts.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
-                handler.messageReceived(request, new TransportChannel() {
-                    @Override
-                    public String getProfileName() {
-                        return channel.getProfileName();
-                    }
+        DiscoveryNode dataNode = randomFrom(internalCluster().clusterService().state().nodes().getDataNodes().values());
+        String indexName = "single-node-index";
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.routing.allocation.require._name", dataNode.getName())
+            )
+            .setMapping("user", "type=keyword", "tags", "type=keyword")
+            .get();
+        client().prepareIndex(indexName)
+            .setSource("user", "u1", "tags", "lucene")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
-                    @Override
-                    public void sendResponse(TransportResponse response) {
-                        channel.sendResponse(new RemoteTransportException("simulated", new EsRejectedExecutionException("test queue")));
-                    }
+        MockTransportService ts = (MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getName());
+        CountDownLatch dataNodeRequestLatch = new CountDownLatch(1);
+        ts.addRequestHandlingBehavior(ComputeService.DATA_ACTION_NAME, (handler, request, channel, task) -> {
+            handler.messageReceived(request, channel, task);
+            dataNodeRequestLatch.countDown();
+        });
 
-                    @Override
-                    public void sendResponse(Exception exception) {
-                        channel.sendResponse(exception);
-                    }
-                }, task);
+        ts.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
+            ts.getThreadPool().generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    channel.sendResponse(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    assertTrue(dataNodeRequestLatch.await(30, TimeUnit.SECONDS));
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
+
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            channel.sendResponse(new RemoteTransportException("simulated", new EsRejectedExecutionException("test queue")));
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
+                }
             });
-        }
+        });
+
         try {
             AtomicReference<Exception> failure = new AtomicReference<>();
             EsqlQueryRequest request = new EsqlQueryRequest();
-            request.query("from test-* | stats count(user) by tags");
+            request.query("from single-node-index | stats count(user) by tags");
             request.acceptedPragmaRisks(true);
             request.pragmas(randomPragmas());
             CountDownLatch queryLatch = new CountDownLatch(1);
@@ -151,9 +200,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             assertThat(ExceptionsHelper.status(failure.get()), equalTo(RestStatus.TOO_MANY_REQUESTS));
             assertThat(failure.get().getMessage(), equalTo("test queue"));
         } finally {
-            for (String node : nodes) {
-                ((MockTransportService) internalCluster().getInstance(TransportService.class, node)).clearAllRules();
-            }
+            ts.clearAllRules();
         }
     }
 

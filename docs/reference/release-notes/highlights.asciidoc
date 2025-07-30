@@ -1,5 +1,6 @@
+[chapter]
 [[release-highlights]]
-== What's new in {minor-version}
+= What's new in {minor-version}
 
 coming::[{minor-version}]
 
@@ -33,7 +34,7 @@ endif::[]
 
 [discrete]
 [[stricter_failure_handling_in_multi_repo_get_snapshots_request_handling]]
-=== Stricter failure handling in multi-repo get-snapshots request handling
+== Stricter failure handling in multi-repo get-snapshots request handling
 If a multi-repo get-snapshots request encounters a failure in one of the
 targeted repositories then earlier versions of Elasticsearch would proceed
 as if the faulty repository did not exist, except for a per-repository
@@ -47,7 +48,7 @@ contents cannot be listed.
 
 [discrete]
 [[introduce_logs_index_mode_as_tech_preview]]
-=== Introduce `logsdb` index mode as Tech Preview
+== Introduce `logsdb` index mode as Tech Preview
 This change introduces a new index mode named `logsdb`.
 When the new index mode is enabled then the following storage savings features are enabled automatically:
 
@@ -64,7 +65,7 @@ The new `logsdb` index mode is a tech preview feature.
 
 [discrete]
 [[add_new_int4_quantization_to_dense_vector]]
-=== Add new int4 quantization to dense_vector
+== Add new int4 quantization to dense_vector
 New int4 (half-byte) scalar quantization support via two knew index types: `int4_hnsw` and `int4_flat`.
 This gives an 8x reduction from `float32` with some accuracy loss. In addition to less memory required, this
 improves query and merge speed significantly when compared to raw vectors.
@@ -73,7 +74,7 @@ improves query and merge speed significantly when compared to raw vectors.
 
 [discrete]
 [[mark_query_rules_as_ga]]
-=== Mark Query Rules as GA
+== Mark Query Rules as GA
 This PR marks query rules as Generally Available. All APIs are no longer
 in tech preview.
 
@@ -81,7 +82,7 @@ in tech preview.
 
 [discrete]
 [[adds_new_bit_element_type_for_dense_vectors]]
-=== Adds new `bit` `element_type` for `dense_vectors`
+== Adds new `bit` `element_type` for `dense_vectors`
 This adds `bit` vector support by adding `element_type: bit` for
 vectors. This new element type works for indexed and non-indexed
 vectors. Additionally, it works with `hnsw` and `flat` index types. No
@@ -110,7 +111,7 @@ the vectors.
 
 [discrete]
 [[redact_processor_generally_available]]
-=== The Redact processor is Generally Available
+== The Redact processor is Generally Available
 The Redact processor uses the Grok rules engine to obscure text in the input document matching the given Grok patterns. The Redact processor was initially released as Technical Preview in `8.7.0`, and is now released as Generally Available.
 
 {es-pull}110395[#110395]
@@ -120,7 +121,7 @@ The Redact processor uses the Grok rules engine to obscure text in the input doc
 
 [discrete]
 [[new_custom_parser_for_iso_8601_datetimes]]
-=== New custom parser for ISO-8601 datetimes
+== New custom parser for ISO-8601 datetimes
 This introduces a new custom parser for ISO-8601 datetimes, for the `iso8601`, `strict_date_optional_time`, and
 `strict_date_optional_time_nanos` built-in date formats. This provides a performance improvement over the
 default Java date-time parsing. Whilst it maintains much of the same behaviour,
@@ -134,7 +135,7 @@ set the JVM property `es.datetime.java_time_parsers=true` on all ES nodes.
 
 [discrete]
 [[new_custom_parser_for_more_iso_8601_date_formats]]
-=== New custom parser for more ISO-8601 date formats
+== New custom parser for more ISO-8601 date formats
 Following on from #106486, this extends the custom ISO-8601 datetime parser to cover the `strict_year`,
 `strict_year_month`, `strict_date_time`, `strict_date_time_no_millis`, `strict_date_hour_minute_second`,
 `strict_date_hour_minute_second_millis`, and `strict_date_hour_minute_second_fraction` date formats.
@@ -145,7 +146,7 @@ As before, the parser will use the existing java.time parser if there are parsin
 
 [discrete]
 [[preview_support_for_connection_type_domain_isp_databases_in_geoip_processor]]
-=== Preview: Support for the 'Connection Type, 'Domain', and 'ISP' databases in the geoip processor
+== Preview: Support for the 'Connection Type, 'Domain', and 'ISP' databases in the geoip processor
 As a Technical Preview, the {ref}/geoip-processor.html[`geoip`] processor can now use the commercial
 https://dev.maxmind.com/geoip/docs/databases/connection-type[GeoIP2 'Connection Type'],
 https://dev.maxmind.com/geoip/docs/databases/domain[GeoIP2 'Domain'],
@@ -157,7 +158,7 @@ databases from MaxMind.
 
 [discrete]
 [[update_elasticsearch_to_lucene_9_11]]
-=== Update Elasticsearch to Lucene 9.11
+== Update Elasticsearch to Lucene 9.11
 Elasticsearch is now updated using the latest Lucene version 9.11.
 Here are the full release notes:
 But, here are some particular highlights:
@@ -170,7 +171,7 @@ But, here are some particular highlights:
 
 [discrete]
 [[synthetic_source_improvements]]
-=== Synthetic `_source` improvements
+== Synthetic `_source` improvements
 There are multiple improvements to synthetic `_source` functionality:
 
 * Synthetic `_source` is now supported for all field types including `nested` and `object`. `object` fields are supported with `enabled` set to `false`.
@@ -181,10 +182,9 @@ There are multiple improvements to synthetic `_source` functionality:
 
 [discrete]
 [[index_sorting_on_indexes_with_nested_fields]]
-=== Index sorting on indexes with nested fields
+== Index sorting on indexes with nested fields
 Index sorting is now supported for indexes with mappings containing nested objects.
 The index sort spec (as specified by `index.sort.field`) can't contain any nested
 fields, still.
 
 {es-pull}110251[#110251]
-

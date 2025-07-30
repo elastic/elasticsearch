@@ -1,0 +1,29 @@
+[[release-notes-8.15.5]]
+== {es} version 8.15.5
+
+Also see <<breaking-changes-8.15,Breaking changes in 8.15>>.
+
+[[bug-8.15.5]]
+[float]
+=== Bug fixes
+
+Machine Learning::
+* Fix bug in ML autoscaling when some node info is unavailable {es-pull}116650[#116650]
+
+Mapping::
+* Change synthetic source logic for `constant_keyword` {es-pull}117182[#117182] (issue: {es-issue}117083[#117083])
+
+Relevance::
+* Fix handling of bulk requests with semantic text fields and delete ops {es-pull}116942[#116942]
+
+Vector Search::
+* Update Semantic Query To Handle Zero Size Responses {es-pull}116277[#116277] (issue: {es-issue}116083[#116083])
+
+[[enhancement-8.15.5]]
+[float]
+=== Enhancements
+
+Data streams::
+* Apm-data: disable date_detection for all apm data streams {es-pull}116995[#116995]
+
+

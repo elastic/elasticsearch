@@ -1,6 +1,0 @@
-pr: 111932
-summary: Fix union-types where one index is missing the field
-area: ES|QL
-type: bug
-issues:
- - 111912

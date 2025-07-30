@@ -21,6 +21,7 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -62,6 +63,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC;
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.bytesFromLong;
 import static org.elasticsearch.repositories.blobstore.testkit.ContendedRegisterAnalyzeAction.longFromBytes;
 import static org.hamcrest.Matchers.allOf;
@@ -85,9 +89,26 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         return List.of(TestPlugin.class, LocalStateCompositeXPackPlugin.class, SnapshotRepositoryTestKit.class);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // no throttling, so that even analyses which run to completion do not take too long
+            .put(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), ByteSizeValue.ZERO)
+            .build();
+    }
+
     @Before
     public void createBlobStore() {
-        createRepositoryNoVerify("test-repo", TestPlugin.DISRUPTABLE_REPO_TYPE);
+        createRepository(
+            "test-repo",
+            TestPlugin.DISRUPTABLE_REPO_TYPE,
+            randomRepositorySettings()
+                // no throttling, so that even analyses which run to completion do not take too long
+                .put(MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO)
+                .put(MAX_RESTORE_BYTES_PER_SEC.getKey(), ByteSizeValue.ZERO),
+            false
+        );
 
         blobStore = new DisruptableBlobStore();
         for (final RepositoriesService repositoriesService : internalCluster().getInstances(RepositoriesService.class)) {

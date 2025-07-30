@@ -304,11 +304,14 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     final CreateIndexClusterStateUpdateRequest updateRequest;
 
                     if (isManagedSystemIndex) {
-                        final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                            currentState.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
-                        );
+                        final var requiredMinimumMappingVersion = currentState.getMinSystemIndexMappingVersions()
+                            .get(mainDescriptor.getPrimaryIndex());
+                        final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(requiredMinimumMappingVersion);
                         if (descriptor == null) {
-                            final String message = mainDescriptor.getMinimumMappingsVersionMessage("auto-create index");
+                            final String message = mainDescriptor.getMinimumMappingsVersionMessage(
+                                "auto-create index",
+                                requiredMinimumMappingVersion
+                            );
                             logger.warn(message);
                             throw new IllegalStateException(message);
                         }

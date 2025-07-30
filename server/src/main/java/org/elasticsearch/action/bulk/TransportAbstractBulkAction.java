@@ -38,6 +38,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -171,10 +173,18 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     private boolean applyPipelines(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
         boolean hasIndexRequestsWithPipelines = false;
         final Metadata metadata = clusterService.state().getMetadata();
+        Map<String, IngestService.Pipelines> resolvedPipelineCache = new HashMap<>();
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
             IndexRequest indexRequest = getIndexWriteRequest(actionRequest);
             if (indexRequest != null) {
-                IngestService.resolvePipelinesAndUpdateIndexRequest(actionRequest, indexRequest, metadata);
+                if (indexRequest.isPipelineResolved() == false) {
+                    var pipeline = resolvedPipelineCache.computeIfAbsent(
+                        indexRequest.index(),
+                        // TODO perhaps this should use `threadPool.absoluteTimeInMillis()`, but leaving as is for now.
+                        (index) -> IngestService.resolvePipelines(actionRequest, indexRequest, metadata, System.currentTimeMillis())
+                    );
+                    IngestService.setPipelineOnRequest(indexRequest, pipeline);
+                }
                 hasIndexRequestsWithPipelines |= IngestService.hasPipeline(indexRequest);
             }
 

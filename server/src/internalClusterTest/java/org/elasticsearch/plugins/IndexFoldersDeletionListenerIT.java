@@ -350,7 +350,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
                 @Override
                 public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
-                    deletedShards.computeIfAbsent(shardId.getIndex(), i -> new ArrayList<>()).add(shardId);
+                    deletedShards.computeIfAbsent(shardId.getIndex(), i -> Collections.synchronizedList(new ArrayList<>())).add(shardId);
                 }
             });
         }

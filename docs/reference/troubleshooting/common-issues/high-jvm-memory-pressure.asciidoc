@@ -66,6 +66,8 @@ searches, consider the following setting changes:
 <<query-dsl-allow-expensive-queries,`search.allow_expensive_queries`>> cluster
 setting.
 
+* Set a default search timeout using the <<search-timeout,`search.default_search_timeout`>> cluster setting. 
+
 [source,console]
 ----
 PUT _settings

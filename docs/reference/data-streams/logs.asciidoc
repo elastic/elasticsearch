@@ -20,13 +20,15 @@ The following features are enabled in a logs data stream:
 [[how-to-use-logsds]]
 === Create a logs data stream
 
-To create a logs data stream, set your index template  `index.mode` to `logsdb`:
+IMPORTANT: Fleet integrations use <<index-templates,index templates>> managed by Elastic. To modify these backing templates, update their {observability-guide}/logs-index-template.html#custom-logs-template-edit[composite `custom` templates].
+
+To create a logs data stream, set your <<index-templates,template>> `index.mode` to `logsdb`:
 
 [source,console]
 ----
 PUT _index_template/my-index-template
 {
-  "index_patterns": ["logs-*"],
+  "index_patterns": ["my-datastream-*"],
   "data_stream": { },
   "template": {
      "settings": {

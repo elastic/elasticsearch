@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
-import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -131,9 +130,12 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
         int expectedDocs = docsBefore + docsAfter;
 
         // Count query
-        assertNoFailuresAndResponse(client().prepareSearch(INDEX_NAME).setSize(0).setTrackTotalHits(true).setSize(expectedDocs), response -> {
-            assertHitCount(response, expectedDocs);
-        });
+        assertNoFailuresAndResponse(
+            client().prepareSearch(INDEX_NAME).setSize(0).setTrackTotalHits(true).setSize(expectedDocs),
+            response -> {
+                assertHitCount(response, expectedDocs);
+            }
+        );
 
         // KNN query
         float[] queryVector = new float[dimensions];
@@ -141,9 +143,12 @@ public class DenseVectorFieldIndexTypeUpdateIT extends ESIntegTestCase {
             queryVector[i] = randomFloatBetween(-1, 1, true);
         }
         KnnVectorQueryBuilder queryBuilder = new KnnVectorQueryBuilder(VECTOR_FIELD, queryVector, null, null, null, null);
-        assertNoFailuresAndResponse(client().prepareSearch(INDEX_NAME).setQuery(queryBuilder).setTrackTotalHits(true).setSize(expectedDocs), response -> {
-            assertHitCount(response, expectedDocs);
-        });
+        assertNoFailuresAndResponse(
+            client().prepareSearch(INDEX_NAME).setQuery(queryBuilder).setTrackTotalHits(true).setSize(expectedDocs),
+            response -> {
+                assertHitCount(response, expectedDocs);
+            }
+        );
     }
 
     private XContentBuilder updateMapping(int dimensions, String type) throws IOException {

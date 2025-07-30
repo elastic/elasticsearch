@@ -3003,12 +3003,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error = command.getValue();
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"option\":null})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Invalid named parameter [\"option\":null], NULL is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"option\":null], NULL is not supported")
             );
         }
     }
@@ -3029,21 +3024,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
             String error = command.getValue();
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"\":1})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Invalid named parameter [\"\":1], empty key is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"\":1], empty key is not supported")
             );
             expectError(
                 LoggerMessageFormat.format(null, "from test | " + cmd, "fn(f1, {\"  \":1})"),
-                LoggerMessageFormat.format(
-                    null,
-                    "line 1:{}: {}",
-                    error,
-                    "Invalid named parameter [\"  \":1], empty key is not supported"
-                )
+                LoggerMessageFormat.format(null, "line 1:{}: {}", error, "Invalid named parameter [\"  \":1], empty key is not supported")
             );
         }
     }

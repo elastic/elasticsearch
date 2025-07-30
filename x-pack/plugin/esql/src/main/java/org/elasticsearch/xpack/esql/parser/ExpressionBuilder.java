@@ -651,11 +651,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             EsqlBaseParser.StringContext stringCtx = entry.string();
             String key = unquote(stringCtx.QUOTED_STRING().getText()); // key is case-sensitive
             if (key.isBlank()) {
-                throw new ParsingException(
-                    source(ctx),
-                    "Invalid named parameter [{}], empty key is not supported",
-                    entry.getText()
-                );
+                throw new ParsingException(source(ctx), "Invalid named parameter [{}], empty key is not supported", entry.getText());
             }
             if (names.contains(key)) {
                 throw new ParsingException(source(ctx), "Duplicated named parameters with the same name [{}] is not supported", key);
@@ -670,11 +666,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 namedArgs.add(l);
                 names.add(key);
             } else {
-                throw new ParsingException(
-                    source(ctx),
-                    "Invalid named parameter [{}], only constant value is supported",
-                    entryText
-                );
+                throw new ParsingException(source(ctx), "Invalid named parameter [{}], only constant value is supported", entryText);
             }
         }
         return new MapExpression(Source.EMPTY, namedArgs);

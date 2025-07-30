@@ -12,15 +12,13 @@ package org.elasticsearch;
 import org.elasticsearch.core.Assertions;
 
 import java.lang.reflect.Field;
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.function.IntFunction;
 
 /**
  * <p>Transport version is used to coordinate compatible wire protocol communication between nodes, at a fine-grained level.  This replaces
@@ -325,21 +323,14 @@ public class TransportVersions {
      */
     public static final TransportVersion MINIMUM_CCS_VERSION = RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18;
 
-    static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
+    /**
+     * Sorted list of all versions defined in this class
+     */
+    static final List<TransportVersion> DEFINED_VERSIONS = collectAllVersionIdsDefinedInClass(TransportVersions.class);
 
-    // the highest transport version constant defined in this file, used as a fallback for TransportVersion.current()
-    static final TransportVersion LATEST_DEFINED;
-    static {
-        LATEST_DEFINED = VERSION_IDS.lastEntry().getValue();
-
-        // see comment on IDS field
-        // now we're registered all the transport versions, we can clear the map
-        IDS = null;
-    }
-
-    public static NavigableMap<Integer, TransportVersion> getAllVersionIds(Class<?> cls) {
+    public static List<TransportVersion> collectAllVersionIdsDefinedInClass(Class<?> cls) {
         Map<Integer, String> versionIdFields = new HashMap<>();
-        NavigableMap<Integer, TransportVersion> builder = new TreeMap<>();
+        List<TransportVersion> definedTransportVersions = new ArrayList<>();
 
         Set<String> ignore = Set.of("ZERO", "CURRENT", "MINIMUM_COMPATIBLE", "MINIMUM_CCS_VERSION");
 
@@ -356,7 +347,7 @@ public class TransportVersions {
                 } catch (IllegalAccessException e) {
                     throw new AssertionError(e);
                 }
-                builder.put(version.id(), version);
+                definedTransportVersions.add(version);
 
                 if (Assertions.ENABLED) {
                     // check the version number is unique
@@ -373,14 +364,10 @@ public class TransportVersions {
             }
         }
 
-        return Collections.unmodifiableNavigableMap(builder);
-    }
+        Collections.sort(definedTransportVersions);
 
-    static Collection<TransportVersion> getAllVersions() {
-        return VERSION_IDS.values();
+        return List.copyOf(definedTransportVersions);
     }
-
-    static final IntFunction<String> VERSION_LOOKUP = ReleaseVersions.generateVersionsLookup(TransportVersions.class, LATEST_DEFINED.id());
 
     // no instance
     private TransportVersions() {}

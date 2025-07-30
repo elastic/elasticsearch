@@ -28,6 +28,9 @@ import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadT
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+import co.elastic.elasticsearch.stateless.commits.ShardLocalCommitsRefs;
+import co.elastic.elasticsearch.stateless.commits.ShardLocalCommitsTracker;
+import co.elastic.elasticsearch.stateless.commits.ShardLocalReadersTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
@@ -215,6 +218,12 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         when(commitService.getCommitBCCResolverForShard(any(ShardId.class))).thenReturn(
             generation -> Set.of(new PrimaryTermAndGeneration(1, generation))
         );
+        when(commitService.getShardLocalCommitsTracker(any(ShardId.class))).thenReturn(
+            new ShardLocalCommitsTracker(
+                new ShardLocalReadersTracker((bccHoldingClosedCommit, remainingReferencedBCCs) -> {}),
+                new ShardLocalCommitsRefs()
+            )
+        );
         return commitService;
     }
 
@@ -255,10 +264,10 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             hollowShardsService,
             sharedBlobCacheWarmingService,
             RefreshThrottler.Noop::new,
-            commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),
             commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
             documentParsingProvider,
-            engineMetrics
+            engineMetrics,
+            commitService.getShardLocalCommitsTracker(indexConfig.getShardId()).shardLocalReadersTracker()
         ) {
 
             @Override

@@ -20,6 +20,8 @@ package co.elastic.elasticsearch.stateless.engine;
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
+import co.elastic.elasticsearch.stateless.commits.ShardLocalCommitsTracker;
+import co.elastic.elasticsearch.stateless.commits.ShardLocalReadersTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -322,14 +324,16 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             openReaderGenerations.add(commitPrimaryTermAndGeneration);
             return Set.of(commitPrimaryTermAndGeneration);
         });
-        when(commitService.getIndexEngineLocalReaderListenerForShard(any())).thenReturn((bccHoldingClosedCommit, openBCCs) -> {
-            for (PrimaryTermAndGeneration primaryTermAndGeneration : openReaderGenerations) {
-                if (openBCCs.contains(primaryTermAndGeneration) == false) {
-                    closedReaderGenerations.add(primaryTermAndGeneration.generation());
+        when(commitService.getShardLocalCommitsTracker(any())).thenReturn(
+            new ShardLocalCommitsTracker(new ShardLocalReadersTracker((bccHoldingClosedCommit, openBCCs) -> {
+                for (PrimaryTermAndGeneration primaryTermAndGeneration : openReaderGenerations) {
+                    if (openBCCs.contains(primaryTermAndGeneration) == false) {
+                        closedReaderGenerations.add(primaryTermAndGeneration.generation());
+                    }
                 }
-            }
-            openReaderGenerations.removeIf(gen -> openBCCs.contains(gen) == false);
-        });
+                openReaderGenerations.removeIf(gen -> openBCCs.contains(gen) == false);
+            }), null)
+        );
         Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
         try (
             var engine = newIndexEngine(
@@ -578,10 +582,10 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mock(HollowShardsService.class),
                 mock(SharedBlobCacheWarmingService.class),
                 RefreshThrottler.Noop::new,
-                commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),
                 commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
                 DocumentParsingProvider.EMPTY_INSTANCE,
-                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP),
+                commitService.getShardLocalCommitsTracker(indexConfig.getShardId()).shardLocalReadersTracker()
             ) {
                 @Override
                 public void close() throws IOException {

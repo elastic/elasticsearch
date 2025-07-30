@@ -36,23 +36,26 @@ import java.util.Set;
 /**
  * Index deletion policy used in {@link IndexEngine}.
  * <p>
- * This policy allows to retain Lucene commits across engine resets: it uses an instance of {@link LocalCommitsRefs}, created once when the
- * index shard is created, to keep track of the acquired commits. When an {@link IndexEngine} is unhollow, its new
- * {@link IndexEngineDeletionPolicy} receives the same {@link LocalCommitsRefs} instance and therefore can know the commits that were
+ * This policy allows to retain Lucene commits across engine resets: it uses an instance of {@link ShardLocalCommitsRefs},
+ * created once when the index shard is created, to keep track of the acquired commits. When an {@link IndexEngine} is unhollow, its new
+ * {@link IndexEngineDeletionPolicy} receives the same {@link ShardLocalCommitsRefs} instance and therefore can know the commits that were
  * previously acquired by a different engine instance.
+ *
  * <p>
  * This policy delegates the deletion of local commits to the default CombinedDeletionPolicy policy. To prevent the default policy from
- * deleting a commit from the disk that is retained at the shard level by {@link LocalCommitsRefs}, the policy wraps the commits as
+ * deleting a commit from the disk that is retained at the shard level by {@link ShardLocalCommitsRefs}, the policy wraps the commits as
  * {@link SoftDeleteIndexCommit} before passing them to the default policy. If the default policy deletes the local commit by calling
  * {@link IndexCommit#delete()} on the soft-delete index commit, the deletion of the commit files from disk is suppressed and the commit is
- * marked as soft-deleted. Once a soft-deleted commit is fully released (once their refcount in {@link LocalCommitsRefs} is zeroed),
- * the {@link LocalCommitsRefs} tries to delete the commit from disk by calling the {@link IndexCommit#delete()} on the original commit.
- *s <p>
+ * marked as soft-deleted. Once a soft-deleted commit is fully released (once their refcount in {@link ShardLocalCommitsRefs} is zeroed),
+ * the {@link ShardLocalCommitsRefs} tries to delete the commit from disk by calling the {@link IndexCommit#delete()} on the
+ * original commit.
+ *
+ * <p>
  * This policy also calls specific consumers when a new commit is created or an existing commit deleted.
  */
 public class IndexEngineDeletionPolicy extends ElasticsearchIndexDeletionPolicy {
 
-    private final LocalCommitsRefs commitsRefs;
+    private final ShardLocalCommitsRefs commitsRefs;
     private final ElasticsearchIndexDeletionPolicy delegate;
     private final CommitsListener commitsListener;
 
@@ -60,11 +63,11 @@ public class IndexEngineDeletionPolicy extends ElasticsearchIndexDeletionPolicy 
     private boolean initialized;
 
     public IndexEngineDeletionPolicy(
-        LocalCommitsRefs localCommitsRefs,
+        ShardLocalCommitsRefs shardLocalCommitsRefs,
         ElasticsearchIndexDeletionPolicy policy,
         CommitsListener commitsListener
     ) {
-        this.commitsRefs = Objects.requireNonNull(localCommitsRefs);
+        this.commitsRefs = Objects.requireNonNull(shardLocalCommitsRefs);
         this.delegate = Objects.requireNonNull(policy);
         this.commitsListener = commitsListener;
     }

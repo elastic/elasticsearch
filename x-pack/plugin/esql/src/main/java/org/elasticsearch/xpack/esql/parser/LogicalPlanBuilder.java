@@ -830,8 +830,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         MapExpression optionsExpresion = visitCommandNamedParameters(ctx);
 
         if (optionsExpresion == null || optionsExpresion.containsKey(Completion.INFERENCE_ID_OPTION_NAME) == false) {
-            // Having a mandatory named parameter for inference_id is an antipattern, but it will be optional in the future when we have a default LLM.
-            // It is better to keep inference_id as a named parameter and relax the syntax when it will become optional than completely change the syntax.
+            // Having a mandatory named parameter for inference_id is an antipattern, but it will be optional in the future when we have a
+            // default LLM. It is better to keep inference_id as a named parameter and relax the syntax when it will become optional than
+            // completely change the syntax in the future.
             throw new ParsingException(source(ctx), "Missing mandatory option [{}] in COMPLETION", Completion.INFERENCE_ID_OPTION_NAME);
         }
 

@@ -634,7 +634,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
      *
      * @return the name of the master node that abdicated.
      */
-    private static String masterNodeAbdicatesForGracefulShutdown() {
+    protected static String masterNodeAbdicatesForGracefulShutdown() {
         // Ensure that there is at least one other master role node to which the current master can abdicate.
         assertThat(
             "Master node cannot abdicate gracefully on shutdown when there is no other master-eligible node",
@@ -1183,7 +1183,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
         Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".json"), projectSettingsJson);
         Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".secrets.json"), projectSecretsJson);
-        writeAndMoveSettingsJsonAtomically(settingsJson, fileSettingsService);
+        writeAndMoveContentAtomically(settingsJson, fileSettingsService.watchedFile());
 
         // Ensure the project exist
         assertBusy(() -> {
@@ -1205,7 +1205,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         );
     }
 
-    protected void removeProject(ProjectId projectId) throws IOException {
+    protected void removeProject(ProjectId projectId) throws Exception {
         assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
         final var fileSettingsService = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
         assertTrue(fileSettingsService.watching());
@@ -1224,6 +1224,26 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         assertThat(internalCluster().clusterService().state().blocks().projectBlocks(projectId).isEmpty(), is(true));
     }
 
+    protected Path getFileSettingsWatchedFile() throws IOException {
+        assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
+        final var fileSettingsService = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
+        assertTrue(fileSettingsService.watching());
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        return fileSettingsService.watchedFile();
+    }
+
+    protected long nextReservedStateVersion() {
+        assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
+        return reservedStateVersionCounter.incrementAndGet();
+    }
+
+    protected void writeAndMoveContentAtomically(String content, Path targetPath) throws IOException {
+        final Path tempFilePath = createTempFile();
+        logger.info("--> atomically writing content [{}] to [{}]", content, targetPath);
+        Files.writeString(tempFilePath, content);
+        Files.move(tempFilePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+    }
+
     private static String getRepositoryJson(RepositoryMetadata repositoryMetadata) throws IOException {
         if (repositoryMetadata == null) {
             return "{}";
@@ -1239,18 +1259,11 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return Strings.toString(xContentBuilder);
     }
 
-    private void writeAndMoveSettingsJsonAtomically(String settingsJson, FileSettingsService fileSettingsService) throws IOException {
-        final Path tempFilePath = createTempFile();
-        logger.info("--> writing settings json [{}] to [{}]", settingsJson, tempFilePath);
-        Files.writeString(tempFilePath, settingsJson);
-        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
-    }
-
     private String addProjectIdToSettingsJson(FileSettingsService fileSettingsService, long newVersion, String projectId)
         throws IOException {
         return updateSettingsJson(fileSettingsService, newVersion, map -> {
             @SuppressWarnings("unchecked")
-            final var projects = (Collection<String>) map.getOrDefault("projects", new HashSet<>());
+            final var projects = new HashSet<>((Collection<String>) map.getOrDefault("projects", Set.of()));
             final var added = projects.add(projectId);
             logger.info("--> {} project [{}]", added ? "add" : "update", projectId);
             map.put("projects", projects);

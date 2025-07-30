@@ -692,7 +692,7 @@ public class Stateless extends Plugin
                 components.add(mergeMemoryEstimatePublisher);
             }
             if (projectResolver.get().supportsMultipleProjects()) {
-                var projectLifeCycleService = new ProjectLifeCycleService(objectStoreService, threadPool);
+                var projectLifeCycleService = new ProjectLifeCycleService(clusterService, objectStoreService, threadPool);
                 components.add(projectLifeCycleService);
                 clusterService.addListener(projectLifeCycleService);
             }

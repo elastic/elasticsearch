@@ -43,7 +43,8 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     public static final String TYPE = "set_security_user";
 
     private static final Logger logger = LogManager.getLogger(SetSecurityUserProcessor.class);
-
+    private static final String API_KEY = "api_key";
+    private static final String REALM_KEY = "realm";
     // a 'not found' sentinel value for use in getOrDefault calls below
     private static final Object NOT_FOUND = new Object();
 
@@ -147,8 +148,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     break;
                 case API_KEY:
                     if (authentication.isApiKey()) {
-                        final String apiKey = "api_key";
-                        final Object existingApiKeyField = userObject.get(apiKey);
+                        final Object existingApiKeyField = userObject.get(API_KEY);
 
                         @SuppressWarnings("unchecked")
                         final Map<String, Object> apiKeyField = existingApiKeyField instanceof Map
@@ -169,13 +169,12 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                             apiKeyField.put("metadata", apiKeyMetadata);
                         }
                         if (false == apiKeyField.isEmpty()) {
-                            userObject.put(apiKey, apiKeyField);
+                            userObject.put(API_KEY, apiKeyField);
                         }
                     }
                     break;
                 case REALM:
-                    final String realmKey = "realm";
-                    final Object existingRealmField = userObject.get(realmKey);
+                    final Object existingRealmField = userObject.get(REALM_KEY);
 
                     @SuppressWarnings("unchecked")
                     final Map<String, Object> realmField = existingRealmField instanceof Map
@@ -191,7 +190,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         realmField.put("type", realmType);
                     }
                     if (false == realmField.isEmpty()) {
-                        userObject.put(realmKey, realmField);
+                        userObject.put(REALM_KEY, realmField);
                     }
                     break;
                 case AUTHENTICATION_TYPE:

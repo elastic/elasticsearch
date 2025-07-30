@@ -385,8 +385,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             }
 
             /**
-             * Creates a new window by sliding current by moveFrames. If new window overlaps with current Frames are reused.
-             * So there is no risk of losing data when start/end update frame in a past window.
+             * Creates a new window by sliding current by moveFrames. If new window overlaps with current window Frames are reused.
+             * So there is no risk of losing data when start/endTask updates counters in the past window frame.
              */
             FrameWindow moveBy(long moveFrames) {
                 // a new frame always starts with previous ongoing tasks

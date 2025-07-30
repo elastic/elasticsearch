@@ -51,8 +51,8 @@ class TransportVersionUtils {
         return getLatestFile(dataDir, majorMinor).ids().getFirst();
     }
 
-    static TransportVersionDefinition getLatestFile(Path dataDir, String majorMinor) throws IOException {
-        return readDefinitionFile(dataDir.resolve(LATEST_DIR).resolve(majorMinor + ".csv"), true);
+    static TransportVersionDefinition getLatestFile(Path resourcesDir, String minorVersion) throws IOException {
+        return readDefinitionFile(resourcesDir.resolve(LATEST_DIR).resolve(minorVersion + ".csv"), true);
     }
 
     static TransportVersionDefinition getDefinedFile(Path dataDir, String name) throws IOException {
@@ -121,13 +121,17 @@ class TransportVersionUtils {
         return results;
     }
 
-    static Directory getDefinitionsDirectory(Project project) {
+    static Directory getTransportDefinitionsDirectory(Project project) {
+        return getTransportResourcesDirectory(project).dir("defined");
+    }
+
+    static Directory getTransportResourcesDirectory(Project project) {
         var projectName = project.findProperty("org.elasticsearch.transport.definitionsProject");
         if (projectName == null) {
             projectName = ":server";
         }
-        Directory projectDir = project.project(projectName.toString()).getLayout().getProjectDirectory();
-        return projectDir.dir("src/main/resources/transport/defined");
+        Directory serverDir = project.getRootProject().project(projectName.toString()).getLayout().getProjectDirectory();
+        return serverDir.dir("src/main/resources/transport");
     }
 
     static void addTransportVersionReferencesAttribute(AttributeContainer attributes) {

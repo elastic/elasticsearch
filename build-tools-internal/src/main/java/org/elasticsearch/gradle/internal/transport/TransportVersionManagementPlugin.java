@@ -42,7 +42,7 @@ public class TransportVersionManagementPlugin implements Plugin<Project> {
             .register("validateTransportVersionReferences", ValidateTransportVersionReferencesTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all TransportVersion references used in the project have an associated definition file");
-                t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
+                t.getDefinitionsDirectory().set(TransportVersionUtils.getTransportDefinitionsDirectory(project));
                 t.getReferencesFile().set(collectTask.get().getOutputFile());
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));

@@ -11,8 +11,9 @@ package org.elasticsearch.gradle.internal.transport;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.MajorMinor;
+import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionDefinition;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
@@ -26,8 +27,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdIncrement.PATCH;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdIncrement.SERVER;
@@ -38,21 +41,12 @@ import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeDefinitionFile;
 
 /**
- * This task generates TransportVersionSetData data files that contain information about transport versions. These files
- * are added to the server project's resource directory at `server/src/main/resources/org/elasticsearch/transport/`.
- * They have the following format:
- * <pre>
- * Filename: my-transport-version-set.json  // Must be the same as the name of the transport version set.
- * {
- *   "name": "my-transport-version-set", // The name of the transport version set used for reference in the code.
- *   "ids": [
- *     9109000,  // The transport version introduced to the main branch.
- *     8841059   // The transport version backported to a previous release branch.
- *   ]
- * }
- * </pre>
+ * This task generates transport version definition files. These files
+ * are runtime resources that TransportVersion loads statically.
+ * They contain a comma separated list of integer ids. Each file is named the same
+ * as the transport version name itself (with the .csv suffix).
  */
-public abstract class GenerateTransportVersionDataTask extends DefaultTask {
+public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask {
 
     /**
      * Specifies the directory in which contains all TransportVersionSet data files.
@@ -60,13 +54,17 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
      * @return
      */
     @InputDirectory
-    public abstract RegularFileProperty getDataFileDirectory(); // The plugin should always set this, not optional
+    public abstract DirectoryProperty getTransportResourcesDirectory(); // The plugin should always set this, not optional
 
+
+    // assumption: this task is always run on main, so we can determine the name by diffing with main and looking for new files added in the definition directory
     /**
      * Used to set the name of the TransportVersionSet for which a data file will be generated.
      */
     @Input
-    public abstract Property<String> getTVName(); // The plugin should always set this, not optional
+    @Optional
+    @Option(option = "name", description = "TBD")
+    public abstract Property<String> getTransportVersionName(); // The plugin should always set this, not optional
 
     /**
      * Used to set the `major.minor` release version for which the specific TransportVersion ID will be generated.
@@ -74,13 +72,8 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
      */
     @Optional
     @Input
-    public abstract ListProperty<String> getMinorVersionsForTV();
-
-    // TODO can the Option annotation be on getMinorVersionsForTV() so that we don't have a separate getter?
-    @Optional
-    @Input
-    @Option(option = "versions", description = "The minor version(s) for which to generate IDs, e.g. -Pversions=\"9.2,9.1\"")
-    public abstract ListProperty<String> getMinorVersionsForTVCmdLine();
+    @Option(option = "versions", description = "The minor version(s) for which to generate IDs, e.g. --versions=\"9.2,9.1\"")
+    public abstract ListProperty<String> getMinorVersions();
 
 //    @Optional
 //    @Input
@@ -88,11 +81,36 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
 
     @TaskAction
     public void generateTransportVersionData() throws IOException {
-        final Path tvDataDir = Objects.requireNonNull(getDataFileDirectory().getAsFile().get()).toPath();
-        final String tvName = Objects.requireNonNull(getTVName().get());
-        final var forMinorVersions = getMinorVersionsForTV().getOrElse(
-            Objects.requireNonNull(getMinorVersionsForTVCmdLine().get())
-        );
+        getLogger().lifecycle("Name: " + getTransportVersionName().get());
+        getLogger().lifecycle("Versions: " + getMinorVersions().get());
+        Path resourcesDir = Objects.requireNonNull(getTransportResourcesDirectory().getAsFile().get()).toPath();
+        String name = getTransportVersionName().isPresent() ? getTransportVersionName().get() : findLocalTransportVersionName();
+        Set<String> targetMinorVersions = new HashSet<>(getMinorVersions().isPresent() ? getMinorVersions().get() : findTargetMinorVersions());
+
+        List<Integer> ids = new ArrayList<>();
+        for (String minorVersion : getKnownMinorVersions(resourcesDir)) {
+            TransportVersionDefinition latest = TransportVersionUtils.getLatestFile(resourcesDir, minorVersion);
+            TransportVersionDefinition newLatest = null;
+
+            if (name.equals(latest.name())) {
+                if (targetMinorVersions.contains(minorVersion) == false) {
+                    // regenerate
+                }
+            } else {
+                if (targetMinorVersions.contains(minorVersion)) {
+                    // increment
+                }
+            }
+
+            if (newLatest != null) {
+                assert newLatest.ids().size() == 1;
+                TransportVersionUtils.updateLatestFile(resourcesDir, minorVersion, newLatest.name(), newLatest.ids().getFirst());
+            }
+        }
+
+/*
+        final String tvName = Objects.requireNonNull(getTransportVersionName().get());
+        List<String> minorVersions = getMinorVersions().get();
 //        final var idIncrementSupplier = Objects.requireNonNull(getIdIncrementSupplier().get());
 
         // TODO
@@ -141,6 +159,7 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
         }
 
         writeDefinitionFile(tvDataDir, tvName, ids.stream().sorted(Comparator.reverseOrder()).toList());
+        */
     }
 
     private int incrementTVId(int tvID, MajorMinor version) {
@@ -171,5 +190,23 @@ public abstract class GenerateTransportVersionDataTask extends DefaultTask {
             }
         }
         return null;
+    }
+
+    private List<String> getKnownMinorVersions(Path resourcesDir) {
+        // list files under latest
+        return List.of();
+    }
+
+    private String findLocalTransportVersionName() {
+        // check for missing
+        // if none missing, look at git diff against main
+        return "";
+    }
+
+    private List<String> findTargetMinorVersions() {
+        // look for env var indicating github PR link from CI
+        // use github api to find current labels, filter down to version labels
+        // map version labels to branches
+        return List.of();
     }
 }

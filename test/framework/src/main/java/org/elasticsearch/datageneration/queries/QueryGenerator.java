@@ -10,6 +10,7 @@
 package org.elasticsearch.datageneration.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 
@@ -92,7 +93,7 @@ public class QueryGenerator {
                 enabled = (Boolean) mapping.get("enabled");
             }
             if (mapping.containsKey("enabled") && mapping.get("enabled") instanceof String) {
-                enabled = Boolean.parseBoolean((String) mapping.get("enabled"));
+                enabled = Booleans.parseBoolean((String) mapping.get("enabled"));
             }
 
             if (enabled == false) {

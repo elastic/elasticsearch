@@ -4726,7 +4726,7 @@ FROM k8s
 | RENAME network.bytes_in AS language_code
 | WHERE language_code < 10
 | LOOKUP JOIN languages_lookup ON language_code
-| DROP network*, event
+| DROP network*, event*
 | SORT language_code, @timestamp
 ;
 

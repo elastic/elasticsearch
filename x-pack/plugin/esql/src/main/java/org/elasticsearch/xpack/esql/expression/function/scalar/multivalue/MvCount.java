@@ -24,7 +24,8 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
@@ -74,7 +75,7 @@ public class MvCount extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), DataType::isRepresentable, sourceText(), null, "representable");
+        return isRepresentableExceptCounters(field(), sourceText(), DEFAULT);
     }
 
     @Override

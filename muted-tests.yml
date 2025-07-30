@@ -646,6 +646,7 @@ tests:
   method: testSemanticTextOperations*
   issue: https://github.com/elastic/elasticsearch/issues/131749
 
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

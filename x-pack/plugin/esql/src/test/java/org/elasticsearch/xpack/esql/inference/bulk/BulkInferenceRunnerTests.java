@@ -163,7 +163,6 @@ public class BulkInferenceRunnerTests extends ESTestCase {
 
             ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> {
                 assertThat(r, equalTo(responses));
-                LogManager.getLogger(BulkInferenceRunnerTests.class).warn("Received [{}] responses", responses.size());
                 latch.countDown();
             }, ESTestCase::fail);
 

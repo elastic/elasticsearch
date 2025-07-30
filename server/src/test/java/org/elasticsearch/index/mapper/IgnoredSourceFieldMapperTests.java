@@ -14,10 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.lookup.SourceFilter;
-import org.elasticsearch.test.FieldMaskingReader;
+import org.elasticsearch.test.WildcardFieldMaskingReader;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -26,7 +25,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 
 public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     private DocumentMapper getDocumentMapperWithFieldLimit() throws IOException {
@@ -758,8 +756,6 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testIndexStoredArraySourceSingleLeafElementInObjectArray() throws IOException {
-        roundtripMaskedFields.add("path.int_value.offsets");
-
         DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(mapping(b -> {
             b.startObject("path").field("synthetic_source_keep", "none").startObject("properties");
             {
@@ -846,8 +842,6 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testIndexStoredArraySourceRootObjectArrayWithBypass() throws IOException {
-        roundtripMaskedFields.add("path.int_value.offsets");
-
         DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(mapping(b -> {
             b.startObject("path");
             {
@@ -900,8 +894,6 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testIndexStoredArraySourceNestedValueArrayDisabled() throws IOException {
-        roundtripMaskedFields.add("path.obj.foo.offsets");
-
         DocumentMapper documentMapper = createMapperServiceWithStoredArraySource(mapping(b -> {
             b.startObject("path");
             {
@@ -1132,8 +1124,6 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testConflictingFieldNameAfterArray() throws IOException {
-        roundtripMaskedFields.add("path.to.id.offsets");
-
         DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("path").startObject("properties");
             {
@@ -2457,14 +2447,12 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals("{\"top\":{\"level1\":{\"level2\":{\"n\":25}}}}", syntheticSource);
     }
 
-    private Set<String> roundtripMaskedFields;
-
-    @Before
-    public void resetRoundtripMaskedFields() {
-        roundtripMaskedFields = new TreeSet<>(
-            Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, IgnoredSourceFieldMapper.NAME, SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME)
-        );
-    }
+    private final Set<String> roundtripMaskedFields = Set.of(
+        SourceFieldMapper.RECOVERY_SOURCE_NAME,
+        SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME,
+        IgnoredSourceFieldMapper.NAME + ".*",
+        "*.offsets"
+    );
 
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
         throws IOException {
@@ -2473,8 +2461,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         // and since the copy is exact, contents of ignored source are different.
         assertReaderEquals(
             "round trip " + syntheticSource,
-            new FieldMaskingReader(roundtripMaskedFields, reader),
-            new FieldMaskingReader(roundtripMaskedFields, roundTripReader)
+            new WildcardFieldMaskingReader(roundtripMaskedFields, reader),
+            new WildcardFieldMaskingReader(roundtripMaskedFields, roundTripReader)
         );
     }
 }

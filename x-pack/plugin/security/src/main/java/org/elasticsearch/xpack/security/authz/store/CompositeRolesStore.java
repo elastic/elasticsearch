@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
@@ -115,7 +114,6 @@ public class CompositeRolesStore {
     private final DocumentSubsetBitsetCache dlsBitsetCache;
     private final AnonymousUser anonymousUser;
 
-    @FixForMultiProject(description = "Deleted projects are never cleared from this map")
     private final Map<ProjectId, Long> numInvalidation = new ConcurrentHashMap<>();
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;

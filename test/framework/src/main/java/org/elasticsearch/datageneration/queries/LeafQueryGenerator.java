@@ -52,7 +52,11 @@ public interface LeafQueryGenerator {
 
     class WildcardQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
-            return List.of(QueryBuilders.wildcardQuery(path, value + "*"));
+            // Queries with emojis currently fail due to https://github.com/elastic/elasticsearch/issues/132144
+            if (containsHighSurrogates((String) value)) {
+                return List.of();
+            }
+            return List.of(QueryBuilders.termQuery(path, value), QueryBuilders.wildcardQuery(path, value + "*"));
         }
     }
 
@@ -78,5 +82,14 @@ public interface LeafQueryGenerator {
             var phrase = String.join(" ", tokens.subList(low, hi));
             return QueryBuilders.matchPhraseQuery(path, phrase);
         }
+    }
+
+    static boolean containsHighSurrogates(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (Character.isHighSurrogate(s.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
     }
 }

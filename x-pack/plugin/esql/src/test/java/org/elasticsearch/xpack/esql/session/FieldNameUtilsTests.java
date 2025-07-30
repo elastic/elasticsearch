@@ -2227,6 +2227,17 @@ public class FieldNameUtilsTests extends ESTestCase {
             """, Set.of("first_name", "first_name.*"));
     }
 
+    public void testForkRef4() {
+        assertFieldNames("""
+            from employees
+            | sort emp_no
+            | limit 1
+            | FORK
+               (eval x = to_string(languages) | enrich languages_policy on x | keep language_name)
+               (eval y = to_string(emp_no) | enrich languages_policy on y | keep emp_no)
+            """, Set.of("emp_no", "emp_no.*", "languages", "languages.*", "language_name", "language_name.*", "x", "x.*", "y", "y.*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, new EnrichResolution(), expected, Set.of());
     }

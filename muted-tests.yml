@@ -26,12 +26,6 @@ tests:
 - class: org.elasticsearch.nativeaccess.VectorSystemPropertyTests
   method: testSystemPropertyDisabled
   issue: https://github.com/elastic/elasticsearch/issues/110949
-- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
-  method: testAuthenticateWithImplicitFlow
-  issue: https://github.com/elastic/elasticsearch/issues/111191
-- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
-  method: testAuthenticateWithCodeFlowAndClientPost
-  issue: https://github.com/elastic/elasticsearch/issues/111396
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testSingleDoc {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111434
@@ -349,10 +343,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
-- class: org.elasticsearch.xpack.security.authc.oidc.OpenIdConnectAuthIT
-  issue: https://github.com/elastic/elasticsearch/issues/124845
-- class: org.elasticsearch.xpack.security.authc.jwt.JwtWithOidcAuthIT
-  issue: https://github.com/elastic/elasticsearch/issues/131794
 - class: org.elasticsearch.packaging.test.DockerTests 
   issue: https://github.com/elastic/elasticsearch/issues/131586
 

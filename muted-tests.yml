@@ -566,6 +566,66 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: testDenseVectorMappingUpdate {initialType=flat updateType=int8_hnsw}
   issue: https://github.com/elastic/elasticsearch/issues/132126
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=bbq_disk updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132127
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=int8_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132129
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: "testDenseVectorMappingUpdate {initialType=flat updateType=bbq_disk #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/132130
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=bbq_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132132
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_hnsw updateType=int4_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132133
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=bbq_flat updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132134
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/132135
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/132136
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/132137
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=int4_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132140
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132141
+- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
+  method: testRelocationWhileForceMerging
+  issue: https://github.com/elastic/elasticsearch/issues/131789
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=int4_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132149
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132150
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=bbq_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132151
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: "testDenseVectorMappingUpdate {initialType=bbq_hnsw updateType=bbq_disk #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/132152
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=hnsw updateType=int8_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132164
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_hnsw updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132165
+- class: org.elasticsearch.indices.cluster.FieldCapsForceConnectTimeoutIT
+  method: testTimeoutSetting
+  issue: https://github.com/elastic/elasticsearch/issues/132179
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: "testDenseVectorMappingUpdate {initialType=bbq_flat updateType=bbq_disk #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/132184
 
 # Examples:
 #

@@ -354,7 +354,7 @@ public final class MemorySegmentES91Int4VectorsScorer extends ES91Int4VectorsSco
                 memorySegment,
                 offset + 4 * BULK_SIZE + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
-            ).sub(ax);
+            ).sub(ax).mul(FOUR_BIT_SCALE);
             var targetComponentSums = ShortVector.fromMemorySegment(
                 SHORT_SPECIES,
                 memorySegment,

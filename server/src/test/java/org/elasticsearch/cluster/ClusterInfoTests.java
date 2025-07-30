@@ -44,8 +44,18 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomRoutingToDataPath(),
             randomReservedSpace(),
             randomNodeHeapUsage(),
-            randomNodeUsageStatsForThreadPools()
+            randomNodeUsageStatsForThreadPools(),
+            randomShardWriteLoad()
         );
+    }
+
+    private static Map<ShardId, Double> randomShardWriteLoad() {
+        final int numEntries = randomIntBetween(0, 128);
+        final Map<ShardId, Double> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            builder.put(randomShardId(), randomDouble());
+        }
+        return builder;
     }
 
     private static Map<String, EstimatedHeapUsage> randomNodeHeapUsage() {

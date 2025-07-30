@@ -1,6 +1,0 @@
-pr: 131426
-summary: Disallow remote enrich after lu join
-area: ES|QL
-type: bug
-issues:
- - 129372

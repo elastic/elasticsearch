@@ -835,10 +835,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         );
     }
 
-    private static final DiffableUtils.KeySerializer<ProjectId> PROJECT_ID_SERIALIZER = DiffableUtils.getWriteableKeySerializer(
-        ProjectId.READER
-    );
-
     private static class MetadataDiff implements Diff<Metadata> {
 
         private final long version;
@@ -880,7 +876,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 multiProject = null;
             } else {
                 singleProject = null;
-                multiProject = DiffableUtils.diff(before.projectMetadata, after.projectMetadata, PROJECT_ID_SERIALIZER);
+                multiProject = DiffableUtils.diff(before.projectMetadata, after.projectMetadata, ProjectId.PROJECT_ID_SERIALIZER);
             }
 
             if (empty) {
@@ -1004,7 +1000,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 singleProject = null;
                 multiProject = DiffableUtils.readJdkMapDiff(
                     in,
-                    PROJECT_ID_SERIALIZER,
+                    ProjectId.PROJECT_ID_SERIALIZER,
                     ProjectMetadata::readFrom,
                     ProjectMetadata.ProjectMetadataDiff::new
                 );
@@ -1059,7 +1055,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 if (multiProject != null) {
                     multiProject.writeTo(out);
                 } else {
-                    DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, PROJECT_ID_SERIALIZER).writeTo(out);
+                    DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, ProjectId.PROJECT_ID_SERIALIZER).writeTo(out);
                 }
             }
         }
@@ -1495,12 +1491,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         @Deprecated(forRemoval = true)
-        public Builder put(String name, ComponentTemplate componentTemplate) {
-            getSingleProject().put(name, componentTemplate);
-            return this;
-        }
-
-        @Deprecated(forRemoval = true)
         public Builder componentTemplates(Map<String, ComponentTemplate> componentTemplates) {
             getSingleProject().componentTemplates(componentTemplates);
             return this;
@@ -1538,12 +1528,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         @Deprecated(forRemoval = true)
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
             return getSingleProject().put(aliasName, dataStream, isWriteDataStream, filter);
-        }
-
-        @Deprecated(forRemoval = true)
-        public Builder removeDataStream(String name) {
-            getSingleProject().removeDataStream(name);
-            return this;
         }
 
         public Builder putCustom(String type, ClusterCustom custom) {

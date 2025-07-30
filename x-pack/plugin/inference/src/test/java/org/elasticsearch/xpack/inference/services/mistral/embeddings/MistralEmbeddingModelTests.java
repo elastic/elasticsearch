@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.mistral.embeddings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -37,7 +36,6 @@ public class MistralEmbeddingModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "mistral",
             new MistralEmbeddingsServiceSettings(model, dimensions, maxTokens, similarity, rateLimitSettings),
-            EmptyTaskSettings.INSTANCE,
             chunkingSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
@@ -57,7 +55,6 @@ public class MistralEmbeddingModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "mistral",
             new MistralEmbeddingsServiceSettings(model, dimensions, maxTokens, similarity, rateLimitSettings),
-            EmptyTaskSettings.INSTANCE,
             null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );

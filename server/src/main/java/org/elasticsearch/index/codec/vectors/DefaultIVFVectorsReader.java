@@ -41,7 +41,7 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
 public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
 
     // The percentage of centroids that are scored to keep recall
-    public static final double CENTROID_SAMPLING_PERCENTAGE = 0.1;
+    public static final double CENTROID_SAMPLING_PERCENTAGE = 0.15;
 
     public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
         super(state, rawVectorsReader);

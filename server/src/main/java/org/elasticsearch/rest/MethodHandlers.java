@@ -22,13 +22,13 @@ import java.util.Set;
 /**
  * Encapsulate multiple handlers for the same path, allowing different handlers for different HTTP verbs and versions.
  */
-final class MethodHandlers {
+public final class MethodHandlers {
 
     private final String path;
     private final Map<RestRequest.Method, Map<RestApiVersion, RestHandler>> methodHandlers;
 
     @SuppressWarnings("unused") // only accessed via #STATS_TRACKER_HANDLE, lazy initialized because instances consume non-trivial heap
-    private volatile HttpRouteStatsTracker statsTracker;
+    private HttpRouteStatsTracker statsTracker;
 
     private static final VarHandle STATS_TRACKER_HANDLE;
 

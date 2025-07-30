@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.ToXContent;
@@ -186,6 +187,10 @@ public class ESONSource {
     public interface KeyEntry {
 
         String key();
+
+        default void writeTo(StreamOutput out) throws IOException {
+
+        }
 
     }
 
@@ -1045,5 +1050,25 @@ public class ESONSource {
 
             newArrEntry.elementCount = elementCount;
         }
+    }
+
+    public void writeToStream(ESONObject object, StreamOutput out) throws IOException {
+        out.writeByte((byte) 'E');
+        out.writeByte((byte) 'S');
+        out.writeByte((byte) 'O');
+        out.writeByte((byte) 'N');
+        // TODO: How to write size
+        // TODO: Assert flattened or support transition to flattened
+        for  (KeyEntry entry : object.getKeyArray()) {
+            if (entry instanceof ObjectEntry) {
+
+            } else if (entry instanceof ArrayEntry) {
+
+            } else {
+
+            }
+            entry.writeTo(out);
+        }
+
     }
 }

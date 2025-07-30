@@ -29,17 +29,13 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 public class BulkInferenceRunnerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -150,26 +146,28 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(batches);
 
         for (int i = 0; i < batches; i++) {
-            List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
-            List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
+            runWithRandomDelay(() -> {
+                List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
+                List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
 
-            Client client = mockClient(invocation -> {
-                runWithRandomDelay(() -> {
-                    ActionListener<InferenceAction.Response> l = invocation.getArgument(2);
-                    l.onResponse(responses.get(requests.indexOf(invocation.getArgument(1, InferenceAction.Request.class))));
+                Client client = mockClient(invocation -> {
+                    runWithRandomDelay(() -> {
+                        ActionListener<InferenceAction.Response> l = invocation.getArgument(2);
+                        l.onResponse(responses.get(requests.indexOf(invocation.getArgument(1, InferenceAction.Request.class))));
+                    });
+                    return null;
                 });
-                return null;
+
+                ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> {
+                    assertThat(r, equalTo(responses));
+                    latch.countDown();
+                }, ESTestCase::fail);
+
+                inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
             });
-
-            ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> {
-                assertThat(r, equalTo(responses));
-                latch.countDown();
-            }, ESTestCase::fail);
-
-            inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
         }
 
-        latch.await();
+        latch.await(10, TimeUnit.SECONDS);
     }
 
     private BulkInferenceRunner.Factory inferenceRunnerFactory(Client client) {

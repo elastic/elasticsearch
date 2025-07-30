@@ -2,4 +2,5 @@ pr: 132210
 summary: Adding a `mapping_merge_reason` parameter to the ingest simulate API
 area: Ingest Node
 type: enhancement
-issues: []
+issues:
+ - 131608

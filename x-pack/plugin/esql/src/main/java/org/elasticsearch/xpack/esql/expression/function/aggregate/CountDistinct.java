@@ -42,13 +42,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
+import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.intValueOf;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -219,12 +219,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     private int precisionValue() {
-        if (precision instanceof Literal literal) {
-            return ((Number) literal.value()).intValue();
-        }
-        throw new EsqlIllegalArgumentException(
-            format(null, "Precision value must be a constant integer in [{}], found [{}]", source(), precision)
-        );
+        return intValueOf(precision, source().text(), "Precision");
     }
 
     @Override

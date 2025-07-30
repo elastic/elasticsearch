@@ -189,7 +189,7 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
         Check.isTrue(Expressions.foldable(matches), "Expected foldable matches, but got [{}]", matches);
 
         String targetFieldName = handler.nameOf(fa.exactAttribute());
-        Set<Object> set = new LinkedHashSet<>(matches.stream().map(Foldables::extractLiteralOrReturnSelf).toList());
+        Set<Object> set = new LinkedHashSet<>(matches.stream().map(Foldables::literalValueOf).toList());
 
         return new TermsQuery(source(), targetFieldName, set);
     }

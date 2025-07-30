@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
@@ -146,6 +147,15 @@ public class FunctionUtils {
         }
         throw new EsqlIllegalArgumentException(
             format(null, "Query value must be a constant string in [{}], found [{}]", sourceText, queryField)
+        );
+    }
+
+    public static int intValueOf(Expression field, String sourceText, String fieldName) {
+        if (field instanceof Literal literal) {
+            return ((Number) literal.value()).intValue();
+        }
+        throw new EsqlIllegalArgumentException(
+            Strings.format(null, "[{}] value must be a constant number in [{}], found [{}]", fieldName, sourceText, field)
         );
     }
 }

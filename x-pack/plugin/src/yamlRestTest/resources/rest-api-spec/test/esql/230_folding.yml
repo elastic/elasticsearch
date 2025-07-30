@@ -26,6 +26,8 @@ setup:
                 similarity: l2_norm
               ip:
                 type: ip
+              favorite_numbers:
+                type: integer
 
   - do:
       bulk:
@@ -33,11 +35,11 @@ setup:
         refresh: true
         body:
           - { "index": { } }
-          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100, "name": "Alice Smith", "image_vector": [ 0.1, 0.2, 0.3 ], "ip": "192.168.1.1" }
+          - { "hire_date": "2020-01-01", "salary_change": 100.5, "salary": 50000, "salary_change_long": 100, "name": "Alice Smith", "image_vector": [ 0.1, 0.2, 0.3 ], "ip": "192.168.1.1" , "favorite_numbers": [ 4, 2, 3 ] }
           - { "index": { } }
-          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200, "name": "Bob Johnson", "image_vector": [ 0.4, 0.5, 0.6 ], "ip": "192.168.1.2" }
+          - { "hire_date": "2021-01-01", "salary_change": 200.5, "salary": 60000, "salary_change_long": 200, "name": "Bob Johnson", "image_vector": [ 0.4, 0.5, 0.6 ], "ip": "192.168.1.2" , "favorite_numbers": [ 4, 7, -2 ] }
           - { "index": { } }
-          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith", "image_vector": [ 0.7, 0.8, 0.9 ], "ip": "10.168.1.2" }
+          - { "hire_date": "2019-01-01", "salary_change": 50.5, "salary": 40000, "salary_change_long": 50, "name": "Charlie Smith", "image_vector": [ 0.7, 0.8, 0.9 ], "ip": "10.168.1.2" , "favorite_numbers": [ 2, 1, 3 ] }
 
 ---
 TOP function with constant folding:
@@ -631,6 +633,20 @@ MV_SORT with foldable order:
   - match: { columns.2.name: "sd" }
   - match: { values.0.1: [ -3, 2, 2, 4 ] }
   - match: { values.0.2: [ 4, 2, 2, -3 ] }
+---
+MV_SORT with foldable order on employee favorite numbers:
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | WHERE salary == 50000
+            | EVAL sa = mv_sort(favorite_numbers, CONCAT("AS", "C"))
+            | KEEP sa
+            | LIMIT 1
+
+  - match: { columns.0.name: "sa" }
+  - match: { values.0.0: [ 2,3,4 ] }
 
 ---
 MV_SORT with invalid foldable order:

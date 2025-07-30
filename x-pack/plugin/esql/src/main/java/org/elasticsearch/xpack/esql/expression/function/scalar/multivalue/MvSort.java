@@ -51,7 +51,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -306,18 +305,6 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
         public String toString() {
             return "MvSort" + dataType.pascalCaseName() + "[field=" + field + ", order=" + order + "]";
         }
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        MvSort mvSort = (MvSort) o;
-        return Objects.equals(field(), mvSort.field()) && Objects.equals(order(), mvSort.order());
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field(), order());
     }
 
     private static class Evaluator implements EvalOperator.ExpressionEvaluator {

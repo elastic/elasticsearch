@@ -419,7 +419,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                     filteredNameValues.add(mappedNameValue.withMap(transformedField));
                 }
                 if (didFilter) {
-                    visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMapMulti(filteredNameValues));
+                    if (filteredNameValues.isEmpty() == false) {
+                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMapMulti(filteredNameValues));
+                    }
                 } else {
                     visitor.binaryField(fieldInfo, value);
                 }

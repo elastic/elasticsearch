@@ -112,9 +112,9 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 outputBuilder.addInferenceResponse(response);
             }
             return outputBuilder.buildOutput();
-
-        } finally {
+        } catch (Exception e) {
             releaseFetchedOnAnyThread(ongoingInferenceResult);
+            throw e;
         }
     }
 

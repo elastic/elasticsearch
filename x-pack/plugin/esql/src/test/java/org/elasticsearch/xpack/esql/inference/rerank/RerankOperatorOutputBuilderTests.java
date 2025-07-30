@@ -23,15 +23,15 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RerankOperatorOutputBuilderTests extends ComputeTestCase {
 
-    public void testBuildSmallOutput() {
+    public void testBuildSmallOutput() throws Exception {
         assertBuildOutput(between(1, 100));
     }
 
-    public void testBuildLargeOutput() {
+    public void testBuildLargeOutput() throws Exception {
         assertBuildOutput(between(10_000, 100_000));
     }
 
-    private void assertBuildOutput(int size) {
+    private void assertBuildOutput(int size) throws Exception {
         final Page inputPage = randomInputPage(size, between(1, 20));
         final int scoreChannel = randomIntBetween(0, inputPage.getBlockCount());
         try (
@@ -61,9 +61,9 @@ public class RerankOperatorOutputBuilderTests extends ComputeTestCase {
                 outputPage.releaseBlocks();
             }
 
-        } finally {
-            inputPage.releaseBlocks();
         }
+
+        allBreakersEmpty();
     }
 
     private float relevanceScore(int position) {

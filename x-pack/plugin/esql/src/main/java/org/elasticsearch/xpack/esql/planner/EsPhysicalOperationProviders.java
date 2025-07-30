@@ -18,7 +18,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
@@ -92,7 +91,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;

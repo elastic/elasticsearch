@@ -22,7 +22,6 @@ import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
-import org.elasticsearch.compute.operator.CollectOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;

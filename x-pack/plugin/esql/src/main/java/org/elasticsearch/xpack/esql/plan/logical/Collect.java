@@ -50,13 +50,7 @@ public class Collect extends UnaryPlan implements TelemetryAware, SortAgnostic {
         );
     }
 
-    private Collect(
-        Source source,
-        LogicalPlan child,
-        List<Attribute> outputAttributes,
-        Literal index,
-        List<NamedExpression> idFields
-    ) {
+    private Collect(Source source, LogicalPlan child, List<Attribute> outputAttributes, Literal index, List<NamedExpression> idFields) {
         super(source, child);
         this.outputAttributes = outputAttributes;
         this.index = index;

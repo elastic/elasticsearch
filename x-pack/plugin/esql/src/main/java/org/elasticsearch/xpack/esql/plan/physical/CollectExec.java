@@ -23,13 +23,7 @@ public class CollectExec extends UnaryExec {
     private final Literal index;
     private final List<NamedExpression> idFields;
 
-    public CollectExec(
-        Source source,
-        PhysicalPlan child,
-        List<Attribute> outputAttributes,
-        Literal index,
-        List<NamedExpression> idFields
-    ) {
+    public CollectExec(Source source, PhysicalPlan child, List<Attribute> outputAttributes, Literal index, List<NamedExpression> idFields) {
         super(source, child);
         this.outputAttributes = outputAttributes;
         this.index = index;

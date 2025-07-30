@@ -16,6 +16,7 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -110,28 +111,33 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         for (Property property : properties) {
             switch (property) {
                 case USERNAME:
-                    if (user.principal() != null) {
-                        userObject.put("username", user.principal());
+                    final String principal = user.principal();
+                    if (principal != null) {
+                        userObject.put("username", principal);
                     }
                     break;
                 case FULL_NAME:
-                    if (user.fullName() != null) {
-                        userObject.put("full_name", user.fullName());
+                    final String fullName = user.fullName();
+                    if (fullName != null) {
+                        userObject.put("full_name", fullName);
                     }
                     break;
                 case EMAIL:
-                    if (user.email() != null) {
-                        userObject.put("email", user.email());
+                    final String email = user.email();
+                    if (email != null) {
+                        userObject.put("email", email);
                     }
                     break;
                 case ROLES:
-                    if (user.roles() != null && user.roles().length != 0) {
-                        userObject.put("roles", Arrays.asList(user.roles()));
+                    final String[] roles = user.roles();
+                    if (roles != null && roles.length != 0) {
+                        userObject.put("roles", Arrays.asList(roles));
                     }
                     break;
                 case METADATA:
-                    if (user.metadata() != null && user.metadata().isEmpty() == false) {
-                        userObject.put("metadata", user.metadata());
+                    final Map<String, Object> metadata = user.metadata();
+                    if (metadata != null && metadata.isEmpty() == false) {
+                        userObject.put("metadata", metadata);
                     }
                     break;
                 case API_KEY:
@@ -184,8 +190,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case AUTHENTICATION_TYPE:
-                    if (authentication.getAuthenticationType() != null) {
-                        userObject.put("authentication_type", authentication.getAuthenticationType().toString());
+                    final AuthenticationType authenticationType = authentication.getAuthenticationType();
+                    if (authenticationType != null) {
+                        userObject.put("authentication_type", authenticationType.toString());
                     }
                     break;
                 default:

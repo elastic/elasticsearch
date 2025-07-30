@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -107,12 +108,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             }
         }
 
-        Object fieldValue = document.getFieldValue(field, Object.class, true);
-
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> userObject = fieldValue instanceof Map
-            ? (Map<String, Object>) fieldValue
-            : HashMap.newHashMap(properties.size());
+        final Map<String, Object> userObject = valueOrMapOfSize(document.getFieldValue(field, Object.class, true), properties.size());
 
         for (Property property : properties) {
             switch (property) {
@@ -148,12 +144,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     break;
                 case API_KEY:
                     if (authentication.isApiKey()) {
-                        final Object existingApiKeyField = userObject.get(API_KEY);
-
-                        @SuppressWarnings("unchecked")
-                        final Map<String, Object> apiKeyField = existingApiKeyField instanceof Map
-                            ? (Map<String, Object>) existingApiKeyField
-                            : HashMap.newHashMap(3);
+                        final Map<String, Object> apiKeyField = valueOrMapOfSize(userObject.get(API_KEY), 3);
 
                         final Map<String, Object> subjectMetadata = authentication.getAuthenticatingSubject().getMetadata();
                         final Object apiKeyName = subjectMetadata.getOrDefault(AuthenticationField.API_KEY_NAME_KEY, NOT_FOUND);
@@ -175,12 +166,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case REALM:
-                    final Object existingRealmField = userObject.get(REALM_KEY);
-
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> realmField = existingRealmField instanceof Map
-                        ? (Map<String, Object>) existingRealmField
-                        : HashMap.newHashMap(2);
+                    final Map<String, Object> realmField = valueOrMapOfSize(userObject.get(REALM_KEY), 2);
 
                     final Object realmName = ApiKeyService.getCreatorRealmName(authentication);
                     if (realmName != null) {
@@ -207,6 +193,11 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         }
         document.setFieldValue(field, userObject);
         return document;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> valueOrMapOfSize(@Nullable final Object value, final int size) {
+        return value instanceof Map ? (Map<String, Object>) value : HashMap.newHashMap(size);
     }
 
     @Override

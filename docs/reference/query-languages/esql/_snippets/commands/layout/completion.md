@@ -46,8 +46,38 @@ including:
 **Requirements**
 
 To use this command, you must deploy your LLM model in Elasticsearch as
-an [≈inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
+an [inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the
 task type `completion`.
+
+#### Handling timeouts
+
+`COMPLETION` commands may time out when processing large datasets or complex prompts. The default timeout is 10 minutes, but you can increase this limit if necessary.
+
+How you increase the timeout depends on your deployment type:
+
+::::{tab-set}
+:::{tab-item} {{ech}}
+* You can adjust {{es}} settings in the [Elastic Cloud Console](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md)
+* You can also adjust the `search.default_search_timeout` cluster setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
+:::
+
+:::{tab-item} Self-managed
+* You can configure at the cluster level by setting `search.default_search_timeout` in `elasticsearch.yml` or updating via [Cluster Settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings)
+* You can also adjust the `search:timeout` setting using [Kibana's Advanced settings](kibana://reference/advanced-settings.md#kibana-search-settings)
+* Alternatively, you can add timeout parameters to individual queries
+:::
+
+:::{tab-item} {{serverless-full}}
+* Requires a manual override from Elastic Support because you cannot modify timeout settings directly
+:::
+::::
+
+If you don't want to increase the timeout limit, try the following:
+
+* Reduce data volume with `LIMIT` or more selective filters before the `COMPLETION` command
+* Split complex operations into multiple simpler queries 
+* Configure your HTTP client's response timeout (Refer to [HTTP client configuration](/reference/elasticsearch/configuration-reference/networking-settings.md#_http_client_configuration))
+
 
 **Examples**
 

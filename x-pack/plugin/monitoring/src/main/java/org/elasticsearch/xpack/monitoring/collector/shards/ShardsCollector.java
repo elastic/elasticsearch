@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.monitoring.collector.shards;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -48,7 +50,8 @@ public class ShardsCollector extends Collector {
         throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>(1);
         if (clusterState != null) {
-            RoutingTable routingTable = clusterState.routingTable();
+            @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+            RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
             if (routingTable != null) {
                 final String clusterUuid = clusterUuid(clusterState);
                 final String stateUUID = clusterState.stateUUID();

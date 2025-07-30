@@ -253,6 +253,10 @@
 
 ---
 "Simulate index template with data stream with mapping and setting overrides":
+  - requires:
+      cluster_features: [ "logs_stream" ]
+      reason: requires setting 'logs_stream' to get or set data stream mappings
+
   - do:
       indices.put_index_template:
         name: test

@@ -133,8 +133,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         OptimizedScalarQuantizer.QuantizationResult queryParams,
         float globalCentroidDp
     ) throws IOException {
-        final int maxChildrenSize = centroids.readVInt();
+        // build the three queues we are going to use
         final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);
+        final int maxChildrenSize = centroids.readVInt();
+        final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
+        final int bufferSize = (int) Math.max(numCentroids * CENTROID_SAMPLING_PERCENTAGE, 1);
+        final NeighborQueue neighborQueue = new NeighborQueue(bufferSize, true);
+        // score the parents
         final float[] scores = new float[ES91Int4VectorsScorer.BULK_SIZE];
         score(
             parentsQueue,
@@ -147,14 +152,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             fieldInfo.getVectorSimilarityFunction(),
             scores
         );
-        final int bufferSize = (int) Math.max(numCentroids * CENTROID_SAMPLING_PERCENTAGE, 1);
-        long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
-        long offset = centroids.getFilePointer();
-        long childrenOffset = offset + (long) Long.BYTES * numParents;
-        NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
-        NeighborQueue neighborQueue = new NeighborQueue(bufferSize, true);
+        final long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
+        final long offset = centroids.getFilePointer();
+        final long childrenOffset = offset + (long) Long.BYTES * numParents;
+        // populate the children's queue by reading parents one by one
         while (parentsQueue.size() > 0 && neighborQueue.size() < bufferSize) {
-            int pop = parentsQueue.pop();
+            final int pop = parentsQueue.pop();
             populateOneChildrenGroup(
                 currentParentQueue,
                 centroids,
@@ -169,13 +172,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 scores
             );
             while (currentParentQueue.size() > 0 && neighborQueue.size() < bufferSize) {
-                float score = currentParentQueue.topScore();
-                int children = currentParentQueue.pop();
+                final float score = currentParentQueue.topScore();
+                final int children = currentParentQueue.pop();
                 neighborQueue.add(children, score);
             }
         }
-        long childrenFileOffsets = childrenOffset + centroidQuantizeSize * numCentroids;
-
+        final long childrenFileOffsets = childrenOffset + centroidQuantizeSize * numCentroids;
         return new CentroidIterator() {
             @Override
             public boolean hasNext() {
@@ -185,34 +187,34 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             @Override
             public long nextPostingListOffset() throws IOException {
                 int centroidOrdinal = neighborQueue.pop();
-                updateQueue();
+                updateQueue(); // add one children if available so the queue remains fully populated
                 centroids.seek(childrenFileOffsets + (long) Long.BYTES * centroidOrdinal);
                 return centroids.readLong();
             }
 
             private void updateQueue() throws IOException {
                 if (currentParentQueue.size() > 0) {
+                    // add a children from the current parent queue
                     float score = currentParentQueue.topScore();
                     int children = currentParentQueue.pop();
                     neighborQueue.add(children, score);
-                } else {
-                    if (parentsQueue.size() > 0) {
-                        int pop = parentsQueue.pop();
-                        populateOneChildrenGroup(
-                            currentParentQueue,
-                            centroids,
-                            offset + 2L * Integer.BYTES * pop,
-                            childrenOffset,
-                            centroidQuantizeSize,
-                            fieldInfo,
-                            scorer,
-                            quantizeQuery,
-                            queryParams,
-                            globalCentroidDp,
-                            scores
-                        );
-                        updateQueue();
-                    }
+                } else if (parentsQueue.size() > 0) {
+                    // add a new parent from the current parent queue
+                    int pop = parentsQueue.pop();
+                    populateOneChildrenGroup(
+                        currentParentQueue,
+                        centroids,
+                        offset + 2L * Integer.BYTES * pop,
+                        childrenOffset,
+                        centroidQuantizeSize,
+                        fieldInfo,
+                        scorer,
+                        quantizeQuery,
+                        queryParams,
+                        globalCentroidDp,
+                        scores
+                    );
+                    updateQueue();
                 }
             }
         };

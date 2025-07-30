@@ -1245,29 +1245,27 @@ public final class OptimizerRules {
             if (found.isEmpty() == false) {
                 // combine Equals alongside the existing ORs
                 final ZoneId finalZoneId = zoneId;
-                found.forEach(
-                    (k, v) -> {
-                        if (v.size() == 1) {
-                            ors.add(createEquals(k, v.iterator().next(), finalZoneId));
-                        } else {
-                            In in = createIn(k, new ArrayList<>(v), finalZoneId);
-                            // IN has its own particularities when it comes to type resolution and not all implementations
-                            // double check the validity of an internally created IN (like the one created here). EQL is one where the IN
-                            // implementation is like this mechanism here has been specifically created for it
-                            if (shouldValidateIn()) {
-                                Expression.TypeResolution resolution = in.validateInTypes();
-                                if (resolution.unresolved()) {
-                                    // if the created In is not valid, fall back to regular Equals combined with ORs
-                                    in.list().forEach(inValue -> ors.add(createEquals(k, inValue, finalZoneId)));
-                                } else {
-                                    ors.add(in);
-                                }
+                found.forEach((k, v) -> {
+                    if (v.size() == 1) {
+                        ors.add(createEquals(k, v.iterator().next(), finalZoneId));
+                    } else {
+                        In in = createIn(k, new ArrayList<>(v), finalZoneId);
+                        // IN has its own particularities when it comes to type resolution and not all implementations
+                        // double check the validity of an internally created IN (like the one created here). EQL is one where the IN
+                        // implementation is like this mechanism here has been specifically created for it
+                        if (shouldValidateIn()) {
+                            Expression.TypeResolution resolution = in.validateInTypes();
+                            if (resolution.unresolved()) {
+                                // if the created In is not valid, fall back to regular Equals combined with ORs
+                                in.list().forEach(inValue -> ors.add(createEquals(k, inValue, finalZoneId)));
                             } else {
                                 ors.add(in);
                             }
+                        } else {
+                            ors.add(in);
                         }
                     }
-                );
+                });
 
                 Expression combineOr = combineOr(ors);
                 // check the result semantically since the result might different in order

@@ -1338,8 +1338,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         checkKeepOnCompletion(requestObject, json, keepOnCompletion);
         String id = (String) json.get("id");
 
-        var supportsAsyncHeaders = hasCapabilities(client(), List.of("async_query_status_headers"));
-        var supportsSuggestedCast = hasCapabilities(client(), List.of("suggested_cast"));
+        var supportsAsyncHeaders = hasCapabilities(adminClient(), List.of("async_query_status_headers"));
+        var supportsSuggestedCast = hasCapabilities(adminClient(), List.of("suggested_cast"));
 
         if (id == null) {
             // no id returned from an async call, must have completed immediately and without keep_on_completion
@@ -1413,7 +1413,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static void prepareProfileLogger(RequestObjectBuilder requestObject, @Nullable ProfileLogger profileLogger) throws IOException {
         if (profileLogger != null) {
             profileLogger.clearProfile();
-            var isProfileSafe = hasCapabilities(client(), List.of("fixed_profile_serialization"));
+            var isProfileSafe = hasCapabilities(adminClient(), List.of("fixed_profile_serialization"));
             if (isProfileSafe) {
                 requestObject.profile(true);
             }

@@ -60,6 +60,6 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.capabilityName())
         );
 
-        assumeTrue("Cluster needs to support FORK", hasCapabilities(client(), List.of(FORK_V9.capabilityName())));
+        assumeTrue("Cluster needs to support FORK", hasCapabilities(adminClient(), List.of(FORK_V9.capabilityName())));
     }
 }

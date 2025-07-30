@@ -82,7 +82,7 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsIndexModeLookup() {
-        return hasCapabilities(client(), List.of(JOIN_LOOKUP_V12.capabilityName()));
+        return hasCapabilities(adminClient(), List.of(JOIN_LOOKUP_V12.capabilityName()));
     }
 
     @Override

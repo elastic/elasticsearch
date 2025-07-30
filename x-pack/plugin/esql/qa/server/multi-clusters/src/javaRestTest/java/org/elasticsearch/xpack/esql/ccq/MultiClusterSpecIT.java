@@ -139,7 +139,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         if (testCase.requiredCapabilities.contains(JOIN_LOOKUP_V12.capabilityName())) {
             assumeTrue(
                 "LOOKUP JOIN not yet supported in CCS",
-                hasCapabilities(client(), List.of(ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName()))
+                hasCapabilities(adminClient(), List.of(ENABLE_LOOKUP_JOIN_ON_REMOTE.capabilityName()))
             );
         }
         // Unmapped fields require a coorect capability response from every cluster, which isn't currently implemented.
@@ -389,7 +389,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsIndexModeLookup() throws IOException {
-        return hasCapabilities(client(), List.of(JOIN_LOOKUP_V12.capabilityName()));
+        return hasCapabilities(adminClient(), List.of(JOIN_LOOKUP_V12.capabilityName()));
     }
 
     @Override

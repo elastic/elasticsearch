@@ -459,7 +459,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsTook() throws IOException {
         if (supportsTook == null) {
-            supportsTook = hasCapabilities(client(), List.of("usage_contains_took"));
+            supportsTook = hasCapabilities(adminClient(), List.of("usage_contains_took"));
         }
         return supportsTook;
     }

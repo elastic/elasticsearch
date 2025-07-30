@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
+
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;

@@ -25,8 +25,6 @@ import org.gradle.api.tasks.options.Option;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -34,11 +32,6 @@ import java.util.Set;
 
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdIncrement.PATCH;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdIncrement.SERVER;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getDefinedFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getLatestId;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.getPriorLatestId;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.updateLatestFile;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.writeDefinitionFile;
 
 /**
  * This task generates transport version definition files. These files
@@ -56,8 +49,8 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @InputDirectory
     public abstract DirectoryProperty getTransportResourcesDirectory(); // The plugin should always set this, not optional
 
-
-    // assumption: this task is always run on main, so we can determine the name by diffing with main and looking for new files added in the definition directory
+    // assumption: this task is always run on main, so we can determine the name by diffing with main and looking for new files added in the
+    // definition directory
     /**
      * Used to set the name of the TransportVersionSet for which a data file will be generated.
      */
@@ -75,9 +68,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     @Option(option = "versions", description = "The minor version(s) for which to generate IDs, e.g. --versions=\"9.2,9.1\"")
     public abstract ListProperty<String> getMinorVersions();
 
-//    @Optional
-//    @Input
-//    public abstract Property<Function<String, IdIncrement>> getIdIncrementSupplier();
+    // @Optional
+    // @Input
+    // public abstract Property<Function<String, IdIncrement>> getIdIncrementSupplier();
 
     @TaskAction
     public void generateTransportVersionData() throws IOException {
@@ -85,7 +78,9 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         getLogger().lifecycle("Versions: " + getMinorVersions().get());
         Path resourcesDir = Objects.requireNonNull(getTransportResourcesDirectory().getAsFile().get()).toPath();
         String name = getTransportVersionName().isPresent() ? getTransportVersionName().get() : findLocalTransportVersionName();
-        Set<String> targetMinorVersions = new HashSet<>(getMinorVersions().isPresent() ? getMinorVersions().get() : findTargetMinorVersions());
+        Set<String> targetMinorVersions = new HashSet<>(
+            getMinorVersions().isPresent() ? getMinorVersions().get() : findTargetMinorVersions()
+        );
 
         List<Integer> ids = new ArrayList<>();
         for (String minorVersion : getKnownMinorVersions(resourcesDir)) {
@@ -108,10 +103,10 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             }
         }
 
-/*
+        /*
         final String tvName = Objects.requireNonNull(getTransportVersionName().get());
         List<String> minorVersions = getMinorVersions().get();
-//        final var idIncrementSupplier = Objects.requireNonNull(getIdIncrementSupplier().get());
+        //        final var idIncrementSupplier = Objects.requireNonNull(getIdIncrementSupplier().get());
 
         // TODO
         //  - [x] do we need to also validate that the minorVersions don't contain duplicates here? How do we enforce idempotency if we don't?

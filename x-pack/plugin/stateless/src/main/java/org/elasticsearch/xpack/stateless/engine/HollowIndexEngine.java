@@ -329,7 +329,9 @@ public class HollowIndexEngine extends Engine {
 
     @Override
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-        listener.onResponse(new FlushResult(false, segmentInfos.getGeneration()));
+        // This returns a successful flush result, but does not actually flush anything. Mostly to appease the flushOnIdle consumer
+        // so it does not retry endlessly unnecessarily.
+        listener.onResponse(new FlushResult(true, segmentInfos.getGeneration()));
     }
 
     @Override

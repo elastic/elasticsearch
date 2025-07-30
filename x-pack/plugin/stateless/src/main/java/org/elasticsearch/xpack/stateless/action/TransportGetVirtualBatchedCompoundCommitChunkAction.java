@@ -53,7 +53,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -241,10 +240,6 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                     "primary term mismatch [request=" + request.getPrimaryTerm() + ", shard=" + shard.getOperationPrimaryTerm() + "]"
                 );
                 throw exception;
-            }
-            final Engine engine = shard.getEngineOrNull();
-            if (engine == null) {
-                throw new ShardNotFoundException(shard.shardId(), "engine not started");
             }
 
             try {

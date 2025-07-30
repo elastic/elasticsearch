@@ -1,5 +1,5 @@
 pr: 132064
-summary: New logic to check for conflicting indices before enabling streams pl…
+summary: Only Allow Enabling Streams If No Conflicting Indices Exist
 area: Data streams
 type: enhancement
 issues: []

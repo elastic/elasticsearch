@@ -1347,7 +1347,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns how many bytes we are currently moving from heap to disk
      */
     public long getWritingBytes() {
-        return withEngineOrNullIfBeingReset(engine -> {
+        return tryWithEngineOrNull(engine -> {
             if (engine == null) {
                 return 0L;
             }
@@ -1367,7 +1367,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
-        return withEngineOrNullIfBeingReset(
+        return tryWithEngineOrNull(
             engine -> new FlushStats(
                 flushMetric.count(),
                 periodicFlushMetric.count(),
@@ -1399,7 +1399,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public IndexingStats indexingStats() {
-        return withEngineOrNullIfBeingReset(engine -> {
+        return tryWithEngineOrNull(engine -> {
             final boolean throttled;
             final long throttleTimeInMillis;
             if (engine == null) {
@@ -1523,7 +1523,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param request the flush request
      * @param listener to notify after full durability has been achieved.
      *                 <code>false</code> if <code>waitIfOngoing==false</code>
-     *                 and an ongoing request or engine reset is detected, else <code>true</code>.
+     *                 and an ongoing request is detected, else <code>true</code>.
      *                 If <code>false</code> is returned, no flush happened.
      */
     public void flush(FlushRequest request, ActionListener<Boolean> listener) {
@@ -1538,23 +1538,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              */
             verifyNotClosed();
             final long startTime = System.nanoTime();
-            final var finalListener = ActionListener.runBefore(
-                l.map(Engine.FlushResult::flushPerformed),
-                () -> flushMetric.inc(System.nanoTime() - startTime)
+            getEngine().flush(
+                force,
+                waitIfOngoing,
+                ActionListener.runBefore(l.map(Engine.FlushResult::flushPerformed), () -> flushMetric.inc(System.nanoTime() - startTime))
             );
-            if (waitIfOngoing) {
-                getEngine().flush(force, waitIfOngoing, finalListener);
-            } else {
-                withEngineOrNullIfBeingReset(engine -> {
-                    if (engine == null) {
-                        logger.trace("detected engine is closed or being reset, not blocking");
-                        finalListener.onResponse(Engine.FlushResult.NO_FLUSH);
-                    } else {
-                        engine.flush(force, waitIfOngoing, finalListener);
-                    }
-                    return null;
-                });
-            }
         });
     }
 
@@ -1585,12 +1573,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void trimTranslog() {
         verifyNotClosed();
-        withEngineOrNullIfBeingReset(engine -> {
-            if (engine != null) {
-                engine.trimUnreferencedTranslogFiles();
-            }
-            return null;
-        });
+        final Engine engine = getEngine();
+        engine.trimUnreferencedTranslogFiles();
     }
 
     /**
@@ -2534,7 +2518,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed
      */
     public long getIndexBufferRAMBytesUsed() {
-        return withEngineOrNullIfBeingReset(engine -> {
+        return tryWithEngineOrNull(engine -> {
             if (engine == null) {
                 return 0L;
             }
@@ -2555,37 +2539,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * indexing operation, so we can flush the index.
      */
     public void flushOnIdle(long inactiveTimeNS) {
-        withEngineOrNullIfBeingReset(engineOrNull -> {
-            if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
-                boolean wasActive = active.getAndSet(false);
-                if (wasActive) {
-                    logger.debug("flushing shard on inactive");
-                    threadPool.executor(ThreadPool.Names.FLUSH)
-                        .execute(() -> flush(new FlushRequest().waitIfOngoing(false).force(false), new ActionListener<>() {
-                            @Override
-                            public void onResponse(Boolean flushed) {
-                                if (flushed == false) {
-                                    // In case an ongoing flush was detected, revert active flag so that a next flushOnIdle request
-                                    // will retry (#87888)
-                                    active.set(true);
-                                }
-                                periodicFlushMetric.inc();
+        Engine engineOrNull = getEngineOrNull();
+        if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
+            boolean wasActive = active.getAndSet(false);
+            if (wasActive) {
+                logger.debug("flushing shard on inactive");
+                threadPool.executor(ThreadPool.Names.FLUSH)
+                    .execute(() -> flush(new FlushRequest().waitIfOngoing(false).force(false), new ActionListener<>() {
+                        @Override
+                        public void onResponse(Boolean flushed) {
+                            if (flushed == false) {
+                                // In case an ongoing flush was detected, revert active flag so that a next flushOnIdle request
+                                // will retry (#87888)
+                                active.set(true);
                             }
+                            periodicFlushMetric.inc();
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (state != IndexShardState.CLOSED) {
-                                    active.set(true);
-                                    logger.warn("failed to flush shard on inactive", e);
-                                }
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (state != IndexShardState.CLOSED) {
+                                active.set(true);
+                                logger.warn("failed to flush shard on inactive", e);
                             }
-                        }));
-                }
-            } else {
-                logger.trace(() -> "flush on idle skipped as it is either closed, engine being reset, or has been recently written to");
+                        }
+                    }));
             }
-            return null;
-        });
+        }
     }
 
     public boolean isActive() {
@@ -2776,21 +2756,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * setting is set to true, throttling will pause indexing completely. Otherwise, indexing will be throttled to one thread.
      */
     public void activateThrottling() {
-        withEngineOrNullIfBeingReset(engine -> {
-            if (engine != null) {
-                engine.activateThrottling();
-            }
-            return null;
-        });
+        try {
+            getEngine().activateThrottling();
+        } catch (AlreadyClosedException ex) {
+            // ignore
+        }
     }
 
     public void deactivateThrottling() {
-        withEngineOrNullIfBeingReset(engine -> {
-            if (engine != null) {
-                engine.deactivateThrottling();
-            }
-            return null;
-        });
+        try {
+            getEngine().deactivateThrottling();
+        } catch (AlreadyClosedException ex) {
+            // ignore
+        }
     }
 
     private void handleRefreshException(Exception e) {
@@ -2819,16 +2797,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Called when our shard is using too much heap and should move buffered indexed/deleted documents to disk.
      */
     public void writeIndexingBuffer() {
-        withEngineOrNullIfBeingReset(engine -> {
-            if (engine != null) {
-                try {
-                    engine.writeIndexingBuffer();
-                } catch (Exception e) {
-                    handleRefreshException(e);
-                }
-            }
-            return null;
-        });
+        try {
+            Engine engine = getEngine();
+            engine.writeIndexingBuffer();
+        } catch (Exception e) {
+            handleRefreshException(e);
+        }
     }
 
     /**
@@ -3415,7 +3389,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
      * closed.
      *
-     * @deprecated use the withEngine* family of functions instead, which consider the situation an engine may be reset / changed.
+     * @deprecated use the try/withEngine* family of functions instead, which consider the situation an engine may be reset / changed.
      */
     @Deprecated
     public Engine getEngineOrNull() {
@@ -3450,7 +3424,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return              the result of the operation
      * @param <R>           the type of the result
      */
-    public <R> R withEngineOrNullIfBeingReset(Function<Engine, R> operation) {
+    public <R> R tryWithEngineOrNull(Function<Engine, R> operation) {
         return withEngine(operation, true, true);
     }
 

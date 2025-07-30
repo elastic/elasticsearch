@@ -4369,80 +4369,6 @@ public class IndexShardTests extends IndexShardTestCase {
         }
     }
 
-    @TestLogging(reason = "testing traces of concurrent flush and engine reset", value = "org.elasticsearch.index.shard.IndexShard:TRACE")
-    public void testFlushOnIdleDoesNotWaitWhileEngineIsReset() throws Exception {
-        final var preparedForReset = new AtomicBoolean();
-        final var shard = newStartedShard(true, Settings.EMPTY, config -> {
-            if (preparedForReset.get()) {
-                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true);
-            } else {
-                return new InternalEngine(config) {
-                    @Override
-                    public void prepareForEngineReset() throws IOException {
-                        assertTrue(preparedForReset.compareAndSet(false, true));
-                    }
-                };
-            }
-        });
-        final var engineResetLock = shard.getEngine().getEngineConfig().getEngineResetLock();
-
-        final var release = new CountDownLatch(1);
-        final var reset = new PlainActionFuture<Void>();
-        final var resetEngineThread = new Thread(() -> {
-            try {
-                shard.acquirePrimaryOperationPermit(reset.delegateFailure((l, permit) -> {
-                    try (permit) {
-                        shard.resetEngine(newEngine -> {
-                            assertThat(engineResetLock.isWriteLockedByCurrentThread(), equalTo(true));
-                            assertThat(newEngine, instanceOf(ReadOnlyEngine.class));
-                            safeAwait(release);
-                        });
-                        assertThat(preparedForReset.get(), equalTo(true));
-                        l.onResponse(null);
-                    }
-                }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            } catch (Exception e) {
-                reset.onFailure(e);
-            }
-        });
-        resetEngineThread.start();
-
-        assertBusy(() -> assertThat(engineResetLock.isWriteLocked(), equalTo(true)));
-
-        try (var mockLog = MockLog.capture(IndexShard.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "should see flush on idle returning since it will not wait for the engine reset",
-                    IndexShard.class.getCanonicalName(),
-                    Level.TRACE,
-                    "flush on idle skipped"
-                )
-            );
-            shard.flushOnIdle(0);
-            mockLog.awaitAllExpectationsMatched();
-        }
-
-        try (var mockLog = MockLog.capture(IndexShard.class)) {
-            mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "should see flush returning since it will not wait for the engine reset",
-                    IndexShard.class.getCanonicalName(),
-                    Level.TRACE,
-                    "detected engine is closed or being reset, not blocking"
-                )
-            );
-            // A direct call to flush (with waitIfOngoing=false) should not wait and return false immediately
-            assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
-            mockLog.awaitAllExpectationsMatched();
-        }
-
-        release.countDown();
-        safeGet(reset);
-        assertThat(engineResetLock.isWriteLocked(), equalTo(false));
-        resetEngineThread.join();
-        closeShards(shard);
-    }
-
     public void testFlushOnIdleAfterOp() throws Exception {
         // Holding the write lock makes the index/delete op to halt before being processed by the engine
         final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -5340,7 +5266,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testWithEngineOrNullIfBeingReset() throws Exception {
+    public void testTryWithEngineOrNull() throws Exception {
         final var preparedForReset = new AtomicBoolean();
         final var shard = newStartedShard(true, Settings.EMPTY, config -> {
             if (preparedForReset.get()) {
@@ -5379,7 +5305,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         assertBusy(() -> assertThat(engineResetLock.isWriteLocked(), equalTo(true)));
 
-        shard.withEngineOrNullIfBeingReset(engine -> {
+        shard.tryWithEngineOrNull(engine -> {
             assertNull(engine);
             assertThat(engineResetLock.isReadLocked(), equalTo(false));
             return null;
@@ -5389,7 +5315,7 @@ public class IndexShardTests extends IndexShardTestCase {
         safeGet(reset);
         assertThat(engineResetLock.isWriteLocked(), equalTo(false));
 
-        shard.withEngineOrNullIfBeingReset(engine -> {
+        shard.tryWithEngineOrNull(engine -> {
             assertThat(engine, instanceOf(ReadOnlyEngine.class));
             assertThat(engineResetLock.isReadLocked(), equalTo(true));
             return null;

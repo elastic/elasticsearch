@@ -1851,7 +1851,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 
-        Array.asList(".entities.v1.latest.security_" + randomAlphaOfLength(randomIntBetween(0, 13)))
+        Arrays.asList(".entities.v1.latest.security_" + randomAlphaOfLength(randomIntBetween(0, 13)))
             .forEach(indexName -> assertAllIndicesAccessAllowed(kibanaRole, indexName));
 
         Arrays.asList("metrics-logstash." + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((indexName) -> {

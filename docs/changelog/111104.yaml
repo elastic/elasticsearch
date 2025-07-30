@@ -1,6 +1,0 @@
-pr: 111104
-summary: "ESQL: Enable async get to support formatting"
-area: ES|QL
-type: feature
-issues:
- - 110926

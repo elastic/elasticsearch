@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -102,7 +104,29 @@ public class JobRenormalizedResultsPersister {
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
             if (addRecordsResponse.hasFailures()) {
-                logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+                // Implementation note: Ignore the failures from writing to the read-only index, as it comes
+                // from changing the index format version.
+                boolean hasNonReadOnlyFailures = false;
+                for (BulkItemResponse response : addRecordsResponse.getItems()) {
+                    if (response.isFailed() == false) {
+                        continue;
+                    }
+                    if (response.getFailureMessage().contains(IndexMetadata.INDEX_READ_ONLY_BLOCK.description())) {
+                        // We expect this to happen when the old index is made read-only and being reindexed
+                        logger.debug(
+                            "[{}] Ignoring failure to write renormalized results to a read-only index [{}]: {}",
+                            jobId,
+                            response.getFailure().getIndex(),
+                            response.getFailureMessage()
+                        );
+                    } else {
+                        hasNonReadOnlyFailures = true;
+                        break;
+                    }
+                }
+                if (hasNonReadOnlyFailures) {
+                    logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
+                }
             }
         }
 

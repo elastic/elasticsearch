@@ -46,6 +46,23 @@ static inline void cpuid(int output[4], int functionNumber) {
 #endif
 }
 
+// Multi-platform XGETBV "intrinsic"
+static inline int64_t xgetbv(int ctr) {
+#if defined(__GNUC__) || defined(__clang__)
+    // use inline assembly, Gnu/AT&T syntax
+    uint32_t a, d;
+    __asm("xgetbv" : "=a"(a),"=d"(d) : "c"(ctr) : );
+    return a | (((uint64_t) d) << 32);
+
+#elif (defined (_MSC_FULL_VER) && _MSC_FULL_VER >= 160040000) || (defined (__INTEL_COMPILER) && __INTEL_COMPILER >= 1200)
+    // Microsoft or Intel compiler supporting _xgetbv intrinsic
+    return _xgetbv(ctr);
+
+#else
+   #error Unsupported compiler
+#endif
+}
+
 // Utility function to horizontally add 8 32-bit integers
 static inline int hsum_i32_8(const __m256i a) {
     const __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
@@ -57,11 +74,20 @@ static inline int hsum_i32_8(const __m256i a) {
 
 EXPORT int vec_caps() {
     int cpuInfo[4] = {-1};
-    // Calling __cpuid with 0x0 as the function_id argument
+    // Calling CPUID function 0x0 as the function_id argument
     // gets the number of the highest valid function ID.
     cpuid(cpuInfo, 0);
     int functionIds = cpuInfo[0];
+    if (functionIds == 0) {
+        // No CPUID functions
+        return 0;
+    }
+    // call CPUID function 0x1 for feature flags
+    cpuid(cpuInfo, 1);
+    int hasOsXsave = (cpuInfo[2] & (1 << 27)) != 0;
+    int avxEnabledInOS = hasOsXsave && ((xgetbv(0) & 6) == 6);
     if (functionIds >= 7) {
+        // call CPUID function 0x7 for AVX2/512 flags
         cpuid(cpuInfo, 7);
         int ebx = cpuInfo[1];
         int ecx = cpuInfo[2];
@@ -72,10 +98,18 @@ EXPORT int vec_caps() {
         // int avx512_vnni = (ecx & 0x00000800) != 0;
         // if (avx512 && avx512_vnni) {
         if (avx512) {
-            return 2;
+            if (avxEnabledInOS) {
+                return 2;
+            } else {
+                return -2;
+            }
         }
         if (avx2) {
-            return 1;
+            if (avxEnabledInOS) {
+                return 1;
+            } else {
+                return -1;
+            }
         }
     }
     return 0;

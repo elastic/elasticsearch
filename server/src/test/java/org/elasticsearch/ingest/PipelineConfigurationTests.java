@@ -28,9 +28,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -141,6 +143,41 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             );
             assertThat(configuration.getVersion(), equalTo(version));
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testMapKeyOrderingRoundTrip() throws IOException {
+        // make up two random keys
+        String key1 = randomAlphaOfLength(10);
+        String key2 = randomValueOtherThan(key1, () -> randomAlphaOfLength(10));
+        // stick them as mappings onto themselves in the _meta of a pipeline configuration
+        // this happens to use the _meta as a convenient map to test that the ordering of the key sets is the same
+        String configJson = Strings.format("""
+            {"description": "blah", "_meta" : {"foo": "bar", "%s": "%s", "%s": "%s"}}""", key1, key1, key2, key2);
+        PipelineConfiguration configuration = new PipelineConfiguration(
+            "1",
+            new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
+
+        // serialize it to bytes
+        XContentType xContentType = randomFrom(XContentType.values());
+        final BytesReference bytes;
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            configuration.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            bytes = BytesReference.bytes(builder);
+        }
+
+        // deserialize it back
+        ContextParser<Void, PipelineConfiguration> parser = PipelineConfiguration.getParser();
+        XContentParser xContentParser = xContentType.xContent()
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
+        PipelineConfiguration parsed = parser.parse(xContentParser, null);
+
+        // make sure the _meta key sets are in the same order
+        Set<String> keys1 = ((Map<String, Object>) configuration.getConfig().get("_meta")).keySet();
+        Set<String> keys2 = ((Map<String, Object>) parsed.getConfig().get("_meta")).keySet();
+        assertThat(keys1, contains(keys2.toArray(new String[0])));
     }
 
     @Override

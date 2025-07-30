@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -33,8 +32,8 @@ public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
     public static final String NAME = "check-ts-end-time-passed";
     private final Supplier<Instant> nowSupplier;
 
-    public WaitUntilTimeSeriesEndTimePassesStep(StepKey key, StepKey nextStepKey, Supplier<Instant> nowSupplier, Client client) {
-        super(key, nextStepKey, client);
+    public WaitUntilTimeSeriesEndTimePassesStep(StepKey key, StepKey nextStepKey, Supplier<Instant> nowSupplier) {
+        super(key, nextStepKey, null);
         this.nowSupplier = nowSupplier;
     }
 

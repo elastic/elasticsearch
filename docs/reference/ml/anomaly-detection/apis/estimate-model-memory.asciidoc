@@ -5,6 +5,12 @@
 <titleabbrev>Estimate model memory</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Makes an estimation of the memory usage for an {anomaly-job} model. It is based 
 on analysis configuration details for the job and cardinality estimates for the 
 fields it references.

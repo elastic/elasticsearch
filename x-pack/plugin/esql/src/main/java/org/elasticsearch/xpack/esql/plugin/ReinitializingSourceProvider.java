@@ -15,7 +15,13 @@ import java.io.IOException;
 import java.util.function.Supplier;
 
 /**
- * This is a workaround for when compute engine executes concurrently with data partitioning by docid.
+ * This class exists as a workaround for using SourceProvider in the compute engine.
+ * <p>
+ * The main issue is when compute engine executes concurrently with data partitioning by docid (inter segment parallelization).
+ * A {@link SourceProvider} can only be used by a single thread and this wrapping source provider ensures that each thread uses
+ * its own {@link SourceProvider}.
+ * <p>
+ * Additionally, this source provider protects against going backwards, which the synthetic source provider can't handle.
  */
 final class ReinitializingSourceProvider implements SourceProvider {
 
@@ -30,14 +36,25 @@ final class ReinitializingSourceProvider implements SourceProvider {
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
         var currentThread = Thread.currentThread();
         PerThreadSourceProvider provider = perThreadProvider;
-        if (provider == null || provider.creatingThread != currentThread) {
+        if (provider == null || provider.creatingThread != currentThread || doc < provider.lastSeenDocId) {
             provider = new PerThreadSourceProvider(sourceProviderFactory.get(), currentThread);
             this.perThreadProvider = provider;
         }
-        return perThreadProvider.source.getSource(ctx, doc);
+        provider.lastSeenDocId = doc;
+        return provider.source.getSource(ctx, doc);
     }
 
-    private record PerThreadSourceProvider(SourceProvider source, Thread creatingThread) {
+    private static final class PerThreadSourceProvider {
+        final SourceProvider source;
+        final Thread creatingThread;
+        // Keeping track of last seen doc and if current doc is before last seen doc then source provider is initialized:
+        // (when source mode is synthetic then _source is read from doc values and doc values don't support going backwards)
+        int lastSeenDocId;
+
+        private PerThreadSourceProvider(SourceProvider source, Thread creatingThread) {
+            this.source = source;
+            this.creatingThread = creatingThread;
+        }
 
     }
 }

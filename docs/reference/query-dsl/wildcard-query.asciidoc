@@ -81,6 +81,9 @@ the iterations needed to find matching terms and slow search performance.
 
 [[wildcard-query-notes]]
 ==== Notes
+
+Wildcard queries using `*` can be resource-intensive, particularly with leading wildcards. To improve performance, minimize their use and consider alternatives like the <<analysis-ngram-tokenizer,n-gram tokenizer>>. While this allows for more efficient searching, it may increase index size. For better performance and accuracy, combine wildcard queries with other query types like <<query-dsl-match-query,`match`>> or <<query-dsl-bool-query,`bool`>> to first narrow down results.
+
 ===== Allow expensive queries
 Wildcard queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>
 is set to false.

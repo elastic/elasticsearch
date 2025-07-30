@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
@@ -16,12 +17,15 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Objects;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -29,33 +33,72 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * A query that matches the provided docs with their scores.
  *
- * Note: this query was adapted from Lucene's DocAndScoreQuery from the class
+ * Note: this query was originally adapted from Lucene's DocAndScoreQuery from the class
  * {@link org.apache.lucene.search.KnnFloatVectorQuery}, which is package-private.
- * There are no changes to the behavior, just some renames.
  */
 public class KnnScoreDocQuery extends Query {
+    private final float maxScore;
     private final int[] docs;
     private final float[] scores;
+
+    // the indexes in docs and scores corresponding to the first matching document in each segment.
+    // If a segment has no matching documents, it should be assigned the index of the next segment that does.
+    // There should be a final entry that is always docs.length-1.
     private final int[] segmentStarts;
+
+    // an object identifying the reader context that was used to build this query
     private final Object contextIdentity;
+
+    static Query fromQuery(Query query, int k, IndexSearcher searcher) throws IOException {
+        if (query instanceof MatchNoDocsQuery) {
+            // If the rewritten query is a MatchNoDocsQuery, we can return it directly.
+            return query;
+        }
+        if (query instanceof KnnScoreDocQuery knnQuery) {
+            return knnQuery;
+        }
+        TopDocs topDocs = searcher.search(query, k);
+        return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
+    }
 
     /**
      * Creates a query.
      *
-     * @param docs the global doc IDs of documents that match, in ascending order
-     * @param scores the scores of the matching documents
-     * @param segmentStarts the indexes in docs and scores corresponding to the first matching
-     *     document in each segment. If a segment has no matching documents, it should be assigned
-     *     the index of the next segment that does. There should be a final entry that is always
-     *     docs.length-1.
-     * @param contextIdentity an object identifying the reader context that was used to build this
-     *     query
+     * @param scoreDocs an array of ScoreDocs to use for the query
+     * @param reader IndexReader
      */
-    KnnScoreDocQuery(int[] docs, float[] scores, int[] segmentStarts, Object contextIdentity) {
-        this.docs = docs;
-        this.scores = scores;
-        this.segmentStarts = segmentStarts;
-        this.contextIdentity = contextIdentity;
+    KnnScoreDocQuery(ScoreDoc[] scoreDocs, IndexReader reader) {
+        // Ensure that the docs are sorted by docId, as they are later searched using binary search
+        Arrays.sort(scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+        this.docs = new int[scoreDocs.length];
+        this.scores = new float[scoreDocs.length];
+        float maxScore = Float.NEGATIVE_INFINITY;
+        for (int i = 0; i < scoreDocs.length; i++) {
+            docs[i] = scoreDocs[i].doc;
+            scores[i] = scoreDocs[i].score;
+            maxScore = Math.max(maxScore, scores[i]);
+        }
+        this.maxScore = maxScore;
+        this.segmentStarts = findSegmentStarts(reader, docs);
+        this.contextIdentity = reader.getContext().id();
+    }
+
+    private static int[] findSegmentStarts(IndexReader reader, int[] docs) {
+        int[] starts = new int[reader.leaves().size() + 1];
+        starts[starts.length - 1] = docs.length;
+        if (starts.length == 2) {
+            return starts;
+        }
+        int resultIndex = 0;
+        for (int i = 1; i < starts.length - 1; i++) {
+            int upper = reader.leaves().get(i).docBase;
+            resultIndex = Arrays.binarySearch(docs, resultIndex, docs.length, upper);
+            if (resultIndex < 0) {
+                resultIndex = -1 - resultIndex;
+            }
+            starts[i] = resultIndex;
+        }
+        return starts;
     }
 
     @Override
@@ -131,34 +174,12 @@ public class KnnScoreDocQuery extends Query {
 
                     @Override
                     public float getMaxScore(int docId) {
-                        // NO_MORE_DOCS indicates the maximum score for all docs in this segment
-                        // Anything less than must be accounted for via the docBase.
-                        if (docId != NO_MORE_DOCS) {
-                            docId += context.docBase;
-                        }
-                        float maxScore = 0;
-                        for (int idx = Math.max(lower, upTo); idx < upper && docs[idx] <= docId; idx++) {
-                            maxScore = Math.max(maxScore, scores[idx] * boost);
-                        }
-                        return maxScore;
+                        return maxScore * boost;
                     }
 
                     @Override
                     public float score() {
                         return scores[upTo] * boost;
-                    }
-
-                    @Override
-                    public int advanceShallow(int docId) {
-                        int start = Math.max(upTo, lower);
-                        int docIdIndex = Arrays.binarySearch(docs, start, upper, docId + context.docBase);
-                        if (docIdIndex < 0) {
-                            docIdIndex = -1 - docIdIndex;
-                        }
-                        if (docIdIndex >= upper) {
-                            return NO_MORE_DOCS;
-                        }
-                        return docs[docIdIndex];
                     }
 
                     @Override
@@ -198,7 +219,7 @@ public class KnnScoreDocQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "ScoreAndDocQuery";
+        return "DocAndScoreQuery[" + docs[0] + ",...][" + scores[0] + ",...]," + maxScore;
     }
 
     @Override

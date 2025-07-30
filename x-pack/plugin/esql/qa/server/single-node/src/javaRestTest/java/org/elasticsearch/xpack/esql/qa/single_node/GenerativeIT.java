@@ -15,7 +15,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.generative.GenerativeRestTest;
 import org.junit.ClassRule;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102084")
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/121754")
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class GenerativeIT extends GenerativeRestTest {
     @ClassRule

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -102,6 +103,9 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 null,
                 123,
                 1,
+                randomBoolean(),
+                randomBoolean(),
+                TransportVersion.current(),
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(
@@ -168,7 +172,15 @@ public class PITAwareQueryClientTests extends ESTestCase {
             }
 
             SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, booleanArrayOf(stages, false), cb);
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(wrap(response -> {
                 // do nothing, we don't care about the query results
             }, ex -> { fail("Shouldn't have failed"); }));

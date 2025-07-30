@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -46,7 +45,6 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
         final ThreadPool threadPool,
         final MetadataMappingService metadataMappingService,
         final ActionFilters actionFilters,
-        final IndexNameExpressionResolver indexNameExpressionResolver,
         final SystemIndices systemIndices
     ) {
         super(
@@ -56,7 +54,6 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             PutMappingRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataMappingService = metadataMappingService;

@@ -12,12 +12,10 @@ package org.elasticsearch.gradle.internal.precommit;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier;
-import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
@@ -34,7 +32,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getRootProject().getPlugins().apply(CompileOnlyResolvePlugin.class);
-        Property<BuildParameterExtension> buildParams = loadBuildParams(project);
+        var buildParams = loadBuildParams(project);
 
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");

@@ -61,7 +61,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         settingsBuilder.putList(
-            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         Settings nodeSettings = settingsBuilder.build();
@@ -73,7 +73,10 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         ClusterService clusterService = Mockito.mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, Set.of(DeprecationChecks.SKIP_DEPRECATIONS_SETTING));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            nodeSettings,
+            Set.of(TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING)
+        );
         when((clusterService.getClusterSettings())).thenReturn(clusterSettings);
         DiscoveryNode node = Mockito.mock(DiscoveryNode.class);
         when(node.getId()).thenReturn("mock-node");
@@ -98,7 +101,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         NodesDeprecationCheckAction.NodeRequest nodeRequest = null;
         AtomicReference<Settings> visibleNodeSettings = new AtomicReference<>();
         AtomicReference<Settings> visibleClusterStateMetadataSettings = new AtomicReference<>();
-        DeprecationChecks.NodeDeprecationCheck<
+        NodeDeprecationChecks.NodeDeprecationCheck<
             Settings,
             PluginsAndModules,
             ClusterState,
@@ -109,7 +112,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
                 return null;
             };
         java.util.List<
-            DeprecationChecks.NodeDeprecationCheck<
+            NodeDeprecationChecks.NodeDeprecationCheck<
                 Settings,
                 PluginsAndModules,
                 ClusterState,
@@ -120,7 +123,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         settingsBuilder.putList(
-            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         Settings expectedSettings = settingsBuilder.build();
@@ -131,7 +134,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
 
         // Testing that the setting is dynamically updatable:
         Settings newSettings = Settings.builder()
-            .putList(DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(), List.of("some.undeprecated.property"))
+            .putList(TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(), List.of("some.undeprecated.property"))
             .build();
         clusterSettings.applySettings(newSettings);
         transportNodeDeprecationCheckAction.nodeOperation(nodeRequest, nodeSettingsChecks);
@@ -141,7 +144,7 @@ public class TransportNodeDeprecationCheckActionTests extends ESTestCase {
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         // This is the node setting (since this is the node deprecation check), not the cluster setting:
         settingsBuilder.putList(
-            DeprecationChecks.SKIP_DEPRECATIONS_SETTING.getKey(),
+            TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING.getKey(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property", "some.bad.dynamic.property")
         );
         expectedSettings = settingsBuilder.build();

@@ -29,7 +29,7 @@ import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Maps a {@link BytesRefBlock} column to group ids.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockHash.java.st} instead.
  */
 final class BytesRefBlockHash extends BlockHash {
     private final int channel;

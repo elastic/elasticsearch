@@ -6,6 +6,12 @@
 <titleabbrev>Delete trained model aliases</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Deletes a trained model alias.
 
 

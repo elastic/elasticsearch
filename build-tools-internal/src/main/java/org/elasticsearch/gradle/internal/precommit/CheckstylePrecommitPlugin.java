@@ -41,8 +41,8 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
         File checkstyleDir = new File(project.getBuildDir(), "checkstyle");
         File checkstyleSuppressions = new File(checkstyleDir, "checkstyle_suppressions.xml");
         File checkstyleConf = new File(checkstyleDir, "checkstyle.xml");
-        TaskProvider<Task> copyCheckstyleConf = project.getTasks().register("copyCheckstyleConf");
-
+        TaskProvider<CopyCheckStyleConfTask> copyCheckstyleConf = project.getTasks()
+            .register("copyCheckstyleConf", CopyCheckStyleConfTask.class);
         // configure inputs and outputs so up to date works properly
         copyCheckstyleConf.configure(t -> t.getOutputs().files(checkstyleSuppressions, checkstyleConf));
         if ("jar".equals(checkstyleConfUrl.getProtocol())) {

@@ -59,6 +59,13 @@
         },
         "wildcard": {
             "type": "wildcard"
+        },
+        "semantic_text": {
+            "type": "semantic_text",
+            "inference_id": "foo_inference_id"
+        },
+        "dense_vector": {
+            "type": "dense_vector"
         }
     }
 }

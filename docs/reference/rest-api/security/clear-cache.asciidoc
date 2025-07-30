@@ -5,6 +5,12 @@
 <titleabbrev>Clear cache</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Evicts users from the user cache. You can completely clear
 the cache or evict specific users.
 

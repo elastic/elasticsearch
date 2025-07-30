@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
@@ -43,7 +44,7 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
         return List.of(
             new Route(POST, "/{index}/_delete_by_query"),
             Route.builder(POST, "/{index}/{type}/_delete_by_query")
-                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
                 .build()
         );
 

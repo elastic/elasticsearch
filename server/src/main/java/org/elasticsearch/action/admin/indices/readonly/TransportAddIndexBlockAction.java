@@ -46,6 +46,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
     private static final Logger logger = LogManager.getLogger(TransportAddIndexBlockAction.class);
 
     private final MetadataIndexStateService indexStateService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final DestructiveOperations destructiveOperations;
 
     @Inject
@@ -65,11 +66,11 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             threadPool,
             actionFilters,
             AddIndexBlockRequest::new,
-            indexNameExpressionResolver,
             AddIndexBlockResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexStateService = indexStateService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.destructiveOperations = destructiveOperations;
     }
 
@@ -107,6 +108,7 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
                 request.masterNodeTimeout(),
                 request.ackTimeout(),
                 request.getBlock(),
+                request.markVerified(),
                 task.getId(),
                 concreteIndices
             ),

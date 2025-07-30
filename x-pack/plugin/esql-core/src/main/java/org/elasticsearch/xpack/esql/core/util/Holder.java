@@ -26,6 +26,16 @@ public class Holder<T> {
         this.value = value;
     }
 
+    /**
+     * Sets a value in the holder, but only if none has already been set.
+     * @param value the new value to set.
+     */
+    public void setIfAbsent(T value) {
+        if (this.value == null) {
+            this.value = value;
+        }
+    }
+
     public T get() {
         return value;
     }

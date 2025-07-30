@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.test.TestUtil
+import org.elasticsearch.gradle.OS
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -41,6 +42,7 @@ dependencies {
   }
   api(project(':libs:h3'))
   api(project(':modules:aggregations'))
+  implementation project(':modules:mapper-extras');
   api(project(':x-pack:plugin:esql-core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
@@ -77,7 +79,7 @@ tasks.register("copyPainless", Copy) {
 }
 
 tasks.named("run").configure {
-  executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
   args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())

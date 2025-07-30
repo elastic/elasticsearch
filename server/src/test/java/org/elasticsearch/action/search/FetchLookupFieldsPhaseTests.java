@@ -46,14 +46,19 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
             for (int i = 0; i < searchHits.length; i++) {
                 searchHits[i] = SearchHitTests.createTestItem(randomBoolean(), randomBoolean());
             }
-            SearchHits hits = new SearchHits(searchHits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), 1.0f);
-            var sections = new SearchResponseSections(hits, null, null, false, null, null, 1);
-            try {
+            try (
+                var sections = new SearchResponseSections(
+                    new SearchHits(searchHits, new TotalHits(numHits, TotalHits.Relation.EQUAL_TO), 1.0f),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1
+                )
+            ) {
                 FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
                 phase.run();
-            } finally {
-                sections.decRef();
-                hits.decRef();
             }
             searchPhaseContext.assertNoFailure();
             assertNotNull(searchPhaseContext.searchResponse.get());
@@ -184,18 +189,19 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                     )
                 );
             }
-            SearchHits searchHits = new SearchHits(
-                new SearchHit[] { leftHit0, leftHit1 },
-                new TotalHits(2, TotalHits.Relation.EQUAL_TO),
-                1.0f
-            );
-            var sections = new SearchResponseSections(searchHits, null, null, false, null, null, 1);
-            try {
+            try (
+                var sections = new SearchResponseSections(
+                    new SearchHits(new SearchHit[] { leftHit0, leftHit1 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1.0f),
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1
+                )
+            ) {
                 FetchLookupFieldsPhase phase = new FetchLookupFieldsPhase(searchPhaseContext, sections, null);
                 phase.run();
-            } finally {
-                sections.decRef();
-                searchHits.decRef();
             }
             assertTrue(requestSent.get());
             searchPhaseContext.assertNoFailure();

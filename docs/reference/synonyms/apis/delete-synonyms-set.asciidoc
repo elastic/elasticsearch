@@ -1,9 +1,14 @@
 [[delete-synonyms-set]]
 === Delete synonyms set
-
 ++++
 <titleabbrev>Delete synonyms set</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-synonyms[Synonyms APIs].
+--
 
 Deletes a synonyms set.
 

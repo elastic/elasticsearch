@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -101,7 +100,7 @@ public class SetPriorityAction implements LifecycleAction {
         Settings indexPriority = recoveryPriority == null
             ? NULL_PRIORITY_SETTINGS
             : Settings.builder().put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
-        return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
+        return List.of(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
     }
 
     @Override

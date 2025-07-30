@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -48,7 +48,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         super(name);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public static final ParseField ID = new ParseField("id");
         public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
@@ -57,6 +57,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
         static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, Builder::new);
+
         static {
             PARSER.declareString(Builder::setId, ID);
             PARSER.declareObjectArray(Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
@@ -94,21 +95,14 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         /**
          * Build a request from a list of documents as maps.
-         * The inference timeout (how long the request waits in
-         * the inference queue for) is set to a high value {@code #DEFAULT_TIMEOUT_FOR_INGEST}
-         * to prefer slow ingest over dropping documents.
-         */
-
-        /**
-         * Build a request from a list of documents as maps.
          *
-         * @param id The model Id
-         * @param docs List of document maps
-         * @param update Inference config update
+         * @param id                 The model Id
+         * @param docs               List of document maps
+         * @param update             Inference config update
          * @param previouslyLicensed License has been checked previously
          *                           and can now be skipped
-         * @param inferenceTimeout The inference timeout (how long the
-         *                         request waits in the inference queue for)
+         * @param inferenceTimeout   The inference timeout (how long the
+         *                           request waits in the inference queue for)
          * @return the new Request
          */
         public static Request forIngestDocs(
@@ -119,7 +113,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             TimeValue inferenceTimeout
         ) {
             return new Request(
-                ExceptionsHelper.requireNonNull(id, InferModelAction.Request.ID),
+                ExceptionsHelper.requireNonNull(id, Request.ID),
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
@@ -132,13 +126,13 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
          * Build a request from a list of strings, each string
          * is one evaluation of the model.
          *
-         * @param id The model Id
-         * @param update Inference config update
-         * @param textInput Inference input
+         * @param id                 The model Id
+         * @param update             Inference config update
+         * @param textInput          Inference input
          * @param previouslyLicensed License has been checked previously
          *                           and can now be skipped
-         * @param inferenceTimeout The inference timeout (how long the
-         *                         request waits in the inference queue for)
+         * @param inferenceTimeout   The inference timeout (how long the
+         *                           request waits in the inference queue for)
          * @return the new Request
          */
         public static Request forTextInput(
@@ -294,7 +288,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            InferModelAction.Request that = (InferModelAction.Request) o;
+            Request that = (Request) o;
             return Objects.equals(id, that.id)
                 && Objects.equals(update, that.update)
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
@@ -413,7 +407,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            InferModelAction.Response that = (InferModelAction.Response) o;
+            Response that = (Response) o;
             return isLicensed == that.isLicensed && Objects.equals(inferenceResults, that.inferenceResults) && Objects.equals(id, that.id);
         }
 

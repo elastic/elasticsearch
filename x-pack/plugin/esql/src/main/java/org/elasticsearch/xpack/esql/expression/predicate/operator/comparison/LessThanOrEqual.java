@@ -38,12 +38,12 @@ public class LessThanOrEqual extends EsqlBinaryComparison implements Negatable<E
         Map.entry(DataType.DATE_NANOS, LessThanOrEqualLongsEvaluator.Factory::new),
         Map.entry(DataType.KEYWORD, LessThanOrEqualKeywordsEvaluator.Factory::new),
         Map.entry(DataType.TEXT, LessThanOrEqualKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.SEMANTIC_TEXT, LessThanOrEqualKeywordsEvaluator.Factory::new),
         Map.entry(DataType.VERSION, LessThanOrEqualKeywordsEvaluator.Factory::new),
         Map.entry(DataType.IP, LessThanOrEqualKeywordsEvaluator.Factory::new)
     );
 
     @FunctionInfo(
+        operator = "<=",
         returnType = { "boolean" },
         description = "Check if one field is less than or equal to another. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",

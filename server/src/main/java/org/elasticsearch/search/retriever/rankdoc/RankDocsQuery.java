@@ -58,6 +58,11 @@ public class RankDocsQuery extends Query {
             this.queryNames = queryNames;
             this.segmentStarts = segmentStarts;
             this.contextIdentity = contextIdentity;
+            for (RankDoc doc : docs) {
+                if (false == doc.score >= 0) {
+                    throw new IllegalArgumentException("RankDoc scores must be positive values. Missing a normalization step?");
+                }
+            }
         }
 
         @Override
@@ -161,7 +166,11 @@ public class RankDocsQuery extends Query {
 
                         @Override
                         public float score() {
-                            return docs[upTo].score;
+                            // We could still end up with a valid 0 score for a RankDoc
+                            // so here we want to differentiate between this and all the tailQuery matches
+                            // that would also produce a 0 score due to filtering, by setting the score to `Float.MIN_VALUE` instead for
+                            // RankDoc matches.
+                            return Math.max(docs[upTo].score, Float.MIN_VALUE);
                         }
 
                         @Override

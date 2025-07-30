@@ -201,8 +201,13 @@ when you're creating <<runtime-mapping-fields,runtime fields>>.
 [[script-stored-scripts]]
 === Store and retrieve scripts
 You can store and retrieve scripts from the cluster state using the
-<<stored-script-apis,stored script APIs>>. Stored scripts reduce compilation
-time and make searches faster.
+<<stored-script-apis,stored script APIs>>. Stored scripts allow you to reference 
+shared scripts for operations like scoring, aggregating, filtering, and 
+reindexing. Instead of embedding scripts inline in each query, you can reference 
+these shared operations.
+
+Stored scripts can also reduce request payload size. Depending on script size 
+and request frequency, this can help lower latency and data transfer costs.
 
 NOTE: Unlike regular scripts, stored scripts require that you specify a script
 language using the `lang` parameter.

@@ -30,7 +30,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.Scheduler;
@@ -43,7 +42,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
-@UpdateForV9    // this can be removed in v9
 public class NodeFeaturesFixupListener implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(NodeFeaturesFixupListener.class);

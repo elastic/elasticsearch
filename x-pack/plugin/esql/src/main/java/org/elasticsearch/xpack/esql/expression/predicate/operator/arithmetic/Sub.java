@@ -38,6 +38,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sub", Sub::new);
 
     @FunctionInfo(
+        operator = "-",
         returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" },
         description = "Subtract one number from another. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."

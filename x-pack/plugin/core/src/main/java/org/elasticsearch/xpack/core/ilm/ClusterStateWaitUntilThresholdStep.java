@@ -62,7 +62,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
 
         Result stepResult = stepToExecute.isConditionMet(index, clusterState);
 
-        if (stepResult.isComplete() == false) {
+        if (stepResult.complete() == false) {
             // checking the threshold after we execute the step to make sure we execute the wrapped step at least once (because time is a
             // wonderful thing)
             TimeValue retryThreshold = LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING.get(idxMeta.getSettings());
@@ -77,7 +77,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
                     getKey().name(),
                     getKey().action(),
                     idxMeta.getIndex().getName(),
-                    Strings.toString(stepResult.getInformationContext()),
+                    Strings.toString(stepResult.informationContext()),
                     nextKeyOnThresholdBreach
                 );
                 logger.debug(message);

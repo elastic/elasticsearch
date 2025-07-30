@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.get;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -26,6 +28,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
@@ -39,6 +42,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.MultiEngineGet;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -190,9 +194,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
+        return getForUpdate(id, ifSeqNo, ifPrimaryTerm, new String[] { RoutingFieldMapper.NAME });
+    }
+
+    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, String[] gFields) throws IOException {
         return get(
             id,
-            new String[] { RoutingFieldMapper.NAME },
+            gFields,
             true,
             Versions.MATCH_ANY,
             VersionType.INTERNAL,
@@ -288,11 +296,18 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean forceSyntheticSource
     ) throws IOException {
         assert get.exists() : "method should only be called if document could be retrieved";
-
         // check first if stored fields to be loaded don't contain an object field
         MappingLookup mappingLookup = mapperService.mappingLookup();
+        final IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
+        final Set<String> storedFieldSet = new HashSet<>();
+        boolean hasInferenceMetadataFields = false;
         if (storedFields != null) {
             for (String field : storedFields) {
+                if (field.equals(InferenceMetadataFieldsMapper.NAME)
+                    && InferenceMetadataFieldsMapper.isEnabled(indexShard.mapperService().mappingLookup())) {
+                    hasInferenceMetadataFields = true;
+                    continue;
+                }
                 Mapper fieldMapper = mappingLookup.getMapper(field);
                 if (fieldMapper == null) {
                     if (mappingLookup.objectMappers().get(field) != null) {
@@ -300,16 +315,22 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
                 }
+                storedFieldSet.add(field);
             }
         }
 
         Map<String, DocumentField> documentFields = null;
         Map<String, DocumentField> metadataFields = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
+        var sourceFilter = fetchSourceContext.filter();
         SourceLoader loader = forceSyntheticSource
-            ? new SourceLoader.Synthetic(mappingLookup.getMapping()::syntheticFieldLoader, mapperMetrics.sourceFieldMetrics())
-            : mappingLookup.newSourceLoader(mapperMetrics.sourceFieldMetrics());
-        StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFields, fetchSourceContext, loader);
+            ? new SourceLoader.Synthetic(
+                sourceFilter,
+                () -> mappingLookup.getMapping().syntheticFieldLoader(sourceFilter),
+                mapperMetrics.sourceFieldMetrics()
+            )
+            : mappingLookup.newSourceLoader(sourceFilter, mapperMetrics.sourceFieldMetrics());
+        StoredFieldLoader storedFieldLoader = buildStoredFieldLoader(storedFieldSet, fetchSourceContext, loader);
         LeafStoredFieldLoader leafStoredFieldLoader = storedFieldLoader.getLoader(docIdAndVersion.reader.getContext(), null);
         try {
             leafStoredFieldLoader.advanceTo(docIdAndVersion.docId);
@@ -318,7 +339,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         }
 
         // put stored fields into result objects
-        final IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
         if (leafStoredFieldLoader.storedFields().isEmpty() == false) {
             Set<String> needed = new HashSet<>();
             if (storedFields != null) {
@@ -368,8 +388,17 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             Source source = loader.leaf(docIdAndVersion.reader, new int[] { docIdAndVersion.docId })
                 .source(leafStoredFieldLoader, docIdAndVersion.docId);
 
-            if (fetchSourceContext.hasFilter()) {
-                source = source.filter(fetchSourceContext.filter());
+            SourceFilter filter = fetchSourceContext.filter();
+            if (filter != null) {
+                source = source.filter(filter);
+            }
+
+            if (hasInferenceMetadataFields) {
+                /**
+                 * Adds the {@link InferenceMetadataFieldsMapper#NAME} field from the document fields
+                 * to the original _source if it has been requested.
+                 */
+                source = addInferenceMetadataFields(mapperService, docIdAndVersion.reader.getContext(), docIdAndVersion.docId, source);
             }
             sourceBytes = source.internalSourceRef();
         }
@@ -403,18 +432,38 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         return new DocumentField(IgnoredFieldMapper.NAME, ignoredValues);
     }
 
-    private static StoredFieldLoader buildStoredFieldLoader(String[] fields, FetchSourceContext fetchSourceContext, SourceLoader loader) {
-        Set<String> fieldsToLoad = new HashSet<>();
-        if (fields != null && fields.length > 0) {
-            Collections.addAll(fieldsToLoad, fields);
+    private static Source addInferenceMetadataFields(MapperService mapperService, LeafReaderContext readerContext, int docId, Source source)
+        throws IOException {
+        var mappingLookup = mapperService.mappingLookup();
+        var inferenceMetadata = (InferenceMetadataFieldsMapper) mappingLookup.getMapping()
+            .getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME);
+        if (inferenceMetadata == null || mapperService.mappingLookup().inferenceFields().isEmpty()) {
+            return source;
         }
+        var inferenceLoader = inferenceMetadata.fieldType()
+            .valueFetcher(mappingLookup, mapperService.getBitSetProducer(), new IndexSearcher(readerContext.reader()));
+        inferenceLoader.setNextReader(readerContext);
+        List<Object> values = inferenceLoader.fetchValues(source, docId, List.of());
+        if (values.size() == 1) {
+            var newSource = source.source();
+            newSource.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
+            return Source.fromMap(newSource, source.sourceContentType());
+        }
+        return source;
+    }
+
+    private static StoredFieldLoader buildStoredFieldLoader(
+        Set<String> fields,
+        FetchSourceContext fetchSourceContext,
+        SourceLoader loader
+    ) {
         if (fetchSourceContext.fetchSource()) {
-            fieldsToLoad.addAll(loader.requiredStoredFields());
+            fields.addAll(loader.requiredStoredFields());
         } else {
-            if (fieldsToLoad.isEmpty()) {
+            if (fields.isEmpty()) {
                 return StoredFieldLoader.empty();
             }
         }
-        return StoredFieldLoader.create(fetchSourceContext.fetchSource(), fieldsToLoad);
+        return StoredFieldLoader.create(fetchSourceContext.fetchSource(), fields);
     }
 }

@@ -6,6 +6,12 @@
 <titleabbrev>Delete query ruleset</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-query_rules[Query rules APIs].
+--
+
 Removes a query ruleset and its associated data.
 This is a destructive action that is not recoverable.
 

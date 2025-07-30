@@ -11,13 +11,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -31,11 +31,20 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 
 public class PropagateNullableTests extends ESTestCase {
+    private Expression propagateNullable(And e) {
+        return new PropagateNullable().rule(e, unboundLogicalOptimizerContext());
+    }
+
+    private LogicalPlan propagateNullable(LogicalPlan p) {
+        return new PropagateNullable().apply(p, unboundLogicalOptimizerContext());
+    }
+
     private Literal nullOf(DataType dataType) {
         return new Literal(Source.EMPTY, null, dataType);
     }
@@ -45,7 +54,7 @@ public class PropagateNullableTests extends ESTestCase {
         FieldAttribute fa = getFieldAttribute();
 
         And and = new And(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
-        assertEquals(FALSE, new PropagateNullable().rule(and));
+        assertEquals(FALSE, propagateNullable(and));
     }
 
     // a IS NULL AND b IS NOT NULL AND c IS NULL AND d IS NOT NULL AND e IS NULL AND a IS NOT NULL => false
@@ -58,7 +67,7 @@ public class PropagateNullableTests extends ESTestCase {
 
         And and = new And(EMPTY, andOne, new And(EMPTY, andThree, andTwo));
 
-        assertEquals(FALSE, new PropagateNullable().rule(and));
+        assertEquals(FALSE, propagateNullable(and));
     }
 
     // a IS NULL AND a > 1 => a IS NULL AND false
@@ -67,7 +76,7 @@ public class PropagateNullableTests extends ESTestCase {
         IsNull isNull = new IsNull(EMPTY, fa);
 
         And and = new And(EMPTY, isNull, greaterThanOf(fa, ONE));
-        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), new PropagateNullable().rule(and));
+        assertEquals(new And(EMPTY, isNull, nullOf(BOOLEAN)), propagateNullable(and));
     }
 
     // a IS NULL AND b < 1 AND c < 1 AND a < 1 => a IS NULL AND b < 1 AND c < 1 => a IS NULL AND b < 1 AND c < 1
@@ -79,7 +88,7 @@ public class PropagateNullableTests extends ESTestCase {
         And and = new And(EMPTY, isNull, nestedAnd);
         And top = new And(EMPTY, and, lessThanOf(fa, ONE));
 
-        Expression optimized = new PropagateNullable().rule(top);
+        Expression optimized = propagateNullable(top);
         Expression expected = new And(EMPTY, and, nullOf(BOOLEAN));
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
@@ -97,7 +106,7 @@ public class PropagateNullableTests extends ESTestCase {
         Expression kept = new And(EMPTY, isNull, lessThanOf(getFieldAttribute("b"), THREE));
         And and = new And(EMPTY, nullified, kept);
 
-        Expression optimized = new PropagateNullable().rule(and);
+        Expression optimized = propagateNullable(and);
         Expression expected = new And(EMPTY, new And(EMPTY, nullOf(BOOLEAN), nullOf(BOOLEAN)), kept);
 
         assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
@@ -110,13 +119,13 @@ public class PropagateNullableTests extends ESTestCase {
 
         Or or = new Or(EMPTY, new IsNull(EMPTY, fa), new IsNotNull(EMPTY, fa));
         Filter dummy = new Filter(EMPTY, relation(), or);
-        LogicalPlan transformed = new PropagateNullable().apply(dummy);
+        LogicalPlan transformed = propagateNullable(dummy);
         assertSame(dummy, transformed);
         assertEquals(or, ((Filter) transformed).condition());
 
         or = new Or(EMPTY, new IsNull(EMPTY, fa), greaterThanOf(fa, ONE));
         dummy = new Filter(EMPTY, relation(), or);
-        transformed = new PropagateNullable().apply(dummy);
+        transformed = propagateNullable(dummy);
         assertSame(dummy, transformed);
         assertEquals(or, ((Filter) transformed).condition());
     }
@@ -129,7 +138,7 @@ public class PropagateNullableTests extends ESTestCase {
         Or or = new Or(EMPTY, isNull, greaterThanOf(fa, THREE));
         And and = new And(EMPTY, new Add(EMPTY, fa, ONE), or);
 
-        assertEquals(and, new PropagateNullable().rule(and));
+        assertEquals(and, propagateNullable(and));
     }
 
     public void testDoNotOptimizeIsNullAndMultipleComparisonWithConstants() {
@@ -141,7 +150,7 @@ public class PropagateNullableTests extends ESTestCase {
         And aIsNull_AND_bLT1_AND_cLT1 = new And(EMPTY, aIsNull, bLT1_AND_cLT1);
         And aIsNull_AND_bLT1_AND_cLT1_AND_aLT1 = new And(EMPTY, aIsNull_AND_bLT1_AND_cLT1, lessThanOf(a, ONE));
 
-        Expression optimized = new PropagateNullable().rule(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
+        Expression optimized = propagateNullable(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
         Literal nullLiteral = new Literal(EMPTY, null, BOOLEAN);
         assertEquals(asList(aIsNull, nullLiteral, nullLiteral, nullLiteral), Predicates.splitAnd(optimized));
     }

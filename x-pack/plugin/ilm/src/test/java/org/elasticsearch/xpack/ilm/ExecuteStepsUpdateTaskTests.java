@@ -42,9 +42,8 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -91,42 +90,33 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         Phase mixedPhase = new Phase(
             "first_phase",
             TimeValue.ZERO,
-            Collections.singletonMap(MockAction.NAME, new MockAction(Arrays.asList(firstStep, secondStep, thirdStep)))
+            Map.of(MockAction.NAME, new MockAction(List.of(firstStep, secondStep, thirdStep)))
         );
         Phase allClusterPhase = new Phase(
             "first_phase",
             TimeValue.ZERO,
-            Collections.singletonMap(MockAction.NAME, new MockAction(Arrays.asList(firstStep, allClusterSecondStep)))
+            Map.of(MockAction.NAME, new MockAction(List.of(firstStep, allClusterSecondStep)))
         );
         Phase invalidPhase = new Phase(
             "invalid_phase",
             TimeValue.ZERO,
-            Collections.singletonMap(
-                MockAction.NAME,
-                new MockAction(Arrays.asList(new MockClusterStateActionStep(firstStepKey, invalidStepKey)))
-            )
+            Map.of(MockAction.NAME, new MockAction(List.of(new MockClusterStateActionStep(firstStepKey, invalidStepKey))))
         );
-        LifecyclePolicy mixedPolicy = newTestLifecyclePolicy(mixedPolicyName, Collections.singletonMap(mixedPhase.getName(), mixedPhase));
-        LifecyclePolicy allClusterPolicy = newTestLifecyclePolicy(
-            allClusterPolicyName,
-            Collections.singletonMap(allClusterPhase.getName(), allClusterPhase)
-        );
-        LifecyclePolicy invalidPolicy = newTestLifecyclePolicy(
-            invalidPolicyName,
-            Collections.singletonMap(invalidPhase.getName(), invalidPhase)
-        );
+        LifecyclePolicy mixedPolicy = newTestLifecyclePolicy(mixedPolicyName, Map.of(mixedPhase.getName(), mixedPhase));
+        LifecyclePolicy allClusterPolicy = newTestLifecyclePolicy(allClusterPolicyName, Map.of(allClusterPhase.getName(), allClusterPhase));
+        LifecyclePolicy invalidPolicy = newTestLifecyclePolicy(invalidPolicyName, Map.of(invalidPhase.getName(), invalidPhase));
         Map<String, LifecyclePolicyMetadata> policyMap = new HashMap<>();
         policyMap.put(
             mixedPolicyName,
-            new LifecyclePolicyMetadata(mixedPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+            new LifecyclePolicyMetadata(mixedPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())
         );
         policyMap.put(
             allClusterPolicyName,
-            new LifecyclePolicyMetadata(allClusterPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+            new LifecyclePolicyMetadata(allClusterPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())
         );
         policyMap.put(
             invalidPolicyName,
-            new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
+            new LifecyclePolicyMetadata(invalidPolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())
         );
         policyStepsRegistry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client, null);
 

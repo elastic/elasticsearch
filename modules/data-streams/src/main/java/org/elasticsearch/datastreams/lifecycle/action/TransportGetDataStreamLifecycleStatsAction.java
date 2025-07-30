@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -46,7 +45,6 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamLifecycleService lifecycleService
     ) {
         super(
@@ -56,7 +54,6 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
             threadPool,
             actionFilters,
             GetDataStreamLifecycleStatsAction.Request::new,
-            indexNameExpressionResolver,
             GetDataStreamLifecycleStatsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -79,7 +76,7 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
         Set<String> indicesInErrorStore = lifecycleService.getErrorStore().getAllIndices();
         List<GetDataStreamLifecycleStatsAction.Response.DataStreamStats> dataStreamStats = new ArrayList<>();
         for (DataStream dataStream : state.metadata().dataStreams().values()) {
-            if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+            if (dataStream.getDataLifecycle() != null && dataStream.getDataLifecycle().enabled()) {
                 int total = 0;
                 int inError = 0;
                 for (Index index : dataStream.getIndices()) {

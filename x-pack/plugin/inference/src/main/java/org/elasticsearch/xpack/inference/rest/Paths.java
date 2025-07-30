@@ -24,12 +24,16 @@ public final class Paths {
     static final String INFERENCE_SERVICES_PATH = "_inference/_services";
     static final String TASK_TYPE_INFERENCE_SERVICES_PATH = "_inference/_services/{" + TASK_TYPE + "}";
 
-    static final String STREAM_INFERENCE_ID_PATH = "_inference/{" + TASK_TYPE_OR_INFERENCE_ID + "}/_stream";
+    public static final String STREAM_SUFFIX = "_stream";
+    static final String STREAM_INFERENCE_ID_PATH = "_inference/{" + TASK_TYPE_OR_INFERENCE_ID + "}/" + STREAM_SUFFIX;
     static final String STREAM_TASK_TYPE_INFERENCE_ID_PATH = "_inference/{"
         + TASK_TYPE_OR_INFERENCE_ID
         + "}/{"
         + INFERENCE_ID
-        + "}/_stream";
+        + "}/"
+        + STREAM_SUFFIX;
+
+    public static final String RETURN_MINIMAL_CONFIG = "return_minimal_config";
 
     private Paths() {
 

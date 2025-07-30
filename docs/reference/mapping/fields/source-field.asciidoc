@@ -58,6 +58,9 @@ and <<docs-reindex,`reindex`>> APIs.
   automatically.
 ==================================================
 
+NOTE: You can't disable the `_source` field for indexes with <<index-mode-setting,`index_mode`>> 
+set to `logsdb` or `time_series`.
+
 TIP: If disk space is a concern, rather increase the
 <<index-codec,compression level>> instead of disabling the `_source`.
 

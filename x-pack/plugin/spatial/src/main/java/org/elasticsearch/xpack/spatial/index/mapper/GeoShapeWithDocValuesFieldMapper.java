@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -192,6 +193,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 parser,
                 scriptValues(),
                 geoFormatterFactory,
+                context.isSourceSynthetic(),
                 meta.get()
             );
             hasScript = script.get() != null;
@@ -211,6 +213,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         private final GeoFormatterFactory<Geometry> geoFormatterFactory;
         private final FieldValues<Geometry> scriptValues;
+        private final boolean isSyntheticSource;
 
         public GeoShapeWithDocValuesFieldType(
             String name,
@@ -221,11 +224,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             GeoShapeParser parser,
             FieldValues<Geometry> scriptValues,
             GeoFormatterFactory<Geometry> geoFormatterFactory,
+            boolean isSyntheticSource,
             Map<String, String> meta
         ) {
             super(name, indexed, isStored, hasDocValues, parser, orientation, meta);
             this.scriptValues = scriptValues;
             this.geoFormatterFactory = geoFormatterFactory;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -297,6 +302,26 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return geoFormatterFactory.getFormatter(format, Function.identity());
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
+                return new GeoBoundsBlockLoader(name());
+            }
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
+        }
+
+        static class GeoBoundsBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader {
+
+            GeoBoundsBlockLoader(String fieldName) {
+                super(fieldName);
+            }
         }
     }
 

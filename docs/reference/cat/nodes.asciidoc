@@ -5,6 +5,12 @@
 <titleabbrev>cat nodes</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cat[Compact and aligned text (CAT) APIs]..
+--
+
 [IMPORTANT]
 ====
 cat APIs are only intended for human consumption using the command line or {kib}
@@ -232,6 +238,9 @@ Number of indexing operations, such as `1`.
 
 `indexing.index_failed`, `iif`, `indexingIndexFailed`::
 Number of failed indexing operations, such as `0`.
+
+`indexing.index_failed_due_to_version_conflict`, `iifvc`, `indexingIndexFailedDueToVersionConflict`::
+Number of failed indexing operations due to version conflict, such as `0`.
 
 `merges.current`, `mc`, `mergesCurrent`::
 Number of current merge operations, such as `0`.

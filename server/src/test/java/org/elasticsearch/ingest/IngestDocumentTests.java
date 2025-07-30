@@ -9,7 +9,10 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -31,6 +34,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -40,7 +44,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class IngestDocumentTests extends ESTestCase {
 
     private static final ZonedDateTime BOGUS_TIMESTAMP = ZonedDateTime.of(2016, 10, 23, 0, 0, 0, 0, ZoneOffset.UTC);
-    private IngestDocument ingestDocument;
+    private IngestDocument document;
     private static final String DOUBLE_ARRAY_FIELD = "double_array_field";
     private static final String DOUBLE_DOUBLE_ARRAY_FIELD = "double_double_array";
 
@@ -83,26 +87,45 @@ public class IngestDocumentTests extends ESTestCase {
                 DoubleStream.generate(ESTestCase::randomDouble).limit(randomInt(1000)).toArray() }
         );
 
-        ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        this.document = new IngestDocument("index", "id", 1, null, null, document);
     }
 
     public void testSimpleGetFieldValue() {
-        assertThat(ingestDocument.getFieldValue("foo", String.class), equalTo("bar"));
-        assertThat(ingestDocument.getFieldValue("int", Integer.class), equalTo(123));
-        assertThat(ingestDocument.getFieldValue("_source.foo", String.class), equalTo("bar"));
-        assertThat(ingestDocument.getFieldValue("_source.int", Integer.class), equalTo(123));
-        assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
-        assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
+        assertThat(document.getFieldValue("foo", String.class), equalTo("bar"));
+        assertThat(document.getFieldValue("int", Integer.class), equalTo(123));
+        assertThat(document.getFieldValue("_source.foo", String.class), equalTo("bar"));
+        assertThat(document.getFieldValue("_source.int", Integer.class), equalTo(123));
+        assertThat(document.getFieldValue("_index", String.class), equalTo("index"));
+        assertThat(document.getFieldValue("_id", String.class), equalTo("id"));
         assertThat(
-            ingestDocument.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
+            document.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
             both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP)))
         );
-        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class), equalTo(BOGUS_TIMESTAMP));
+        assertThat(document.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class), equalTo(BOGUS_TIMESTAMP));
+    }
+
+    public void testGetFieldValueIgnoreMissing() {
+        assertThat(document.getFieldValue("foo", String.class, randomBoolean()), equalTo("bar"));
+        assertThat(document.getFieldValue("int", Integer.class, randomBoolean()), equalTo(123));
+
+        // if ignoreMissing is true, we just return nulls for values that aren't found
+        assertThat(document.getFieldValue("nonsense", Integer.class, true), nullValue());
+        assertThat(document.getFieldValue("some.nonsense", Integer.class, true), nullValue());
+        assertThat(document.getFieldValue("fizz.some.nonsense", Integer.class, true), nullValue());
+
+        // if ignoreMissing is false, we throw an exception for values that aren't found
+        IllegalArgumentException e;
+        e = expectThrows(IllegalArgumentException.class, () -> document.getFieldValue("fizz.some.nonsense", Integer.class, false));
+        assertThat(e.getMessage(), is("field [some] not present as part of path [fizz.some.nonsense]"));
+
+        // if ignoreMissing is true, and the object is present-and-of-the-wrong-type, then we also throw an exception
+        e = expectThrows(IllegalArgumentException.class, () -> document.getFieldValue("int", Boolean.class, true));
+        assertThat(e.getMessage(), is("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.Boolean]"));
     }
 
     public void testGetSourceObject() {
         try {
-            ingestDocument.getFieldValue("_source", Object.class);
+            document.getFieldValue("_source", Object.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [_source] not present as part of path [_source]"));
@@ -110,19 +133,19 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testGetIngestObject() {
-        assertThat(ingestDocument.getFieldValue("_ingest", Map.class), notNullValue());
+        assertThat(document.getFieldValue("_ingest", Map.class), notNullValue());
     }
 
     public void testGetEmptyPathAfterStrippingOutPrefix() {
         try {
-            ingestDocument.getFieldValue("_source.", Object.class);
+            document.getFieldValue("_source.", Object.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_source.] is not valid"));
         }
 
         try {
-            ingestDocument.getFieldValue("_ingest.", Object.class);
+            document.getFieldValue("_ingest.", Object.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_ingest.] is not valid"));
@@ -130,19 +153,35 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testGetFieldValueNullValue() {
-        assertThat(ingestDocument.getFieldValue("fizz.foo_null", Object.class), nullValue());
+        assertThat(document.getFieldValue("fizz.foo_null", Object.class), nullValue());
     }
 
     public void testSimpleGetFieldValueTypeMismatch() {
         try {
-            ingestDocument.getFieldValue("int", String.class);
+            document.getFieldValue("int", String.class);
             fail("getFieldValue should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
         }
 
         try {
-            ingestDocument.getFieldValue("foo", Integer.class);
+            document.getFieldValue("foo", Integer.class);
+            fail("getFieldValue should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [foo] of type [java.lang.String] cannot be cast to [java.lang.Integer]"));
+        }
+    }
+
+    public void testSimpleGetFieldValueIgnoreMissingAndTypeMismatch() {
+        try {
+            document.getFieldValue("int", String.class, randomBoolean());
+            fail("getFieldValue should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+        }
+
+        try {
+            document.getFieldValue("foo", Integer.class, randomBoolean());
             fail("getFieldValue should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [foo] of type [java.lang.String] cannot be cast to [java.lang.Integer]"));
@@ -150,13 +189,13 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testNestedGetFieldValue() {
-        assertThat(ingestDocument.getFieldValue("fizz.buzz", String.class), equalTo("hello world"));
-        assertThat(ingestDocument.getFieldValue("fizz.1", String.class), equalTo("bar"));
+        assertThat(document.getFieldValue("fizz.buzz", String.class), equalTo("hello world"));
+        assertThat(document.getFieldValue("fizz.1", String.class), equalTo("bar"));
     }
 
     public void testNestedGetFieldValueTypeMismatch() {
         try {
-            ingestDocument.getFieldValue("foo.foo.bar", String.class);
+            document.getFieldValue("foo.foo.bar", String.class);
         } catch (IllegalArgumentException e) {
             assertThat(
                 e.getMessage(),
@@ -166,16 +205,16 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListGetFieldValue() {
-        assertThat(ingestDocument.getFieldValue("list.0.field", String.class), equalTo("value"));
+        assertThat(document.getFieldValue("list.0.field", String.class), equalTo("value"));
     }
 
     public void testListGetFieldValueNull() {
-        assertThat(ingestDocument.getFieldValue("list.1", String.class), nullValue());
+        assertThat(document.getFieldValue("list.1", String.class), nullValue());
     }
 
     public void testListGetFieldValueIndexNotNumeric() {
         try {
-            ingestDocument.getFieldValue("list.test.field", String.class);
+            document.getFieldValue("list.test.field", String.class);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test.field]"));
         }
@@ -183,7 +222,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListGetFieldValueIndexOutOfBounds() {
         try {
-            ingestDocument.getFieldValue("list.10.field", String.class);
+            document.getFieldValue("list.10.field", String.class);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10.field]"));
         }
@@ -191,7 +230,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testGetFieldValueNotFound() {
         try {
-            ingestDocument.getFieldValue("not.here", String.class);
+            document.getFieldValue("not.here", String.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [not] not present as part of path [not.here]"));
@@ -200,7 +239,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testGetFieldValueNotFoundNullParent() {
         try {
-            ingestDocument.getFieldValue("fizz.foo_null.not_there", String.class);
+            document.getFieldValue("fizz.foo_null.not_there", String.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot resolve [not_there] from null as part of path [fizz.foo_null.not_there]"));
@@ -209,7 +248,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testGetFieldValueNull() {
         try {
-            ingestDocument.getFieldValue((String) null, String.class);
+            document.getFieldValue(null, String.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -218,7 +257,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testGetFieldValueEmpty() {
         try {
-            ingestDocument.getFieldValue("", String.class);
+            document.getFieldValue("", String.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -226,62 +265,62 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testHasField() {
-        assertTrue(ingestDocument.hasField("fizz"));
-        assertTrue(ingestDocument.hasField("_index"));
-        assertTrue(ingestDocument.hasField("_id"));
-        assertTrue(ingestDocument.hasField("_source.fizz"));
-        assertTrue(ingestDocument.hasField("_ingest.timestamp"));
+        assertTrue(document.hasField("fizz"));
+        assertTrue(document.hasField("_index"));
+        assertTrue(document.hasField("_id"));
+        assertTrue(document.hasField("_source.fizz"));
+        assertTrue(document.hasField("_ingest.timestamp"));
     }
 
     public void testHasFieldNested() {
-        assertTrue(ingestDocument.hasField("fizz.buzz"));
-        assertTrue(ingestDocument.hasField("_source._ingest.timestamp"));
+        assertTrue(document.hasField("fizz.buzz"));
+        assertTrue(document.hasField("_source._ingest.timestamp"));
     }
 
     public void testListHasField() {
-        assertTrue(ingestDocument.hasField("list.0.field"));
+        assertTrue(document.hasField("list.0.field"));
     }
 
     public void testListHasFieldNull() {
-        assertTrue(ingestDocument.hasField("list.1"));
+        assertTrue(document.hasField("list.1"));
     }
 
     public void testListHasFieldIndexOutOfBounds() {
-        assertFalse(ingestDocument.hasField("list.10"));
+        assertFalse(document.hasField("list.10"));
     }
 
     public void testListHasFieldIndexOutOfBounds_fail() {
-        assertTrue(ingestDocument.hasField("list.0", true));
-        assertTrue(ingestDocument.hasField("list.1", true));
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ingestDocument.hasField("list.2", true));
+        assertTrue(document.hasField("list.0", true));
+        assertTrue(document.hasField("list.1", true));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> document.hasField("list.2", true));
         assertThat(e.getMessage(), equalTo("[2] is out of bounds for array with length [2] as part of path [list.2]"));
-        e = expectThrows(IllegalArgumentException.class, () -> ingestDocument.hasField("list.10", true));
+        e = expectThrows(IllegalArgumentException.class, () -> document.hasField("list.10", true));
         assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
     }
 
     public void testListHasFieldIndexNotNumeric() {
-        assertFalse(ingestDocument.hasField("list.test"));
+        assertFalse(document.hasField("list.test"));
     }
 
     public void testNestedHasFieldTypeMismatch() {
-        assertFalse(ingestDocument.hasField("foo.foo.bar"));
+        assertFalse(document.hasField("foo.foo.bar"));
     }
 
     public void testHasFieldNotFound() {
-        assertFalse(ingestDocument.hasField("not.here"));
+        assertFalse(document.hasField("not.here"));
     }
 
     public void testHasFieldNotFoundNullParent() {
-        assertFalse(ingestDocument.hasField("fizz.foo_null.not_there"));
+        assertFalse(document.hasField("fizz.foo_null.not_there"));
     }
 
     public void testHasFieldNestedNotFound() {
-        assertFalse(ingestDocument.hasField("fizz.doesnotexist"));
+        assertFalse(document.hasField("fizz.doesnotexist"));
     }
 
     public void testHasFieldNull() {
         try {
-            ingestDocument.hasField((String) null);
+            document.hasField(null);
             fail("has field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -289,12 +328,12 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testHasFieldNullValue() {
-        assertTrue(ingestDocument.hasField("fizz.foo_null"));
+        assertTrue(document.hasField("fizz.foo_null"));
     }
 
     public void testHasFieldEmpty() {
         try {
-            ingestDocument.hasField("");
+            document.hasField("");
             fail("has field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -302,23 +341,23 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testHasFieldSourceObject() {
-        assertThat(ingestDocument.hasField("_source"), equalTo(false));
+        assertThat(document.hasField("_source"), equalTo(false));
     }
 
     public void testHasFieldIngestObject() {
-        assertThat(ingestDocument.hasField("_ingest"), equalTo(true));
+        assertThat(document.hasField("_ingest"), equalTo(true));
     }
 
     public void testHasFieldEmptyPathAfterStrippingOutPrefix() {
         try {
-            ingestDocument.hasField("_source.");
+            document.hasField("_source.");
             fail("has field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_source.] is not valid"));
         }
 
         try {
-            ingestDocument.hasField("_ingest.");
+            document.hasField("_ingest.");
             fail("has field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_ingest.] is not valid"));
@@ -326,30 +365,30 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testSimpleSetFieldValue() {
-        ingestDocument.setFieldValue("new_field", "foo");
-        assertThat(ingestDocument.getSourceAndMetadata().get("new_field"), equalTo("foo"));
-        ingestDocument.setFieldValue("_ttl", "ttl");
-        assertThat(ingestDocument.getSourceAndMetadata().get("_ttl"), equalTo("ttl"));
-        ingestDocument.setFieldValue("_source.another_field", "bar");
-        assertThat(ingestDocument.getSourceAndMetadata().get("another_field"), equalTo("bar"));
-        ingestDocument.setFieldValue("_ingest.new_field", "new_value");
-        assertThat(ingestDocument.getIngestMetadata().size(), equalTo(2));
-        assertThat(ingestDocument.getIngestMetadata().get("new_field"), equalTo("new_value"));
-        ingestDocument.setFieldValue("_ingest.timestamp", "timestamp");
-        assertThat(ingestDocument.getIngestMetadata().get("timestamp"), equalTo("timestamp"));
+        document.setFieldValue("new_field", "foo");
+        assertThat(document.getSourceAndMetadata().get("new_field"), equalTo("foo"));
+        document.setFieldValue("_ttl", "ttl");
+        assertThat(document.getSourceAndMetadata().get("_ttl"), equalTo("ttl"));
+        document.setFieldValue("_source.another_field", "bar");
+        assertThat(document.getSourceAndMetadata().get("another_field"), equalTo("bar"));
+        document.setFieldValue("_ingest.new_field", "new_value");
+        assertThat(document.getIngestMetadata().size(), equalTo(2));
+        assertThat(document.getIngestMetadata().get("new_field"), equalTo("new_value"));
+        document.setFieldValue("_ingest.timestamp", "timestamp");
+        assertThat(document.getIngestMetadata().get("timestamp"), equalTo("timestamp"));
     }
 
     public void testSetFieldValueNullValue() {
-        ingestDocument.setFieldValue("new_field", (Object) null);
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("new_field"), equalTo(true));
-        assertThat(ingestDocument.getSourceAndMetadata().get("new_field"), nullValue());
+        document.setFieldValue("new_field", (Object) null);
+        assertThat(document.getSourceAndMetadata().containsKey("new_field"), equalTo(true));
+        assertThat(document.getSourceAndMetadata().get("new_field"), nullValue());
     }
 
     @SuppressWarnings("unchecked")
     public void testNestedSetFieldValue() {
-        ingestDocument.setFieldValue("a.b.c.d", "foo");
-        assertThat(ingestDocument.getSourceAndMetadata().get("a"), instanceOf(Map.class));
-        Map<String, Object> a = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("a");
+        document.setFieldValue("a.b.c.d", "foo");
+        assertThat(document.getSourceAndMetadata().get("a"), instanceOf(Map.class));
+        Map<String, Object> a = (Map<String, Object>) document.getSourceAndMetadata().get("a");
         assertThat(a.get("b"), instanceOf(Map.class));
         Map<String, Object> b = (Map<String, Object>) a.get("b");
         assertThat(b.get("c"), instanceOf(Map.class));
@@ -360,15 +399,15 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testSetFieldValueOnExistingField() {
-        ingestDocument.setFieldValue("foo", "newbar");
-        assertThat(ingestDocument.getSourceAndMetadata().get("foo"), equalTo("newbar"));
+        document.setFieldValue("foo", "newbar");
+        assertThat(document.getSourceAndMetadata().get("foo"), equalTo("newbar"));
     }
 
     @SuppressWarnings("unchecked")
     public void testSetFieldValueOnExistingParent() {
-        ingestDocument.setFieldValue("fizz.new", "bar");
-        assertThat(ingestDocument.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
-        Map<String, Object> innerMap = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("fizz");
+        document.setFieldValue("fizz.new", "bar");
+        assertThat(document.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
+        Map<String, Object> innerMap = (Map<String, Object>) document.getSourceAndMetadata().get("fizz");
         assertThat(innerMap.get("new"), instanceOf(String.class));
         String value = (String) innerMap.get("new");
         assertThat(value, equalTo("bar"));
@@ -376,7 +415,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testSetFieldValueOnExistingParentTypeMismatch() {
         try {
-            ingestDocument.setFieldValue("fizz.buzz.new", "bar");
+            document.setFieldValue("fizz.buzz.new", "bar");
             fail("add field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(
@@ -388,7 +427,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testSetFieldValueOnExistingNullParent() {
         try {
-            ingestDocument.setFieldValue("fizz.foo_null.test", "bar");
+            document.setFieldValue("fizz.foo_null.test", "bar");
             fail("add field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot set [test] with null parent as part of path [fizz.foo_null.test]"));
@@ -397,7 +436,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testSetFieldValueNullName() {
         try {
-            ingestDocument.setFieldValue(null, "bar");
+            document.setFieldValue(null, "bar");
             fail("add field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -405,31 +444,31 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testSetSourceObject() {
-        ingestDocument.setFieldValue("_source", "value");
-        assertThat(ingestDocument.getSourceAndMetadata().get("_source"), equalTo("value"));
+        document.setFieldValue("_source", "value");
+        assertThat(document.getSourceAndMetadata().get("_source"), equalTo("value"));
     }
 
     public void testSetIngestObject() {
-        ingestDocument.setFieldValue("_ingest", "value");
-        assertThat(ingestDocument.getSourceAndMetadata().get("_ingest"), equalTo("value"));
+        document.setFieldValue("_ingest", "value");
+        assertThat(document.getSourceAndMetadata().get("_ingest"), equalTo("value"));
     }
 
     public void testSetIngestSourceObject() {
         // test that we don't strip out the _source prefix when _ingest is used
-        ingestDocument.setFieldValue("_ingest._source", "value");
-        assertThat(ingestDocument.getIngestMetadata().get("_source"), equalTo("value"));
+        document.setFieldValue("_ingest._source", "value");
+        assertThat(document.getIngestMetadata().get("_source"), equalTo("value"));
     }
 
     public void testSetEmptyPathAfterStrippingOutPrefix() {
         try {
-            ingestDocument.setFieldValue("_source.", "value");
+            document.setFieldValue("_source.", "value");
             fail("set field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_source.] is not valid"));
         }
 
         try {
-            ingestDocument.setFieldValue("_ingest.", "_value");
+            document.setFieldValue("_ingest.", "_value");
             fail("set field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_ingest.] is not valid"));
@@ -437,15 +476,15 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListSetFieldValueNoIndexProvided() {
-        ingestDocument.setFieldValue("list", "value");
-        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        document.setFieldValue("list", "value");
+        Object object = document.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value"));
     }
 
     public void testListAppendFieldValue() {
-        ingestDocument.appendFieldValue("list", "new_value");
-        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        document.appendFieldValue("list", "new_value");
+        Object object = document.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -456,8 +495,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListAppendFieldValueWithDuplicate() {
-        ingestDocument.appendFieldValue("list2", "foo", false);
-        Object object = ingestDocument.getSourceAndMetadata().get("list2");
+        document.appendFieldValue("list2", "foo", false);
+        Object object = document.getSourceAndMetadata().get("list2");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -466,8 +505,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListAppendFieldValueWithoutDuplicate() {
-        ingestDocument.appendFieldValue("list2", "foo2", false);
-        Object object = ingestDocument.getSourceAndMetadata().get("list2");
+        document.appendFieldValue("list2", "foo2", false);
+        Object object = document.getSourceAndMetadata().get("list2");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -476,8 +515,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListAppendFieldValues() {
-        ingestDocument.appendFieldValue("list", List.of("item1", "item2", "item3"));
-        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        document.appendFieldValue("list", List.of("item1", "item2", "item3"));
+        Object object = document.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -490,8 +529,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListAppendFieldValuesWithoutDuplicates() {
-        ingestDocument.appendFieldValue("list2", List.of("foo", "bar", "baz", "foo2"), false);
-        Object object = ingestDocument.getSourceAndMetadata().get("list2");
+        document.appendFieldValue("list2", List.of("foo", "bar", "baz", "foo2"), false);
+        Object object = document.getSourceAndMetadata().get("list2");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -503,8 +542,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueToNonExistingList() {
-        ingestDocument.appendFieldValue("non_existing_list", "new_value");
-        Object object = ingestDocument.getSourceAndMetadata().get("non_existing_list");
+        document.appendFieldValue("non_existing_list", "new_value");
+        Object object = document.getSourceAndMetadata().get("non_existing_list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -513,8 +552,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesToNonExistingList() {
-        ingestDocument.appendFieldValue("non_existing_list", List.of("item1", "item2", "item3"));
-        Object object = ingestDocument.getSourceAndMetadata().get("non_existing_list");
+        document.appendFieldValue("non_existing_list", List.of("item1", "item2", "item3"));
+        Object object = document.getSourceAndMetadata().get("non_existing_list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -525,8 +564,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueConvertStringToList() {
-        ingestDocument.appendFieldValue("fizz.buzz", "new_value");
-        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        document.appendFieldValue("fizz.buzz", "new_value");
+        Object object = document.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) object;
@@ -540,8 +579,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesConvertStringToList() {
-        ingestDocument.appendFieldValue("fizz.buzz", List.of("item1", "item2", "item3"));
-        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        document.appendFieldValue("fizz.buzz", List.of("item1", "item2", "item3"));
+        Object object = document.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) object;
@@ -557,8 +596,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueConvertIntegerToList() {
-        ingestDocument.appendFieldValue("int", 456);
-        Object object = ingestDocument.getSourceAndMetadata().get("int");
+        document.appendFieldValue("int", 456);
+        Object object = document.getSourceAndMetadata().get("int");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -568,8 +607,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesConvertIntegerToList() {
-        ingestDocument.appendFieldValue("int", List.of(456, 789));
-        Object object = ingestDocument.getSourceAndMetadata().get("int");
+        document.appendFieldValue("int", List.of(456, 789));
+        Object object = document.getSourceAndMetadata().get("int");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -580,8 +619,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueConvertMapToList() {
-        ingestDocument.appendFieldValue("fizz", Map.of("field", "value"));
-        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        document.appendFieldValue("fizz", Map.of("field", "value"));
+        Object object = document.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(List.class));
         List<?> list = (List<?>) object;
         assertThat(list.size(), equalTo(2));
@@ -593,8 +632,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueToNull() {
-        ingestDocument.appendFieldValue("fizz.foo_null", "new_value");
-        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        document.appendFieldValue("fizz.foo_null", "new_value");
+        Object object = document.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) object;
@@ -607,8 +646,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueToListElement() {
-        ingestDocument.appendFieldValue("fizz.list.0", "item2");
-        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        document.appendFieldValue("fizz.list.0", "item2");
+        Object object = document.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) object;
@@ -627,8 +666,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesToListElement() {
-        ingestDocument.appendFieldValue("fizz.list.0", List.of("item2", "item3", "item4"));
-        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        document.appendFieldValue("fizz.list.0", List.of("item2", "item3", "item4"));
+        Object object = document.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) object;
@@ -649,8 +688,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueConvertStringListElementToList() {
-        ingestDocument.appendFieldValue("fizz.list.0.0", "new_value");
-        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        document.appendFieldValue("fizz.list.0.0", "new_value");
+        Object object = document.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) object;
@@ -673,8 +712,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValuesConvertStringListElementToList() {
-        ingestDocument.appendFieldValue("fizz.list.0.0", List.of("item2", "item3", "item4"));
-        Object object = ingestDocument.getSourceAndMetadata().get("fizz");
+        document.appendFieldValue("fizz.list.0.0", List.of("item2", "item3", "item4"));
+        Object object = document.getSourceAndMetadata().get("fizz");
         assertThat(object, instanceOf(Map.class));
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) object;
@@ -699,8 +738,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueListElementConvertMapToList() {
-        ingestDocument.appendFieldValue("list.0", Map.of("item2", "value2"));
-        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        document.appendFieldValue("list.0", Map.of("item2", "value2"));
+        Object object = document.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         List<?> list = (List<?>) object;
         assertThat(list.size(), equalTo(2));
@@ -713,8 +752,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueToNullListElement() {
-        ingestDocument.appendFieldValue("list.1", "new_value");
-        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        document.appendFieldValue("list.1", "new_value");
+        Object object = document.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         List<?> list = (List<?>) object;
         assertThat(list.get(1), instanceOf(List.class));
@@ -725,8 +764,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testAppendFieldValueToListOfMaps() {
-        ingestDocument.appendFieldValue("list", Map.of("item2", "value2"));
-        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        document.appendFieldValue("list", Map.of("item2", "value2"));
+        Object object = document.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -737,8 +776,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListSetFieldValueIndexProvided() {
-        ingestDocument.setFieldValue("list.1", "value");
-        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        document.setFieldValue("list.1", "value");
+        Object object = document.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -748,8 +787,8 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testSetFieldValueListAsPartOfPath() {
-        ingestDocument.setFieldValue("list.0.field", "new_value");
-        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        document.setFieldValue("list.0.field", "new_value");
+        Object object = document.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -760,13 +799,13 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListSetFieldValueIndexNotNumeric() {
         try {
-            ingestDocument.setFieldValue("list.test", "value");
+            document.setFieldValue("list.test", "value");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test]"));
         }
 
         try {
-            ingestDocument.setFieldValue("list.test.field", "new_value");
+            document.setFieldValue("list.test.field", "new_value");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test.field]"));
         }
@@ -774,13 +813,13 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListSetFieldValueIndexOutOfBounds() {
         try {
-            ingestDocument.setFieldValue("list.10", "value");
+            document.setFieldValue("list.10", "value");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
         }
 
         try {
-            ingestDocument.setFieldValue("list.10.field", "value");
+            document.setFieldValue("list.10.field", "value");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10.field]"));
         }
@@ -788,7 +827,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testSetFieldValueEmptyName() {
         try {
-            ingestDocument.setFieldValue("", "bar");
+            document.setFieldValue("", "bar");
             fail("add field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -796,49 +835,84 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testRemoveField() {
-        ingestDocument.removeField("foo");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(10));
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("foo"), equalTo(false));
-        ingestDocument.removeField("_index");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(9));
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("_index"), equalTo(false));
-        ingestDocument.removeField("_source.fizz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
-        assertThat(ingestDocument.getIngestMetadata().size(), equalTo(1));
-        ingestDocument.removeField("_ingest.timestamp");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(8));
-        assertThat(ingestDocument.getIngestMetadata().size(), equalTo(0));
+        document.removeField("foo");
+        assertThat(document.getSourceAndMetadata().size(), equalTo(10));
+        assertThat(document.getSourceAndMetadata().containsKey("foo"), equalTo(false));
+        document.removeField("_index");
+        assertThat(document.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(document.getSourceAndMetadata().containsKey("_index"), equalTo(false));
+        document.removeField("_source.fizz");
+        assertThat(document.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(document.getSourceAndMetadata().containsKey("fizz"), equalTo(false));
+        assertThat(document.getIngestMetadata().size(), equalTo(1));
+        document.removeField("_ingest.timestamp");
+        assertThat(document.getSourceAndMetadata().size(), equalTo(8));
+        assertThat(document.getIngestMetadata().size(), equalTo(0));
+    }
+
+    public void testRemoveFieldIgnoreMissing() {
+        document.removeField("foo", randomBoolean());
+        assertThat(document.getSourceAndMetadata().size(), equalTo(10));
+        assertThat(document.getSourceAndMetadata().containsKey("foo"), equalTo(false));
+        document.removeField("_index", randomBoolean());
+        assertThat(document.getSourceAndMetadata().size(), equalTo(9));
+        assertThat(document.getSourceAndMetadata().containsKey("_index"), equalTo(false));
+
+        // if ignoreMissing is false, we throw an exception for values that aren't found
+        IllegalArgumentException e;
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> {
+                document.setFieldValue("fizz.some", (Object) null);
+                e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
+                assertThat(e.getMessage(), is("cannot remove [nonsense] from null as part of path [fizz.some.nonsense]"));
+            }
+            case 1 -> {
+                document.setFieldValue("fizz.some", List.of("foo", "bar"));
+                e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
+                assertThat(
+                    e.getMessage(),
+                    is("[nonsense] is not an integer, cannot be used as an index as part of path [fizz.some.nonsense]")
+                );
+            }
+            case 2 -> {
+                e = expectThrows(IllegalArgumentException.class, () -> document.removeField("fizz.some.nonsense", false));
+                assertThat(e.getMessage(), is("field [some] not present as part of path [fizz.some.nonsense]"));
+            }
+            default -> throw new AssertionError("failure, got illegal switch case");
+        }
+
+        // but no exception is thrown if ignoreMissing is true
+        document.removeField("fizz.some.nonsense", true);
     }
 
     public void testRemoveInnerField() {
-        ingestDocument.removeField("fizz.buzz");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(11));
-        assertThat(ingestDocument.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
+        document.removeField("fizz.buzz");
+        assertThat(document.getSourceAndMetadata().size(), equalTo(11));
+        assertThat(document.getSourceAndMetadata().get("fizz"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("fizz");
+        Map<String, Object> map = (Map<String, Object>) document.getSourceAndMetadata().get("fizz");
         assertThat(map.size(), equalTo(3));
         assertThat(map.containsKey("buzz"), equalTo(false));
 
-        ingestDocument.removeField("fizz.foo_null");
+        document.removeField("fizz.foo_null");
         assertThat(map.size(), equalTo(2));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(11));
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
+        assertThat(document.getSourceAndMetadata().size(), equalTo(11));
+        assertThat(document.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
-        ingestDocument.removeField("fizz.1");
+        document.removeField("fizz.1");
         assertThat(map.size(), equalTo(1));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(11));
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
+        assertThat(document.getSourceAndMetadata().size(), equalTo(11));
+        assertThat(document.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
 
-        ingestDocument.removeField("fizz.list");
+        document.removeField("fizz.list");
         assertThat(map.size(), equalTo(0));
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(11));
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
+        assertThat(document.getSourceAndMetadata().size(), equalTo(11));
+        assertThat(document.getSourceAndMetadata().containsKey("fizz"), equalTo(true));
     }
 
     public void testRemoveNonExistingField() {
         try {
-            ingestDocument.removeField("does_not_exist");
+            document.removeField("does_not_exist");
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [does_not_exist] not present as part of path [does_not_exist]"));
@@ -847,7 +921,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveExistingParentTypeMismatch() {
         try {
-            ingestDocument.removeField("foo.foo.bar");
+            document.removeField("foo.foo.bar");
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(
@@ -859,7 +933,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveSourceObject() {
         try {
-            ingestDocument.removeField("_source");
+            document.removeField("_source");
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [_source] not present as part of path [_source]"));
@@ -867,21 +941,21 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testRemoveIngestObject() {
-        ingestDocument.removeField("_ingest");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(10));
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
+        document.removeField("_ingest");
+        assertThat(document.getSourceAndMetadata().size(), equalTo(10));
+        assertThat(document.getSourceAndMetadata().containsKey("_ingest"), equalTo(false));
     }
 
     public void testRemoveEmptyPathAfterStrippingOutPrefix() {
         try {
-            ingestDocument.removeField("_source.");
+            document.removeField("_source.");
             fail("set field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_source.] is not valid"));
         }
 
         try {
-            ingestDocument.removeField("_ingest.");
+            document.removeField("_ingest.");
             fail("set field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path [_ingest.] is not valid"));
@@ -889,10 +963,10 @@ public class IngestDocumentTests extends ESTestCase {
     }
 
     public void testListRemoveField() {
-        ingestDocument.removeField("list.0.field");
-        assertThat(ingestDocument.getSourceAndMetadata().size(), equalTo(11));
-        assertThat(ingestDocument.getSourceAndMetadata().containsKey("list"), equalTo(true));
-        Object object = ingestDocument.getSourceAndMetadata().get("list");
+        document.removeField("list.0.field");
+        assertThat(document.getSourceAndMetadata().size(), equalTo(11));
+        assertThat(document.getSourceAndMetadata().containsKey("list"), equalTo(true));
+        Object object = document.getSourceAndMetadata().get("list");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
@@ -902,14 +976,14 @@ public class IngestDocumentTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) object;
         assertThat(map.size(), equalTo(0));
-        ingestDocument.removeField("list.0");
+        document.removeField("list.0");
         assertThat(list.size(), equalTo(1));
         assertThat(list.get(0), nullValue());
     }
 
     public void testRemoveFieldValueNotFoundNullParent() {
         try {
-            ingestDocument.removeField("fizz.foo_null.not_there");
+            document.removeField("fizz.foo_null.not_there");
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot remove [not_there] from null as part of path [fizz.foo_null.not_there]"));
@@ -918,7 +992,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testNestedRemoveFieldTypeMismatch() {
         try {
-            ingestDocument.removeField("fizz.1.bar");
+            document.removeField("fizz.1.bar");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot remove [bar] from object of type [java.lang.String] as part of path [fizz.1.bar]"));
         }
@@ -926,7 +1000,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListRemoveFieldIndexNotNumeric() {
         try {
-            ingestDocument.removeField("list.test");
+            document.removeField("list.test");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[test] is not an integer, cannot be used as an index as part of path [list.test]"));
         }
@@ -934,7 +1008,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testListRemoveFieldIndexOutOfBounds() {
         try {
-            ingestDocument.removeField("list.10");
+            document.removeField("list.10");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("[10] is out of bounds for array with length [2] as part of path [list.10]"));
         }
@@ -942,7 +1016,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveNullField() {
         try {
-            ingestDocument.removeField((String) null);
+            document.removeField(null);
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -951,14 +1025,14 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveEmptyField() {
         try {
-            ingestDocument.removeField("");
+            document.removeField("");
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
         }
     }
 
-    public void testIngestMetadataTimestamp() throws Exception {
+    public void testIngestMetadataTimestamp() {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         long after = System.currentTimeMillis();
@@ -1055,7 +1129,7 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(copy.getSourceAndMetadata().get("afterClockChange"), equalTo(original.getSourceAndMetadata().get("afterClockChange")));
     }
 
-    public void testSetInvalidSourceField() throws Exception {
+    public void testSetInvalidSourceField() {
         Map<String, Object> document = new HashMap<>();
         Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
         document.put("source_field", randomObject);
@@ -1076,17 +1150,17 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testDeepCopy() {
         IngestDocument copiedDoc = new IngestDocument(
-            IngestDocument.deepCopyMap(ingestDocument.getSourceAndMetadata()),
-            IngestDocument.deepCopyMap(ingestDocument.getIngestMetadata())
+            IngestDocument.deepCopyMap(document.getSourceAndMetadata()),
+            IngestDocument.deepCopyMap(document.getIngestMetadata())
         );
         assertArrayEquals(
             copiedDoc.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
-            ingestDocument.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
+            document.getFieldValue(DOUBLE_ARRAY_FIELD, double[].class),
             1e-10
         );
         assertArrayEquals(
             copiedDoc.getFieldValue(DOUBLE_DOUBLE_ARRAY_FIELD, double[][].class),
-            ingestDocument.getFieldValue(DOUBLE_DOUBLE_ARRAY_FIELD, double[][].class)
+            document.getFieldValue(DOUBLE_DOUBLE_ARRAY_FIELD, double[][].class)
         );
     }
 
@@ -1115,17 +1189,60 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testIndexHistory() {
         // the index history contains the original index
-        String index1 = ingestDocument.getFieldValue("_index", String.class);
+        String index1 = document.getFieldValue("_index", String.class);
         assertThat(index1, equalTo("index"));
-        assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1));
+        assertThat(document.getIndexHistory(), Matchers.contains(index1));
 
         // it can be updated to include another index
         String index2 = "another_index";
-        assertTrue(ingestDocument.updateIndexHistory(index2));
-        assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+        assertTrue(document.updateIndexHistory(index2));
+        assertThat(document.getIndexHistory(), Matchers.contains(index1, index2));
 
         // an index cycle cannot be introduced, however
-        assertFalse(ingestDocument.updateIndexHistory(index1));
-        assertThat(ingestDocument.getIndexHistory(), Matchers.contains(index1, index2));
+        assertFalse(document.updateIndexHistory(index1));
+        assertThat(document.getIndexHistory(), Matchers.contains(index1, index2));
+    }
+
+    public void testSourceHashMapIsNotCopied() {
+        // an ingest document's ctxMap will, as an optimization, just use the passed-in map reference
+        {
+            Map<String, Object> source = new HashMap<>(Map.of("foo", 1));
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        {
+            Map<String, Object> source = XContentHelper.convertToMap(new BytesArray("{ \"foo\": 1 }"), false, XContentType.JSON).v2();
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        {
+            Map<String, Object> source = Map.of("foo", 1);
+            IngestDocument document = new IngestDocument("index", "id", 1, null, null, source);
+            assertThat(document.getSource(), sameInstance(source));
+            assertThat(document.getCtxMap().getSource(), sameInstance(source));
+        }
+
+        // a cloned ingest document will copy the map, though
+        {
+            Map<String, Object> source = Map.of("foo", 1);
+            IngestDocument document1 = new IngestDocument("index", "id", 1, null, null, source);
+            document1.getIngestMetadata().put("bar", 2);
+            IngestDocument document2 = new IngestDocument(document1);
+            assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
+            assertThat(document2.getSource(), not(sameInstance(source)));
+            assertThat(document2.getCtxMap().getMetadata(), equalTo(document1.getCtxMap().getMetadata()));
+            assertThat(document2.getCtxMap().getSource(), not(sameInstance(source)));
+
+            // it also copies these other nearby maps
+            assertThat(document2.getIngestMetadata(), equalTo(document1.getIngestMetadata()));
+            assertThat(document2.getIngestMetadata(), not(sameInstance(document1.getIngestMetadata())));
+
+            assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
+            assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
+        }
     }
 }

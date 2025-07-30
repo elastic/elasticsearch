@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -24,6 +25,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.VersionUtils;
@@ -50,6 +52,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.Strings.delimitedListToStringArray;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -61,9 +64,10 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FOR
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToAggregateMetricDoubleLiteral;
 
 public final class CsvTestUtils {
-    private static final int MAX_WIDTH = 20;
+    private static final int MAX_WIDTH = 80;
     private static final CsvPreference CSV_SPEC_PREFERENCES = new CsvPreference.Builder('"', '|', "\r\n").build();
     private static final String NULL_VALUE = "null";
     private static final char ESCAPE_CHAR = '\\';
@@ -144,7 +148,11 @@ public final class CsvTestUtils {
                     for (String value : arrayOfValues) {
                         convertedValues.add(type.convert(value));
                     }
-                    convertedValues.stream().sorted().forEach(v -> builderWrapper().append().accept(v));
+                    Stream<Object> convertedValuesStream = convertedValues.stream();
+                    if (type.sortMultiValues()) {
+                        convertedValuesStream = convertedValuesStream.sorted();
+                    }
+                    convertedValuesStream.forEach(v -> builderWrapper().append().accept(v));
                     builderWrapper().builder().endPositionEntry();
 
                     return;
@@ -478,7 +486,20 @@ public final class CsvTestUtils {
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
         GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
-        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
+        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        AGGREGATE_METRIC_DOUBLE(
+            x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
+            AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
+        ),
+        DENSE_VECTOR(Float::parseFloat, Float.class, false),
+        UNSUPPORTED(Type::convertUnsupported, Void.class);
+
+        private static Void convertUnsupported(String s) {
+            if (s != null) {
+                throw new IllegalArgumentException(Strings.format("Unsupported type should always be null, was '%s'", s));
+            }
+            return null;
+        }
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -486,6 +507,9 @@ public final class CsvTestUtils {
             for (Type value : Type.values()) {
                 LOOKUP.put(value.name(), value);
             }
+            // Types with a different field caps family type
+            LOOKUP.put("SEMANTIC_TEXT", TEXT);
+
             // widen smaller types
             LOOKUP.put("SHORT", INTEGER);
             LOOKUP.put("BYTE", INTEGER);
@@ -510,25 +534,38 @@ public final class CsvTestUtils {
             LOOKUP.put("DATE", DATETIME);
             LOOKUP.put("DT", DATETIME);
             LOOKUP.put("V", VERSION);
+
+            LOOKUP.put("DENSE_VECTOR", DENSE_VECTOR);
         }
 
         private final Function<String, Object> converter;
         private final Class<?> clazz;
         private final Comparator<Object> comparator;
+        private final boolean sortMultiValues;
+
+        Type(Function<String, Object> converter, Class<?> clazz) {
+            this(converter, clazz, true);
+        }
 
         @SuppressWarnings("unchecked")
-        Type(Function<String, Object> converter, Class<?> clazz) {
+        Type(Function<String, Object> converter, Class<?> clazz, boolean sortMultiValues) {
             this(
                 converter,
                 Comparable.class.isAssignableFrom(clazz) ? (a, b) -> ((Comparable) a).compareTo(b) : Comparator.comparing(Object::toString),
-                clazz
+                clazz,
+                sortMultiValues
             );
         }
 
         Type(Function<String, Object> converter, Comparator<Object> comparator, Class<?> clazz) {
+            this(converter, comparator, clazz, true);
+        }
+
+        Type(Function<String, Object> converter, Comparator<Object> comparator, Class<?> clazz, boolean sortMultiValues) {
             this.converter = converter;
             this.comparator = comparator;
             this.clazz = clazz;
+            this.sortMultiValues = sortMultiValues;
         }
 
         public static Type asType(String name) {
@@ -536,6 +573,9 @@ public final class CsvTestUtils {
         }
 
         public static Type asType(ElementType elementType, Type actualType) {
+            if (actualType == Type.UNSUPPORTED) {
+                return UNSUPPORTED;
+            }
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;
@@ -546,16 +586,17 @@ public final class CsvTestUtils {
                 case BOOLEAN -> BOOLEAN;
                 case DOC -> throw new IllegalArgumentException("can't assert on doc blocks");
                 case COMPOSITE -> throw new IllegalArgumentException("can't assert on composite blocks");
+                case AGGREGATE_METRIC_DOUBLE -> AGGREGATE_METRIC_DOUBLE;
                 case UNKNOWN -> throw new IllegalArgumentException("Unknown block types cannot be handled");
             };
         }
 
         private static Type bytesRefBlockType(Type actualType) {
-            if (actualType == GEO_POINT || actualType == CARTESIAN_POINT || actualType == GEO_SHAPE || actualType == CARTESIAN_SHAPE) {
-                return actualType;
-            } else {
-                return KEYWORD;
-            }
+            return switch (actualType) {
+                case NULL -> NULL;
+                case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
+                default -> KEYWORD;
+            };
         }
 
         Object convert(String value) {
@@ -571,6 +612,10 @@ public final class CsvTestUtils {
 
         public Comparator<Object> comparator() {
             return comparator;
+        }
+
+        public boolean sortMultiValues() {
+            return sortMultiValues;
         }
     }
 
@@ -645,8 +690,6 @@ public final class CsvTestUtils {
 
     private static double scaledFloat(String value, String factor) {
         double scalingFactor = Double.parseDouble(factor);
-        // this extra division introduces extra imprecision in the following multiplication, but this is how ScaledFloatFieldMapper works.
-        double scalingFactorInverse = 1d / scalingFactor;
-        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() * scalingFactorInverse;
+        return new BigDecimal(value).multiply(BigDecimal.valueOf(scalingFactor)).longValue() / scalingFactor;
     }
 }

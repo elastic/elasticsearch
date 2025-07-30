@@ -12,7 +12,8 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.OriginalIndicesTests;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
@@ -24,9 +25,23 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchShardIteratorTests extends ESTestCase {
+
+    public static List<ShardRouting> randomShardRoutings(ShardId shardId) {
+        return randomShardRoutings(shardId, randomIntBetween(0, 2));
+    }
+
+    private static List<ShardRouting> randomShardRoutings(ShardId shardId, int numReplicas) {
+        List<ShardRouting> shardRoutings = new ArrayList<>();
+        shardRoutings.add(TestShardRouting.newShardRouting(shardId, randomAlphaOfLengthBetween(5, 10), true, STARTED));
+        for (int j = 0; j < numReplicas; j++) {
+            shardRoutings.add(TestShardRouting.newShardRouting(shardId, randomAlphaOfLengthBetween(5, 10), false, STARTED));
+        }
+        return shardRoutings;
+    }
 
     public void testShardId() {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
@@ -149,19 +164,14 @@ public class SearchShardIteratorTests extends ESTestCase {
                 for (String uuid : uuids) {
                     ShardId shardId = new ShardId(index, uuid, i);
                     shardIterators.add(
-                        new SearchShardIterator(
-                            null,
-                            shardId,
-                            GroupShardsIteratorTests.randomShardRoutings(shardId),
-                            OriginalIndicesTests.randomOriginalIndices()
-                        )
+                        new SearchShardIterator(null, shardId, randomShardRoutings(shardId), OriginalIndicesTests.randomOriginalIndices())
                     );
                     for (String cluster : clusters) {
                         shardIterators.add(
                             new SearchShardIterator(
                                 cluster,
                                 shardId,
-                                GroupShardsIteratorTests.randomShardRoutings(shardId),
+                                randomShardRoutings(shardId),
                                 OriginalIndicesTests.randomOriginalIndices()
                             )
                         );
@@ -207,11 +217,6 @@ public class SearchShardIteratorTests extends ESTestCase {
     private static SearchShardIterator randomSearchShardIterator() {
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomIntBetween(0, Integer.MAX_VALUE));
-        return new SearchShardIterator(
-            clusterAlias,
-            shardId,
-            GroupShardsIteratorTests.randomShardRoutings(shardId),
-            OriginalIndicesTests.randomOriginalIndices()
-        );
+        return new SearchShardIterator(clusterAlias, shardId, randomShardRoutings(shardId), OriginalIndicesTests.randomOriginalIndices());
     }
 }

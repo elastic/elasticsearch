@@ -1,0 +1,5 @@
+pr: 126296
+summary: Fail with 500 not 400 for `ValueExtractor` bugs
+area: ES|QL
+type: bug
+issues: []

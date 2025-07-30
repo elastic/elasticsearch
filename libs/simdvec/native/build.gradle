@@ -11,7 +11,7 @@ apply plugin: 'cpp'
 
 var os = org.gradle.internal.os.OperatingSystem.current()
 
-// To update this library run publish_vec_binaries.sh  ( or ./gradlew vecSharedLibrary )
+// To update this library run publish_vec_binaries.sh  ( or ./gradlew buildSharedLibrary )
 // Or
 // For local development, build the docker image with:
 //   docker build --platform linux/arm64 --progress=plain --file=Dockerfile.aarch64 . (for aarch64)

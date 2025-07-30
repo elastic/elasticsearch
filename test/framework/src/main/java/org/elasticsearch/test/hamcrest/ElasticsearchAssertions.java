@@ -19,6 +19,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -105,8 +106,42 @@ public class ElasticsearchAssertions {
         assertAcked(builder, TimeValue.timeValueSeconds(30));
     }
 
-    public static void assertAcked(ActionFuture<? extends IsAcknowledgedSupplier> future) {
-        assertAcked(future.actionGet());
+    @SafeVarargs
+    public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier>... builders) {
+        final List<ActionFuture<? extends IsAcknowledgedSupplier>> futures = new ArrayList<>(builders.length);
+        for (RequestBuilder<?, ? extends IsAcknowledgedSupplier> response : builders) {
+            futures.add(response.execute());
+        }
+        Throwable tr = null;
+        for (var future : futures) {
+            try {
+                assertAcked(future.get());
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
+    }
+
+    @SafeVarargs
+    public static void assertAcked(ActionFuture<? extends IsAcknowledgedSupplier>... futures) {
+        if (futures.length == 1) {
+            assertAcked(futures[0].actionGet());
+            return;
+        }
+        Throwable tr = null;
+        for (var future : futures) {
+            try {
+                assertAcked(future.get());
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
     }
 
     public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
@@ -129,6 +164,28 @@ public class ElasticsearchAssertions {
      * Assert that an index creation was fully acknowledged, meaning that both the index creation cluster
      * state update was successful and that the requisite number of shard copies were started before returning.
      */
+    public static void assertAcked(CreateIndexRequestBuilder... requests) {
+        if (requests.length == 1) {
+            assertAcked(requests[0]);
+            return;
+        }
+        final List<Future<CreateIndexResponse>> futures = new ArrayList<>(requests.length);
+        for (CreateIndexRequestBuilder response : requests) {
+            futures.add(response.execute());
+        }
+        Throwable tr = null;
+        for (Future<CreateIndexResponse> future : futures) {
+            try {
+                assertAcked(future.get());
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
+    }
+
     public static void assertAcked(CreateIndexResponse response) {
         assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), is(true));
         assertThat(
@@ -198,7 +255,7 @@ public class ElasticsearchAssertions {
             assertThat(
                 "Request should have been blocked by [" + expectedBlockId + "] instead of " + e.blocks(),
                 e.blocks(),
-                hasItem(transformedMatch(ClusterBlock::id, equalTo(expectedBlockId)))
+                hasItem(transformedMatch("ClusterBlock id", ClusterBlock::id, equalTo(expectedBlockId)))
             );
         }
     }
@@ -319,6 +376,13 @@ public class ElasticsearchAssertions {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
         if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {
             fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
+        }
+    }
+
+    public static void assertHitSize(SearchResponse countResponse, int expectedHitsSize) {
+        final int hitSize = countResponse.getHits().getHits().length;
+        if (hitSize != expectedHitsSize) {
+            fail("Hit size is " + hitSize + " but " + expectedHitsSize + " was expected. " + formatShardStatus(countResponse));
         }
     }
 
@@ -705,33 +769,39 @@ public class ElasticsearchAssertions {
      * Assert that an index template is missing
      */
     public static void assertIndexTemplateMissing(GetIndexTemplatesResponse templatesResponse, String name) {
-        assertThat(templatesResponse.getIndexTemplates(), not(hasItem(transformedMatch(IndexTemplateMetadata::name, equalTo(name)))));
+        assertThat(
+            templatesResponse.getIndexTemplates(),
+            not(hasItem(transformedMatch("IndexTemplateMetadata name", IndexTemplateMetadata::name, equalTo(name))))
+        );
     }
 
     /**
      * Assert that an index template exists
      */
     public static void assertIndexTemplateExists(GetIndexTemplatesResponse templatesResponse, String name) {
-        assertThat(templatesResponse.getIndexTemplates(), hasItem(transformedMatch(IndexTemplateMetadata::name, equalTo(name))));
+        assertThat(
+            templatesResponse.getIndexTemplates(),
+            hasItem(transformedMatch("IndexTemplateMetadata name", IndexTemplateMetadata::name, equalTo(name)))
+        );
     }
 
     /*
      * matchers
      */
     public static Matcher<SearchHit> hasId(final String id) {
-        return transformedMatch(SearchHit::getId, equalTo(id));
+        return transformedMatch("SearchHit id", SearchHit::getId, equalTo(id));
     }
 
     public static Matcher<SearchHit> hasIndex(final String index) {
-        return transformedMatch(SearchHit::getIndex, equalTo(index));
+        return transformedMatch("SearchHit index", SearchHit::getIndex, equalTo(index));
     }
 
     public static Matcher<SearchHit> hasScore(final float score) {
-        return transformedMatch(SearchHit::getScore, equalTo(score));
+        return transformedMatch("SearchHit score", SearchHit::getScore, equalTo(score));
     }
 
     public static Matcher<SearchHit> hasRank(final int rank) {
-        return transformedMatch(SearchHit::getRank, equalTo(rank));
+        return transformedMatch("SearchHit rank", SearchHit::getRank, equalTo(rank));
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {

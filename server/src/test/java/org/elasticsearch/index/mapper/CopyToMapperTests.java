@@ -726,10 +726,10 @@ public class CopyToMapperTests extends MapperServiceTestCase {
                 LuceneDocument doc = docMapper.parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
 
                 List<IndexableField> fields = doc.getFields("geopoint");
-                assertThat(fields.size(), equalTo(2));
+                assertThat(fields.size(), equalTo(1));
 
                 fields = doc.getFields("geopoint_copy");
-                assertThat(fields.size(), equalTo(2));
+                assertThat(fields.size(), equalTo(1));
             }
         }
         // check failure for object/array type representations

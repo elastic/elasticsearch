@@ -11,14 +11,36 @@ import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
+apply plugin: 'elasticsearch.publish'
 
 tasks.named('jar').configure {
   // guarding for intellij
+  if (sourceSets.findByName("main19")) {
+    from sourceSets.main19.output
+  }
+  if (sourceSets.findByName("main20")) {
+    from sourceSets.main20.output
+  }
+  if (sourceSets.findByName("main21")) {
+    from sourceSets.main21.output
+  }
+  if (sourceSets.findByName("main22")) {
+    from sourceSets.main22.output
+  }
   if (sourceSets.findByName("main23")) {
     from sourceSets.main23.output
   }
 }
 
+// The bridge only uses things within the jdk, but the checker
+// needs to have many forbidden apis in its signatures. Suppressing
+// each use of forbidden apis would be tedious and not useful.
 tasks.withType(CheckForbiddenApisTask).configureEach {
-  replaceSignatureFiles 'jdk-signatures'
+  enabled = false
+}
+
+// EntitlementChecker interfaces may contain long URLs pointing to JDK code references on GH, or to JDK documentation,
+// and @SuppressWarnings for checkstyle does not work for mrjar projects
+tasks.withType(Checkstyle).configureEach {
+  exclude "**/*EntitlementChecker.java"
 }

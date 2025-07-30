@@ -62,6 +62,7 @@ import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.assertNotPartial;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
@@ -85,9 +86,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static final String MAPPING_ALL_TYPES;
 
+    private static final String MAPPING_ALL_TYPES_LOOKUP;
+
     static {
         String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-all-types.json");
         MAPPING_ALL_TYPES = "{\"mappings\": " + properties + "}";
+        String settings = "{\"settings\" : {\"mode\" : \"lookup\"}";
+        MAPPING_ALL_TYPES_LOOKUP = settings + ", " + "\"mappings\": " + properties + "}";
     }
 
     private static final String DOCUMENT_TEMPLATE = """
@@ -129,6 +134,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
+        private Boolean allowPartialResults = null;
 
         public RequestObjectBuilder() throws IOException {
             this(randomFrom(XContentType.values()));
@@ -206,6 +212,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder allowPartialResults(boolean allowPartialResults) {
+            this.allowPartialResults = allowPartialResults;
+            return this;
+        }
+
+        public Boolean allowPartialResults() {
+            return allowPartialResults;
+        }
+
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
                 if (tables != null) {
@@ -257,12 +272,19 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         Map<String, Object> answer = runEsql(requestObjectBuilder().query("row a = 1, b = 2"));
-        assertEquals(3, answer.size());
+        assertEquals(6, answer.size());
         assertThat(((Integer) answer.get("took")).intValue(), greaterThanOrEqualTo(0));
         Map<String, String> colA = Map.of("name", "a", "type", "integer");
         Map<String, String> colB = Map.of("name", "b", "type", "integer");
-        assertEquals(List.of(colA, colB), answer.get("columns"));
-        assertEquals(List.of(List.of(1, 2)), answer.get("values"));
+        assertMap(
+            answer,
+            matchesMap().entry("took", greaterThanOrEqualTo(0))
+                .entry("is_partial", any(Boolean.class))
+                .entry("documents_found", 0)
+                .entry("values_loaded", 0)
+                .entry("columns", List.of(colA, colB))
+                .entry("values", List.of(List.of(1, 2)))
+        );
     }
 
     public void testUseUnknownIndex() throws IOException {
@@ -296,21 +318,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("{\"errors\":false}"));
 
         RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats min(value)");
-        Map<String, Object> result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry("values", List.of(List.of(1)))
-                .entry("columns", List.of(Map.of("name", "min(value)", "type", "long")))
-                .entry("took", greaterThanOrEqualTo(0))
-        );
+        assertResultMap(runEsql(builder), List.of(Map.of("name", "min(value)", "type", "long")), List.of(List.of(1)));
 
         builder = requestObjectBuilder().query(fromIndex() + " | stats min(value) by group | sort group, `min(value)`");
-        result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry("values", List.of(List.of(2, 0), List.of(1, 1)))
-                .entry("columns", List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")))
-                .entry("took", greaterThanOrEqualTo(0))
+        assertResultMap(
+            runEsql(builder),
+            List.of(Map.of("name", "min(value)", "type", "long"), Map.of("name", "group", "type", "long")),
+            List.of(List.of(2, 0), List.of(1, 1))
         );
     }
 
@@ -570,7 +584,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
         var values = List.of(List.of(3, testIndexName() + "-2", 1, "id-2"), List.of(2, testIndexName() + "-1", 2, "id-1"));
 
-        assertMap(result, matchesMap().entry("columns", columns).entry("values", values).entry("took", greaterThanOrEqualTo(0)));
+        assertResultMap(result, columns, values);
 
         assertThat(deleteIndex(testIndexName() + "-1").isAcknowledged(), is(true)); // clean up
         assertThat(deleteIndex(testIndexName() + "-2").isAcknowledged(), is(true)); // clean up
@@ -670,10 +684,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         bulkLoadTestData(10);
         // positive
         var query = requestObjectBuilder().query(
@@ -779,7 +789,242 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             );
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
-            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'dissect', 'drop'"));
+            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'completion', 'dissect'"));
+        }
+    }
+
+    public void testErrorMessageForMissingParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1").params("[]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
+            containsString("line 1:23: Unknown query parameter [n1]")
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1 and y == ?n2").params("[{\"n\" : \"v\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""), containsString("""
+            line 1:23: Unknown query parameter [n1], did you mean [n]?; line 1:36: Unknown query parameter [n2], did you mean [n]?"""));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1 and y == ?n2").params("[{\"n1\" : \"v1\"}]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
+            containsString("line 1:36: Unknown query parameter [n2], did you mean [n1]")
+        );
+    }
+
+    public void testDoubleParamsForIdentifiers() throws IOException {
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        bulkLoadTestData(10);
+        // positive
+        // named double parameters
+        var query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ??n1 | where ??n2 == x1 | stats xx2 = ??fn1(??n3) by ??n4 | keep ??n4, ??n5 | sort ??n4",
+                testIndexName()
+            )
+        )
+            .params(
+                "[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}, "
+                    + "{\"n5\" : \"xx2\"}, {\"fn1\" : \"max\"}]"
+            );
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        // positional double parameters
+        query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ??1 | where ??2 == x1 | stats xx2 = ??6(??3) by ??4 | keep ??4, ??5 | sort ??4",
+                testIndexName()
+            )
+        )
+            .params(
+                "[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}, "
+                    + "{\"n5\" : \"xx2\"}, {\"fn1\" : \"max\"}]"
+            );
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ??1 | where ??2 == x1 | stats xx2 = ??6(??3) by ??4 | keep ??4, ??5 | sort ??4",
+                testIndexName()
+            )
+        ).params("[\"integer\", \"short\", \"double\", \"boolean\", \"xx2\", \"max\"]");
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        // anonymous double parameters
+        query = requestObjectBuilder().query(
+            format(null, "from {} | eval x1 = ?? | where ?? == x1 | stats xx2 = ??(??) by ?? | keep ??, ?? | sort ??", testIndexName())
+        )
+            .params(
+                "[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"fn1\" : \"max\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}, "
+                    + "{\"n4\" : \"boolean\"}, {\"n5\" : \"xx2\"}, {\"n4\" : \"boolean\"}]"
+            );
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        query = requestObjectBuilder().query(
+            format(null, "from {} | eval x1 = ?? | where ?? == x1 | stats xx2 = ??(??) by ?? | keep ??, ?? | sort ??", testIndexName())
+        ).params("[\"integer\", \"short\", \"max\", \"double\", \"boolean\", \"boolean\", \"xx2\", \"boolean\"]");
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        // missing params
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {} | eval x1 = ??n1 | where ??n2 == x1 | stats xx2 = max(??n3) by ??n4 | keep ??n4, ??n5 | sort ??n4",
+                        testIndexName()
+                    )
+                ).params("[]")
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("ParsingException"));
+        assertThat(error, containsString("Unknown query parameter [n1]"));
+
+        // param inside backquote is not recognized as a param
+        Map<String, Integer> commandsWithLineNumber = Map.ofEntries(
+            entry("eval x1 = `??n1`", 33),
+            entry("where `??n1` == 1", 29),
+            entry("stats x = max(n2) by `??n1`", 44),
+            entry("stats x = max(`??n1`) by n2", 37),
+            entry("keep `??n1`", 28),
+            entry("sort `??n1`", 28)
+        );
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
+                        .params("[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}]")
+                )
+            );
+            error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [??n1]"));
+        }
+
+        commandsWithLineNumber = Map.ofEntries(
+            entry("rename ??n1 as ??n2", 30),
+            entry("enrich idx2 ON ??n1 WITH ??n2 = ??n3", 38),
+            entry("keep ??n1", 28),
+            entry("drop ??n1", 28)
+        );
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
+                        .params("[{\"n1\" : \"`n1`\"}, {\"n2\" : \"`n2`\"}, {\"n3\" : \"`n3`\"}]")
+                )
+            );
+            error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [`n1`]"));
+        }
+
+        // param cannot be used as a command name
+        Map<String, String> paramsAsCommandNames = Map.ofEntries(
+            entry("eval", "x = 1"),
+            entry("where", "x == 1"),
+            entry("stats", "x = count(*)"),
+            entry("keep", "x"),
+            entry("drop", "x"),
+            entry("rename", "x as y"),
+            entry("sort", "x"),
+            entry("dissect", "x \"%{foo}\""),
+            entry("grok", "x \"%{WORD:foo}\""),
+            entry("enrich", "idx2 ON x"),
+            entry("mvExpand", "x")
+        );
+        for (Map.Entry<String, String> command : paramsAsCommandNames.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | ??cmd {}", testIndexName(), command.getValue()))
+                        .params("[{\"cmd\" : \"" + command.getKey() + "\"}]")
+                )
+            );
+            error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+            assertThat(error, containsString("ParsingException"));
+            assertThat(error, containsString("line 1:23: mismatched input '??cmd' expecting {"));
+        }
+    }
+
+    public void testDoubleParamsWithLookupJoin() throws IOException {
+        assumeTrue("double parameters markers for identifiers", EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled());
+        bulkLoadTestDataLookupMode(10);
+        var query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ??n1 | where ??n2 == x1 | lookup join {} on ??n3 | keep ??n4 | sort ??n4",
+                testIndexName(),
+                testIndexName()
+            )
+        ).params("[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}]");
+        Map<String, Object> result = runEsql(query);
+        Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
+        assertEquals(List.of(colA), result.get("columns"));
+        assertEquals(
+            List.of(
+                List.of(false),
+                List.of(false),
+                List.of(false),
+                List.of(false),
+                List.of(false),
+                List.of(true),
+                List.of(true),
+                List.of(true),
+                List.of(true),
+                List.of(true)
+            ),
+            result.get("values")
+        );
+    }
+
+    private void validateResultsOfDoubleParametersForIdentifiers(RequestObjectBuilder query) throws IOException {
+        Map<String, Object> result = runEsql(query);
+        Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
+        Map<String, String> colB = Map.of("name", "xx2", "type", "double");
+        assertEquals(List.of(colA, colB), result.get("columns"));
+        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+    }
+
+    public void testMultipleBatchesWithLookupJoin() throws IOException {
+        assumeTrue(
+            "Makes numberOfChannels consistent with layout map for join with multiple batches",
+            EsqlCapabilities.Cap.MAKE_NUMBER_OF_CHANNELS_CONSISTENT_WITH_LAYOUT.isEnabled()
+        );
+        // Create more than 10 indices to trigger multiple batches of data node execution.
+        // The sort field should be missing on some indices to reproduce NullPointerException caused by duplicated items in layout
+        for (int i = 1; i <= 20; i++) {
+            createIndex("no_sort_field_idx" + i, randomBoolean(), "\"mappings\": {\"properties\" : {\"a\" : {\"type\" : \"keyword\"}}}");
+        }
+        bulkLoadTestDataLookupMode(10);
+        // lookup join with and without sort
+        for (String sort : List.of("", "| sort integer")) {
+            var query = requestObjectBuilder().query(
+                format(null, "from {},no_sort_field_idx* | lookup join {} on integer {}", testIndexName(), testIndexName(), sort)
+            );
+            Map<String, Object> result = runEsql(query);
+            var columns = as(result.get("columns"), List.class);
+            var values = as(result.get("values"), List.class);
+            assertEquals(10, values.size());
+        }
+        // clean up
+        for (int i = 1; i <= 20; i++) {
+            assertThat(deleteIndex("no_sort_field_idx" + i).isAcknowledged(), is(true));
         }
     }
 
@@ -868,17 +1113,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                     .item(499.5)
             );
         }
-        assertMap(
+        assertResultMap(
             result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
-                    .item(matchesMap().entry("name", "test").entry("type", "text"))
-                    .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
-                    .item(matchesMap().entry("name", "value").entry("type", "long"))
-                    .item(matchesMap().entry("name", "now").entry("type", "date"))
-                    .item(matchesMap().entry("name", "AVG(value)").entry("type", "double"))
-            ).entry("values", values).entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
+                .item(matchesMap().entry("name", "test").entry("type", "text"))
+                .item(matchesMap().entry("name", "test.keyword").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "value").entry("type", "long"))
+                .item(matchesMap().entry("name", "now").entry("type", "date"))
+                .item(matchesMap().entry("name", "AVG(value)").entry("type", "double")),
+            values
         );
     }
 
@@ -894,11 +1137,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }).query(fromIndex() + " | STATS SUM(value)");
 
         Map<String, Object> result = runEsql(builder);
-        assertMap(
+        assertResultMap(
             result,
-            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
-                .entry("values", List.of(List.of(499500)))
-                .entry("took", greaterThanOrEqualTo(0))
+            matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")),
+            List.of(List.of(499500))
         );
     }
 
@@ -913,12 +1155,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             b.endObject();
         }).query(fromIndex() + " | WHERE value == 12 | STATS SUM(value)");
         Map<String, Object> result = runEsql(builder);
-        assertMap(
-            result,
-            matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
-                .entry("values", List.of(List.of(12)))
-                .entry("took", greaterThanOrEqualTo(0))
-        );
+        assertResultMap(result, matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")), List.of(List.of(12)));
     }
 
     public void testTopLevelFilterBoolMerged() throws IOException {
@@ -947,11 +1184,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 b.endObject();
             }).query(fromIndex() + " | WHERE @timestamp > \"2010-01-01\" | STATS SUM(value)");
             Map<String, Object> result = runEsql(builder);
-            assertMap(
+            assertResultMap(
                 result,
-                matchesMap().entry("columns", matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")))
-                    .entry("values", List.of(List.of(12)))
-                    .entry("took", greaterThanOrEqualTo(0))
+                matchesList().item(matchesMap().entry("name", "SUM(value)").entry("type", "long")),
+                List.of(List.of(12))
             );
         }
     }
@@ -1007,12 +1243,21 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return runEsqlAsync(requestObject, randomBoolean(), new AssertWarnings.NoWarnings());
     }
 
-    static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode) throws IOException {
-        if (mode == ASYNC) {
-            return runEsqlAsync(requestObject, randomBoolean(), assertWarnings);
-        } else {
-            return runEsqlSync(requestObject, assertWarnings);
-        }
+    public static Map<String, Object> runEsql(
+        RequestObjectBuilder requestObject,
+        AssertWarnings assertWarnings,
+        Mode mode,
+        boolean checkPartialResults
+    ) throws IOException {
+        var results = mode == ASYNC
+            ? runEsqlAsync(requestObject, randomBoolean(), assertWarnings)
+            : runEsqlSync(requestObject, assertWarnings);
+        return checkPartialResults ? assertNotPartial(results) : results;
+    }
+
+    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode)
+        throws IOException {
+        return runEsql(requestObject, assertWarnings, mode, true);
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
@@ -1120,7 +1365,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         var json = entityToMap(entity, requestObject.contentType());
         checkKeepOnCompletion(requestObject, json, true);
         String id = (String) json.get("id");
-        // results won't be returned since keepOnCompletion is true
+        // results won't be returned because wait_for_completion is provided a very small interval
         assertThat(id, is(not(emptyOrNullString())));
 
         // issue an "async get" request with no Content-Type
@@ -1133,21 +1378,52 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         for (int i = 0; i < count; i++) {
             values = values.item(matchesList().item("keyword" + i).item(i));
         }
-        assertMap(
+        assertResultMap(
             result,
-            matchesMap().entry(
-                "columns",
-                matchesList().item(matchesMap().entry("name", "keyword").entry("type", "keyword"))
-                    .item(matchesMap().entry("name", "integer").entry("type", "integer"))
-            ).entry("values", values).entry("took", greaterThanOrEqualTo(0)).entry("id", id).entry("is_running", false)
+            getResultMatcher(result).entry("id", id).entry("is_running", false),
+            matchesList().item(matchesMap().entry("name", "keyword").entry("type", "keyword"))
+                .item(matchesMap().entry("name", "integer").entry("type", "integer")),
+            values
         );
-
     }
 
-    static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
+    public void testReplaceStringCasingWithInsensitiveWildcardMatch() throws IOException {
+        createIndex(testIndexName(), Settings.EMPTY, """
+            {
+                "properties": {
+                    "reserved": {
+                        "type": "keyword"
+                    },
+                    "optional": {
+                        "type": "keyword"
+                    }
+                }
+            }
+            """);
+        Request doc = new Request("POST", testIndexName() + "/_doc?refresh=true");
+        doc.setJsonEntity("""
+            {
+                "reserved": "_\\"_$_(_)_+_._[_]_^_{_|_}___",
+                "optional": "_#_&_<_>___"
+            }
+            """);
+        client().performRequest(doc);
+        var query = "FROM " + testIndexName() + """
+            | WHERE TO_LOWER(reserved) LIKE "_\\"_$_(_)_+_._[_]_^_{_|_}*"
+            | WHERE TO_LOWER(optional) LIKE "_#_&_<_>*"
+            | KEEP reserved, optional
+            """;
+        var answer = runEsql(requestObjectBuilder().query(query));
+        assertThat(answer.get("values"), equalTo(List.of(List.of("_\"_$_(_)_+_._[_]_^_{_|_}___", "_#_&_<_>___"))));
+    }
+
+    protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
         requestObject.build();
         Request request = prepareRequest(mode);
         String mediaType = attachBody(requestObject, request);
+        if (requestObject.allowPartialResults != null) {
+            request.addParameter("allow_partial_results", String.valueOf(requestObject.allowPartialResults));
+        }
 
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
@@ -1275,11 +1551,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 switch (format) {
                     case "txt" -> assertThat(initialValue, emptyOrNullString());
                     case "csv" -> {
-                        assertEquals(initialValue, "\r\n");
+                        assertEquals("\r\n", initialValue);
                         initialValue = "";
                     }
                     case "tsv" -> {
-                        assertEquals(initialValue, "\n");
+                        assertEquals("\n", initialValue);
                         initialValue = "";
                     }
                 }
@@ -1343,7 +1619,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return assertWarnings(performRequest(request), assertWarnings);
     }
 
-    private static Response performRequest(Request request) throws IOException {
+    protected static Response performRequest(Request request) throws IOException {
         Response response = client().performRequest(request);
         if (shouldLog()) {
             LOGGER.info("RESPONSE={}", response);
@@ -1374,13 +1650,22 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulkLoadTestData(count, 0, true, RestEsqlTestCase::createDocument);
     }
 
+    private static void bulkLoadTestDataLookupMode(int count) throws IOException {
+        createIndex(testIndexName(), true);
+        bulkLoadTestData(count, 0, false, RestEsqlTestCase::createDocument);
+    }
+
+    private static void createIndex(String indexName, boolean lookupMode) throws IOException {
+        Request request = new Request("PUT", "/" + indexName);
+        request.setJsonEntity(lookupMode ? MAPPING_ALL_TYPES_LOOKUP : MAPPING_ALL_TYPES);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+    }
+
     private static void bulkLoadTestData(int count, int firstIndex, boolean createIndex, IntFunction<String> createDocument)
         throws IOException {
         Request request;
         if (createIndex) {
-            request = new Request("PUT", "/" + testIndexName());
-            request.setJsonEntity(MAPPING_ALL_TYPES);
-            assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+            createIndex(testIndexName(), false);
         }
 
         if (count > 0) {
@@ -1453,6 +1738,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static String repeatValueAsMV(Object value) {
         return "[" + value + ", " + value + "]";
+    }
+
+    private static void createIndex(String indexName, boolean lookupMode, String mapping) throws IOException {
+        Request request = new Request("PUT", "/" + indexName);
+        String settings = "\"settings\" : {\"mode\" : \"lookup\"}, ";
+        request.setJsonEntity("{" + (lookupMode ? settings : "") + mapping + "}");
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {

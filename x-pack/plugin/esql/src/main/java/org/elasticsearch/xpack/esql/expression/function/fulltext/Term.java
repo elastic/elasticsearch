@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.capabilities.Validatable;
-import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -23,9 +25,12 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -35,7 +40,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 /**
  * Full text function that performs a {@link TermQuery} .
  */
-public class Term extends FullTextFunction implements Validatable {
+public class Term extends FullTextFunction implements PostAnalysisPlanVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Term", Term::readFrom);
 
@@ -56,7 +61,11 @@ public class Term extends FullTextFunction implements Validatable {
             description = "Term you wish to find in the provided field."
         ) Expression termQuery
     ) {
-        super(source, termQuery, List.of(field, termQuery));
+        this(source, field, termQuery, null);
+    }
+
+    public Term(Source source, Expression field, Expression termQuery, QueryBuilder queryBuilder) {
+        super(source, termQuery, List.of(field, termQuery), queryBuilder);
         this.field = field;
     }
 
@@ -64,7 +73,11 @@ public class Term extends FullTextFunction implements Validatable {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        return new Term(source, field, query);
+        QueryBuilder queryBuilder = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
+        return new Term(source, field, query, queryBuilder);
     }
 
     @Override
@@ -72,6 +85,9 @@ public class Term extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
     }
 
     @Override
@@ -80,43 +96,52 @@ public class Term extends FullTextFunction implements Validatable {
     }
 
     @Override
-    protected TypeResolution resolveNonQueryParamTypes() {
-        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.resolveNonQueryParamTypes());
+    protected TypeResolution resolveParams() {
+        return resolveField().and(resolveQuery(SECOND));
+    }
+
+    private TypeResolution resolveField() {
+        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST));
     }
 
     @Override
-    public void validate(Failures failures) {
-        if (field instanceof FieldAttribute == false) {
-            failures.add(
-                Failure.fail(
-                    field,
-                    "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                    functionName(),
-                    functionType(),
-                    field.sourceText()
-                )
-            );
-        }
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (plan, failures) -> {
+            super.postAnalysisPlanVerification().accept(plan, failures);
+            fieldVerifier(plan, this, field, failures);
+        };
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Term(source(), newChildren.get(0), newChildren.get(1));
+        return new Term(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Term::new, field, query());
+        return NodeInfo.create(this, Term::new, field, query(), queryBuilder());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {
         return SECOND;
     }
 
+    @Override
+    protected Query translate(TranslatorHandler handler) {
+        // Uses a term query that contributes to scoring
+        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject(), false, true);
+    }
+
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new Term(source(), field, query(), queryBuilder);
+    }
+
     public Expression field() {
         return field;
     }
 
+    // TODO: method can be dropped, to allow failure messages contain the capitalized function name, aligned with similar functions/classes
     @Override
     public String functionName() {
         return ENTRY.name;

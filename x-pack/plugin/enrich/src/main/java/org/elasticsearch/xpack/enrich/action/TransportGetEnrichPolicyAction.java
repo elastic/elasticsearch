@@ -45,7 +45,6 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver,
             GetEnrichPolicyAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

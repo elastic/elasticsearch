@@ -9,27 +9,41 @@ Learn how to combine different retrievers in these hands-on examples.
 ==== Add example data
 
 To begin with, lets create the `retrievers_example` index, and add some documents to it.
+We will set `number_of_shards=1` for our examples to ensure consistent and reproducible ordering.
 
 [source,console]
 ----
 PUT retrievers_example
 {
+    "settings": {
+        "number_of_shards": 1
+    },
    "mappings": {
        "properties": {
            "vector": {
                "type": "dense_vector",
                "dims": 3,
                "similarity": "l2_norm",
-               "index": true
+               "index": true,
+               "index_options": {
+                    "type": "flat"
+               }
            },
            "text": {
-               "type": "text"
+               "type": "text",
+               "copy_to": "text_semantic"
+           },
+           "text_semantic": {
+               "type": "semantic_text"
            },
            "year": {
                "type": "integer"
            },
            "topic": {
                "type": "keyword"
+           },
+           "timestamp": {
+               "type": "date"
            }
        }
    }
@@ -40,7 +54,8 @@ POST /retrievers_example/_doc/1
  "vector": [0.23, 0.67, 0.89],
  "text": "Large language models are revolutionizing information retrieval by boosting search precision, deepening contextual understanding, and reshaping user experiences in data-rich environments.",
  "year": 2024,
- "topic": ["llm", "ai", "information_retrieval"]
+ "topic": ["llm", "ai", "information_retrieval"],
+ "timestamp": "2021-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/2
@@ -48,7 +63,8 @@ POST /retrievers_example/_doc/2
  "vector": [0.12, 0.56, 0.78],
  "text": "Artificial intelligence is transforming medicine, from advancing diagnostics and tailoring treatment plans to empowering predictive patient care for improved health outcomes.",
  "year": 2023,
- "topic": ["ai", "medicine"]
+ "topic": ["ai", "medicine"],
+ "timestamp": "2022-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/3
@@ -56,7 +72,8 @@ POST /retrievers_example/_doc/3
  "vector": [0.45, 0.32, 0.91],
   "text": "AI is redefining security by enabling advanced threat detection, proactive risk analysis, and dynamic defenses against increasingly sophisticated cyber threats.",
  "year": 2024,
- "topic": ["ai", "security"]
+ "topic": ["ai", "security"],
+ "timestamp": "2023-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/4
@@ -64,7 +81,8 @@ POST /retrievers_example/_doc/4
  "vector": [0.34, 0.21, 0.98],
  "text": "Elastic introduces Elastic AI Assistant, the open, generative AI sidekick powered by ESRE to democratize cybersecurity and enable users of every skill level.",
  "year": 2023,
- "topic": ["ai", "elastic", "assistant"]
+ "topic": ["ai", "elastic", "assistant"],
+ "timestamp": "2024-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/5
@@ -72,7 +90,8 @@ POST /retrievers_example/_doc/5
  "vector": [0.11, 0.65, 0.47],
  "text": "Learn how to spin up a deployment of our hosted Elasticsearch Service and use Elastic Observability to gain deeper insight into the behavior of your applications and systems.",
  "year": 2024,
- "topic": ["documentation", "observability", "elastic"]
+ "topic": ["documentation", "observability", "elastic"],
+ "timestamp": "2025-01-01T12:10:30"
 }
 
 POST /retrievers_example/_refresh
@@ -177,6 +196,514 @@ This returns the following response based on the final rrf score for each result
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
+
+[discrete]
+[[retrievers-examples-linear-retriever]]
+==== Example: Hybrid search with linear retriever
+
+A different, and more intuitive, way to provide hybrid search, is to linearly combine the top documents of different
+retrievers using a weighted sum of the original scores. Since, as above, the scores could lie in different ranges,
+we can also specify a `normalizer` that would ensure that all scores for the top ranked documents of a retriever
+lie in a specific range.
+
+To implement this, we define a `linear` retriever, and along with a set of retrievers that will generate the heterogeneous
+results sets that we will combine. We will solve a problem similar to the above, by merging the results of a `standard` and a `knn`
+retriever. As the `standard` retriever's scores are based on BM25 and are not strictly bounded, we will also define a
+`minmax` normalizer to ensure that the scores lie in the [0, 1] range. We will apply the same normalizer to `knn` as well
+to ensure that we capture the importance of each document within the result set.
+
+So, let's now specify the `linear` retriever whose final score is computed as follows:
+
+[source, text]
+----
+score = weight(standard) * score(standard) + weight(knn) * score(knn)
+score = 2 * score(standard) + 1.5 * score(knn)
+----
+// NOTCONSOLE
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "linear": {
+            "retrievers": [
+                {
+                    "retriever": {
+                        "standard": {
+                            "query": {
+                                "query_string": {
+                                    "query": "(information retrieval) OR (artificial intelligence)",
+                                    "default_field": "text"
+                                }
+                            }
+                        }
+                    },
+                    "weight": 2,
+                    "normalizer": "minmax"
+                },
+                {
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "weight": 1.5,
+                    "normalizer": "minmax"
+                }
+            ],
+            "rank_window_size": 10
+        }
+    },
+    "_source": false
+}
+----
+// TEST[continued]
+
+This returns the following response based on the normalized weighted score for each result.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 3.5,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 3.5
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 2.3
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.1
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": 3.5/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 3.5/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 2.3/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 0.1/"_score": $body.hits.hits.2._score/]
+==============
+
+By normalizing scores and leveraging `function_score` queries, we can also implement more complex ranking strategies,
+such as sorting results based on their timestamps, assign the timestamp as a score, and then normalizing this score to
+[0, 1].
+Then, we can easily combine the above with a `knn` retriever as follows:
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "linear": {
+            "retrievers": [
+                {
+                    "retriever": {
+                        "standard": {
+                            "query": {
+                                "function_score": {
+                                    "query": {
+                                        "term": {
+                                            "topic": "ai"
+                                        }
+                                    },
+                                    "functions": [
+                                        {
+                                            "script_score": {
+                                                "script": {
+                                                    "source": "doc['timestamp'].value.millis"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "boost_mode": "replace"
+                                }
+                            },
+                            "sort": {
+                                "timestamp": {
+                                    "order": "asc"
+                                }
+                            }
+                        }
+                    },
+                    "weight": 2,
+                    "normalizer": "minmax"
+                },
+                {
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "weight": 1.5
+                }
+            ],
+            "rank_window_size": 10
+        }
+    },
+    "_source": false
+}
+----
+// TEST[continued]
+
+Which would return the following results:
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 4,
+            "relation": "eq"
+        },
+        "max_score": 3.5,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 3.5
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 2.0
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": 1.1
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.1
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": 3.5/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 3.5/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 2.0/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 1.1/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": 0.1/"_score": $body.hits.hits.3._score/]
+==============
+
+[discrete]
+[[retrievers-examples-rrf-multi-field-query-format]]
+==== Example: RRF with the multi-field query format
+
+There's an even simpler way to execute a hybrid search though: We can use the <<multi-field-query-format, multi-field query format>>, which allows us to query multiple fields without explicitly specifying inner retrievers.
+One of the major challenges with hybrid search is normalizing the scores across matches on all field types.
+Scores from <<text, `text`>> and <<semantic-text, `semantic_text`>> fields don't always fall in the same range, so we need to normalize the ranks across matches on these fields to generate a result set.
+For example, BM25 scores from `text` fields are unbounded, while vector similarity scores from `text_embedding` models are bounded between [0, 1].
+The multi-field query format <<multi-field-field-grouping, handles this normalization for us automatically>>.
+
+The following example uses the multi-field query format to query every field specified in the `index.query.default_field` index setting, which is set to `*` by default.
+This default value will cause the retriever to query every field that either:
+
+- Supports term queries, such as `keyword` and `text` fields
+- Is a `semantic_text` field
+
+In this example, that would translate to the `text`, `text_semantic`, `year`, `topic`, and `timestamp` fields.
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "query": "artificial intelligence"
+        }
+    },
+    "_source": false
+}
+----
+// TEST[continued]
+
+This returns the following response based on the final rrf score for each result.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 5,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.82
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": 0.48
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.40
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "5",
+                "_score": 0.25
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": 0.8333334/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 0.8333334/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 0.82/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 0.48/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": 0.40/"_score": $body.hits.hits.3._score/]
+// TESTRESPONSE[s/"_score": 0.25/"_score": $body.hits.hits.4._score/]
+==============
+
+We can also use the `fields` parameter to explicitly specify the fields to query.
+The following example uses the multi-field query format to query the `text` and `text_semantic` fields.
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "query": "artificial intelligence",
+            "fields": ["text", "text_semantic"]
+        }
+    },
+    "_source": false
+}
+----
+// TEST[continued]
+
+[NOTE]
+====
+The `fields` parameter also accepts <<multi-field-wildcard-field-patterns, wildcard field patterns>>.
+====
+
+This returns the following response based on the final rrf score for each result.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 5,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.82
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": 0.48
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.40
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "5",
+                "_score": 0.25
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": 0.8333334/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 0.8333334/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 0.82/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 0.48/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": 0.40/"_score": $body.hits.hits.3._score/]
+// TESTRESPONSE[s/"_score": 0.25/"_score": $body.hits.hits.4._score/]
+==============
+
+[discrete]
+[[retrievers-examples-linear-multi-field-query-format]]
+==== Example: Linear retriever with the multi-field query format
+
+We can also use the <<multi-field-query-format, multi-field query format>> with the `linear` retriever.
+It works much the same way as <<retrievers-examples-rrf-multi-field-query-format, on the `rrf` retriever>>, with a couple key differences:
+
+- We can use `^` notation to specify a <<multi-field-field-boosting, per-field boost>>
+- We must set the `normalizer` parameter to specify the normalization method used to combine <<multi-field-field-grouping, field group scores>>
+
+The following example uses the `linear` retriever to query the `text`, `text_semantic`, and `topic` fields, with a boost of 2 on the `topic` field:
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "linear": {
+            "query": "artificial intelligence",
+            "fields": ["text", "text_semantic", "topic^2"],
+            "normalizer": "minmax"
+        }
+    },
+    "_source": false
+}
+----
+// TEST[continued]
+
+This returns the following response based on the normalized score for each result:
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 5,
+            "relation": "eq"
+        },
+        "max_score": 2.0,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 2.0
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 1.2
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": 1.0
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.8
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "5",
+                "_score": 0.1
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": 2.0/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": 2.0/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": 1.2/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": 1.0/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": 0.8/"_score": $body.hits.hits.3._score/]
+// TESTRESPONSE[s/"_score": 0.1/"_score": $body.hits.hits.4._score/]
 ==============
 
 [discrete]
@@ -459,6 +986,9 @@ and index a couple of documents.
 ----
 PUT retrievers_example_nested
 {
+    "settings": {
+         "number_of_shards": 1
+     },
     "mappings": {
         "properties": {
             "nested_field": {
@@ -471,7 +1001,10 @@ PUT retrievers_example_nested
                         "type": "dense_vector",
                         "dims": 3,
                         "similarity": "l2_norm",
-                        "index": true
+                        "index": true,
+                        "index_options": {
+                            "type": "flat"
+                        }
                     }
                 }
             },
@@ -640,7 +1173,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                 "value": 3,
                                 "relation": "eq"
                             },
-                            "max_score": 0.44353113,
+                            "max_score": 0.44444445,
                             "hits": [
                                 {
                                     "_index": "retrievers_example_nested",
@@ -649,7 +1182,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 2
                                     },
-                                    "_score": 0.44353113,
+                                    "_score": 0.44444445,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -667,7 +1200,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 1
                                     },
-                                    "_score": 0.26567122,
+                                    "_score": 0.21301977,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -685,7 +1218,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 0
                                     },
-                                    "_score": 0.18478848,
+                                    "_score": 0.16889325,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -717,7 +1250,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                 "value": 1,
                                 "relation": "eq"
                             },
-                            "max_score": 0.32002488,
+                            "max_score": 0.31715825,
                             "hits": [
                                 {
                                     "_index": "retrievers_example_nested",
@@ -726,7 +1259,7 @@ This would propagate the `inner_hits` defined for the `knn` query to the `rrf` r
                                         "field": "nested_field",
                                         "offset": 0
                                     },
-                                    "_score": 0.32002488,
+                                    "_score": 0.31715825,
                                     "fields": {
                                         "nested_field": [
                                             {
@@ -1014,65 +1547,87 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
                 "_score": 0.5,
                 "_explanation": {
                     "value": 0.5,
-                    "description": "rrf score: [0.5] computed for initial ranks [0, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
+                    "description": "sum of:",
                     "details": [
                         {
-                            "value": 0.0,
-                            "description": "rrf score: [0], result not found in query at index [0]",
-                            "details": []
-                        },
-                        {
-                            "value": 1,
-                            "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
+                            "value": 0.5,
+                            "description": "rrf score: [0.5] computed for initial ranks [0, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
                             "details": [
                                 {
-                                    "value": 0.8333334,
-                                    "description": "rrf score: [0.8333334] computed for initial ranks [2, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
+                                    "value": 0.0,
+                                    "description": "rrf score: [0], result not found in query at index [0]",
+                                    "details": []
+                                },
+                                {
+                                    "value": 1,
+                                    "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
                                     "details": [
                                         {
-                                            "value": 2,
-                                            "description": "rrf score: [0.33333334], for rank [2] in query at index [0] computed as [1 / (2 + 1)], for matching query with score",
+                                            "value": 0.8333334,
+                                            "description": "rrf score: [0.8333334] computed for initial ranks [2, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
                                             "details": [
                                                 {
-                                                    "value": 2.8129659,
-                                                    "description": "sum of:",
+                                                    "value": 2,
+                                                    "description": "rrf score: [0.33333334], for rank [2] in query at index [0] computed as [1 / (2 + 1)], for matching query with score",
                                                     "details": [
                                                         {
-                                                            "value": 1.4064829,
-                                                            "description": "weight(text:information in 0) [PerFieldSimilarity], result of:",
+                                                            "value": 2.8129659,
+                                                            "description": "sum of:",
                                                             "details": [
-                                                                ***
-                                                            ]
-                                                        },
-                                                        {
-                                                            "value": 1.4064829,
-                                                            "description": "weight(text:retrieval in 0) [PerFieldSimilarity], result of:",
-                                                            "details": [
-                                                                ***
+                                                                {
+                                                                    "value": 1.4064829,
+                                                                    "description": "weight(text:information in 1) [PerFieldSimilarity], result of:",
+                                                                    "details": [
+                                                                        ***
+                                                                    ]
+                                                                },
+                                                                {
+                                                                    "value": 1.4064829,
+                                                                    "description": "weight(text:retrieval in 1) [PerFieldSimilarity], result of:",
+                                                                    "details": [
+                                                                        ***
+                                                                    ]
+                                                                }
                                                             ]
                                                         }
                                                     ]
-                                                }
-                                            ]
-                                        },
-                                        {
-                                            "value": 1,
-                                            "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
-                                            "details": [
+                                                },
                                                 {
                                                     "value": 1,
-                                                    "description": "doc [0] with an original score of [1.0] is at rank [1] from the following source queries.",
+                                                    "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
                                                     "details": [
                                                         {
-                                                            "value": 1.0,
-                                                            "description": "found vector with calculated similarity: 1.0",
-                                                            "details": []
+                                                            "value": 1,
+                                                            "description": "doc [1] with an original score of [1.0] is at rank [1] from the following source queries.",
+                                                            "details": [
+                                                                {
+                                                                    "value": 1.0,
+                                                                    "description": "found vector with calculated similarity: 1.0",
+                                                                    "details": []
+                                                                }
+                                                            ]
                                                         }
                                                     ]
                                                 }
                                             ]
                                         }
                                     ]
+                                }
+                            ]
+                        },
+                        {
+                            "value": 0.0,
+                            "description": "match on required clause, product of:",
+                            "details": [
+                                {
+                                    "value": 0.0,
+                                    "description": "# clause",
+                                    "details": []
+                                },
+                                {
+                                    "value": 1.0,
+                                    "description": "FieldExistsQuery [field=_primary_term]",
+                                    "details": []
                                 }
                             ]
                         }
@@ -1084,8 +1639,7 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
-// TESTRESPONSE[s/\.\.\./$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.0.details.0/]
-// TESTRESPONSE[s/\*\*\*/$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.1.details.0/]
+// TESTRESPONSE[s/\*\*\*/$body.hits.hits.0._explanation.details.0.details.1.details.0.details.0.details.0.details.1.details.0/]
 // TESTRESPONSE[s/jnrdZFKS3abUgWVsVdj2Vg/$body.hits.hits.0._node/]
 ==============
 
@@ -1215,7 +1769,6 @@ GET /retrievers_example/_search
 [discrete]
 [[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
 ==== Example: Chaining multiple semantic rerankers
-
 Full composability means we can chain together multiple retrievers of the same type. For instance,
 imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
 
@@ -1260,3 +1813,33 @@ Note that our example applies two reranking steps. First, we rerank the top 100
 documents from the `knn` search using the `my-rerank-model` reranker. Then we
 pick the top 10 results and rerank them using the more fine-grained
 `my-other-more-expensive-rerank-model`.
+
+[discrete]
+[[retrievers-examples-pinned-retriever]]
+==== Example: Using the pinned retriever
+
+Pinned Retriever example using `docs`
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+  "retriever": {
+    "pinned": {
+      "docs": [
+        { "_id": "1" },
+        { "_id": "2" }
+      ],
+      "retriever": {
+        "standard": {
+          "query": {
+            "match": {
+              "text": "elasticsearch"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+----

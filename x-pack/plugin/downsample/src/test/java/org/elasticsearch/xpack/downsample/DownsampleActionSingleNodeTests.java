@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -201,14 +202,19 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 IndexSettings.TIME_SERIES_START_TIME.getKey(),
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(Instant.ofEpochMilli(startTime).toEpochMilli())
             )
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
+            .put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), randomBoolean());
 
         if (randomBoolean()) {
             settings.put(IndexMetadata.SETTING_INDEX_HIDDEN, randomBoolean());
         }
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties");
-        mapping.startObject(FIELD_TIMESTAMP).field("type", "date").endObject();
+        mapping.startObject(FIELD_TIMESTAMP).field("type", "date");
+        if (settings.get(FieldMapper.IGNORE_MALFORMED_SETTING.getKey()).equals("true")) {
+            mapping.field("ignore_malformed", false);
+        }
+        mapping.endObject();
 
         // Dimensions
         mapping.startObject(FIELD_DIMENSION_1).field("type", "keyword").field("time_series_dimension", true).endObject();
@@ -1111,25 +1117,31 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void bulkIndex(final String indexName, final SourceSupplier sourceSupplier, int docCount) throws IOException {
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        for (int i = 0; i < docCount; i++) {
-            IndexRequest indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.CREATE);
-            XContentBuilder source = sourceSupplier.get();
-            indexRequest.source(source);
-            bulkRequestBuilder.add(indexRequest);
-        }
-        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        // Index in such a way that we always have multiple segments, so that we test DownsampleShardIndexer in a more realistic scenario:
+        // (also makes failures more reproducible)
         int duplicates = 0;
-        for (BulkItemResponse response : bulkResponse.getItems()) {
-            if (response.isFailed()) {
-                if (response.getFailure().getCause() instanceof VersionConflictEngineException) {
-                    // A duplicate event was created by random generator. We should not fail for this
-                    // reason.
-                    logger.debug("We tried to insert a duplicate: [{}]", response.getFailureMessage());
-                    duplicates++;
-                } else {
-                    fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        for (int i = 0; i < docCount;) {
+            BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+            bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            int max = Math.min(i + 100, docCount);
+            for (int j = i; j < max; j++) {
+                IndexRequest indexRequest = new IndexRequest(indexName).opType(DocWriteRequest.OpType.CREATE);
+                XContentBuilder source = sourceSupplier.get();
+                indexRequest.source(source);
+                bulkRequestBuilder.add(indexRequest);
+            }
+            i = max;
+            BulkResponse bulkResponse = bulkRequestBuilder.get();
+            for (BulkItemResponse response : bulkResponse.getItems()) {
+                if (response.isFailed()) {
+                    if (response.getFailure().getCause() instanceof VersionConflictEngineException) {
+                        // A duplicate event was created by random generator. We should not fail for this
+                        // reason.
+                        logger.debug("We tried to insert a duplicate: [{}]", response.getFailureMessage());
+                        duplicates++;
+                    } else {
+                        fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+                    }
                 }
             }
         }

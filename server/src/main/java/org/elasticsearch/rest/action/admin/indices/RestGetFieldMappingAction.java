@@ -48,9 +48,15 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_mapping/field/{fields}"),
             new Route(GET, "/{index}/_mapping/field/{fields}"),
-            Route.builder(GET, "/_mapping/{type}/field/{fields}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/{type}/_mapping/field/{fields}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(GET, "/{index}/_mapping/{type}/field/{fields}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/_mapping/{type}/field/{fields}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, "/{index}/{type}/_mapping/field/{fields}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, "/{index}/_mapping/{type}/field/{fields}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 

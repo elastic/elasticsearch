@@ -23,7 +23,6 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermState;
-import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -39,11 +38,8 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.fst.Outputs;
 import java.io.IOException;
 
 /**
- * This is used to implement efficient {@link Terms#intersect} for block-tree. Note that it cannot
- * seek, except for the initial term on init. It just "nexts" through the intersection of the
- * automaton and the terms. It does not use the terms index at all: on init, it loads the root
- * block, and scans its way to the initial term. Likewise, in next it scans until it finds a term
- * that matches the current automaton transition.
+ * This is a copy of the class with same name shipped with Lucene, which is though package protected hence not accessible.
+ * We need to copy it because we have our own fork of {@link FieldReader}.
  */
 final class IntersectTermsEnum extends BaseTermsEnum {
 

@@ -85,7 +85,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final Environment environment = internalCluster().getInstance(Environment.class);
         final AtomicReference<AssertionError> reloadSettingsError = new AtomicReference<>();
         // keystore file should be missing for this test case
-        Files.deleteIfExists(KeyStoreWrapper.keystorePath(environment.configFile()));
+        Files.deleteIfExists(KeyStoreWrapper.keystorePath(environment.configDir()));
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         final CountDownLatch latch = new CountDownLatch(1);
         executeReloadSecureSettings(Strings.EMPTY_ARRAY, emptyPassword(), new ActionListener<>() {
@@ -129,10 +129,10 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         final int initialReloadCount = mockReloadablePlugin.getReloadCount();
         // invalid "keystore" file should be present in the config dir
         try (InputStream keystore = ReloadSecureSettingsIT.class.getResourceAsStream("invalid.txt.keystore")) {
-            if (Files.exists(environment.configFile()) == false) {
-                Files.createDirectory(environment.configFile());
+            if (Files.exists(environment.configDir()) == false) {
+                Files.createDirectory(environment.configDir());
             }
-            Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configFile()), StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(keystore, KeyStoreWrapper.keystorePath(environment.configDir()), StandardCopyOption.REPLACE_EXISTING);
         }
         final CountDownLatch latch = new CountDownLatch(1);
         executeReloadSecureSettings(Strings.EMPTY_ARRAY, emptyPassword(), new ActionListener<>() {
@@ -363,7 +363,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
             keyStoreWrapper.setString(VALID_SECURE_SETTING_NAME, new char[0]);
-            keyStoreWrapper.save(environment.configFile(), new char[0], false);
+            keyStoreWrapper.save(environment.configDir(), new char[0], false);
         }
 
         PlainActionFuture<NodesReloadSecureSettingsResponse> actionFuture = new PlainActionFuture<>();
@@ -374,7 +374,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
             assertThat(keyStoreWrapper, notNullValue());
             keyStoreWrapper.setString("some.setting.that.does.not.exist", new char[0]);
-            keyStoreWrapper.save(environment.configFile(), new char[0], false);
+            keyStoreWrapper.save(environment.configDir(), new char[0], false);
         }
 
         actionFuture = new PlainActionFuture<>();
@@ -432,7 +432,7 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     private SecureSettings writeEmptyKeystore(Environment environment, char[] password) throws Exception {
         final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
-        keyStoreWrapper.save(environment.configFile(), password, false);
+        keyStoreWrapper.save(environment.configDir(), password, false);
         return keyStoreWrapper;
     }
 

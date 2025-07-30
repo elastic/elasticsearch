@@ -185,9 +185,15 @@ public class ZoneAwareAssignmentPlanner {
             for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
                 planBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
-                // As the node has all its available memory we need to manually account memory of models with
-                // current allocations.
-                planBuilder.accountMemory(originalDeployment, originalNode);
+                if (originalDeployment.currentAllocationsByNodeId().containsKey(originalNode.id())) {
+                    // TODO (#101612) requiredMemory should be calculated by the AssignmentPlan.Builder
+                    // As the node has all its available memory we need to manually account memory of models with
+                    // current allocations.
+                    long requiredMemory = originalDeployment.estimateMemoryUsageBytes(
+                        originalDeployment.currentAllocationsByNodeId().get(originalNode.id())
+                    );
+                    planBuilder.accountMemory(m, originalNode, requiredMemory);
+                }
             }
         }
         return planBuilder.build();

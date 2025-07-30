@@ -24,6 +24,7 @@ import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
@@ -33,8 +34,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -930,6 +933,102 @@ public class GetActionIT extends ESIntegTestCase {
             "Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
             iae.getMessage()
         );
+    }
+
+    public void testRealTimeGetNestedFields() {
+        String index = "test";
+        SourceFieldMapper.Mode sourceMode = randomFrom(SourceFieldMapper.Mode.values());
+        assertAcked(
+            prepareCreate(index).setMapping("title", "type=keyword", "author", "type=nested")
+                .setSettings(
+                    indexSettings(1, 0).put("index.refresh_interval", -1)
+                        .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), sourceMode)
+                )
+        );
+        ensureGreen();
+        String source0 = """
+            {
+              "title": "t0",
+              "author": [
+                {
+                  "name": "a0"
+                }
+              ]
+            }
+            """;
+        prepareIndex(index).setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).setId("0").setSource(source0, XContentType.JSON).get();
+        // start tracking translog locations
+        assertTrue(client().prepareGet(index, "0").setRealtime(true).get().isExists());
+        String source1 = """
+            {
+              "title": ["t1"],
+              "author": [
+                {
+                  "name": "a1"
+                }
+              ]
+            }
+            """;
+        prepareIndex(index).setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).setId("1").setSource(source1, XContentType.JSON).get();
+        String source2 = """
+            {
+              "title": ["t1", "t2"],
+              "author": [
+                {
+                  "name": "a1"
+                },
+                {
+                  "name": "a2"
+                }
+              ]
+            }
+            """;
+        prepareIndex(index).setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).setId("2").setSource(source2, XContentType.JSON).get();
+        String source3 = """
+            {
+              "title": ["t1", "t3", "t2"]
+            }
+            """;
+        prepareIndex(index).setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).setId("3").setSource(source3, XContentType.JSON).get();
+        GetResponse translog1 = client().prepareGet(index, "1").setRealtime(true).get();
+        GetResponse translog2 = client().prepareGet(index, "2").setRealtime(true).get();
+        GetResponse translog3 = client().prepareGet(index, "3").setRealtime(true).get();
+        assertTrue(translog1.isExists());
+        assertTrue(translog2.isExists());
+        assertTrue(translog3.isExists());
+        switch (sourceMode) {
+            case STORED -> {
+                assertThat(translog1.getSourceAsBytesRef().utf8ToString(), equalTo(source1));
+                assertThat(translog2.getSourceAsBytesRef().utf8ToString(), equalTo(source2));
+                assertThat(translog3.getSourceAsBytesRef().utf8ToString(), equalTo(source3));
+            }
+            case SYNTHETIC -> {
+                assertThat(translog1.getSourceAsBytesRef().utf8ToString(), equalTo("""
+                    {"author":{"name":"a1"},"title":"t1"}"""));
+                assertThat(translog2.getSourceAsBytesRef().utf8ToString(), equalTo("""
+                    {"author":[{"name":"a1"},{"name":"a2"}],"title":["t1","t2"]}"""));
+                assertThat(translog3.getSourceAsBytesRef().utf8ToString(), equalTo("""
+                    {"title":["t1","t2","t3"]}"""));
+            }
+            case DISABLED -> {
+                assertNull(translog1.getSourceAsBytesRef());
+                assertNull(translog2.getSourceAsBytesRef());
+                assertNull(translog3.getSourceAsBytesRef());
+            }
+        }
+        assertFalse(client().prepareGet(index, "1").setRealtime(false).get().isExists());
+        assertFalse(client().prepareGet(index, "2").setRealtime(false).get().isExists());
+        assertFalse(client().prepareGet(index, "3").setRealtime(false).get().isExists());
+        refresh(index);
+        GetResponse lucene1 = client().prepareGet(index, "1").setRealtime(randomBoolean()).get();
+        GetResponse lucene2 = client().prepareGet(index, "2").setRealtime(randomBoolean()).get();
+        GetResponse lucene3 = client().prepareGet(index, "3").setRealtime(randomBoolean()).get();
+        assertTrue(lucene1.isExists());
+        assertTrue(lucene2.isExists());
+        assertTrue(lucene3.isExists());
+        assertThat(translog1.getSourceAsBytesRef(), equalTo(lucene1.getSourceAsBytesRef()));
+        assertThat(translog2.getSourceAsBytesRef(), equalTo(lucene2.getSourceAsBytesRef()));
+        assertThat(translog3.getSourceAsBytesRef(), equalTo(lucene3.getSourceAsBytesRef()));
     }
 
     private void assertGetFieldsAlwaysWorks(String index, String docId, String[] fields) {

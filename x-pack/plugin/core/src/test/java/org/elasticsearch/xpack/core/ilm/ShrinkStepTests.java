@@ -21,8 +21,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
-import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.IndexNameGenerator.generateValidIndexName;
@@ -101,11 +101,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             @SuppressWarnings("unchecked")
             ActionListener<CreateIndexResponse> listener = (ActionListener<CreateIndexResponse>) invocation.getArguments()[1];
             assertThat(request.getSourceIndex(), equalTo(sourceIndexMetadata.getIndex().getName()));
-            assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.emptySet()));
+            assertThat(request.getTargetIndexRequest().aliases(), equalTo(Set.of()));
 
             Settings.Builder builder = Settings.builder();
             builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
                 .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
+                .put(LifecycleSettings.LIFECYCLE_SKIP, true)
                 .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
             if (step.getNumberOfShards() != null) {
                 builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, step.getNumberOfShards());

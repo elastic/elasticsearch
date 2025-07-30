@@ -10,11 +10,11 @@
 package org.elasticsearch.action.admin.indices.resolve;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -58,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
@@ -71,7 +73,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest.Replaceable {
+    public static class Request extends LegacyActionRequest implements IndicesRequest.Replaceable {
 
         public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
@@ -565,8 +567,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             if (names.length == 1 && (Metadata.ALL.equals(names[0]) || Regex.isMatchAllPattern(names[0]))) {
                 names = new String[] { "**" };
             }
-            Set<String> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, true, names);
-            for (String s : resolvedIndexAbstractions) {
+            Set<ResolvedExpression> resolvedIndexAbstractions = resolver.resolveExpressions(clusterState, indicesOptions, true, names);
+            for (ResolvedExpression s : resolvedIndexAbstractions) {
                 enrichIndexAbstraction(clusterState, s, indices, aliases, dataStreams);
             }
             indices.sort(Comparator.comparing(ResolvedIndexAbstraction::getName));
@@ -597,12 +599,13 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
         private static void enrichIndexAbstraction(
             ClusterState clusterState,
-            String indexAbstraction,
+            ResolvedExpression resolvedExpression,
             List<ResolvedIndex> indices,
             List<ResolvedAlias> aliases,
             List<ResolvedDataStream> dataStreams
         ) {
-            IndexAbstraction ia = clusterState.metadata().getIndicesLookup().get(indexAbstraction);
+            SortedMap<String, IndexAbstraction> indicesLookup = clusterState.metadata().getIndicesLookup();
+            IndexAbstraction ia = indicesLookup.get(resolvedExpression.resource());
             if (ia != null) {
                 switch (ia.getType()) {
                     case CONCRETE_INDEX -> {
@@ -631,18 +634,41 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         );
                     }
                     case ALIAS -> {
-                        String[] indexNames = ia.getIndices().stream().map(Index::getName).toArray(String[]::new);
+                        String[] indexNames = getAliasIndexStream(resolvedExpression, ia, clusterState.metadata()).map(Index::getName)
+                            .toArray(String[]::new);
                         Arrays.sort(indexNames);
                         aliases.add(new ResolvedAlias(ia.getName(), indexNames));
                     }
                     case DATA_STREAM -> {
                         DataStream dataStream = (DataStream) ia;
-                        String[] backingIndices = dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new);
+                        Stream<Index> dataStreamIndices = resolvedExpression.selector() == null
+                            ? dataStream.getIndices().stream()
+                            : switch (resolvedExpression.selector()) {
+                                case DATA -> dataStream.getDataComponent().getIndices().stream();
+                                case FAILURES -> dataStream.getFailureIndices().stream();
+                            };
+                        String[] backingIndices = dataStreamIndices.map(Index::getName).toArray(String[]::new);
                         dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
                     }
                     default -> throw new IllegalStateException("unknown index abstraction type: " + ia.getType());
                 }
             }
+        }
+
+        private static Stream<Index> getAliasIndexStream(ResolvedExpression resolvedExpression, IndexAbstraction ia, Metadata metadata) {
+            Stream<Index> aliasIndices;
+            if (resolvedExpression.selector() == null) {
+                aliasIndices = ia.getIndices().stream();
+            } else {
+                aliasIndices = switch (resolvedExpression.selector()) {
+                    case DATA -> ia.getIndices().stream();
+                    case FAILURES -> {
+                        assert ia.isDataStreamRelated() : "Illegal selector [failures] used on non data stream alias";
+                        yield ia.getFailureIndices(metadata).stream();
+                    }
+                };
+            }
+            return aliasIndices;
         }
 
         enum Attribute {

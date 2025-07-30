@@ -1,5 +1,11 @@
 [[infer-service-alibabacloud-ai-search]]
-=== AlibabaCloud AI Search {infer} service
+=== AlibabaCloud AI Search {infer} integration
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
 
 Creates an {infer} endpoint to perform an {infer} task with the `alibabacloud-ai-search` service.
 
@@ -38,7 +44,7 @@ Available task types:
 (Optional, object)
 include::inference-shared.asciidoc[tag=chunking-settings]
 
-`max_chunking_size`:::
+`max_chunk_size`:::
 (Optional, integer)
 include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
 
@@ -82,7 +88,10 @@ Available service_ids for the `completion` task:
 * `qwen-turbo`
 * `qwen-plus`
 * `qwen-max`
-÷ `qwen-max-longcontext`
+* `deepseek-r1`
+* `deepseek-v3`
+* `deepseek-r1-distill-qwen-7b`
+* `deepseek-r1-distill-qwen-14b`
 
 For the supported `completion` service_ids, refer to the https://help.aliyun.com/zh/open-search/search-platform/developer-reference/text-generation-api-details[documentation].
 

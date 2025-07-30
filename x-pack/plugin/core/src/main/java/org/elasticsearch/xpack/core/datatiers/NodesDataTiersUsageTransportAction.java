@@ -58,7 +58,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     Void> {
 
     public static final ActionType<NodesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/data_tier_usage");
-    public static final NodeFeature LOCALLY_PRECALCULATED_STATS_FEATURE = new NodeFeature("usage.data_tiers.precalculate_stats");
+    public static final NodeFeature LOCALLY_PRECALCULATED_STATS_FEATURE = new NodeFeature("usage.data_tiers.precalculate_stats", true);
 
     private static final CommonStatsFlags STATS_FLAGS = new CommonStatsFlags().clear()
         .set(CommonStatsFlags.Flag.Docs, true)

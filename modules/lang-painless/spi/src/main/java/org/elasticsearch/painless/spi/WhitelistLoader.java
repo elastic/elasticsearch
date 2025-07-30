@@ -9,16 +9,16 @@
 
 package org.elasticsearch.painless.spi;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.painless.spi.annotation.WhitelistAnnotationParser;
 
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.LineNumberReader;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -140,7 +140,7 @@ public final class WhitelistLoader {
      * }
      * }
      */
-    public static Whitelist loadFromResourceFiles(Class<?> resource, Map<String, WhitelistAnnotationParser> parsers, String... filepaths) {
+    public static Whitelist loadFromResourceFiles(Class<?> owner, Map<String, WhitelistAnnotationParser> parsers, String... filepaths) {
         List<WhitelistClass> whitelistClasses = new ArrayList<>();
         List<WhitelistMethod> whitelistStatics = new ArrayList<>();
         List<WhitelistClassBinding> whitelistClassBindings = new ArrayList<>();
@@ -153,7 +153,7 @@ public final class WhitelistLoader {
 
             try (
                 LineNumberReader reader = new LineNumberReader(
-                    new InputStreamReader(resource.getResourceAsStream(filepath), StandardCharsets.UTF_8)
+                    new InputStreamReader(getResourceAsStream(owner, filepath), StandardCharsets.UTF_8)
                 )
             ) {
 
@@ -483,14 +483,38 @@ public final class WhitelistLoader {
                 if (javaClassName != null) {
                     throw new IllegalArgumentException("invalid definition: expected closing bracket");
                 }
+            } catch (ResourceNotFoundException e) {
+                throw e; // rethrow
             } catch (Exception exception) {
                 throw new RuntimeException("error in [" + filepath + "] at line [" + number + "]", exception);
             }
         }
 
-        ClassLoader loader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) resource::getClassLoader);
+        ClassLoader loader = owner.getClassLoader();
 
         return new Whitelist(loader, whitelistClasses, whitelistStatics, whitelistClassBindings, Collections.emptyList());
+    }
+
+    private static InputStream getResourceAsStream(Class<?> owner, String name) {
+        InputStream stream = owner.getResourceAsStream(name);
+        if (stream == null) {
+            String msg = "Whitelist file ["
+                + owner.getPackageName().replace(".", "/")
+                + "/"
+                + name
+                + "] not found from owning class ["
+                + owner.getName()
+                + "].";
+            if (owner.getModule().isNamed()) {
+                msg += " Check that the file exists and the package ["
+                    + owner.getPackageName()
+                    + "] is opened "
+                    + "to module "
+                    + WhitelistLoader.class.getModule().getName();
+            }
+            throw new ResourceNotFoundException(msg);
+        }
+        return stream;
     }
 
     private static List<Object> parseWhitelistAnnotations(Map<String, WhitelistAnnotationParser> parsers, String line) {

@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
@@ -84,7 +84,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
@@ -97,7 +96,6 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             threadPool,
             actionFilters,
             SimulateIndexTemplateRequest::new,
-            indexNameExpressionResolver,
             SimulateIndexTemplateResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -263,8 +261,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 : indexName;
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
-            simulatedState,
-            matchingTemplate,
+            simulatedState.metadata(),
+            template,
             xContentRegistry,
             simulatedIndexName
         );
@@ -345,16 +343,18 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         );
 
         Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
-        DataStreamLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
+        DataStreamLifecycle.Builder lifecycleBuilder = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
+        DataStreamLifecycle.Template lifecycle = lifecycleBuilder == null ? null : lifecycleBuilder.buildTemplate();
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
-            lifecycle = DataStreamLifecycle.DEFAULT;
+            lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         }
+        DataStreamOptions.Builder optionsBuilder = resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate);
         return new Template(
             settings,
             mergedMapping,
             aliasesByName,
             lifecycle,
-            resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate)
+            optionsBuilder == null ? null : optionsBuilder.buildTemplate()
         );
     }
 

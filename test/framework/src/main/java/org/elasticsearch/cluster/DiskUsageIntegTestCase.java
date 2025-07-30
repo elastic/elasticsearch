@@ -94,7 +94,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
     }
 
     public TestFileStore getTestFileStore(String nodeName) {
-        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataFiles()[0]);
+        return fileSystemProvider.getTestFileStore(internalCluster().getInstance(Environment.class, nodeName).dataDirs()[0]);
     }
 
     protected static class TestFileStore extends FilterFileStore {

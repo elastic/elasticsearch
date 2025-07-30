@@ -102,6 +102,9 @@ final class LuceneMinMaxOperator extends LuceneOperator {
             if (scorer == null) {
                 remainingDocs = 0;
             } else {
+                if (scorer.tags().isEmpty() == false) {
+                    throw new UnsupportedOperationException("tags not supported by " + getClass());
+                }
                 final LeafReader reader = scorer.leafReaderContext().reader();
                 final Query query = scorer.weight().getQuery();
                 if (query == null || query instanceof MatchAllDocsQuery) {
@@ -151,7 +154,6 @@ final class LuceneMinMaxOperator extends LuceneOperator {
             Page page = null;
             // emit only one page
             if (remainingDocs <= 0 && pagesEmitted == 0) {
-                pagesEmitted++;
                 Block result = null;
                 BooleanBlock seen = null;
                 try {

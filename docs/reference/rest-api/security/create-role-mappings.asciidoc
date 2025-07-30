@@ -5,6 +5,12 @@
 <titleabbrev>Create or update role mappings</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Creates and updates role mappings.
 
 [[security-api-put-role-mapping-request]]

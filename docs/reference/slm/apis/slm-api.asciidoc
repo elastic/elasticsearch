@@ -2,6 +2,12 @@
 [[snapshot-lifecycle-management-api]]
 == {slm-cap} APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-slm[{slm-cap} APIs].
+--
+
 You use the following APIs to set up policies to automatically take snapshots and 
 control how long they are retained.
 

@@ -88,7 +88,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
             MetadataCreateIndexService createIndexService,
             MetadataCreateDataStreamService metadataCreateDataStreamService,
             AutoCreateIndex autoCreateIndex,
@@ -102,7 +101,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 threadPool,
                 actionFilters,
                 CreateIndexRequest::new,
-                indexNameExpressionResolver,
                 CreateIndexResponse::new,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -268,9 +266,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                     final var dataStream = clusterState.metadata().dataStreams().get(request.index());
                     final var backingIndexName = dataStream.getIndices().get(0).getName();
-                    final var indexNames = dataStream.getFailureIndices().getIndices().isEmpty()
+                    final var indexNames = dataStream.getFailureIndices().isEmpty()
                         ? List.of(backingIndexName)
-                        : List.of(backingIndexName, dataStream.getFailureIndices().getIndices().get(0).getName());
+                        : List.of(backingIndexName, dataStream.getFailureIndices().get(0).getName());
                     taskContext.success(getAckListener(indexNames, allocationActionMultiListener));
                     successfulRequests.put(request, indexNames);
                     return clusterState;

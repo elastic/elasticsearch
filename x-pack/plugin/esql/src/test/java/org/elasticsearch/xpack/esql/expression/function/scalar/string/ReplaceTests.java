@@ -78,6 +78,22 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
             )
         );
 
+        // Groups
+        suppliers.add(fixedCase("Full group", "Cats are awesome", ".+", "<$0>", "<Cats are awesome>"));
+        suppliers.add(
+            fixedCase("Nested groups", "A cat is great, a cat is awesome", "\\b([Aa] (\\w+)) is (\\w+)\\b", "$1$2", "A catcat, a catcat")
+        );
+        suppliers.add(
+            fixedCase(
+                "Multiple groups",
+                "Cats are awesome",
+                "(\\w+) (.+)",
+                "$0 -> $1 and dogs $2",
+                "Cats are awesome -> Cats and dogs are awesome"
+            )
+        );
+
+        // Errors
         suppliers.add(new TestCaseSupplier("syntax error", List.of(DataType.KEYWORD, DataType.KEYWORD, DataType.KEYWORD), () -> {
             String text = randomAlphaOfLength(10);
             String invalidRegex = "[";
@@ -85,15 +101,15 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataType.KEYWORD, "oldStr"),
+                    new TestCaseSupplier.TypedData(new BytesRef(invalidRegex), DataType.KEYWORD, "regex"),
                     new TestCaseSupplier.TypedData(new BytesRef(newStr), DataType.KEYWORD, "newStr")
                 ),
                 "ReplaceEvaluator[str=Attribute[channel=0], regex=Attribute[channel=1], newStr=Attribute[channel=2]]",
                 DataType.KEYWORD,
                 equalTo(null)
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning(
-                    "Line -1:-1: java.util.regex.PatternSyntaxException: Unclosed character class near index 0\n[\n^".replaceAll(
+                    "Line 1:1: java.util.regex.PatternSyntaxException: Unclosed character class near index 0\n[\n^".replaceAll(
                         "\n",
                         System.lineSeparator()
                     )
@@ -103,7 +119,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                     "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
                 );
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
     }
 
     private static TestCaseSupplier fixedCase(String name, String str, String oldStr, String newStr, String result) {
@@ -138,5 +154,11 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Replace(source, args.get(0), args.get(1), args.get(2));
+    }
+
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        // TODO: This function doesn't serialize the Source, and must be fixed.
+        return expression;
     }
 }

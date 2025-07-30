@@ -218,7 +218,7 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 { "password": "%s" }""", PASS));
             assertOK(client().performRequest(changePasswordRequest));
 
-            final Request elasticUserSearchRequest = new Request("GET", "/*:.security*/_search");
+            final Request elasticUserSearchRequest = new Request("GET", "/*:.security*/_search?size=1");
             elasticUserSearchRequest.setOptions(
                 RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue("elastic", PASS))
             );

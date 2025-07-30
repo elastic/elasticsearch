@@ -62,7 +62,8 @@ public class SentenceBoundaryChunker implements Chunker {
      *
      * @param input Text to chunk
      * @param maxNumberWordsPerChunk Maximum size of the chunk
-     * @return The input text chunked
+     * @param includePrecedingSentence Include the previous sentence
+     * @return The input text offsets
      */
     public List<ChunkOffset> chunk(String input, int maxNumberWordsPerChunk, boolean includePrecedingSentence) {
         var chunks = new ArrayList<ChunkOffset>();
@@ -158,6 +159,11 @@ public class SentenceBoundaryChunker implements Chunker {
             chunks.add(new ChunkOffset(chunkStart, input.length()));
         }
 
+        if (chunks.isEmpty()) {
+            // The input did not chunk, return the entire input
+            chunks.add(new ChunkOffset(0, input.length()));
+        }
+
         return chunks;
     }
 
@@ -205,26 +211,7 @@ public class SentenceBoundaryChunker implements Chunker {
     }
 
     private int countWords(int start, int end) {
-        return countWords(start, end, this.wordIterator);
-    }
-
-    // Exposed for testing. wordIterator should have had
-    // setText() applied before using this function.
-    static int countWords(int start, int end, BreakIterator wordIterator) {
-        assert start < end;
-        wordIterator.preceding(start); // start of the current word
-
-        int boundary = wordIterator.current();
-        int wordCount = 0;
-        while (boundary != BreakIterator.DONE && boundary <= end) {
-            int wordStatus = wordIterator.getRuleStatus();
-            if (wordStatus != BreakIterator.WORD_NONE) {
-                wordCount++;
-            }
-            boundary = wordIterator.next();
-        }
-
-        return wordCount;
+        return ChunkerUtils.countWords(start, end, this.wordIterator);
     }
 
     private static int overlapForChunkSize(int chunkSize) {

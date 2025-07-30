@@ -49,6 +49,8 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
     private static final Logger logger = LogManager.getLogger(TransportClusterStateAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     @Inject
     public TransportClusterStateAction(
         TransportService transportService,
@@ -65,10 +67,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
             threadPool,
             actionFilters,
             ClusterStateRequest::new,
-            indexNameExpressionResolver,
             ClusterStateResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override

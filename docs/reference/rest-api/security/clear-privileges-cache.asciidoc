@@ -5,6 +5,12 @@
 <titleabbrev>Clear privileges cache</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Evicts privileges from the native application privilege cache.
 The cache is also automatically cleared for applications that have their privileges updated.
 

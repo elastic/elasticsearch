@@ -28,6 +28,18 @@ dependencies {
   }
 
   // guarding for intellij
+  if (sourceSets.findByName("main19")) {
+    main19CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java19')
+  }
+  if (sourceSets.findByName("main20")) {
+    main20CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java20')
+  }
+  if (sourceSets.findByName("main21")) {
+    main21CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java21')
+  }
+  if (sourceSets.findByName("main22")) {
+    main22CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java22')
+  }
   if (sourceSets.findByName("main23")) {
     main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
   }

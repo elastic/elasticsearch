@@ -25,6 +25,7 @@ dependencies {
   clusterModules project(':x-pack:plugin:enrich')
   clusterModules project(':x-pack:plugin:autoscaling')
   clusterModules project(':x-pack:plugin:ml')
+  clusterModules project(xpackModule('ilm'))
   clusterModules(project(":modules:ingest-common"))
 }
 

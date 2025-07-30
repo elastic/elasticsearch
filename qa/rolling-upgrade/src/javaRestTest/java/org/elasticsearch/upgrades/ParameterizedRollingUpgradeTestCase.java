@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase {
     protected static final int NODE_NUM = 3;
-    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
+    protected static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
     private static final Set<Integer> upgradedNodes = new HashSet<>();
     private static TestFeatureService oldClusterTestFeatureService = null;
     private static boolean upgradeFailed = false;
@@ -103,8 +103,12 @@ public abstract class ParameterizedRollingUpgradeTestCase extends ESRestTestCase
             for (int n = 0; n < requestedUpgradedNodes; n++) {
                 if (upgradedNodes.add(n)) {
                     try {
-                        logger.info("Upgrading node {} to version {}", n, Version.CURRENT);
-                        getUpgradeCluster().upgradeNodeToVersion(n, Version.CURRENT);
+                        Version upgradeVersion = System.getProperty("tests.new_cluster_version") == null
+                            ? Version.CURRENT
+                            : Version.fromString(System.getProperty("tests.new_cluster_version"));
+
+                        logger.info("Upgrading node {} to version {}", n, upgradeVersion);
+                        getUpgradeCluster().upgradeNodeToVersion(n, upgradeVersion);
                     } catch (Exception e) {
                         upgradeFailed = true;
                         throw e;

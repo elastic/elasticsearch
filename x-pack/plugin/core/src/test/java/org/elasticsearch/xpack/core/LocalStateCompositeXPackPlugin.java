@@ -285,6 +285,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
+    public List<QuerySpec<?>> getQueries() {
+        List<QuerySpec<?>> querySpecs = new ArrayList<>(super.getQueries());
+        filterPlugins(SearchPlugin.class).stream().flatMap(p -> p.getQueries().stream()).forEach(querySpecs::add);
+        return querySpecs;
+    }
+
+    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(super.getNamedXContent());
         for (Plugin p : plugins) {
@@ -623,7 +630,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @SuppressWarnings("unchecked")
-    private <T> List<T> filterPlugins(Class<T> type) {
+    protected <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T) p)).collect(Collectors.toList());
     }
 

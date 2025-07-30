@@ -5,6 +5,12 @@
 <titleabbrev>Create or update synonym rule</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-synonyms[Synonyms APIs].
+--
+
 Creates or updates a synonym rule for a synonym set.
 
 [[put-synonym-rule-request]]

@@ -6,6 +6,10 @@ High JVM memory usage can degrade cluster performance and trigger
 taking steps to reduce memory pressure if a node's JVM memory usage consistently
 exceeds 85%.
 
+****
+If you're using Elastic Cloud Hosted, then you can use AutoOps to monitor your cluster. AutoOps significantly simplifies cluster management with performance recommendations, resource utilization visibility, real-time issue detection and resolution paths. For more information, refer to https://www.elastic.co/guide/en/cloud/current/ec-autoops.html[Monitor with AutoOps].
+****
+
 [discrete]
 [[diagnose-high-jvm-memory-pressure]]
 ==== Diagnose high JVM memory pressure

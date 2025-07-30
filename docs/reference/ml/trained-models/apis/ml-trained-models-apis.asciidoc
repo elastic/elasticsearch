@@ -2,6 +2,12 @@
 [[ml-df-trained-models-apis]]
 = {ml-cap} trained model APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 You can use the following APIs to perform model management operations:
 
 * <<clear-trained-model-deployment-cache>>

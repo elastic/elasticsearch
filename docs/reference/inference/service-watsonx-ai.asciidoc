@@ -1,5 +1,11 @@
 [[infer-service-watsonx-ai]]
-=== Watsonx {infer} service
+=== Watsonx {infer} integration
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
 
 Creates an {infer} endpoint to perform an {infer} task with the `watsonxai` service.
 
@@ -28,7 +34,8 @@ include::inference-shared.asciidoc[tag=task-type]
 --
 Available task types:
 
-* `text_embedding`.
+* `text_embedding`,
+* `rerank`.
 --
 
 [discrete]
@@ -85,6 +92,26 @@ To modify this, set the `requests_per_minute` setting of this object in your ser
 include::inference-shared.asciidoc[tag=request-per-minute-example]
 --
 
+`task_settings`::
+(Optional, object)
+include::inference-shared.asciidoc[tag=task-settings]
++
+.`task_settings` for the `rerank` task type
+[%collapsible%closed]
+=====
+`truncate_input_tokens`:::
+(Optional, integer)
+Specifies the maximum number of tokens per input document before truncation.
+
+`return_documents`:::
+(Optional, boolean)
+Specify whether to return doc text within the results.
+
+`top_n`:::
+(Optional, integer)
+The number of most relevant documents to return. Defaults to the number of input documents.
+=====
+
 
 [discrete]
 [[inference-example-watsonx-ai]]
@@ -113,3 +140,34 @@ You can find on the https://cloud.ibm.com/iam/apikeys[API keys page of your acco
 <2> The {infer} endpoint URL you created on Watsonx.
 <3> The ID of your IBM Cloud project.
 <4> A valid API version parameter. You can find the active version data parameters https://cloud.ibm.com/apidocs/watsonx-ai#active-version-dates[here].
+
+The following example shows how to create an {infer} endpoint called `watsonx-rerank` to perform a `rerank` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/rerank/watsonx-rerank
+{
+    "service": "watsonxai",
+    "service_settings": {
+        "api_key": "<api_key>", <1>
+        "url": "<url>", <2> 
+        "model_id": "cross-encoder/ms-marco-minilm-l-12-v2",
+        "project_id": "<project_id>", <3>
+        "api_version": "2024-05-02" <4>
+    },
+    "task_settings": {
+        "truncate_input_tokens": 50, <5>
+        "return_documents": true, <6>
+        "top_n": 3 <7>
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+<1> A valid Watsonx API key.
+You can find on the https://cloud.ibm.com/iam/apikeys[API keys page of your account].
+<2> The {infer} endpoint URL you created on Watsonx.
+<3> The ID of your IBM Cloud project.
+<4> A valid API version parameter. You can find the active version data parameters https://cloud.ibm.com/apidocs/watsonx-ai#active-version-dates[here].
+<5> The maximum number of tokens per document before truncation. 
+<6> Whether to return the document text in the results. 
+<7> The number of top relevant documents to return.

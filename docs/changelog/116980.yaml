@@ -1,6 +1,0 @@
-pr: 116980
-summary: "ESQL: Fix sorts containing `_source`"
-area: ES|QL
-type: bug
-issues:
- - 116659

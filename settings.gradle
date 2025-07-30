@@ -14,9 +14,11 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.develocity" version "3.18.1"
+  id "com.gradle.develocity" version "4.0.1"
   id 'elasticsearch.java-toolchain'
 }
+
+enableFeaturePreview "STABLE_CONFIGURATION_CACHE"
 
 rootProject.name = "elasticsearch"
 
@@ -70,6 +72,8 @@ List projects = [
   'distribution:docker:ubi-docker-export',
   'distribution:docker:wolfi-docker-aarch64-export',
   'distribution:docker:wolfi-docker-export',
+  'distribution:docker:cloud-ess-fips-docker-export',
+  'distribution:docker:cloud-ess-fips-docker-aarch64-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',
@@ -89,6 +93,8 @@ List projects = [
   'distribution:tools:ansi-console',
   'server',
   'test:framework',
+  'test:fixtures:aws-ec2-fixture',
+  'test:fixtures:aws-fixture-utils',
   'test:fixtures:aws-sts-fixture',
   'test:fixtures:azure-fixture',
   'test:fixtures:ec2-imds-fixture',
@@ -148,6 +154,7 @@ addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack/libs'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack/extras/plugins'))
 
 include projects.toArray(new String[0])
 

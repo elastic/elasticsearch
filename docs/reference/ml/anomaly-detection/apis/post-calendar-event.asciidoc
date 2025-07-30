@@ -5,6 +5,12 @@
 <titleabbrev>Add events to calendar</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Posts scheduled events in a calendar.
 
 [[ml-post-calendar-event-request]]

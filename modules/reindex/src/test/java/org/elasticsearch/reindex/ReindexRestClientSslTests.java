@@ -113,14 +113,20 @@ public class ReindexRestClientSslTests extends ESTestCase {
     }
 
     public void testClientFailsWithUntrustedCertificate() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         final Settings settings = builder.build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
-            expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+            if (inFipsJvm()) {
+                // Bouncy Castle throws a different exception
+                IOException exception = expectThrows(IOException.class, () -> client.performRequest(new Request("GET", "/")));
+                assertThat(exception.getCause(), Matchers.instanceOf(javax.net.ssl.SSLException.class));
+            } else {
+                expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+
+            }
         }
     }
 

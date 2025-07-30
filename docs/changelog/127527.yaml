@@ -1,0 +1,5 @@
+pr: 127527
+summary: "No, line noise isn't a valid ip"
+area: ES|QL
+type: bug
+issues: []

@@ -21,7 +21,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -68,14 +67,17 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -131,7 +133,7 @@ final class DefaultSearchContext extends SearchContext {
     private CollapseContext collapse;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
-    private SearchShardTask task;
+    private CancellableTask task;
     private QueryPhaseRankShardContext queryPhaseRankShardContext;
 
     /**
@@ -410,7 +412,7 @@ final class DefaultSearchContext extends SearchContext {
             );
         }
         if (rescore != null) {
-            if (sort != null) {
+            if (RescorePhase.validateSort(sort) == false) {
                 throw new IllegalArgumentException("Cannot use [sort] option in conjunction with [rescore].");
             }
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
@@ -465,7 +467,7 @@ final class DefaultSearchContext extends SearchContext {
         this.query = buildFilteredQuery(query);
         if (lowLevelCancellation) {
             searcher().addQueryCancellation(() -> {
-                final SearchShardTask task = getTask();
+                final CancellableTask task = getTask();
                 if (task != null) {
                     task.ensureNotCancelled();
                 }
@@ -940,12 +942,12 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchShardTask task) {
+    public void setTask(CancellableTask task) {
         this.task = task;
     }
 
     @Override
-    public SearchShardTask getTask() {
+    public CancellableTask getTask() {
         return task;
     }
 
@@ -960,8 +962,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public SourceLoader newSourceLoader() {
-        return searchExecutionContext.newSourceLoader(request.isForceSyntheticSource());
+    public SourceLoader newSourceLoader(@Nullable SourceFilter filter) {
+        return searchExecutionContext.newSourceLoader(filter, request.isForceSyntheticSource());
     }
 
     @Override

@@ -8,6 +8,4 @@ Performs a Term query on the specified field. Returns true if the provided term 
 ```
 FROM books 
 | WHERE TERM(author, "gabriel")  
-| KEEP book_no, title
-| LIMIT 3;
 ```

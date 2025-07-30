@@ -5,7 +5,9 @@
 ++++
 
 The `ip_location` processor adds information about the geographical location of an
-IPv4 or IPv6 address.
+IPv4 or IPv6 address. It is compatible with the GeoIP2 and GeoLite2 IP geolocation
+databases available from https://www.maxmind.com/[MaxMind], as well as many of the
+IP geolocation databases available from https://ipinfo.io[IPinfo].
 
 [[ip-location-automatic-updates]]
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
@@ -24,8 +26,8 @@ stats API>>.
 If your cluster can't connect to the Elastic GeoIP endpoint or you want to
 manage your own updates, see <<manage-geoip-database-updates>>.
 
-If you would like to have {es} download database files directly from Maxmind using your own provided
-license key, see <<put-ip-location-database-api>>.
+If you would like to have {es} download database files directly from Maxmind or IPinfo using your own
+license key or access token, see <<put-ip-location-database-api>>.
 
 If {es} can't connect to the endpoint for 30 days all updated databases will become
 invalid. {es} will stop enriching documents with ip geolocation data and will add `tags: ["_ip_location_expired_database"]`
@@ -77,7 +79,20 @@ depend on what has been found and which properties were configured in `propertie
 `location`, `accuracy_radius`, `country_confidence`, `city_confidence`, `postal_confidence`, `asn`, `organization_name`, `network`,
 `hosting_provider`, `tor_exit_node`, `anonymous_vpn`, `anonymous`, `public_proxy`,
 `residential_proxy`, `domain`, `isp`, `isp_organization_name`, `mobile_country_code`, `mobile_network_code`, `user_type`, and
-`connection_type`. The fields actually added depend on what has been found and which properties were configured in `properties`.
+`connection_type`. The fields actually added depend on what has been found and which properties were configured in `properties`
+* If the IPinfo ASN database is used, then the following fields may be added under the `target_field`: `ip`,
+`asn`, `organization_name`, `network`, `domain`, `country_iso_code`, and `type`. The fields actually added depend on what
+has been found and which properties were configured in `properties`. Note also that `country_iso_code` and `type` fields
+are only present in the 'Standard ASN' database, not the free ASN database.
+* If the IPinfo Country database is used, then the following fields may be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name`, `continent_code`, and `continent_name`. The fields actually added depend on what
+has been found and which properties were configured in `properties`.
+* If the IPinfo IP to Location database is used, then the following fields may be added under the `target_field`: `ip`,
+`country_iso_code`, `region_name`, `city_name`, `timezone`, `postal_code`, and `location`. The fields actually added depend on what
+has been found and which properties were configured in `properties`.
+* If the IPinfo Privacy Detection database is used, then the following fields may be added under the `target_field`: `ip`,
+`hosting`, `proxy`, `relay`, `tor`, `vpn`, and `service`. The fields actually added depend on what
+has been found and which properties were configured in `properties`.
 
 Here is an example that uses the default city database and adds the geographical information to the `ip_location` field based on the `ip` field:
 

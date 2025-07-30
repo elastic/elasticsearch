@@ -982,7 +982,7 @@ subobjects auto:
   - match: { hits.hits.0._source.foo: 10  }
   - match: { hits.hits.0._source.foo\.bar: 100  }
   - match: { hits.hits.0._source.regular.span.id: "1" }
-  - match: { hits.hits.0._source.regular.trace.id: [ "a", "b" ] }
+  - match: { hits.hits.0._source.regular.trace.id: ["a", "b" ] }
   - match: { hits.hits.1._source.id: 2  }
   - match: { hits.hits.1._source.foo: 20 }
   - match: { hits.hits.1._source.foo\.bar: 200 }
@@ -1696,6 +1696,74 @@ synthetic_source with copy_to pointing inside object:
           c.copy: [ "100", "hello", "zap" ]
 
 ---
+synthetic_source with copy_to inside nested object:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              my_values:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+                    copy_to: my_values.copy
+                  second_level:
+                    type: nested
+                    properties:
+                      k2:
+                        type: keyword
+                        copy_to: my_values.copy
+                  copy:
+                    type: keyword
+              dummy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          my_values:
+            k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          my_values:
+            second_level:
+              k2: "hello"
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        my_values:
+          k: "hello"
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        my_values:
+          second_level:
+            k2: "hello"
+
+---
 synthetic_source with copy_to pointing to ambiguous field:
   - requires:
       cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
@@ -2011,4 +2079,182 @@ synthetic_source with copy_to pointing inside dynamic object:
   - match:
       hits.hits.2.fields:
         c.copy.keyword: [ "hello", "zap" ]
+
+---
+create index with use_synthetic_source:
+  - requires:
+      cluster_features: ["mapper.synthetic_recovery_source"]
+      reason: requires synthetic recovery source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              recovery:
+                use_synthetic_source: true
+              mapping:
+                source:
+                  mode: synthetic
+
+  - do:
+      indices.get_settings: {}
+  - match: { test.settings.index.mapping.source.mode: synthetic}
+  - is_true: test.settings.index.recovery.use_synthetic_source
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body: { foo: bar }
+  - match: { _version: 1 }
+
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+        flush: false
+  - gt: { test.store_size_in_bytes: 0 }
+  - is_false: test.fields._recovery_source
+---
+"Nested synthetic source with indexed dense vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ synthetic_nested_dense_vector_bug_fix ]
+      reason: "Requires synthetic source bugfix for dense vectors in nested objects"
+  - do:
+      indices.create:
+        index: nested_dense_vector_synthetic_test
+        body:
+          mappings:
+            properties:
+              parent:
+                type: nested
+                properties:
+                  vector:
+                    type: dense_vector
+                    index: true
+                    similarity: l2_norm
+                  text:
+                    type: text
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 0
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ],"text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 1
+        refresh: true
+        body: { "parent": [ { "text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 2
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ] }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+
+  - do:
+      search:
+        index: nested_dense_vector_synthetic_test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.hits.0._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.0.text: "foo" }
+  - match: { hits.hits.0._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.1.text: "bar" }
+  - is_false:  hits.hits.1._source.parent.0.vector
+  - match: { hits.hits.1._source.parent.0.text: "foo" }
+  - match: { hits.hits.1._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.1._source.parent.1.text: "bar" }
+  - match: {hits.hits.2._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - is_false: hits.hits.2._source.parent.0.text
+  - match: { hits.hits.2._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.2._source.parent.1.text: "bar" }
+---
+"Nested synthetic source with un-indexed dense vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ synthetic_nested_dense_vector_bug_fix ]
+      reason: "Requires synthetic source bugfix for dense vectors in nested objects"
+  - do:
+      indices.create:
+        index: nested_dense_vector_synthetic_test
+        body:
+          mappings:
+            properties:
+              parent:
+                type: nested
+                properties:
+                  vector:
+                    type: dense_vector
+                    index: false
+                  text:
+                    type: text
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 0
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ],"text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 1
+        refresh: true
+        body: { "parent": [ { "text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 2
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ] }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+
+  - do:
+      search:
+        index: nested_dense_vector_synthetic_test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.hits.0._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.0.text: "foo" }
+  - match: { hits.hits.0._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.1.text: "bar" }
+  - is_false:  hits.hits.1._source.parent.0.vector
+  - match: { hits.hits.1._source.parent.0.text: "foo" }
+  - match: { hits.hits.1._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.1._source.parent.1.text: "bar" }
+  - match: {hits.hits.2._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - is_false: hits.hits.2._source.parent.0.text
+  - match: { hits.hits.2._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.2._source.parent.1.text: "bar" }
 

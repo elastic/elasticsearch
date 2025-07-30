@@ -80,7 +80,7 @@ The _gateway nodes_ selection depends on the following criteria:
 +
 * *version*: Remote nodes must be compatible with the cluster they are
 registered to.
-* *role*: By default, any non-<<master-node,master-eligible>> node can act as a
+* *role*: By default, any non-<<master-node-role,master-eligible>> node can act as a
 gateway node. Dedicated master nodes are never selected as gateway nodes.
 * *attributes*: You can define the gateway nodes for a cluster by setting
 <<cluster-remote-node-attr,`cluster.remote.node.attr.gateway`>> to `true`.

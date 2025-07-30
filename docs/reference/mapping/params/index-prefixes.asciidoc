@@ -54,3 +54,30 @@ PUT my-index-000001
   }
 }
 --------------------------------
+
+`index_prefixes` parameter instructs {ES} to create a subfield "._index_prefix". This
+field will be used to do fast prefix queries. When doing highlighting, add "._index_prefix"
+subfield to the `matched_fields` parameter to highlight the main field based on the
+found matches of the prefix field, like in the request below:
+
+[source,console]
+--------------------------------
+GET my-index-000001/_search
+{
+  "query": {
+    "prefix": {
+      "full_name": {
+        "value": "ki"
+      }
+    }
+  },
+  "highlight": {
+    "fields": {
+      "full_name": {
+        "matched_fields": ["full_name._index_prefix"]
+      }
+    }
+  }
+}
+--------------------------------
+// TEST[continued]

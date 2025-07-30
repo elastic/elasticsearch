@@ -30,9 +30,12 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
@@ -260,16 +263,16 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new SparseVectorQueryBuilder("field name", null, "model id")
+                () -> new SparseVectorQueryBuilder("field name", null, null)
             );
-            assertEquals("[sparse_vector] requires one of [query_vector] or [inference_id]", e.getMessage());
+            assertEquals("[sparse_vector] requires one of [query_vector] or [inference_id] for sparse_vector fields", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new SparseVectorQueryBuilder("field name", "model text", null)
             );
-            assertEquals("[sparse_vector] requires [query] when [inference_id] is specified", e.getMessage());
+            assertEquals("[sparse_vector] requires one of [query_vector] or [inference_id] for sparse_vector fields", e.getMessage());
         }
     }
 

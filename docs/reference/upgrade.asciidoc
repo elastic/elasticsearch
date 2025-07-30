@@ -26,6 +26,21 @@ proceeding with the upgrade. For instructions, refer to
 from 7.x].
 
 [discrete]
+[[upgrade-newer-releases]]
+=== Out-of-order releases
+
+Elastic maintains several minor versions of {es} at once. This means releases
+do not always happen in order of their version numbers. You can only upgrade to
+{version} if the version you are currently running meets both of these
+conditions:
+
+* Has an older version number than {version}.
+* Has an earlier release date than {version}.
+
+If you are currently running a version with an older version number but a later
+release date than {version}, wait for a newer release before upgrading.
+
+[discrete]
 [[upgrade-index-compatibility]]
 === Index compatibility
 

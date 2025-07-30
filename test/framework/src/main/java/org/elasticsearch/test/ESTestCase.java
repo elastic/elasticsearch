@@ -102,6 +102,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -116,6 +117,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
@@ -152,7 +154,6 @@ import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.ElementType;
@@ -274,6 +275,11 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
     private static final SetOnce<Boolean> WARN_SECURE_RANDOM_FIPS_NOT_DETERMINISTIC = new SetOnce<>();
+
+    private static final String LOWER_ALPHA_CHARACTERS = "abcdefghijklmnopqrstuvwxyz";
+    private static final String UPPER_ALPHA_CHARACTERS = LOWER_ALPHA_CHARACTERS.toUpperCase(Locale.ROOT);
+    private static final String DIGIT_CHARACTERS = "0123456789";
+    private static final String ALPHANUMERIC_CHARACTERS = LOWER_ALPHA_CHARACTERS + UPPER_ALPHA_CHARACTERS + DIGIT_CHARACTERS;
 
     static {
         Random random = initTestSeed();
@@ -489,31 +495,54 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected void afterIfSuccessful() throws Exception {}
 
     /**
-     * Marks a test suite or a test method that should run without security manager enabled.
+     * Marks a test suite or a test method that should run without checking for entitlements.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ ElementType.TYPE })
+    @Target(ElementType.TYPE)
     @Inherited
-    public @interface WithoutSecurityManager {
+    public @interface WithoutEntitlements {
     }
 
-    private static Closeable securityManagerRestorer;
+    /**
+     * Marks a test suite or a test method that enforce entitlements on the test code itself.
+     * Useful for testing the enforcement of entitlements; for any other test cases, this probably isn't what you want.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface WithEntitlementsOnTestCode {
+    }
 
-    // disable security manager if test is annotated to run without it
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    @Inherited
+    public @interface EntitledTestPackages {
+        String[] value();
+    }
 
     @BeforeClass
-    public static void maybeStashClassSecurityManager() {
-        if (getTestClass().isAnnotationPresent(WithoutSecurityManager.class)) {
-            securityManagerRestorer = BootstrapForTesting.disableTestSecurityManager();
+    public static void setupEntitlementsForClass() {
+        boolean withoutEntitlements = getTestClass().isAnnotationPresent(WithoutEntitlements.class);
+        boolean withEntitlementsOnTestCode = getTestClass().isAnnotationPresent(WithEntitlementsOnTestCode.class);
+        EntitledTestPackages entitledPackages = getTestClass().getAnnotation(EntitledTestPackages.class);
+
+        if (TestEntitlementBootstrap.isEnabledForTest()) {
+            TestEntitlementBootstrap.setActive(false == withoutEntitlements);
+            TestEntitlementBootstrap.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
+            if (entitledPackages != null) {
+                assert entitledPackages.value().length > 0 : "No test packages specified in @EntitledTestPackages";
+                TestEntitlementBootstrap.setEntitledTestPackages(entitledPackages.value());
+            }
+        } else if (withEntitlementsOnTestCode) {
+            throw new AssertionError(
+                "Cannot use @WithEntitlementsOnTestCode on tests that are not configured to use entitlements for testing"
+            );
         }
     }
 
     @AfterClass
-    public static void maybeRestoreClassSecurityManager() throws IOException {
-        if (securityManagerRestorer != null) {
-            securityManagerRestorer.close();
-            securityManagerRestorer = null;
-        }
+    public static void resetEntitlements() {
+        TestEntitlementBootstrap.reset();
     }
 
     // setup mock filesystems for this test run. we change PathUtils
@@ -565,6 +594,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         if (this.headerWarningAppender != null) {
             Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
             this.headerWarningAppender = null;
+        }
+    }
+
+    private static org.elasticsearch.logging.Level capturedLogLevel = null;
+
+    // just capture the expected level once before the suite starts
+    @BeforeClass
+    public static void captureLoggingLevel() {
+        capturedLogLevel = LoggerFactory.provider().getRootLevel();
+    }
+
+    @AfterClass
+    public static void restoreLoggingLevel() {
+        if (capturedLogLevel != null) {
+            // log level might not have been captured if suite was skipped
+            LoggerFactory.provider().setRootLevel(capturedLogLevel);
+            capturedLogLevel = null;
         }
     }
 
@@ -1195,13 +1241,49 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
 
+    /**
+     * Generate a random string containing only alphanumeric characters.
+     * <b>The locale for the string is {@link Locale#ROOT}.</b>
+     * @param length the length of the string to generate
+     * @return the generated string
+     */
+    public static String randomAlphanumericOfLength(int length) {
+        StringBuilder sb = new StringBuilder();
+        Random random = random();
+        for (int i = 0; i < length; i++) {
+            sb.append(ALPHANUMERIC_CHARACTERS.charAt(random.nextInt(ALPHANUMERIC_CHARACTERS.length())));
+        }
+
+        return sb.toString();
+    }
+
     public static SecureString randomSecureStringOfLength(int codeUnits) {
         var randomAlpha = randomAlphaOfLength(codeUnits);
         return new SecureString(randomAlpha.toCharArray());
     }
 
-    public static String randomNullOrAlphaOfLength(int codeUnits) {
+    public static String randomAlphaOfLengthOrNull(int codeUnits) {
         return randomBoolean() ? null : randomAlphaOfLength(codeUnits);
+    }
+
+    public static Long randomLongOrNull() {
+        return randomBoolean() ? null : randomLong();
+    }
+
+    public static Long randomNonNegativeLongOrNull() {
+        return randomBoolean() ? null : randomNonNegativeLong();
+    }
+
+    public static Integer randomIntOrNull() {
+        return randomBoolean() ? null : randomInt();
+    }
+
+    public static Integer randomNonNegativeIntOrNull() {
+        return randomBoolean() ? null : randomNonNegativeInt();
+    }
+
+    public static Float randomFloatOrNull() {
+        return randomBoolean() ? null : randomFloat();
     }
 
     /**
@@ -2283,8 +2365,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      * complete are a big drag on CI times which slows everyone down.
      * <p>
      * For instance, tests which verify things that require the passage of time ought to simulate this (e.g. using a {@link
-     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits (e.g.
-     * using a {@link CountDownLatch}) which release as soon as the condition is satisfied.
+     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits. For
+     * instance, use a {@link CountDownLatch} or {@link CyclicBarrier} or similar to continue execution as soon as a condition is satisfied.
+     * To wait for a particular cluster state, use {@link ClusterServiceUtils#addTemporaryStateListener} rather than busy-waiting on an API.
      */
     public static final TimeValue SAFE_AWAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
@@ -2314,6 +2397,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Await on the given {@link CountDownLatch} with a supplied timeout, preserving the thread's interrupt status
      * flag and asserting that the latch is indeed completed before the timeout.
+     * <p>
+     * Prefer {@link #safeAwait(CountDownLatch)} (with the default 10s timeout) wherever possible. It's very unusual to need to block a
+     * test for more than 10s, and such slow tests are a big problem for overall test suite performance. In almost all cases it's possible
+     * to find a different way to write the test which doesn't need such a long wait.
      */
     public static void safeAwait(CountDownLatch countDownLatch, TimeValue timeout) {
         try {
@@ -2358,9 +2445,19 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code listener} was completed.
      */
     public static <T> T safeAwait(SubscribableListener<T> listener) {
+        return safeAwait(listener, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Wait for the successful completion of the given {@link SubscribableListener}, respecting the provided timeout,
+     * preserving the thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code listener} was completed.
+     */
+    public static <T> T safeAwait(SubscribableListener<T> listener, TimeValue timeout) {
         final var future = new TestPlainActionFuture<T>();
         listener.addListener(future);
-        return safeGet(future);
+        return safeGet(future, timeout);
     }
 
     /**
@@ -2390,8 +2487,19 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @return The value with which the {@code future} was completed.
      */
     public static <T> T safeGet(Future<T> future) {
+        return safeGet(future, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Wait for the successful completion of the given {@link Future}, respecting the provided timeout, preserving the
+     * thread's interrupt status flag and converting all exceptions into an {@link AssertionError} to trigger a test failure.
+     *
+     * @return The value with which the {@code future} was completed.
+     */
+    // NB private because tests should be designed not to need to wait for longer than SAFE_AWAIT_TIMEOUT.
+    private static <T> T safeGet(Future<T> future, TimeValue timeout) {
         try {
-            return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+            return future.get(timeout.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AssertionError("safeGet: interrupted waiting for SubscribableListener", e);
@@ -2583,6 +2691,15 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
+    }
+
+    /**
+     * Checks a specific exception class with matched message is thrown by the given runnable, and returns it.
+     */
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, Matcher<String> messageMatcher, ThrowingRunnable runnable) {
+        var e = expectThrows(expectedType, runnable);
+        assertThat(e.getMessage(), messageMatcher);
+        return e;
     }
 
     /**

@@ -17,7 +17,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 
-import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -82,7 +82,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
                     .build()
             )
             .build();
@@ -167,7 +167,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, false)
-                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
                     .build()
             )
             .build();

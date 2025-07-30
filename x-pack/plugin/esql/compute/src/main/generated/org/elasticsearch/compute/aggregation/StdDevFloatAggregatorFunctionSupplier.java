@@ -12,22 +12,31 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link StdDevFloatAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class StdDevFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public StdDevFloatAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public StdDevFloatAggregatorFunctionSupplier() {
   }
 
   @Override
-  public StdDevFloatAggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return StdDevFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return StdDevFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public StdDevFloatAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return StdDevFloatAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public StdDevFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public StdDevFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return StdDevFloatGroupingAggregatorFunction.create(channels, driverContext);
   }
 

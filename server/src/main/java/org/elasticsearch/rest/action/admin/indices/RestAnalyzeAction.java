@@ -9,6 +9,7 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeCapabilities;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -19,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -47,6 +49,11 @@ public class RestAnalyzeAction extends BaseRestHandler {
             AnalyzeAction.Request analyzeRequest = AnalyzeAction.Request.fromXContent(parser, request.param("index"));
             return channel -> client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
         }
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return AnalyzeCapabilities.CAPABILITIES;
     }
 
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -44,16 +45,25 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
 
     protected static LocalClusterConfigProvider clusterConfig = c -> {};
 
-    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(2)
-        .setting("xpack.security.enabled", "false")
-        .setting("indices.lifecycle.poll_interval", "5s")
-        .apply(() -> clusterConfig)
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
-        .build();
+    private static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(getOldClusterTestVersion())
+            .nodes(2)
+            .setting("xpack.security.enabled", "false")
+            .setting("indices.lifecycle.poll_interval", "5s")
+            .apply(() -> clusterConfig)
+            .feature(FeatureFlag.TIME_SERIES_MODE);
+
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
@@ -264,7 +274,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
         if (asMap.size() == 1) {
             return (String) asMap.keySet().toArray()[0];
         }
-        logger.warn("--> No matching rollup name for path [%s]", endpoint);
+        logger.warn("--> No matching rollup name for path [{}]", endpoint);
         return null;
     }
 

@@ -15,6 +15,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -28,11 +29,11 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
@@ -107,18 +108,27 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     protected static LocalClusterConfigProvider clusterConfig = c -> {};
 
-    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(2)
-        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
-        .setting("xpack.security.enabled", "false")
-        // some tests rely on the translog not being flushed
-        .setting("indices.memory.shard_inactive_time", "60m")
-        .apply(() -> clusterConfig)
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
-        .build();
+    private static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(getOldClusterTestVersion())
+            .nodes(2)
+            .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+            .setting("xpack.security.enabled", "false")
+            // some tests rely on the translog not being flushed
+            .setting("indices.memory.shard_inactive_time", "60m")
+            .apply(() -> clusterConfig)
+            .feature(FeatureFlag.TIME_SERIES_MODE);
+
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
@@ -633,13 +643,14 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 )
             );
 
-            // assertBusy to work around https://github.com/elastic/elasticsearch/issues/104371
-            assertBusy(
-                () -> assertThat(
-                    EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v&error_trace")).getEntity()),
-                    containsString("testrollover-000002")
-                )
-            );
+            assertBusy(() -> {
+                Request catIndices = new Request("GET", "/_cat/indices?v&error_trace");
+                // the cat APIs can sometimes 404, erroneously
+                // see https://github.com/elastic/elasticsearch/issues/104371
+                setIgnoredErrorResponseCodes(catIndices, RestStatus.NOT_FOUND);
+                Response response = assertOK(client().performRequest(catIndices));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("testrollover-000002"));
+            });
         }
 
         Request countRequest = new Request("POST", "/" + index + "-*/_search");
@@ -1209,7 +1220,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             closeIndex(index);
         }
 
-        @UpdateForV9 // This check can be removed (always assume true)
         var originalClusterSupportsReplicationOfClosedIndices = oldClusterHasFeature(RestTestLegacyFeatures.REPLICATION_OF_CLOSED_INDICES);
 
         if (originalClusterSupportsReplicationOfClosedIndices) {
@@ -1614,7 +1624,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     @SuppressWarnings("unchecked")
     public void testSystemIndexMetadataIsUpgraded() throws Exception {
 
-        @UpdateForV9 // assumeTrue can be removed (condition always true)
         var originalClusterTaskIndexIsSystemIndex = oldClusterHasFeature(RestTestLegacyFeatures.TASK_INDEX_SYSTEM_INDEX);
         assumeTrue(".tasks became a system index in 7.10.0", originalClusterTaskIndexIsSystemIndex);
         final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
@@ -1735,7 +1744,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     /**
      * This test ensures that soft deletes are enabled a when upgrading a pre-8 cluster to 8.0+
      */
-    @UpdateForV9 // This test can be removed in v9
     public void testEnableSoftDeletesOnRestore() throws Exception {
         var originalClusterDidNotEnforceSoftDeletes = oldClusterHasFeature(RestTestLegacyFeatures.SOFT_DELETES_ENFORCED) == false;
 
@@ -1848,7 +1856,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
      * with true/false as options. This test ensures that the old boolean setting in cluster state is
      * translated properly. This test can be removed in 9.0.
      */
-    @UpdateForV9
     public void testTransportCompressionSetting() throws IOException {
         var originalClusterBooleanCompressSetting = oldClusterHasFeature(RestTestLegacyFeatures.NEW_TRANSPORT_COMPRESSED_SETTING) == false;
         assumeTrue("the old transport.compress setting existed before 7.14", originalClusterBooleanCompressSetting);

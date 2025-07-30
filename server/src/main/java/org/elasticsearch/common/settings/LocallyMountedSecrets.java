@@ -142,7 +142,7 @@ public final class LocallyMountedSecrets implements SecureSettings {
      * @return Secrets directory within an Elasticsearch environment
      */
     public static Path resolveSecretsDir(Environment environment) {
-        return environment.configFile().toAbsolutePath().resolve(SECRETS_DIRECTORY);
+        return environment.configDir().toAbsolutePath().resolve(SECRETS_DIRECTORY);
     }
 
     /**

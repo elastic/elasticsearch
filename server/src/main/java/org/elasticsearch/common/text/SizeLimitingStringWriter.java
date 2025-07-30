@@ -30,18 +30,29 @@ public class SizeLimitingStringWriter extends StringWriter {
         this.sizeLimit = sizeLimit;
     }
 
-    private void checkSizeLimit(int additionalChars) {
-        int bufLen = getBuffer().length();
-        if (bufLen + additionalChars > sizeLimit) {
-            throw new SizeLimitExceededException(
-                Strings.format("String [%s...] has exceeded the size limit [%s]", getBuffer().substring(0, Math.min(bufLen, 20)), sizeLimit)
-            );
+    private int limitSize(int additionalChars) {
+        int neededSize = getBuffer().length() + additionalChars;
+        if (neededSize > sizeLimit) {
+            return additionalChars - (neededSize - sizeLimit);
         }
+        return additionalChars;
+    }
+
+    private void throwSizeLimitExceeded(int limitedChars, int requestedChars) {
+        assert limitedChars < requestedChars;
+        int bufLen = getBuffer().length();
+        int foundSize = bufLen - limitedChars + requestedChars; // reconstitute original
+        String selection = getBuffer().substring(0, Math.min(bufLen, 20));
+        throw new SizeLimitExceededException(
+            Strings.format("String [%s...] has size [%d] which exceeds the size limit [%d]", selection, foundSize, sizeLimit)
+        );
     }
 
     @Override
     public void write(int c) {
-        checkSizeLimit(1);
+        if (limitSize(1) != 1) {
+            throwSizeLimitExceeded(0, 1);
+        }
         super.write(c);
     }
 
@@ -49,20 +60,29 @@ public class SizeLimitingStringWriter extends StringWriter {
 
     @Override
     public void write(char[] cbuf, int off, int len) {
-        checkSizeLimit(len);
-        super.write(cbuf, off, len);
+        int limitedLen = limitSize(len);
+        if (limitedLen > 0) {
+            super.write(cbuf, off, limitedLen);
+        }
+        if (limitedLen != len) {
+            throwSizeLimitExceeded(limitedLen, len);
+        }
     }
 
     @Override
     public void write(String str) {
-        checkSizeLimit(str.length());
-        super.write(str);
+        this.write(str, 0, str.length());
     }
 
     @Override
     public void write(String str, int off, int len) {
-        checkSizeLimit(len);
-        super.write(str, off, len);
+        int limitedLen = limitSize(len);
+        if (limitedLen > 0) {
+            super.write(str, off, limitedLen);
+        }
+        if (limitedLen != len) {
+            throwSizeLimitExceeded(limitedLen, len);
+        }
     }
 
     // append(...) delegates to write(...) methods

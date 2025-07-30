@@ -150,7 +150,7 @@ class ServerCli extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
         }
 
-        Path log4jConfig = env.configFile().resolve("log4j2.properties");
+        Path log4jConfig = env.configDir().resolve("log4j2.properties");
         if (Files.exists(log4jConfig) == false) {
             throw new UserException(ExitCodes.CONFIG, "Missing logging config file at " + log4jConfig);
         }
@@ -239,7 +239,7 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile(), env.logsFile());
+        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configDir(), env.logsDir());
     }
 
     @Override

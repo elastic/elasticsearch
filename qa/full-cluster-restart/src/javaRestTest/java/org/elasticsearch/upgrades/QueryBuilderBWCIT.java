@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -40,7 +39,6 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.RestTestLegacyFeatures;
@@ -78,7 +76,6 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
         .version(getOldClusterTestVersion())
         .nodes(2)
         .setting("xpack.security.enabled", "false")
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .apply(() -> clusterConfig)
         .build();
 
@@ -249,8 +246,6 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length);
                     StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
                 ) {
-
-                    @UpdateForV9 // condition will always be true
                     var originalClusterHasTransportVersion = oldClusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED);
                     final TransportVersion transportVersion;
                     if (originalClusterHasTransportVersion == false) {

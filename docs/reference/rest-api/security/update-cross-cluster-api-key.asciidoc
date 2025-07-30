@@ -6,6 +6,12 @@
 <titleabbrev>Update Cross-Cluster API key</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Update an existing cross-cluster API Key that is used for <<remote-clusters-api-key,API key based remote cluster>> access.
 
 

@@ -166,24 +166,7 @@ public class RightTests extends AbstractScalarFunctionTestCase {
                 equalTo(new BytesRef(unicodeRightSubstring(text, length)))
             );
         }));
-        suppliers.add(new TestCaseSupplier("ascii as semantic_text", List.of(DataType.SEMANTIC_TEXT, DataType.INTEGER), () -> {
-            String text = randomAlphaOfLengthBetween(1, 64);
-            int length = between(1, text.length());
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataType.SEMANTIC_TEXT, "str"),
-                    new TestCaseSupplier.TypedData(length, DataType.INTEGER, "length")
-                ),
-                "RightEvaluator[str=Attribute[channel=0], length=Attribute[channel=1]]",
-                DataType.KEYWORD,
-                equalTo(new BytesRef(unicodeRightSubstring(text, length)))
-            );
-        }));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> switch (p) {
-            case 0 -> "string";
-            case 1 -> "integer";
-            default -> throw new IllegalStateException("bad parameter number");
-        });
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static String unicodeRightSubstring(String str, int length) {

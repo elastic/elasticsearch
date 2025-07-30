@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
-import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.allShardsActiveAllocationInfo;
 import static org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo.waitingForActiveShardsAllocationInfo;
@@ -62,7 +62,7 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
         }
 
         AllocationDeciders allocationDeciders = new AllocationDeciders(
-            Collections.singletonList(
+            List.of(
                 new FilterAllocationDecider(
                     clusterState.getMetadata().settings(),
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

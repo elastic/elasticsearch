@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -37,13 +36,12 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 /**
  * A request to get profiling details
  */
-public class GetStackTracesRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public class GetStackTracesRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField SAMPLE_SIZE_FIELD = new ParseField("sample_size");
     public static final ParseField LIMIT_FIELD = new ParseField("limit");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField STACKTRACE_IDS_FIELD = new ParseField("stacktrace_ids_field");
-    @UpdateForV9 // Remove this BWC layer and allow only AGGREGATION_FIELDS
     public static final ParseField AGGREGATION_FIELD = new ParseField("aggregation_field");
     public static final ParseField AGGREGATION_FIELDS = new ParseField("aggregation_fields");
     public static final ParseField REQUESTED_DURATION_FIELD = new ParseField("requested_duration");
@@ -62,7 +60,6 @@ public class GetStackTracesRequest extends ActionRequest implements IndicesReque
     private String[] indices;
     private boolean userProvidedIndices;
     private String stackTraceIdsField;
-    @UpdateForV9 // Remove this BWC layer and allow only aggregationFields
     private String aggregationField;
     private String[] aggregationFields;
     private Double requestedDuration;

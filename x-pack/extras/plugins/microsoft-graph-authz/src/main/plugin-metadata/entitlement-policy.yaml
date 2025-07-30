@@ -1,0 +1,7 @@
+okhttp3:
+  - outbound_network
+  - manage_threads
+okio:
+  - manage_threads
+com.azure.core:
+  - manage_threads

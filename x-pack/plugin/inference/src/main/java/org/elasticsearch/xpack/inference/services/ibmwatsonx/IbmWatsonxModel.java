@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionVisitor;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionVisitor;
 
 import java.util.Map;
 import java.util.Objects;
@@ -38,7 +38,13 @@ public abstract class IbmWatsonxModel extends Model {
         rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
-    public abstract ExecutableAction accept(IbmWatsonxActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public IbmWatsonxModel(IbmWatsonxModel model, TaskSettings taskSettings) {
+        super(model, taskSettings);
+
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
+    }
+
+    public abstract ExecutableAction accept(IbmWatsonxActionVisitor creator, Map<String, Object> taskSettings);
 
     public IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;

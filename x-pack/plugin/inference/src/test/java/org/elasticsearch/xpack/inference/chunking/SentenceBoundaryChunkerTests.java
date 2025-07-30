@@ -43,6 +43,41 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         return chunkPositions.stream().map(offset -> input.substring(offset.start(), offset.end())).collect(Collectors.toList());
     }
 
+    public void testEmptyString() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is(""));
+    }
+
+    public void testBlankString() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "   ", 100, randomBoolean());
+        assertThat(chunks, hasSize(1));
+        assertThat(chunks.get(0), Matchers.is("   "));
+    }
+
+    public void testSingleChar() {
+        var chunks = textChunks(new SentenceBoundaryChunker(), "   b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("   b"));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), "b", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains("b"));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), ". ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(". "));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), " , ", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" , "));
+
+        chunks = textChunks(new SentenceBoundaryChunker(), " ,", 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(" ,"));
+    }
+
+    public void testSingleCharRepeated() {
+        var input = "a".repeat(32_000);
+        var chunks = textChunks(new SentenceBoundaryChunker(), input, 100, randomBoolean());
+        assertThat(chunks, Matchers.contains(input));
+    }
+
     public void testChunkSplitLargeChunkSizes() {
         for (int maxWordsPerChunk : new int[] { 100, 200 }) {
             var chunker = new SentenceBoundaryChunker();
@@ -222,32 +257,6 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         assertTrue(chunks.get(4).trim().endsWith("."));   // full sentence(s)
     }
 
-    public void testCountWords() {
-        // Test word count matches the whitespace separated word count.
-        var splitByWhiteSpaceSentenceSizes = sentenceSizes(TEST_TEXT);
-
-        var sentenceIterator = BreakIterator.getSentenceInstance(Locale.ROOT);
-        sentenceIterator.setText(TEST_TEXT);
-
-        var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-        wordIterator.setText(TEST_TEXT);
-
-        int start = 0;
-        int end = sentenceIterator.next();
-        assertEquals(splitByWhiteSpaceSentenceSizes[0], SentenceBoundaryChunker.countWords(start, end, wordIterator));
-        start = end;
-        end = sentenceIterator.next();
-        assertEquals(splitByWhiteSpaceSentenceSizes[1], SentenceBoundaryChunker.countWords(start, end, wordIterator));
-        start = end;
-        end = sentenceIterator.next();
-        assertEquals(splitByWhiteSpaceSentenceSizes[2], SentenceBoundaryChunker.countWords(start, end, wordIterator));
-        start = end;
-        end = sentenceIterator.next();
-        assertEquals(splitByWhiteSpaceSentenceSizes[3], SentenceBoundaryChunker.countWords(start, end, wordIterator));
-
-        assertEquals(BreakIterator.DONE, sentenceIterator.next());
-    }
-
     public void testSkipWords() {
         int numWords = 50;
         StringBuilder sb = new StringBuilder();
@@ -270,49 +279,6 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         // past the end of the input
         pos = SentenceBoundaryChunker.skipWords(0, numWords + 10, wordIterator);
         assertThat(pos, greaterThan(0));
-    }
-
-    public void testCountWords_short() {
-        // Test word count matches the whitespace separated word count.
-        var text = "This is a short sentence. Followed by another.";
-
-        var sentenceIterator = BreakIterator.getSentenceInstance(Locale.ROOT);
-        sentenceIterator.setText(text);
-
-        var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-        wordIterator.setText(text);
-
-        int start = 0;
-        int end = sentenceIterator.next();
-        assertEquals(5, SentenceBoundaryChunker.countWords(0, end, wordIterator));
-        start = end;
-        end = sentenceIterator.next();
-        assertEquals(3, SentenceBoundaryChunker.countWords(start, end, wordIterator));
-        assertEquals(BreakIterator.DONE, sentenceIterator.next());
-    }
-
-    public void testCountWords_WithSymbols() {
-        {
-            var text = "foo != bar";
-            var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-            wordIterator.setText(text);
-            // "foo", "bar" - "!=" is not counted
-            assertEquals(2, SentenceBoundaryChunker.countWords(0, text.length(), wordIterator));
-        }
-        {
-            var text = "foo & bar";
-            var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-            wordIterator.setText(text);
-            // "foo", "bar" - the & is not counted
-            assertEquals(2, SentenceBoundaryChunker.countWords(0, text.length(), wordIterator));
-        }
-        {
-            var text = "m&s";
-            var wordIterator = BreakIterator.getWordInstance(Locale.ROOT);
-            wordIterator.setText(text);
-            // "m", "s" - the & is not counted
-            assertEquals(2, SentenceBoundaryChunker.countWords(0, text.length(), wordIterator));
-        }
     }
 
     public void testChunkSplitLargeChunkSizesWithChunkingSettings() {

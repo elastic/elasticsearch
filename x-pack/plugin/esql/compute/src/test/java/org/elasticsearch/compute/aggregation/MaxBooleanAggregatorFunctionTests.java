@@ -26,8 +26,8 @@ public class MaxBooleanAggregatorFunctionTests extends AggregatorFunctionTestCas
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MaxBooleanAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MaxBooleanAggregatorFunctionSupplier();
     }
 
     @Override

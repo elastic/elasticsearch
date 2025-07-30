@@ -1,0 +1,6 @@
+pr: 121324
+summary: Support duplicate suggestions in completion field
+area: Suggesters
+type: bug
+issues:
+ - 82432

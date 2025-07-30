@@ -31,7 +31,7 @@ import java.util.List;
 
 public class IndexModeFieldMapper extends MetadataFieldMapper {
 
-    static final NodeFeature QUERYING_INDEX_MODE = new NodeFeature("mapper.query_index_mode");
+    static final NodeFeature QUERYING_INDEX_MODE = new NodeFeature("mapper.query_index_mode", true);
 
     public static final String NAME = "_index_mode";
 
@@ -58,6 +58,11 @@ public class IndexModeFieldMapper extends MetadataFieldMapper {
         protected boolean matches(String pattern, boolean caseInsensitive, QueryRewriteContext context) {
             final String indexMode = context.getIndexSettings().getMode().getName();
             return Regex.simpleMatch(pattern, indexMode, caseInsensitive);
+        }
+
+        @Override
+        public String getConstantFieldValue(SearchExecutionContext context) {
+            return context.getIndexSettings().getMode().getName();
         }
 
         @Override

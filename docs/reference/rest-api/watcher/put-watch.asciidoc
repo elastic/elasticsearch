@@ -5,6 +5,12 @@
 <titleabbrev>Create or update watch</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
 Either registers a new watch in {watcher} or updates an existing one.
 
 [[watcher-api-put-watch-request]]

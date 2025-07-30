@@ -54,7 +54,7 @@ class NodeServiceProvider {
 
     PluginsService newPluginService(Environment initialEnvironment, PluginsLoader pluginsLoader) {
         // this creates a PluginsService with an empty list of classpath plugins
-        return new PluginsService(initialEnvironment.settings(), initialEnvironment.configFile(), pluginsLoader);
+        return new PluginsService(initialEnvironment.settings(), initialEnvironment.configDir(), pluginsLoader);
     }
 
     ScriptService newScriptService(
@@ -105,7 +105,7 @@ class NodeServiceProvider {
         TaskManager taskManager,
         Tracer tracer
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager);
     }
 
     HttpServerTransport newHttpTransport(PluginsService pluginsService, NetworkModule networkModule) {

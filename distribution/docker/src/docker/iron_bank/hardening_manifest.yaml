@@ -1,21 +1,17 @@
 ---
 apiVersion: v1
-
 # The repository name in registry1, excluding /ironbank/
 name: "elastic/elasticsearch/elasticsearch"
-
 # List of tags to push for the repository in registry1
 # The most specific version should be the first tag and will be shown
 # on ironbank.dsop.io
 tags:
 - "${version}"
 - "latest"
-
 # Build args passed to Dockerfile ARGs
 args:
   BASE_IMAGE: "redhat/ubi/ubi9"
-  BASE_TAG: "9.4"
-
+  BASE_TAG: "9.5"
 # Docker image labels
 labels:
   org.opencontainers.image.title: "elasticsearch"
@@ -34,7 +30,6 @@ labels:
   mil.dso.ironbank.image.type: "commercial"
   # Product the image belongs to for grouping multiple images
   mil.dso.ironbank.product.name: "elasticsearch"
-
 # List of resources to make available to the offline build context
 resources:
   - filename: "elasticsearch-${version}-linux-x86_64.tar.gz"
@@ -47,12 +42,14 @@ resources:
     validation:
       type: "sha256"
       value: "93dcc18adc78c65a028a84799ecf8ad40c936fdfc5f2a57b1acda5a8117fa82c"
-
 # List of project maintainers
 maintainers:
-  - name: "Rory Hunter"
-    email: "rory.hunter@elastic.co"
-    username: "rory"
+  - name: "Mark Vieira"
+    email: "mark.vieira@elastic.co"
+    username: "mark-vieira"
+  - name: "Rene Groeschke"
+    email: "rene.groschke@elastic.co"
+    username: "breskeby"
   - email: "klepal_alexander@bah.com"
     name: "Alexander Klepal"
     username: "alexander.klepal"

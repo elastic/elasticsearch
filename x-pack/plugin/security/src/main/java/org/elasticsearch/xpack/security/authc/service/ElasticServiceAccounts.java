@@ -156,7 +156,13 @@ final class ElasticServiceAccounts {
                     // Fleet Server needs "read" privilege to be able to retrieve multi-agent docs
                     .privileges("read", "write", "create_index", "auto_configure")
                     .allowRestrictedIndices(false)
-                    .build() },
+                    .build(),
+                // Custom permissions required for stateful agentless integrations
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("agentless-*")
+                    .privileges("read", "write", "monitor", "create_index", "auto_configure", "maintenance", "view_index_metadata")
+                    .allowRestrictedIndices(false)
+                    .build(), },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application("kibana-*")

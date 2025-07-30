@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.ResetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ResetTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
@@ -55,6 +56,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
 
     private static final Logger logger = LogManager.getLogger(TransportResetTransformAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor auditor;
     private final Client client;
@@ -81,9 +83,9 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.transformConfigManager = transformServices.configManager();
         this.auditor = transformServices.auditor();
         this.client = Objects.requireNonNull(client);
@@ -96,6 +98,16 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+        if (TransformMetadata.upgradeMode(state)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot reset any Transform while the Transform feature is upgrading.",
+                    RestStatus.CONFLICT
+                )
+            );
+            return;
+        }
+
         final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
         if (transformIsRunning && request.isForce() == false) {
             listener.onFailure(

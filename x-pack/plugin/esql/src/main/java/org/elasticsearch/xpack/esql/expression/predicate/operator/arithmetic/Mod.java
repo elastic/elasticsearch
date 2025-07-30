@@ -26,6 +26,7 @@ public class Mod extends EsqlArithmeticOperation {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mod", Mod::new);
 
     @FunctionInfo(
+        operator = "%",
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Divide one number by another and return the remainder. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."

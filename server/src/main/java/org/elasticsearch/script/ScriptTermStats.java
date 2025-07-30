@@ -30,7 +30,7 @@ import java.util.function.Supplier;
  */
 public class ScriptTermStats {
 
-    public static final NodeFeature TERM_STAT_FEATURE = new NodeFeature("script.term_stats");
+    public static final NodeFeature TERM_STAT_FEATURE = new NodeFeature("script.term_stats", true);
 
     private final IntSupplier docIdSupplier;
     private final Term[] terms;

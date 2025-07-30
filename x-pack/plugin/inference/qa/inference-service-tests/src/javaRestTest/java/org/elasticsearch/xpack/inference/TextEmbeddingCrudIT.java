@@ -18,8 +18,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-// This test was previously disabled in CI due to the models being too large
-// See "https://github.com/elastic/elasticsearch/issues/105198".
 public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
     public void testPutE5Small_withNoModelVariant() {
@@ -94,7 +92,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
         var endpoint = Strings.format("_inference/%s/%s", "text_embedding", inferenceEntityId);
         var request = new Request("DELETE", endpoint);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 
@@ -104,7 +102,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
         request.setJsonEntity(jsonEntity);
         var response = client().performRequest(request);
-        assertOkOrCreated(response);
+        assertStatusOkOrCreated(response);
         return entityAsMap(response);
     }
 

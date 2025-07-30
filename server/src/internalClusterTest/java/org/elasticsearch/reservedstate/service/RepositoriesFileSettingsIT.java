@@ -15,9 +15,11 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
@@ -129,13 +131,15 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
+        clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).waitForMetadataVersion(metadataVersion.get())).get();
+
         final var reposResponse = client().execute(
             GetRepositoriesAction.INSTANCE,
             new GetRepositoriesRequest(TEST_REQUEST_TIMEOUT, new String[] { "repo", "repo1" })
         ).get();
 
         assertThat(
-            reposResponse.repositories().stream().map(r -> r.name()).collect(Collectors.toSet()),
+            reposResponse.repositories().stream().map(RepositoryMetadata::name).collect(Collectors.toSet()),
             containsInAnyOrder("repo", "repo1")
         );
 

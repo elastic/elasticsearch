@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -68,6 +69,7 @@ public class TestEntitlementsRule implements TestRule {
 
     private static final Map<BaseDir, Collection<Path>> BASE_DIR_PATHS = new ConcurrentHashMap<>();
     private static final TestPolicyManager POLICY_MANAGER;
+    private static final AtomicBoolean active = new AtomicBoolean(false);
 
     static {
         PathLookup pathLookup = new TestPathLookup(BASE_DIR_PATHS);
@@ -103,25 +105,30 @@ public class TestEntitlementsRule implements TestRule {
             return new Statement() {
                 @Override
                 public void evaluate() throws Throwable {
-                    try {
-                        POLICY_MANAGER.setActive(false == withoutEntitlements);
-                        POLICY_MANAGER.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
-                        if (entitledPackages != null) {
-                            assert entitledPackages.value().length > 0 : "No test packages specified in @EntitledTestPackages";
-                            POLICY_MANAGER.setEntitledTestPackages(entitledPackages.value());
-                        } else {
+                    if (active.compareAndSet(false, true)) {
+                        try {
+                            POLICY_MANAGER.setActive(false == withoutEntitlements);
+                            POLICY_MANAGER.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
+                            if (entitledPackages != null) {
+                                assert entitledPackages.value().length > 0 : "No test packages specified in @EntitledTestPackages";
+                                POLICY_MANAGER.setEntitledTestPackages(entitledPackages.value());
+                            } else {
+                                POLICY_MANAGER.setEntitledTestPackages();
+                            }
+                            BASE_DIR_PATHS.keySet().retainAll(List.of(TEMP));
+                            POLICY_MANAGER.clearModuleEntitlementsCache();
+                            // evaluate the suite
+                            base.evaluate();
+                        } finally {
+                            POLICY_MANAGER.setActive(false);
+                            POLICY_MANAGER.setTriviallyAllowingTestCode(true);
                             POLICY_MANAGER.setEntitledTestPackages();
+                            BASE_DIR_PATHS.keySet().retainAll(List.of(TEMP));
+                            POLICY_MANAGER.clearModuleEntitlementsCache();
+                            active.set(false);
                         }
-                        BASE_DIR_PATHS.keySet().retainAll(List.of(TEMP));
-                        POLICY_MANAGER.clearModuleEntitlementsCache();
-                        // evaluate the suite
-                        base.evaluate();
-                    } finally {
-                        POLICY_MANAGER.setActive(false);
-                        POLICY_MANAGER.setTriviallyAllowingTestCode(true);
-                        POLICY_MANAGER.setEntitledTestPackages();
-                        BASE_DIR_PATHS.keySet().retainAll(List.of(TEMP));
-                        POLICY_MANAGER.clearModuleEntitlementsCache();
+                    } else {
+                        throw new AssertionError("TestPolicyManager doesn't support test isolation, test suits cannot be run in parallel");
                     }
                 }
             };

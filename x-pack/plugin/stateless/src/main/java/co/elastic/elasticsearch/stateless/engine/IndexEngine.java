@@ -443,7 +443,9 @@ public class IndexEngine extends InternalEngine {
                     + "] and current max seq no ["
                     + getMaxSeqNo()
                     + "]";
-            logger.info("flushing hollow commit with max seq no {} and generation {}", hollowMaxSeqNo, getCurrentGeneration() + 1);
+            logger.debug(
+                () -> "flushing hollow commit with max seq no " + hollowMaxSeqNo + " and generation " + (getCurrentGeneration() + 1)
+            );
             commitExtraUserData = Maps.newMapWithExpectedSize(2 + accumulatorUserData.size());
             commitExtraUserData.put(TRANSLOG_RELEASE_END_FILE, Long.toString(translogRecoveryStartFile));
             translogRecoveryStartFile = HOLLOW_TRANSLOG_RECOVERY_START_FILE;

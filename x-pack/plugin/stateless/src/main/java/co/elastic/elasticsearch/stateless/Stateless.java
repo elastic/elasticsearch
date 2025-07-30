@@ -1515,10 +1515,11 @@ public class Stateless extends Plugin
                 if (hollowShardsService.get().isFeatureEnabled()
                     && hollowShardsService.get().isHollowShard(config.getShardId()) == false
                     && IndexEngine.isLastCommitHollow(segmentCommitInfos)) {
-                    logger.info(
-                        "{} using hollow engine for shard [generation: {}]",
-                        config.getShardId(),
-                        segmentCommitInfos.getGeneration()
+                    logger.debug(
+                        () -> config.getShardId()
+                            + " using hollow engine for shard [generation: "
+                            + segmentCommitInfos.getGeneration()
+                            + "]"
                     );
                     return new HollowIndexEngine(newConfig, getCommitService(), hollowShardsService.get(), newConfig.getMapperService());
                 }

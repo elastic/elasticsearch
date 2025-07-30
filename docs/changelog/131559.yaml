@@ -1,5 +1,5 @@
 pr: 131559
-summary: Add support for Lookup Join on Multiple Fields
+summary: Add support for LOOKUP JOIN on multiple fields
 area: ES|QL
 type: enhancement
 issues: [ ]

@@ -269,6 +269,16 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     public enum IgnoredFieldsLoader {
+        NO_IGNORED_SOURCE {
+            @Override
+            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadIgnoredFields(
+                SourceFilter filter,
+                LeafStoredFieldLoader storedFieldLoader,
+                Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders
+            ) {
+                return Map.of();
+            }
+        },
         SINGLE_IGNORED_SOURCE {
             @Override
             public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadIgnoredFields(

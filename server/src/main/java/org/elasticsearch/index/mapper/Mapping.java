@@ -155,7 +155,7 @@ public final class Mapping implements ToXContentFragment {
     public IgnoredSourceFieldMapper.IgnoredFieldsLoader ignoredFieldsLoader() {
         IgnoredSourceFieldMapper isfm = (IgnoredSourceFieldMapper) metadataMappersByName.get(IgnoredSourceFieldMapper.NAME);
         if (isfm == null) {
-            return null;
+            return IgnoredSourceFieldMapper.IgnoredFieldsLoader.NO_IGNORED_SOURCE;
         }
         return isfm.ignoredFieldsLoader();
     }

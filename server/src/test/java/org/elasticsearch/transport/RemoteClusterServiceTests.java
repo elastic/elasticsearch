@@ -9,8 +9,10 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -1056,6 +1058,85 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    public void testCollectNodesConcurrentWithSettingsChanges() throws IOException {
+        final List<DiscoveryNode> knownNodes_c1 = new CopyOnWriteArrayList<>();
+
+        try (
+            var c1N1 = startTransport(
+                "cluster_1_node_1",
+                knownNodes_c1,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                Settings.EMPTY
+            );
+            var transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                VersionInformation.CURRENT,
+                TransportVersion.current(),
+                threadPool,
+                null
+            )
+        ) {
+            final var c1N1Node = c1N1.getLocalNode();
+            knownNodes_c1.add(c1N1Node);
+            final var seedList = List.of(c1N1Node.getAddress().toString());
+            transportService.start();
+            transportService.acceptIncomingRequests();
+
+            try (RemoteClusterService service = new RemoteClusterService(createSettings("cluster_1", seedList), transportService)) {
+                service.initializeRemoteClusters();
+                assertTrue(service.isCrossClusterSearchEnabled());
+                final var numTasks = between(3, 5);
+                final var taskLatch = new CountDownLatch(numTasks);
+
+                ESTestCase.startInParallel(numTasks, threadNumber -> {
+                    if (threadNumber == 0) {
+                        taskLatch.countDown();
+                        boolean isLinked = true;
+                        while (taskLatch.getCount() != 0) {
+                            final var future = new PlainActionFuture<RemoteClusterService.RemoteClusterConnectionStatus>();
+                            final var settings = createSettings("cluster_1", isLinked ? Collections.emptyList() : seedList);
+                            service.updateRemoteCluster("cluster_1", settings, future);
+                            safeGet(future);
+                            isLinked = isLinked == false;
+                        }
+                        return;
+                    }
+
+                    // Verify collectNodes() always invokes the listener, even if the node is concurrently being unlinked.
+                    try {
+                        for (int i = 0; i < 10; ++i) {
+                            final var latch = new CountDownLatch(1);
+                            final var exRef = new AtomicReference<Exception>();
+                            service.collectNodes(Set.of("cluster_1"), new LatchedActionListener<>(new ActionListener<>() {
+                                @Override
+                                public void onResponse(BiFunction<String, String, DiscoveryNode> func) {
+                                    assertEquals(c1N1Node, func.apply("cluster_1", c1N1Node.getId()));
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    exRef.set(e);
+                                }
+                            }, latch));
+                            safeAwait(latch);
+                            if (exRef.get() != null) {
+                                assertThat(
+                                    exRef.get(),
+                                    either(instanceOf(TransportException.class)).or(instanceOf(NoSuchRemoteClusterException.class))
+                                        .or(instanceOf(AlreadyClosedException.class))
+                                        .or(instanceOf(NoSeedNodeLeftException.class))
+                                );
+                            }
+                        }
+                    } finally {
+                        taskLatch.countDown();
+                    }
+                });
             }
         }
     }

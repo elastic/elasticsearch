@@ -894,7 +894,6 @@ public class HeapAttackIT extends ESRestTestCase {
                 }
             }
         }
-
         logger.info("loading many documents with one big text field - docs per bulk {}", docsPerBulk);
 
         int fieldSize = Math.toIntExact(ByteSizeValue.ofMb(5).getBytes());
@@ -1064,6 +1063,15 @@ public class HeapAttackIT extends ESRestTestCase {
         );
         Response response = client().performRequest(request);
         assertThat(entityAsMap(response), matchesMap().entry("errors", false).extraOk());
+
+        /*
+         * Flush after each bulk to clear the test-time seenSequenceNumbers Map in
+         * TranslogWriter. Without this the server will OOM from time to time keeping
+         * stuff around to run assertions on.
+         */
+        request = new Request("POST", "/" + name + "/_flush");
+        response = client().performRequest(request);
+        assertThat(entityAsMap(response), matchesMap().entry("_shards", matchesMap().extraOk().entry("failed", 0)).extraOk());
     }
 
     private void initIndex(String name, String bulk) throws IOException {

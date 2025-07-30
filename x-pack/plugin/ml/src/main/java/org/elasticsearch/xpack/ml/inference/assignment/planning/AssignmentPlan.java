@@ -223,23 +223,43 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         return Comparator.comparing(AssignmentPlan::computeQuality).compare(this, o);
     }
 
+    /**
+     * Checks whether all deployments in the current {@link AssignmentPlan} have at least as many
+     * allocations as currently assigned.
+     */
     public boolean satisfiesCurrentAssignments() {
         return deployments().stream().allMatch(this::isSatisfyingCurrentAssignmentsForModel);
     }
 
+    /**
+     * Checks whether the current assignments for a given {@link Deployment} meet its allocation requirements.
+     *
+     * It ensures that the total number of allocations assigned to the deployment across all nodes is
+     * at least equal to the deployment's current assigned allocations.
+     */
     private boolean isSatisfyingCurrentAssignmentsForModel(Deployment m) {
         if (m.currentAllocationsByNodeId().isEmpty()) {
             return true;
         }
         Map<Node, Integer> nodeAssignments = assignments.get(m);
-        int currentAllocations = nodeAssignments.values().stream().mapToInt(Integer::intValue).sum();
-        return currentAllocations >= m.getCurrentAssignedAllocations();
+        int inPlanAssignedAllocations = nodeAssignments.values().stream().mapToInt(Integer::intValue).sum();
+        return inPlanAssignedAllocations >= m.getCurrentAssignedAllocations();
     }
 
-    public boolean satisfiesAllocations(Deployment m) {
-        return remainingModelAllocations.getOrDefault(m, 0) == 0;
+    /**
+     * Checks if the current assignments satisfy the deployment's allocation requirements.
+     * @param deployment the deployment to check
+     * @return true if the current assignments satisfy the deployments's allocation requirements, false otherwise
+     */
+    public boolean satisfiesAllocations(Deployment deployment) {
+        return remainingModelAllocations.getOrDefault(deployment, 0) == 0;
     }
 
+    /**
+     * Checks if the current assignments satisfy all deployments' allocation requirements. This means that
+     * each deployment has no remaining allocations left to assign.
+     * @return true if the current assignments satisfy the deployments' allocation requirements, false otherwise
+     */
     public boolean satisfiesAllModels() {
         return deployments().stream().allMatch(this::satisfiesAllocations);
     }

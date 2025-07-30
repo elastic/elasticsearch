@@ -22,7 +22,7 @@ COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" }
 :::{tab-item} 9.1.x only
 
 ```esql
-COMPLETION [column =] prompt WITH ny_inference_endpoint
+COMPLETION [column =] prompt WITH my_inference_endpoint
 ```
 
 :::

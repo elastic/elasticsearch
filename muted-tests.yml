@@ -641,6 +641,9 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.MDPYamlTestSuiteIT
   method: test {yaml=mdp/10_basic/Index using shared data path}
   issue: https://github.com/elastic/elasticsearch/issues/132223
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/132225
 
 # Examples:
 #

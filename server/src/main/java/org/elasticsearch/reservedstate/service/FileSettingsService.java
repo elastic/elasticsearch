@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -126,8 +127,9 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * file based settings from the cluster state.
      * @param clusterState the cluster state before snapshot restore
      * @param mdBuilder the current metadata builder for the new cluster state
+     * @param projectId the project associated with the restore
      */
-    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder) {
+    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder, ProjectId projectId) {
         assert clusterState.nodes().isLocalNodeElectedMaster();
 
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);

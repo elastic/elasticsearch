@@ -1,6 +1,0 @@
-pr: 129126
-summary: "Synthetic source: avoid storing multi fields of type text and `match_only_text`\
-  \ by default"
-area: Mapping
-type: bug
-issues: []

@@ -219,7 +219,20 @@ renameClause:
     ;
 
 dissectCommand
-    : DISSECT primaryExpression string commandOptions?
+    : DISSECT primaryExpression string dissectCommandOptions?
+    ;
+
+dissectCommandOptions
+    : dissectCommandOption (COMMA dissectCommandOption)*
+    ;
+
+dissectCommandOption
+    : identifier ASSIGN constant
+    ;
+
+
+commandNamedParameters
+    : (WITH mapExpression)?
     ;
 
 grokCommand
@@ -228,14 +241,6 @@ grokCommand
 
 mvExpandCommand
     : MV_EXPAND qualifiedName
-    ;
-
-commandOptions
-    : commandOption (COMMA commandOption)*
-    ;
-
-commandOption
-    : identifier ASSIGN constant
     ;
 
 explainCommand
@@ -293,7 +298,7 @@ forkSubQueryProcessingCommand
     ;
 
 completionCommand
-    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression WITH inferenceId=identifierOrParameter
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression commandNamedParameters
     ;
 
 //
@@ -315,19 +320,6 @@ fuseCommand
     : DEV_FUSE
     ;
 
-inferenceCommandOptions
-    : inferenceCommandOption (COMMA inferenceCommandOption)*
-    ;
-
-inferenceCommandOption
-    : identifier ASSIGN inferenceCommandOptionValue
-    ;
-
-inferenceCommandOptionValue
-    : constant
-    | identifier
-    ;
-
 rerankCommand
-    : DEV_RERANK queryText=constant ON rerankFields (WITH inferenceCommandOptions)?
+    : DEV_RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields commandNamedParameters
     ;

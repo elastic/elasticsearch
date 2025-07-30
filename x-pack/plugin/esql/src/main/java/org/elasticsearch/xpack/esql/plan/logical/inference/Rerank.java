@@ -32,7 +32,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
 
@@ -100,14 +99,25 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
 
     @Override
     public Rerank withInferenceId(Expression newInferenceId) {
+        if (inferenceId().equals(newInferenceId)) {
+            return this;
+        }
         return new Rerank(source(), child(), newInferenceId, queryText, rerankFields, scoreAttribute);
     }
 
     public Rerank withRerankFields(List<Alias> newRerankFields) {
+        if (rerankFields.equals(newRerankFields)) {
+            return this;
+        }
+
         return new Rerank(source(), child(), inferenceId(), queryText, newRerankFields, scoreAttribute);
     }
 
     public Rerank withScoreAttribute(Attribute newScoreAttribute) {
+        if (scoreAttribute.equals(newScoreAttribute)) {
+            return this;
+        }
+
         return new Rerank(source(), child(), inferenceId(), queryText, rerankFields, newScoreAttribute);
     }
 
@@ -181,27 +191,5 @@ public class Rerank extends InferencePlan<Rerank> implements TelemetryAware {
             lazyOutput = mergeOutputAttributes(List.of(scoreAttribute), child().output());
         }
         return lazyOutput;
-    }
-
-    public static class Builder {
-        private Rerank rerank;
-
-        public Builder(Rerank rerank) {
-            this.rerank = rerank;
-        }
-
-        public Rerank build() {
-            return rerank;
-        }
-
-        public Builder withInferenceId(Expression inferenceId) {
-            this.rerank = this.rerank.withInferenceId(inferenceId);
-            return this;
-        }
-
-        public Builder withScoreAttribute(Attribute scoreAttribute) {
-            this.rerank = this.rerank.withScoreAttribute(scoreAttribute);
-            return this;
-        }
     }
 }

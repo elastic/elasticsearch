@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -779,10 +780,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private Rerank applyRerankOptions(Rerank rerank, EsqlBaseParser.CommandNamedParametersContext ctx) {
-        Rerank.Builder rerankBuilder = new Rerank.Builder(rerank);
-        Map<String, Expression> optionsMap = visitCommandNamedParameters(ctx).keyFoldedMap();
+        MapExpression optionExpression = visitCommandNamedParameters(ctx);
 
+        if (optionExpression == null) {
+            return rerank;
+        }
+
+        Map<String, Expression> optionsMap = optionExpression.keyFoldedMap();
         Expression inferenceId = optionsMap.remove(Rerank.INFERENCE_ID_OPTION_NAME);
+
         if (inferenceId != null) {
             if (inferenceId instanceof Literal inferenceIdLiteral && DataType.isString(inferenceId.dataType())) {
                 if (inferenceIdLiteral.value() == null) {
@@ -792,7 +798,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                         Rerank.INFERENCE_ID_OPTION_NAME
                     );
                 }
-                rerankBuilder.withInferenceId(inferenceId);
+                rerank = rerank.withInferenceId(inferenceId);
             } else {
                 throw new ParsingException(
                     inferenceId.source(),
@@ -806,7 +812,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "Unknown option [{}] in RERANK command", optionsMap.keySet().stream().findAny().get());
         }
 
-        return rerankBuilder.build();
+        return rerank;
     }
 
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
@@ -821,7 +827,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     private Completion applyCompletionOptions(Completion completion, EsqlBaseParser.CommandNamedParametersContext ctx) {
-        Completion.Builder completionBuilder = new Completion.Builder(completion);
+        MapExpression optionsExpresion = visitCommandNamedParameters(ctx);
+
+        if (optionsExpresion == null || optionsExpresion.containsKey(Completion.INFERENCE_ID_OPTION_NAME) == false) {
+            // Having a mandatory named parameter for inference_id is an antipattern, but it will be optional in the future when we have a default LLM.
+            // It is better to keep inference_id as a named parameter and relax the syntax when it will become optional than completely change the syntax.
+            throw new ParsingException(source(ctx), "Missing mandatory option [{}] in COMPLETION", Completion.INFERENCE_ID_OPTION_NAME);
+        }
+
         Map<String, Expression> optionsMap = visitCommandNamedParameters(ctx).keyFoldedMap();
 
         Expression inferenceId = optionsMap.remove(Completion.INFERENCE_ID_OPTION_NAME);
@@ -834,7 +847,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                         Completion.INFERENCE_ID_OPTION_NAME
                     );
                 }
-                completionBuilder.withInferenceId(inferenceId);
+                completion = completion.withInferenceId(inferenceId);
             } else {
                 throw new ParsingException(
                     inferenceId.source(),
@@ -842,10 +855,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     Completion.INFERENCE_ID_OPTION_NAME
                 );
             }
-        } else {
-            // This is an anti-pattern to have a mandatory named params for inference_id but it will be optional in the future when we have a default LLM.
-            // It is better to keep inference_id as a named parameter and relax the syntax when it will become optional than completely change the syntax.
-            throw new ParsingException(source(ctx), "Missing mandatory option [{}] in COMPLETION", Completion.INFERENCE_ID_OPTION_NAME);
         }
 
         if (optionsMap.isEmpty() == false) {
@@ -856,7 +865,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        return completionBuilder.build();
+        return completion;
     }
 
     public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {

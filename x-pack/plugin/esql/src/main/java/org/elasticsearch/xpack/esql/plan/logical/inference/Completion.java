@@ -83,6 +83,10 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     public Completion withInferenceId(Expression newInferenceId) {
+        if (inferenceId().equals(newInferenceId)) {
+            return this;
+        }
+
         return new Completion(source(), child(), newInferenceId, prompt, targetField);
     }
 
@@ -164,11 +168,5 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), prompt, targetField);
-    }
-
-    public static class Builder extends InferencePlan.Builder<Completion> {
-        public Builder(Completion plan) {
-            super(plan);
-        }
     }
 }

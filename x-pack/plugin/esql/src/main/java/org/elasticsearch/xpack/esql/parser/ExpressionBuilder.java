@@ -682,7 +682,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public MapExpression visitCommandNamedParameters(EsqlBaseParser.CommandNamedParametersContext ctx) {
-        return ctx == null || ctx.mapExpression() == null ? MapExpression.EMPTY : visitMapExpression(ctx.mapExpression());
+        return ctx == null || ctx.mapExpression() == null ? null : visitMapExpression(ctx.mapExpression());
     }
 
     @Override

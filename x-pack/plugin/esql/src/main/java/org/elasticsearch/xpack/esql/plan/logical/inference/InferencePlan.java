@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> extends UnaryPlan
@@ -26,6 +27,8 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
         GeneratingPlan<InferencePlan<PlanType>> {
 
     public static final String INFERENCE_ID_OPTION_NAME = "inference_id";
+    public static final List<String> VALID_INFERENCE_OPTION_NAMES = List.of(INFERENCE_ID_OPTION_NAME);
+
     private final Expression inferenceId;
 
     protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId) {
@@ -69,5 +72,9 @@ public abstract class InferencePlan<PlanType extends InferencePlan<PlanType>> ex
 
     public PlanType withInferenceResolutionError(String inferenceId, String error) {
         return withInferenceId(new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+    }
+
+    public List<String> validOptionNames() {
+        return VALID_INFERENCE_OPTION_NAMES;
     }
 }

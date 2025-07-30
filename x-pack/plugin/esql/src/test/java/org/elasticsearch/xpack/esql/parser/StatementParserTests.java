@@ -3868,6 +3868,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidRerank() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": 3 }",
+            "line 1:65: Option [inference_id] must be a valid string, found [3]"
+        );
+        expectError(
+            "FROM foo* | RERANK \"query text\" ON title WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
+            "line 1:42: Inavalid option [unknown_option] in RERANK, expected one of [[inference_id]]"
+        );
+        expectError("FROM foo* | RERANK 45 ON title", "Query must be a valid string in RERANK, found [45]");
         expectError("FROM foo* | RERANK ON title WITH inferenceId", "line 1:20: extraneous input 'ON' expecting {QUOTED_STRING");
         expectError("FROM foo* | RERANK \"query text\" WITH inferenceId", "line 1:33: mismatched input 'WITH' expecting 'on'");
 
@@ -3952,6 +3961,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidCompletion() {
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": 3 }",
+            "line 1:54: Option [inference_id] must be a valid string, found [3]"
+        );
+        expectError(
+            "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
+            "line 1:42: Inavalid option [unknown_option] in COMPLETION, expected one of [[inference_id]]"
+        );
+
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");
 
         expectError("FROM foo* | COMPLETION completion=prompt WITH", "ine 1:46: mismatched input '<EOF>' expecting '{'");

@@ -5515,7 +5515,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ),
             new PushDownEnrich()
         ),
-        // | COMPLETION y =CONCAT(some text, x) INTO WITH { "inference_id" : "inferenceID" }
+        // | COMPLETION y =CONCAT(some text, x) WITH { "inference_id" : "inferenceID" }
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Completion(
                 EMPTY,

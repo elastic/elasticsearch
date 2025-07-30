@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
+import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -759,16 +760,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
             if (queryTextLiteral.value() == null) {
-                throw new ParsingException(
-                    source(ctx.queryText),
-                    "Query text cannot be null or undefined in RERANK",
-                    ctx.queryText.getText()
-                );
+                throw new ParsingException(source(ctx.queryText), "Query cannot be null or undefined in RERANK", ctx.queryText.getText());
             }
         } else {
             throw new ParsingException(
                 source(ctx.queryText),
-                "RERANK only support string as query text but [{}] cannot be used as string",
+                "Query must be a valid string in RERANK, found [{}]",
                 ctx.queryText.getText()
             );
         }
@@ -790,26 +787,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression inferenceId = optionsMap.remove(Rerank.INFERENCE_ID_OPTION_NAME);
 
         if (inferenceId != null) {
-            if (inferenceId instanceof Literal inferenceIdLiteral && DataType.isString(inferenceId.dataType())) {
-                if (inferenceIdLiteral.value() == null) {
-                    throw new ParsingException(
-                        inferenceId.source(),
-                        "[{}] option cannot be null or undefined in RERANK",
-                        Rerank.INFERENCE_ID_OPTION_NAME
-                    );
-                }
-                rerank = rerank.withInferenceId(inferenceId);
-            } else {
-                throw new ParsingException(
-                    inferenceId.source(),
-                    "Option [{}] only support string in RERANK but [{}] cannot be used as string",
-                    Rerank.INFERENCE_ID_OPTION_NAME
-                );
-            }
+            rerank = applyInferenceId(rerank, inferenceId);
         }
 
         if (optionsMap.isEmpty() == false) {
-            throw new ParsingException(source(ctx), "Unknown option [{}] in RERANK command", optionsMap.keySet().stream().findAny().get());
+            throw new ParsingException(
+                source(ctx),
+                "Inavalid option [{}] in RERANK, expected one of [{}]",
+                optionsMap.keySet().stream().findAny().get(),
+                rerank.validOptionNames()
+            );
         }
 
         return rerank;
@@ -840,33 +827,35 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         Expression inferenceId = optionsMap.remove(Completion.INFERENCE_ID_OPTION_NAME);
         if (inferenceId != null) {
-            if (inferenceId instanceof Literal inferenceIdLiteral && DataType.isString(inferenceId.dataType())) {
-                if (inferenceIdLiteral.value() == null) {
-                    throw new ParsingException(
-                        inferenceId.source(),
-                        "[{}] option cannot be null or undefined in COMPLETION",
-                        Completion.INFERENCE_ID_OPTION_NAME
-                    );
-                }
-                completion = completion.withInferenceId(inferenceId);
-            } else {
-                throw new ParsingException(
-                    inferenceId.source(),
-                    "Option [{}] only support string in COMPLETION but [{}] cannot be used as string",
-                    Completion.INFERENCE_ID_OPTION_NAME
-                );
-            }
+            completion = applyInferenceId(completion, inferenceId);
         }
 
         if (optionsMap.isEmpty() == false) {
             throw new ParsingException(
                 source(ctx),
-                "Unknown option [{}] in Completion command",
-                optionsMap.keySet().stream().findAny().get()
+                "Inavalid option [{}] in COMPLETION, expected one of [{}]",
+                optionsMap.keySet().stream().findAny().get(),
+                completion.validOptionNames()
             );
         }
 
         return completion;
+    }
+
+    private <InferencePlanType extends InferencePlan<InferencePlanType>> InferencePlanType applyInferenceId(
+        InferencePlanType inferencePlan,
+        Expression inferenceId
+    ) {
+        if ((inferenceId instanceof Literal && DataType.isString(inferenceId.dataType())) == false) {
+            throw new ParsingException(
+                inferenceId.source(),
+                "Option [{}] must be a valid string, found [{}]",
+                Completion.INFERENCE_ID_OPTION_NAME,
+                inferenceId.source().text()
+            );
+        }
+
+        return inferencePlan.withInferenceId(inferenceId);
     }
 
     public PlanFactory visitSampleCommand(EsqlBaseParser.SampleCommandContext ctx) {

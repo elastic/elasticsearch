@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
@@ -168,7 +169,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
             });
         }
 
-        latch.await();
+        latch.await(10, TimeUnit.SECONDS);
     }
 
     private BulkInferenceExecutor bulkExecutor(InferenceRunner inferenceRunner) {
@@ -225,11 +226,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         if (randomBoolean()) {
             runnable.run();
         } else {
-            threadPool.schedule(
-                runnable,
-                TimeValue.timeValueNanos(between(1, 1_000)),
-                threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
-            );
+            threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
         }
     }
 }

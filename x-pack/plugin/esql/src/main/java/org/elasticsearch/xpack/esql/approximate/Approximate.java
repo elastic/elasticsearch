@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.List;
@@ -74,6 +76,9 @@ public class Approximate {
         void run(LogicalPlan plan, ActionListener<Result> listener);
     }
 
+    /**
+     * Commands that map one row to one row. These commands can be swapped with {@code SAMPLE}.
+     */
     private static final Set<Class<? extends LogicalPlan>> ONE_TO_ONE_COMMANDS = Set.of(
         Dissect.class,
         Drop.class,
@@ -84,7 +89,15 @@ public class Approximate {
         Rename.class
     );
 
+    /**
+     * Commands that map one row to one or zero rows. These commands can be swapped with {@code SAMPLE}.
+     */
     private static final Set<Class<? extends LogicalPlan>> FILTER_COMMANDS = Set.of(Filter.class, Sample.class);
+
+    /**
+     * Commands that cannot be used anywhere in an approximated query.
+     */
+    private static final Set<Class<? extends LogicalPlan>> INCOMPATIBLE_COMMANDS = Set.of(Fork.class, Join.class);
 
     // TODO: find a good default value, or alternative ways of setting it
     private static final int SAMPLE_ROW_COUNT = 1000;
@@ -115,23 +128,32 @@ public class Approximate {
         if (logicalPlan.preOptimized() == false) {
             throw new IllegalStateException("Expected pre-optimized plan");
         }
-
         if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
-            throw new InvalidArgumentException("query without [STATS] function cannot be approximated");
+            throw new InvalidArgumentException("query without [STATS] command cannot be approximated");
         }
+        logicalPlan.forEachUp(plan -> {
+            if (INCOMPATIBLE_COMMANDS.contains(plan.getClass())) {
+                throw new InvalidArgumentException(
+                    "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] command cannot be approximated"
+                );
+            }
+        });
 
         Holder<Boolean> encounteredStats = new Holder<>(false);
         Holder<Boolean> hasFilters = new Holder<>(false);
         logicalPlan.transformUp(plan -> {
-            // TODO: check/fix for JOIN / FORK / INLINESTATS / ...
-            if (plan instanceof LeafPlan) {
+            if (INCOMPATIBLE_COMMANDS.contains(plan.getClass())) {
+                throw new InvalidArgumentException(
+                    "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] command cannot be approximated"
+                );
+            } else if (plan instanceof LeafPlan) {
                 encounteredStats.set(false);
             } else if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate) {
                     encounteredStats.set(true);
                 } else if (ONE_TO_ONE_COMMANDS.contains(plan.getClass()) == false && FILTER_COMMANDS.contains(plan.getClass()) == false) {
                     throw new InvalidArgumentException(
-                        "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] before [STATS] function cannot be approximated"
+                        "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] before [STATS] command cannot be approximated"
                     );
                 } else if (FILTER_COMMANDS.contains(plan.getClass())) {
                     hasFilters.set(true);
@@ -149,7 +171,6 @@ public class Approximate {
      */
     private LogicalPlan sourceCountPlan() {
         LogicalPlan sourceCountPlan = logicalPlan.transformUp(plan -> {
-            // TODO: check/fix for JOIN / FORK / INLINESTATS / ...
             if (plan instanceof LeafPlan) {
                 plan = new Aggregate(
                     Source.EMPTY,
@@ -192,7 +213,6 @@ public class Approximate {
     private LogicalPlan countPlan(double sampleProbability) {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         LogicalPlan countPlan = logicalPlan.transformUp(plan -> {
-            // TODO: check/fix for JOIN / FORK / INLINESTATS / ...
             if (plan instanceof LeafPlan) {
                 encounteredStats.set(false);
             } else if (encounteredStats.get() == false) {
@@ -226,7 +246,7 @@ public class Approximate {
     private ActionListener<Result> countListener(LogicalPlanRunner runner, double probability, ActionListener<Result> listener) {
         return listener.delegateFailureAndWrap((countListener, countResult) -> {
             long rowCount = rowCount(countResult);
-            logger.debug("countPlan result (p={}):{} rows", probability, rowCount);
+            logger.debug("countPlan result (p={}): {} rows", probability, rowCount);
             double newProbability = probability * SAMPLE_ROW_COUNT / Math.max(1, rowCount);
             if (rowCount <= SAMPLE_ROW_COUNT / 2 && newProbability < 1.0) {
                 runner.run(countPlan(newProbability), countListener(runner, newProbability, listener));
@@ -264,7 +284,6 @@ public class Approximate {
         logger.debug("generating approximate plan (p={})", sampleProbability);
         Holder<Boolean> encounteredStats = new Holder<>(false);
         LogicalPlan approximatePlan = logicalPlan.transformUp(plan -> {
-            // TODO: check/fix for JOIN / FORK / INLINESTATS / ...
             if (plan instanceof LeafPlan) {
                 encounteredStats.set(false);
             } else if (encounteredStats.get() == false) {

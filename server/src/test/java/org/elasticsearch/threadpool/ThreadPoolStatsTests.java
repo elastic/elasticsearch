@@ -25,13 +25,13 @@ import static org.hamcrest.Matchers.hasSize;
 public class ThreadPoolStatsTests extends ESTestCase {
     public void testThreadPoolStatsConstructorSortTheStats() {
         var unorderedStats = List.of(
-            new ThreadPoolStats.Stats("z", 7, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("m", 5, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("m", -3, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("d", 2, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("m", 4, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("t", 6, 0, 0, 0, 0, 0L),
-            new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L)
+            new ThreadPoolStats.Stats("z", 7, 0, 0, 0, 0, 0L, Float.NaN),
+            new ThreadPoolStats.Stats("m", 5, 0, 0, 0, 0, 0L, Float.NaN),
+            new ThreadPoolStats.Stats("m", -3, 0, 0, 0, 0, 0L, Float.NaN),
+            new ThreadPoolStats.Stats("d", 2, 0, 0, 0, 0, 0L, Float.NaN),
+            new ThreadPoolStats.Stats("m", 4, 0, 0, 0, 0, 0L, Float.NaN),
+            new ThreadPoolStats.Stats("t", 6, 0, 0, 0, 0, 0L, Float.NaN),
+            new ThreadPoolStats.Stats("a", -1, 0, 0, 0, 0, 0L, Float.NaN)
         );
 
         var copy = new ArrayList<>(unorderedStats);
@@ -71,7 +71,7 @@ public class ThreadPoolStatsTests extends ESTestCase {
     }
 
     private static ThreadPoolStats.Stats stats(int value) {
-        return new ThreadPoolStats.Stats("a", value, value, value, value, value, value);
+        return new ThreadPoolStats.Stats("a", value, value, value, value, value, value, Float.NaN);
     }
 
     public void testSerialization() throws IOException {
@@ -100,7 +100,8 @@ public class ThreadPoolStatsTests extends ESTestCase {
             randomMinusOneOrOther(),
             randomMinusOneOrOther(),
             randomMinusOneOrOther(),
-            randomMinusOneOrOther()
+            randomMinusOneOrOther(),
+            randomBoolean() ? Float.NaN : randomFloatBetween(0.0f, 1.0f, true)
         );
     }
 

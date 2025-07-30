@@ -172,6 +172,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         }
     }
 
+    public float getUtilization() {
+        return (float) apmUtilizationTracker.getLastValue();
+    }
+
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
         if (trackOngoingTasks) {
@@ -262,6 +266,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private class UtilizationTracker {
         long lastPollTime = System.nanoTime();
         long lastTotalExecutionTime = 0;
+        volatile double lastValue = Float.NaN;
 
         public synchronized double pollUtilization() {
             final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
@@ -275,8 +280,18 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
 
             lastTotalExecutionTime = currentTotalExecutionTimeNanos;
             lastPollTime = currentPollTimeNanos;
+            lastValue = utilizationSinceLastPoll;
 
             return utilizationSinceLastPoll;
+        }
+
+        /**
+         * Get the most recently calculated value
+         *
+         * @return the most recently calculated value, or NaN if it's never been calculated
+         */
+        public double getLastValue() {
+            return lastValue;
         }
     }
 }

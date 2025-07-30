@@ -9,6 +9,7 @@
 
 package org.elasticsearch.threadpool;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +26,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 
+import static java.lang.Float.NaN;
 import static java.util.Collections.emptyIterator;
 import static org.elasticsearch.common.collect.Iterators.single;
 
@@ -41,14 +43,27 @@ public record ThreadPoolStats(Collection<Stats> stats) implements Writeable, Chu
         return new ThreadPoolStats(mergedThreadPools.values());
     }
 
-    public record Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed)
+    public record Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed, float utilization)
         implements
             Writeable,
             ChunkedToXContent,
             Comparable<Stats> {
 
-        public Stats(StreamInput in) throws IOException {
-            this(in.readString(), in.readInt(), in.readInt(), in.readInt(), in.readLong(), in.readInt(), in.readLong());
+        public static Stats readFrom(StreamInput in) throws IOException {
+            final String name = in.readString();
+            final int threads = in.readInt();
+            final int queue = in.readInt();
+            final int active = in.readInt();
+            final long rejected = in.readLong();
+            final int largest = in.readInt();
+            final long completed = in.readLong();
+            final float utilization;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.UTILIZATION_IN_THREAD_POOL_NODE_STATS)) {
+                utilization = in.readFloat();
+            } else {
+                utilization = NaN;
+            }
+            return new Stats(name, threads, queue, active, rejected, largest, completed, utilization);
         }
 
         static Stats merge(Stats firstStats, Stats secondStats) {
@@ -59,7 +74,8 @@ public record ThreadPoolStats(Collection<Stats> stats) implements Writeable, Chu
                 sumStat(firstStats.active, secondStats.active),
                 sumStat(firstStats.rejected, secondStats.rejected),
                 sumStat(firstStats.largest, secondStats.largest),
-                sumStat(firstStats.completed, secondStats.completed)
+                sumStat(firstStats.completed, secondStats.completed),
+                NaN // Don't sum utilization, it makes no sense
             );
         }
 
@@ -96,6 +112,9 @@ public record ThreadPoolStats(Collection<Stats> stats) implements Writeable, Chu
             out.writeLong(rejected);
             out.writeInt(largest);
             out.writeLong(completed);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.UTILIZATION_IN_THREAD_POOL_NODE_STATS)) {
+                out.writeFloat(utilization);
+            }
         }
 
         @Override
@@ -125,6 +144,7 @@ public record ThreadPoolStats(Collection<Stats> stats) implements Writeable, Chu
                 rejected != -1 ? single((builder, params) -> builder.field(Fields.REJECTED, rejected)) : emptyIterator(),
                 largest != -1 ? single((builder, params) -> builder.field(Fields.LARGEST, largest)) : emptyIterator(),
                 completed != -1 ? single((builder, params) -> builder.field(Fields.COMPLETED, completed)) : emptyIterator(),
+                // TODO: Leaving out thread pool utilization until we've settled on its final form
                 ChunkedToXContentHelper.endObject()
             );
         }
@@ -137,7 +157,7 @@ public record ThreadPoolStats(Collection<Stats> stats) implements Writeable, Chu
     }
 
     public ThreadPoolStats(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(Stats::new));
+        this(in.readCollectionAsList(Stats::readFrom));
     }
 
     @Override

@@ -451,6 +451,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             long rejected = -1;
             int largest = -1;
             long completed = -1;
+            float utilization = Float.NaN;
             if (holder.executor() instanceof ThreadPoolExecutor threadPoolExecutor) {
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
@@ -462,7 +463,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                     rejected = handler.rejected();
                 }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));
+            if (holder.executor() instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor taskExecutionTimeTrackingEsThreadPoolExecutor) {
+                utilization = taskExecutionTimeTrackingEsThreadPoolExecutor.getUtilization();
+            }
+            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed, utilization));
         }
         return new ThreadPoolStats(stats);
     }

@@ -46,7 +46,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
-import org.elasticsearch.xpack.esql.common.LazyList;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -236,7 +236,7 @@ public class ComputeService {
                 "main.final",
                 LOCAL_CLUSTER,
                 flags,
-                LazyList.empty(),
+                FunctionList.empty(),
                 configuration,
                 foldContext,
                 mainExchangeSource::createExchangeSource,
@@ -339,7 +339,7 @@ public class ComputeService {
                 profileDescription(profileQualifier, "single"),
                 LOCAL_CLUSTER,
                 flags,
-                LazyList.empty(),
+                FunctionList.empty(),
                 configuration,
                 foldContext,
                 null,
@@ -430,7 +430,7 @@ public class ComputeService {
                             profileDescription(profileQualifier, "final"),
                             LOCAL_CLUSTER,
                             flags,
-                            LazyList.empty(),
+                            FunctionList.empty(),
                             configuration,
                             foldContext,
                             exchangeSource::createExchangeSource,

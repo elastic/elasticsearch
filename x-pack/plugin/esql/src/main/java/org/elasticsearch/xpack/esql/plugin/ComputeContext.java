@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.esql.common.LazyList;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -22,7 +22,7 @@ record ComputeContext(
     String description,
     String clusterAlias,
     EsqlFlags flags,
-    LazyList<MySearchContext> searchContexts,
+    FunctionList<MySearchContext> searchContexts,
     Configuration configuration,
     FoldContext foldCtx,
     Supplier<ExchangeSource> exchangeSourceSupplier,

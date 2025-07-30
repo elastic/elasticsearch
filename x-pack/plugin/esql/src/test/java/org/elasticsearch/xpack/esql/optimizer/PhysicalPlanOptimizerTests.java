@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.common.LazyList;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -7859,7 +7859,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), LazyList.empty(), null, DataPartitioning.AUTO),
+            new EsPhysicalOperationProviders(FoldContext.small(), FunctionList.empty(), null, DataPartitioning.AUTO),
             List.of()
         );
 

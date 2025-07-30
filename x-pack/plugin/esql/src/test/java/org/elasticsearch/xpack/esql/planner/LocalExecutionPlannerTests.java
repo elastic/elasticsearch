@@ -43,7 +43,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.xpack.esql.common.LazyList;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -341,7 +341,12 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
-        return new EsPhysicalOperationProviders(FoldContext.small(), LazyList.fromList(shardContexts), null, DataPartitioning.AUTO);
+        return new EsPhysicalOperationProviders(
+            FoldContext.small(),
+            FunctionList.fromImmutableList(shardContexts),
+            null,
+            DataPartitioning.AUTO
+        );
     }
 
     private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {

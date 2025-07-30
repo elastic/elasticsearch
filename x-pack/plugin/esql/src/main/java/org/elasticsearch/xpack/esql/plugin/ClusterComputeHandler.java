@@ -27,7 +27,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
-import org.elasticsearch.xpack.esql.common.LazyList;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -279,7 +279,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         "remote_reduce",
                         clusterAlias,
                         flags,
-                        LazyList.empty(),
+                        FunctionList.empty(),
                         configuration,
                         configuration.newFoldContext(),
                         exchangeSource::createExchangeSource,

@@ -58,7 +58,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.xpack.esql.common.LazyList;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -143,12 +143,12 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         public abstract double storedFieldsSequentialProportion();
     }
 
-    private final LazyList<ShardContext> shardContexts;
+    private final FunctionList<ShardContext> shardContexts;
     private final DataPartitioning defaultDataPartitioning;
 
     public EsPhysicalOperationProviders(
         FoldContext foldContext,
-        LazyList<ShardContext> shardContexts,
+        FunctionList<ShardContext> shardContexts,
         AnalysisRegistry analysisRegistry,
         DataPartitioning defaultDataPartitioning
     ) {

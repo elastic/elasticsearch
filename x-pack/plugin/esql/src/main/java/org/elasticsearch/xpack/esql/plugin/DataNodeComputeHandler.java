@@ -44,7 +44,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.common.LazyList;
+import org.elasticsearch.xpack.esql.common.FunctionList;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -315,7 +315,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     "data",
                     clusterAlias,
                     flags,
-                    LazyList.fromList(searchContexts),
+                    FunctionList.fromImmutableList(searchContexts),
                     configuration,
                     configuration.newFoldContext(),
                     null,
@@ -466,7 +466,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         "node_reduce",
                         request.clusterAlias(),
                         flags,
-                        LazyList.fromList(reduceNodeSearchContexts),
+                        FunctionList.fromMutableList(reduceNodeSearchContexts),
                         request.configuration(),
                         new FoldContext(request.pragmas().foldLimit().getBytes()),
                         exchangeSource::createExchangeSource,

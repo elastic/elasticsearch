@@ -92,12 +92,12 @@ The `linear` retriever supports the following normalizers:
     ```
 * `l2_norm`: Normalizes scores using the L2 norm of the score values {applies_to}`stack: ga 9.1`
 
-## Examples
+## Example
 
 This example of a hybrid search weights KNN results five times more heavily than BM25 results in the final ranking.
 
 ```console
-GET linear_retriever_blog/_search
+GET my_index/_search
 {
   "retriever": {
       "linear": {
@@ -125,3 +125,5 @@ GET linear_retriever_blog/_search
     }
 }
 ```
+
+See also [this hybrid search example](retrievers-examples.md#retrievers-examples-linear-retriever).

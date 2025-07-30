@@ -7,23 +7,37 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 // FIXME(gal, NOCOMMIT) Document
-// FIXME(gal, NOCOMMIT) This should only run if there is a node-level reduction!
 public class RemoveProjectAfterTopNHack extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
     ProjectExec,
     LocalPhysicalOptimizerContext> {
 
     @Override
     protected PhysicalPlan rule(ProjectExec project, LocalPhysicalOptimizerContext context) {
-        // return plan;
         if (project.child() instanceof TopNExec topN) {
-            return new ProjectExec(project.source(), topN, new InsertFieldExtraction().rule(topN, context).output());
+            Holder<Boolean> hasMultiIndex = new Holder<>(false);
+            topN.transformDown(EsQueryExec.class, qe -> {
+                if (qe.indexNameWithModes().size() > 1) {
+                    hasMultiIndex.set(true);
+                }
+                return qe;
+            });
+            if (hasMultiIndex.get() == false) {
+                // TODO This isn't necessarily optimal, but it's a very simple way to ensure that the data node's output is equivalent to
+                // what
+                // the coordinator expects. There are cases where this creates redundancy though, e.g., if a filter is pushed down to
+                // source,
+                // this project will still cause it to be fetched. We should fix this in the future.
+                return new ProjectExec(project.source(), topN, new InsertFieldExtraction().rule(topN, context).output());
+            }
         }
         return project;
     }

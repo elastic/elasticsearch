@@ -29,6 +29,8 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -223,6 +225,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         );
     }
 
+    private static final Logger LOGGER = LogManager.getLogger(DataNodeComputeHandler.class);
+
     private class DataNodeRequestExecutor {
         private final EsqlFlags flags;
         private final DataNodeRequest request;
@@ -283,6 +287,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
 
                 @Override
                 public void onFailure(Exception e) {
+                    LOGGER.fatal("Error in batch service", e);
                     if (pagesProduced.get() == 0 && failFastOnShardFailure == false) {
                         for (ShardId shardId : shardIds) {
                             addShardLevelFailure(shardId, e);
@@ -475,6 +480,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             reductionListener.onResponse(resp);
                         }));
                     }, e -> {
+                        LOGGER.fatal("Error in node-level reduction", e);
                         exchangeService.finishSinkHandler(externalId, e);
                         reductionListener.onFailure(e);
                     }),

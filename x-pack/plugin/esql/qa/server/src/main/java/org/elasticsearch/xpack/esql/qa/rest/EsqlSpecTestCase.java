@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.geometry.Geometry;
@@ -148,6 +149,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (indexExists(availableDatasetsForEs(client(), supportsLookup, supportsSourceMapping).iterator().next().indexName()) == false) {
             loadDataSetIntoEs(client(), supportsLookup, supportsSourceMapping);
         }
+        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.xpack.esql", "TRACE").build());
     }
 
     @AfterClass

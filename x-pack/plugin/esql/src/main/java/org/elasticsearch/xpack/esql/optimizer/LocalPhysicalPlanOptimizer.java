@@ -62,18 +62,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     @SuppressWarnings("unchecked")
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, boolean applyTopNHack) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
-        esSourceRules.add(new ReplaceSourceAttributes());
-        if (applyTopNHack) {
-            esSourceRules.add(new RemoveProjectAfterTopNHack());
-            esSourceRules.add(new PushTopNToSource());
-            esSourceRules.add(new PushLimitToSource());
-            esSourceRules.add(new PushFiltersToSource());
-            esSourceRules.add(new PushSampleToSource());
-            esSourceRules.add(new PushStatsToSource());
-            esSourceRules.add(new EnableSpatialDistancePushdown());
-        }
-
         // execute the rules multiple times to improve the chances of things being pushed down
         @SuppressWarnings("unchecked")
         var pushdown1 = new Batch<PhysicalPlan>("Push to ES 1", Limiter.ONCE, foo(applyTopNHack, true));
@@ -95,6 +83,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     private static Rule[] foo(boolean applyTopNHack, boolean first) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
         esSourceRules.add(new ReplaceSourceAttributes());
+        // FIXME(gal, NOCOMMIT) Replace applyTopNHack with optimizeForEsSource, figure out a way to configure it from the outside
         if (applyTopNHack) {
             if (first) {
                 esSourceRules.add(new RemoveProjectAfterTopNHack());

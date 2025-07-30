@@ -51,11 +51,18 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -589,7 +596,7 @@ public class ComputeService {
                 shardContexts
             );
 
-            LOGGER.debug("Received physical plan:\n{}", plan);
+            LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
 
             var localPlan = PlannerUtils.localPlan(
                 context.flags(),
@@ -598,12 +605,15 @@ public class ComputeService {
                 context.foldCtx(),
                 plan
             );
+            if (LOGGER.isDebugEnabled()) {
+                LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
+            }
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
             LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.description(), context.foldCtx(), localPlan);
             if (LOGGER.isDebugEnabled()) {
-                LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
+                LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
             var drivers = localExecutionPlan.createDrivers(context.sessionId());
             // After creating the drivers (and therefore, the operators), we can safely decrement the reference count since the operators
@@ -648,6 +658,7 @@ public class ComputeService {
             );
         } catch (Exception e) {
             Releasables.close(context.searchContexts());
+            LOGGER.fatal("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }
     }
@@ -670,11 +681,50 @@ public class ComputeService {
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node.
                 // FIXME(gal, NOCOMMIT) Explain TopN better
                 // FIXME(gal, NOCOMMIT) Remove duplication with below
-                getChild(flags, configuration, foldCtx, res.v1()).orElse(res.v1().replaceChildren(List.of(source)));
+                getChild(flags, configuration, foldCtx, (ExchangeSinkExec) res.v1()).orElse(res.v1().replaceChildren(List.of(source)));
             case PlannerUtils.PlanReduction.REGULAR, PlannerUtils.PlanReduction.AGGREGATE -> res.v1().replaceChildren(List.of(source));
             case NO_REDUCTION -> source;
         };
         return plan.replaceChild(newPlan);
+    }
+
+    // FIXME(gal, NOCOMMIT) rename
+    // FIXME(gal, NOCOMMIT) unyuck (there should be a better way of figuring out if we need to use TOP_N or not)
+    private static Optional<PhysicalPlan> getChild(
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        ExchangeSinkExec plan
+    ) {
+        FragmentExec fragment = plan.child() instanceof FragmentExec fe ? fe : null;
+        if (fragment == null) {
+            return Optional.empty();
+        }
+        // FIXME(gal, NOCOMMIT) document
+        if (referencesMultipleIndices(fragment)) {
+            // If the fragment references multiple indices, we don't need to do anything special.
+            return Optional.empty();
+        }
+        var fakeSearchStats = new SearchStatsHacks();
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, fakeSearchStats)
+        );
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(flags, configuration, foldCtx, fakeSearchStats)
+        ) {
+            @Override
+            protected List<Batch<PhysicalPlan>> batches() {
+                return LocalPhysicalPlanOptimizer.rules(false /* optimizeForEsSource */, true /* applyTopNHack */);
+            }
+        };
+        var localPlan = PlannerUtils.localPlan(flags, configuration.withoutTopNHack(), foldCtx, plan, new SearchStatsHacks());
+
+        return localPlan(plan, logicalOptimizer, physicalOptimizer);
+        PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
+            var child = topN.child();
+            return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
+        });
+        return Optional.of(((UnaryExec) result).child());
     }
 
     // FIXME(gal, NOCOMMIT) A hack to avoid the ReplaceFieldWithConstantOrNull optimization. Since we don't have search stats yet during the
@@ -736,15 +786,15 @@ public class ComputeService {
         }
     }
 
-    // FIXME(gal, NOCOMMIT) rename
-    // FIXME(gal, NOCOMMIT) unyuck (there should be a better way of figuring out if we need to use TOP_N or not)
-    private static Optional<PhysicalPlan> getChild(EsqlFlags flags, Configuration configuration, FoldContext foldCtx, PhysicalPlan plan) {
-        var localPlan = PlannerUtils.localPlan(flags, configuration.withoutTopNHack(), foldCtx, plan, new SearchStatsHacks());
-        PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
-            var child = topN.child();
-            return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));
+    private static boolean referencesMultipleIndices(FragmentExec fragment) {
+        Holder<Boolean> hasMultiIndex = new Holder<>(false);
+        fragment.fragment().transformUp(EsRelation.class, relation -> {
+            if (relation.indexNameWithModes().size() > 1) {
+                hasMultiIndex.set(true);
+            }
+            return relation;
         });
-        return Optional.of(((UnaryExec) result).child());
+        return hasMultiIndex.get();
     }
 
     String newChildSession(String session) {

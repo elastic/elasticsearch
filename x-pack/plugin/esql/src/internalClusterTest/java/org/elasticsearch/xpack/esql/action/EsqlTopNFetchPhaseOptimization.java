@@ -19,28 +19,22 @@ import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.junit.Before;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 // Verifies that the value source reader operator is optimized into the data node instead of the worker node.
-@ESIntegTestCase.ClusterScope(numDataNodes = 1)
-// FIXME(gal, NOCOMMIT) remove, for debugging only
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
-
+@ESIntegTestCase.ClusterScope(numDataNodes = 3)
 public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
     private static final int SHARD_COUNT = 10;
 
@@ -51,41 +45,17 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("properties");
         {
-            mapping.startObject("bar").field("type", "keyword").endObject();
-            mapping.startObject("foo").field("type", "long").endObject();
+            mapping.startObject("sorted").field("type", "long").endObject();
+            mapping.startObject("filtered").field("type", "long").endObject();
+            mapping.startObject("read").field("type", "long").endObject();
         }
         mapping.endObject();
         client().admin().indices().prepareCreate("test").setSettings(indexSettings(10, 0)).setMapping(mapping.endObject()).get();
 
         BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 1024; i++) {
-            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("foo", i, "bar", i + ""));
+            bulk.add(prepareIndex("test").setId(Integer.toString(i)).setSource("read", i, "sorted", i * 2, "filtered", i * 3));
         }
-        bulk.get();
-
-        mapping = JsonXContent.contentBuilder().startObject();
-        mapping.startObject("properties");
-        {
-            mapping.startObject("id").field("type", "keyword").endObject();
-            mapping.startObject("name").field("type", "keyword").endObject();
-            mapping.startObject("shape").field("type", "shape").endObject();
-        }
-        mapping.endObject();
-        client().admin()
-            .indices()
-            .prepareCreate("countries_bbox_web")
-            .setSettings(indexSettings(10, 0))
-            .setMapping(mapping.endObject())
-            .get();
-
-        var csvFile = CsvTestsDataLoader.parseCsvFile(
-            CsvTestsDataLoader.CSV_DATASET_MAP.get("countries_bbox_web"),
-            "countries_bbox_web",
-            false
-        );
-        bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        byte[] bytes = csvFile.getBytes(StandardCharsets.UTF_8);
-        bulk.add(bytes, 0, bytes.length, XContentType.JSON);
         bulk.get();
     }
 
@@ -103,9 +73,16 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
         return new QueryPragmas(settings.build());
     }
 
-    // FIXME(gal, NOCOMMIT) rename
-    public void testTopNOperatorDoesTheThingy() throws Exception {
-        try (var result = sendQuery()) {
+    public void testNoPushdowns() throws Exception {
+        testTopNOperatorDoesTheThingy("from test | sort sorted + 1 | limit 3 | stats sum(read)");
+    }
+
+    public void testPushdownTopN() throws Exception {
+        testTopNOperatorDoesTheThingy("from test | sort sorted | limit 3 | stats sum(read)");
+    }
+
+    private void testTopNOperatorDoesTheThingy(String query) throws Exception {
+        try (var result = sendQuery(query)) {
             assertThat(result.isRunning(), equalTo(false));
             assertThat(result.isPartial(), equalTo(false));
             var dataValuesSourceReaderOperatorStatus = getValueSourceReaderOperatorStatus(result, "data");
@@ -116,13 +93,14 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
             assertThat(page.getPositionCount(), equalTo(1));
             LongVectorBlock block = page.getBlock(0);
             assertThat(block.getPositionCount(), equalTo(1));
-            // assertThat(block.getLong(0), equalTo(30L));
+            assertThat(block.getLong(0), equalTo(3L));
             System.out.println(result);
         }
     }
 
     private static ValuesSourceReaderOperatorStatus getValueSourceReaderOperatorStatus(EsqlQueryResponse response, String driverName) {
         DriverProfile driverProfile = response.profile().drivers().stream().filter(d -> d.description().equals(driverName)).findAny().get();
+        System.out.println(driverProfile.operators().stream().map(Object::toString).collect(Collectors.joining("\n")));
         OperatorStatus operatorStatus = singleValue(
             Strings.format(
                 "Only a single ValuesSourceReaderOperator should be present in driver '%s'; "
@@ -134,18 +112,18 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
         return (ValuesSourceReaderOperatorStatus) operatorStatus.status();
     }
 
-    private static EsqlQueryResponse sendQuery() {
+    private static EsqlQueryResponse sendQuery(String query) {
         return EsqlQueryRequestBuilder.newSyncEsqlQueryRequestBuilder(client())
             // Ensures there is no TopN pushdown to lucene, and that the pause happens after the TopN operator has been applied.
-            .query("from test | sort foo + 1 | limit 3 | stats sum(length(bar))")
+            .query(query)
             .pragmas(
                 new QueryPragmas(
                     Settings.builder()
                         // Configured to ensure that there is only one worker handling all the shards, so that we can assert the correct
                         // expected behavior.
-                        .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 1)
+                        .put(QueryPragmas.MAX_CONCURRENT_NODES_PER_CLUSTER.getKey(), 3)
                         .put(QueryPragmas.MAX_CONCURRENT_SHARDS_PER_NODE.getKey(), SHARD_COUNT)
-                        .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 1)
+                        .put(QueryPragmas.TASK_CONCURRENCY.getKey(), 3)
                         .put(QueryPragmas.NODE_LEVEL_REDUCTION.getKey(), true)
                         .build()
                 )

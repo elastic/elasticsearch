@@ -1503,11 +1503,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Executes the given flush request against the engine.
      *
      * @param request the flush request
-     * @return <code>false</code> if <code>waitIfOngoing==false</code> and an ongoing request is detected, else <code>true</code>.
-     *         If <code>false</code> is returned, no flush happened.
+     * @return the flush result
      */
-    public boolean flush(FlushRequest request) {
-        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+    public Engine.FlushResult flush(FlushRequest request) {
+        PlainActionFuture<Engine.FlushResult> future = new PlainActionFuture<>();
         flush(request, future);
         return future.actionGet();
     }
@@ -1516,12 +1515,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Executes the given flush request against the engine.
      *
      * @param request the flush request
-     * @param listener to notify after full durability has been achieved.
-     *                 <code>false</code> if <code>waitIfOngoing==false</code>
-     *                 and an ongoing request is detected, else <code>true</code>.
-     *                 If <code>false</code> is returned, no flush happened.
+     * @param listener to notify after full durability has been achieved
      */
-    public void flush(FlushRequest request, ActionListener<Boolean> listener) {
+    public void flush(FlushRequest request, ActionListener<Engine.FlushResult> listener) {
         final boolean waitIfOngoing = request.waitIfOngoing();
         final boolean force = request.force();
         logger.trace("flush with {}", request);
@@ -1533,11 +1529,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              */
             verifyNotClosed();
             final long startTime = System.nanoTime();
-            getEngine().flush(
-                force,
-                waitIfOngoing,
-                ActionListener.runBefore(l.map(Engine.FlushResult::flushPerformed), () -> flushMetric.inc(System.nanoTime() - startTime))
-            );
+            getEngine().flush(force, waitIfOngoing, ActionListener.runBefore(l, () -> flushMetric.inc(System.nanoTime() - startTime)));
         });
     }
 
@@ -2541,8 +2533,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 threadPool.executor(ThreadPool.Names.FLUSH)
                     .execute(() -> flush(new FlushRequest().waitIfOngoing(false).force(false), new ActionListener<>() {
                         @Override
-                        public void onResponse(Boolean flushed) {
-                            if (flushed == false) {
+                        public void onResponse(Engine.FlushResult flushResult) {
+                            if (flushResult.skippedDueToCollision()) {
                                 // In case an ongoing flush was detected, revert active flag so that a next flushOnIdle request
                                 // will retry (#87888)
                                 active.set(true);
@@ -4151,7 +4143,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     threadPool.executor(ThreadPool.Names.FLUSH).execute(() -> {
                         flush(new FlushRequest(), new ActionListener<>() {
                             @Override
-                            public void onResponse(Boolean flushed) {
+                            public void onResponse(Engine.FlushResult flushResult) {
                                 periodicFlushMetric.inc();
                             }
 

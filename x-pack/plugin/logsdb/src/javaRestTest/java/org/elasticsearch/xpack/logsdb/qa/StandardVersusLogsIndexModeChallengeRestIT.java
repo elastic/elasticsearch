@@ -137,9 +137,9 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         final MatchResult matchResult = Matcher.matchSource()
             .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
+            .expected(getQueryHits(queryBaseline(searchSourceBuilder), true))
             .ignoringSort(true)
-            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder), true));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
@@ -154,7 +154,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
         indexDocuments(documents);
 
-        QueryGenerator queryGenerator = new QueryGenerator(mappingLookup, dataGenerationHelper.mapping().raw());
+        QueryGenerator queryGenerator = new QueryGenerator(dataGenerationHelper.mapping().raw());
         for (var e : mappingLookup.entrySet()) {
             var path = e.getKey();
             var mapping = e.getValue();
@@ -172,9 +172,9 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
                         final MatchResult matchResult = Matcher.matchSource()
                             .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
                             .settings(getContenderSettings(), getBaselineSettings())
-                            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
+                            .expected(getQueryHits(queryBaseline(searchSourceBuilder), false))
                             .ignoringSort(true)
-                            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+                            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder), false));
                         assertTrue(matchResult.getMessage(), matchResult.isMatch());
                     }
                 }
@@ -194,9 +194,9 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         final MatchResult matchResult = Matcher.matchSource()
             .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
+            .expected(getQueryHits(queryBaseline(searchSourceBuilder), true))
             .ignoringSort(true)
-            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder), true));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
@@ -335,12 +335,15 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> getQueryHits(final Response response) throws IOException {
+    private static List<Map<String, Object>> getQueryHits(final Response response, final boolean requireResults) throws IOException {
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> hitsMap = (Map<String, Object>) map.get("hits");
 
         final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
-        assertThat(hitsList.size(), greaterThan(0));
+
+        if (requireResults) {
+            assertThat(hitsList.size(), greaterThan(0));
+        }
 
         return hitsList.stream()
             .sorted(Comparator.comparing((Map<String, Object> hit) -> ((String) hit.get("_id"))))

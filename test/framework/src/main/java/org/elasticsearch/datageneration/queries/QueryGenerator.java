@@ -10,7 +10,6 @@
 package org.elasticsearch.datageneration.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 
@@ -21,11 +20,9 @@ import java.util.Map;
 
 public class QueryGenerator {
 
-    private final Map<String, Map<String, Object>> mappingLookup;
     private final Map<String, Object> mappingRaw;
 
-    public QueryGenerator(Map<String, Map<String, Object>> mappingLookup, Map<String, Object> mappingRaw) {
-        this.mappingLookup = mappingLookup;
+    public QueryGenerator(Map<String, Object> mappingRaw) {
         this.mappingRaw = mappingRaw;
     }
 
@@ -34,7 +31,7 @@ public class QueryGenerator {
         if (path.equals("host.name")) {
             return List.of();
         }
-        if (mapping == null || isEnabled(path) == false) {
+        if (mapping == null) {
             return List.of();
         }
         boolean isIndexed = (Boolean) mapping.getOrDefault("index", true);
@@ -77,29 +74,5 @@ public class QueryGenerator {
         mapping = (Map<String, Object>) mapping.get(path[path.length - 1]);
         assert mapping.containsKey("properties") == false;
         return result;
-    }
-
-    /**
-     * Traverse down mapping tree and check that all objects are enabled in path
-     */
-    private boolean isEnabled(String path) {
-        String[] parts = path.split("\\.");
-        for (int i = 0; i < parts.length - 1; i++) {
-            var pathToHere = String.join(".", Arrays.copyOfRange(parts, 0, i + 1));
-            Map<String, Object> mapping = mappingLookup.get(pathToHere);
-
-            boolean enabled = true;
-            if (mapping.containsKey("enabled") && mapping.get("enabled") instanceof Boolean) {
-                enabled = (Boolean) mapping.get("enabled");
-            }
-            if (mapping.containsKey("enabled") && mapping.get("enabled") instanceof String) {
-                enabled = Booleans.parseBoolean((String) mapping.get("enabled"));
-            }
-
-            if (enabled == false) {
-                return false;
-            }
-        }
-        return true;
     }
 }

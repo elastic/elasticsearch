@@ -46,31 +46,18 @@ public interface LeafQueryGenerator {
 
     class KeywordQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
-            var ignoreAbove = (Integer) fieldMapping.getOrDefault("ignore_above", Integer.MAX_VALUE);
-            var s = (String) value;
-            if (s.isEmpty() || ignoreAbove < s.length()) {
-                return List.of();
-            }
             return List.of(QueryBuilders.termQuery(path, value));
         }
     }
 
     class WildcardQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
-            var ignoreAbove = (Integer) fieldMapping.getOrDefault("ignore_above", Integer.MAX_VALUE);
-            var s = (String) value;
-            if (s.isEmpty() || ignoreAbove < s.length()) {
-                return List.of();
-            }
             return List.of(QueryBuilders.wildcardQuery(path, value + "*"));
         }
     }
 
     class TextQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
-            if (((String) value).isEmpty()) {
-                return List.of();
-            }
             var results = new ArrayList<QueryBuilder>();
             results.add(QueryBuilders.matchQuery(path, value));
             var phraseQuery = buildPhraseQuery(path, (String) value);

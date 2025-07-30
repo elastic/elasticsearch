@@ -47,6 +47,16 @@ class PreloadedFieldLookupProvider implements LeafFieldLookupProvider {
             fieldLookup.setValues(Collections.singletonList(id));
             return;
         }
+        if (field.equals(IgnoredSourceFieldMapper.NAME)) {
+            fieldLookup.setValues(
+                preloadedStoredFieldValues.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getKey().startsWith(IgnoredSourceFieldMapper.NAME))
+                    .flatMap(entry -> entry.getValue().stream())
+                    .toList()
+            );
+            return;
+        }
         if (preloadedStoredFieldNames.get().contains(field)) {
             fieldLookup.setValues(preloadedStoredFieldValues.get(field));
             return;

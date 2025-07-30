@@ -1182,7 +1182,6 @@ public final class IndexSettings {
         }
 
         scopedSettings.addSettingsUpdateConsumer(VECTORS_INDEXING_USE_GPU_SETTING, this::setUseGpuForVectorsIndexing);
-
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold

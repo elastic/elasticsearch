@@ -17,4 +17,5 @@ module org.elasticsearch.gpu {
     exports org.elasticsearch.xpack.gpu.codec;
 
     provides org.apache.lucene.codecs.KnnVectorsFormat with org.elasticsearch.xpack.gpu.codec.GPUVectorsFormat;
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.gpu.GPUFeatures;
 }

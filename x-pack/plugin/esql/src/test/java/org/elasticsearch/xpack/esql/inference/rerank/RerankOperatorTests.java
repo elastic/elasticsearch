@@ -29,7 +29,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
     private static final String SIMPLE_INFERENCE_ID = "test_reranker";
     private static final String SIMPLE_QUERY = "query text";
     private int inputChannel;
-    private int scroreChannel;
+    private int scoreChannel;
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
@@ -38,16 +38,16 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             SIMPLE_INFERENCE_ID,
             SIMPLE_QUERY,
             evaluatorFactory(inputChannel),
-            scroreChannel
+            scoreChannel
         );
     }
 
     @Before
     public void initRerankChannels() {
         inputChannel = between(0, inputsCount - 1);
-        scroreChannel = between(0, inputsCount - 1);
-        if (scroreChannel == inputChannel) {
-            scroreChannel++;
+        scoreChannel = between(0, inputsCount - 1);
+        if (scoreChannel == inputChannel) {
+            scoreChannel++;
         }
     }
 
@@ -60,11 +60,11 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
             Page resultPage = resultPages.get(pageId);
 
             assertThat(resultPage.getPositionCount(), equalTo(inputPage.getPositionCount()));
-            assertThat(resultPage.getBlockCount(), equalTo(Integer.max(scroreChannel + 1, inputPage.getBlockCount())));
+            assertThat(resultPage.getBlockCount(), equalTo(Integer.max(scoreChannel + 1, inputPage.getBlockCount())));
 
             for (int channel = 0; channel < inputPage.getBlockCount(); channel++) {
                 Block resultBlock = resultPage.getBlock(channel);
-                if (channel == scroreChannel) {
+                if (channel == scoreChannel) {
                     assertExpectedScore(inputPage.getBlock(inputChannel), (DoubleBlock) resultBlock);
                 } else {
                     Block inputBlock = inputPage.getBlock(channel);
@@ -98,7 +98,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
                 + "], query=["
                 + SIMPLE_QUERY
                 + "], score_channel=["
-                + scroreChannel
+                + scoreChannel
                 + "]]"
         );
     }

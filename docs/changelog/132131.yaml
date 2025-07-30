@@ -3,4 +3,5 @@ summary: Updating `TransportSimulateIndexTemplateAction.resolveTemplate()` to ac
   for data stream overrides
 area: Indices APIs
 type: bug
-issues: []
+issues:
+ - 131425

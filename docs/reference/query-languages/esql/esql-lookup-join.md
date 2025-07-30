@@ -49,16 +49,6 @@ LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>  # Joi
 
 If you're familiar with SQL, `LOOKUP JOIN` has left-join behavior. This means that if no rows match in the lookup index, the incoming row is retained and `null`s are added. If many rows in the lookup index match, `LOOKUP JOIN` adds one row per match.
 
-```{applies_to}
-stack: ga 9.2
-serverless: ga
-```
-`LOOKUP JOIN` on more than one field is also supported. You can specify a comma separated list of fields to join on. 
-
-```esql
-LOOKUP JOIN <lookup_index> ON <field_name1>, <field_name2>, <field_name3>
-```
-
 ## Example
 
 You can run this example for yourself if you'd like to see how it works, by setting up the indices and adding sample data.

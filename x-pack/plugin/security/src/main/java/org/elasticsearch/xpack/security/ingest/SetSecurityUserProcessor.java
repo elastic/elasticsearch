@@ -106,7 +106,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         Object fieldValue = document.getFieldValue(field, Object.class, true);
 
         @SuppressWarnings("unchecked")
-        final Map<String, Object> userObject = fieldValue instanceof Map ? (Map<String, Object>) fieldValue : new HashMap<>();
+        final Map<String, Object> userObject = fieldValue instanceof Map
+            ? (Map<String, Object>) fieldValue
+            : HashMap.newHashMap(properties.size());
 
         for (Property property : properties) {
             switch (property) {
@@ -147,7 +149,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         @SuppressWarnings("unchecked")
                         final Map<String, Object> apiKeyField = existingApiKeyField instanceof Map
                             ? (Map<String, Object>) existingApiKeyField
-                            : new HashMap<>();
+                            : HashMap.newHashMap(3);
                         final Map<String, Object> subjectMetadata = authentication.getAuthenticatingSubject().getMetadata();
                         if (subjectMetadata.containsKey(AuthenticationField.API_KEY_NAME_KEY)) {
                             apiKeyField.put("name", subjectMetadata.get(AuthenticationField.API_KEY_NAME_KEY));
@@ -170,7 +172,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     @SuppressWarnings("unchecked")
                     final Map<String, Object> realmField = existingRealmField instanceof Map
                         ? (Map<String, Object>) existingRealmField
-                        : new HashMap<>();
+                        : HashMap.newHashMap(2);
 
                     final Object realmName = ApiKeyService.getCreatorRealmName(authentication);
                     if (realmName != null) {

@@ -249,7 +249,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
     /**
      * Checks if the current assignments satisfy the deployment's allocation requirements.
      * @param deployment the deployment to check
-     * @return true if the current assignments satisfy the deployments's allocation requirements, false otherwise
+     * @return true if the current assignments satisfy the deployment's allocation requirements, false otherwise
      */
     public boolean satisfiesAllocations(Deployment deployment) {
         return remainingModelAllocations.getOrDefault(deployment, 0) == 0;

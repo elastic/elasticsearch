@@ -620,6 +620,9 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: "testDenseVectorMappingUpdate {initialType=int8_hnsw updateType=bbq_disk #2}"
   issue: https://github.com/elastic/elasticsearch/issues/132213
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_hnsw updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132214
 
 # Examples:
 #

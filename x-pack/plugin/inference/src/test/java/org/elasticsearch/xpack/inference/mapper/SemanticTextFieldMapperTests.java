@@ -181,11 +181,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         return createMapperServiceWithIndexVersion(mappings, useLegacyFormat, indexVersion);
     }
 
-    private MapperService createMapperServiceWithIndexVersion(
-        XContentBuilder mappings,
-        boolean useLegacyFormat,
-        IndexVersion indexVersion
-    ) throws IOException {
+    private MapperService createMapperServiceWithIndexVersion(XContentBuilder mappings, boolean useLegacyFormat, IndexVersion indexVersion)
+        throws IOException {
         var settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)

@@ -843,6 +843,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 );
             }
         } else {
+            // This is an anti-pattern to have a mandatory named params for inference_id but it will be optional in the future when we have a default LLM.
+            // It is better to keep inference_id as a named parameter and relax the syntax when it will become optional than completely change the syntax.
             throw new ParsingException(source(ctx), "Missing mandatory option [{}] in COMPLETION", Completion.INFERENCE_ID_OPTION_NAME);
         }
 

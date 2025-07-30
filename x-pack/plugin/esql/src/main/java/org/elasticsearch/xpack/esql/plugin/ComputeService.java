@@ -255,15 +255,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(
-                    rootTask,
-                    computeContext,
-                    mainPlan,
-                    localListener.acquireCompute(),
-                    false,
-                    false /* isDataNodeReduction, we are not running a data node reduction here */
-                    // FIXME(gal, NOCOMMIT) Fix the above comment
-                );
+                runCompute(rootTask, computeContext, mainPlan, localListener.acquireCompute(), false);
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -364,7 +356,7 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute(), false, false);
+                runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute(), false);
                 return;
             }
         } else {
@@ -446,7 +438,6 @@ public class ComputeService {
                         ),
                         coordinatorPlan,
                         localListener.acquireCompute(),
-                        false,
                         false
                     );
                     // starts computes on data nodes on the main cluster
@@ -567,7 +558,6 @@ public class ComputeService {
         ComputeContext context,
         PhysicalPlan plan,
         ActionListener<DriverCompletionInfo> listener,
-        boolean applyNodeLeveLReduction,
         boolean shouldReduceDecRef // FIXME(gal, NOCOMMIT) yuck
     ) {
         var shardContexts = context.searchContexts().map(MySearchContext::shardContext);
@@ -601,7 +591,7 @@ public class ComputeService {
             var localPlan = PlannerUtils.localPlan(
                 context.flags(),
                 context.searchExecutionContexts(),
-                applyNodeLeveLReduction ? context.configuration() : context.configuration().withoutTopNHack(),
+                context.configuration(),
                 context.foldCtx(),
                 plan
             );
@@ -714,12 +704,10 @@ public class ComputeService {
         ) {
             @Override
             protected List<Batch<PhysicalPlan>> batches() {
-                return LocalPhysicalPlanOptimizer.rules(false /* optimizeForEsSource */, true /* applyTopNHack */);
+                return LocalPhysicalPlanOptimizer.rules(false /* optimizeForEsSource */);
             }
         };
-        var localPlan = PlannerUtils.localPlan(flags, configuration.withoutTopNHack(), foldCtx, plan, new SearchStatsHacks());
-
-        return localPlan(plan, logicalOptimizer, physicalOptimizer);
+        var localPlan = PlannerUtils.localPlan(plan, logicalOptimizer, physicalOptimizer);
         PhysicalPlan result = localPlan.transformUp(TopNExec.class, topN -> {
             var child = topN.child();
             return topN.replaceChild(new ExchangeSourceExec(topN.source(), child.output(), false /* isIntermediateAgg */));

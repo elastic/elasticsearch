@@ -184,7 +184,7 @@ public class CsvTests extends ESTestCase {
 
     private final Configuration configuration = EsqlTestUtils.configuration(
         new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
-    ).withoutTopNHack();
+    );
     private final EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
     private final Mapper mapper = new Mapper();

@@ -94,7 +94,6 @@ public class EsqlTopNFetchPhaseOptimization extends AbstractEsqlIntegTestCase {
             LongVectorBlock block = page.getBlock(0);
             assertThat(block.getPositionCount(), equalTo(1));
             assertThat(block.getLong(0), equalTo(3L));
-            System.out.println(result);
         }
     }
 

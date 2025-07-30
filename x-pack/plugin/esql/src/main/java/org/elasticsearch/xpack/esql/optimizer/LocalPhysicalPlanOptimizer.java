@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushLimitToSo
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopNHack;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.RemoveProjectAfterTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
@@ -34,8 +34,7 @@ import java.util.List;
  */
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
 
-    private static final List<Batch<PhysicalPlan>> RULES = rules(true, true);
-    private static final List<Batch<PhysicalPlan>> RULES_NO_HACK = rules(true, false);
+    private static final List<Batch<PhysicalPlan>> RULES = rules(true);
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
@@ -57,36 +56,35 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     @Override
     protected List<Batch<PhysicalPlan>> batches() {
-        return context().configuration().applyTopNHack() ? RULES : RULES_NO_HACK;
+        return RULES;
     }
 
     @SuppressWarnings("unchecked")
-    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource, boolean applyTopNHack) {
+    protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
         // execute the rules multiple times to improve the chances of things being pushed down
-        @SuppressWarnings("unchecked")
-        var pushdown1 = new Batch<PhysicalPlan>("Push to ES 1", Limiter.ONCE, foo(applyTopNHack, true));
-        var pushdown2 = new Batch<PhysicalPlan>("Push to ES 2", foo(applyTopNHack, false));
+        var pushdownFirst = new Batch<PhysicalPlan>("Push to ES first", Limiter.ONCE, esSourceRules(optimizeForEsSource, true));
+        var pushdownContinuous = new Batch<PhysicalPlan>("Push to ES continuous", esSourceRules(optimizeForEsSource, false));
+
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
-
-        List<Rule<?, PhysicalPlan>> fieldExtractionRules = new ArrayList<>(5);
+        List<Rule<?, PhysicalPlan>> fieldExtractionRules = new ArrayList<>(4);
         fieldExtractionRules.add(new InsertFieldExtraction());
         fieldExtractionRules.add(new SpatialDocValuesExtraction());
         fieldExtractionRules.add(new SpatialShapeBoundsExtraction());
         fieldExtractionRules.add(new ParallelizeTimeSeriesSource());
-
         var fieldExtractionBatch = new Batch<PhysicalPlan>("Field extraction", Limiter.ONCE, fieldExtractionRules.toArray(Rule[]::new));
-        return List.of(pushdown1, pushdown2, fieldExtractionBatch);
+
+        return List.of(pushdownFirst, pushdownContinuous, fieldExtractionBatch);
     }
 
     @SuppressWarnings("rawtypes")
-    private static Rule[] foo(boolean applyTopNHack, boolean first) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
+    private static Rule[] esSourceRules(boolean optimizeForEsSource, boolean first) {
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(8);
         esSourceRules.add(new ReplaceSourceAttributes());
-        // FIXME(gal, NOCOMMIT) Replace applyTopNHack with optimizeForEsSource, figure out a way to configure it from the outside
-        if (applyTopNHack) {
+        if (optimizeForEsSource) {
             if (first) {
-                esSourceRules.add(new RemoveProjectAfterTopNHack());
+                // This rule should only be applied once, since it is not idempotent.
+                esSourceRules.add(new RemoveProjectAfterTopN());
             }
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());

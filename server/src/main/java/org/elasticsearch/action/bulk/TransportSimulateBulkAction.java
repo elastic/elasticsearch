@@ -69,6 +69,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -204,7 +205,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                  * might not exist) into the existing index mapping.
                  */
                 IndexMetadata imd = project.getIndexSafe(indexAbstraction.getWriteIndex(request, project));
-                CompressedXContent mappings = imd.mapping() == null ? null : imd.mapping().source();
+                CompressedXContent mappings = Optional.ofNullable(imd.mapping()).map(MappingMetadata::source).orElse(null);
                 CompressedXContent mergedMappings = mappingAddition == null ? null : mergeMappings(mappings, mappingAddition);
                 ignoredFields = validateUpdatedMappingsFromIndexMetadata(imd, mergedMappings, request, sourceToParse);
             } else {

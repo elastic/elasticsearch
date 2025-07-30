@@ -44,6 +44,9 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     private static final Logger logger = LogManager.getLogger(SetSecurityUserProcessor.class);
 
+    // a 'not found' sentinel value for use in getOrDefault calls below
+    private static final Object NOT_FOUND = new Object();
+
     private final SecurityContext securityContext;
     private final Settings settings;
     private final String field;
@@ -153,11 +156,13 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                             : HashMap.newHashMap(3);
 
                         final Map<String, Object> subjectMetadata = authentication.getAuthenticatingSubject().getMetadata();
-                        if (subjectMetadata.containsKey(AuthenticationField.API_KEY_NAME_KEY)) {
-                            apiKeyField.put("name", subjectMetadata.get(AuthenticationField.API_KEY_NAME_KEY));
+                        final Object apiKeyName = subjectMetadata.getOrDefault(AuthenticationField.API_KEY_NAME_KEY, NOT_FOUND);
+                        if (apiKeyName != NOT_FOUND) {
+                            apiKeyField.put("name", apiKeyName);
                         }
-                        if (subjectMetadata.containsKey(AuthenticationField.API_KEY_ID_KEY)) {
-                            apiKeyField.put("id", subjectMetadata.get(AuthenticationField.API_KEY_ID_KEY));
+                        final Object apiKeyId = subjectMetadata.getOrDefault(AuthenticationField.API_KEY_ID_KEY, NOT_FOUND);
+                        if (apiKeyId != NOT_FOUND) {
+                            apiKeyField.put("id", apiKeyId);
                         }
                         final Map<String, Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
                         if (false == apiKeyMetadata.isEmpty()) {

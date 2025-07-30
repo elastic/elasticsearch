@@ -583,24 +583,31 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
             indexDocsAndRefresh(projectClient, indexName, numDocs);
 
             logger.info("--> creating component template");
-            final var componentTemplate = new ComponentTemplate(new Template(null, new CompressedXContent("""
-                    {
-                      "_doc":{
-                        "dynamic":"strict",
-                        "properties":{
-                          "field1":{
-                            "type":"text"
-                          }
-                        }
-                      }
-                    }
-                """), null), 3L, null);
             safeGet(
                 projectClient.execute(
                     PutComponentTemplateAction.INSTANCE,
-                    new PutComponentTemplateAction.Request(componentTemplateName).componentTemplate(componentTemplate)
+                    new PutComponentTemplateAction.Request(componentTemplateName).componentTemplate(
+                        new ComponentTemplate(new Template(null, new CompressedXContent("""
+                                {
+                                  "_doc":{
+                                    "dynamic":"strict",
+                                    "properties":{
+                                      "field1":{
+                                        "type":"text"
+                                      }
+                                    }
+                                  }
+                                }
+                            """), null), 3L, null)
+                    )
                 )
             );
+            final var originalComponentTemplate = safeGet(
+                projectClient.execute(
+                    GetComponentTemplateAction.INSTANCE,
+                    new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, componentTemplateName)
+                )
+            ).getComponentTemplates().get(componentTemplateName);
 
             // Snapshot the index and project level state
             safeGet(
@@ -647,7 +654,7 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
                         new GetComponentTemplateAction.Request(TEST_REQUEST_TIMEOUT, componentTemplateName)
                     )
                 );
-                assertThat(response.getComponentTemplates().get(componentTemplateName), equalTo(componentTemplate));
+                assertThat(response.getComponentTemplates().get(componentTemplateName), equalTo(originalComponentTemplate));
             } else {
                 expectThrows(
                     ResourceNotFoundException.class,

@@ -71,6 +71,12 @@ public class FieldNameUtils {
             inlinestatsAggs.add(((InlineStats) i).aggregate());
         }
 
+        if (false == parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs))) {
+            // no explicit columns selection, for example "from employees"
+            // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
+            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
+        }
+
         Holder<Boolean> projectAll = new Holder<>(false);
         parsed.forEachExpressionDown(UnresolvedStar.class, us -> {// explicit "*" fields selection
             if (projectAll.get()) {
@@ -101,12 +107,7 @@ public class FieldNameUtils {
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
         var canRemoveAliases = new Holder<>(true);
-        var needsAllFields = new Holder<>(parsed.anyMatch(p -> shouldCollectReferencedFields(p, inlinestatsAggs)) == false);
-        if (needsAllFields.get()) {
-            // no explicit columns selection, for example "from employees"
-            // also, inlinestats only adds columns to the existent output, its Aggregate shouldn't interfere with potentially using "*"
-            return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
-        }
+        var needsAllFields = new Holder<>(false);
 
         var processingLambda = new Holder<Function<LogicalPlan, Boolean>>();
         processingLambda.set((LogicalPlan p) -> {// go over each plan top-down

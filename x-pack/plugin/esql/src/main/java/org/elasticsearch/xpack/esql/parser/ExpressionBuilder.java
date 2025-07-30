@@ -653,18 +653,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             if (key.isBlank()) {
                 throw new ParsingException(
                     source(ctx),
-                    "Invalid named function argument [{}], empty key is not supported",
+                    "Invalid named parameter [{}], empty key is not supported",
                     entry.getText()
                 );
             }
             if (names.contains(key)) {
-                throw new ParsingException(source(ctx), "Duplicated function arguments with the same name [{}] is not supported", key);
+                throw new ParsingException(source(ctx), "Duplicated named parameters with the same name [{}] is not supported", key);
             }
             Expression value = expression(entry.constant());
             String entryText = entry.getText();
             if (value instanceof Literal l) {
                 if (l.dataType() == NULL) {
-                    throw new ParsingException(source(ctx), "Invalid named function argument [{}], NULL is not supported", entryText);
+                    throw new ParsingException(source(ctx), "Invalid named parameter [{}], NULL is not supported", entryText);
                 }
                 namedArgs.add(Literal.keyword(source(stringCtx), key));
                 namedArgs.add(l);
@@ -672,7 +672,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             } else {
                 throw new ParsingException(
                     source(ctx),
-                    "Invalid named function argument [{}], only constant value is supported",
+                    "Invalid named parameter [{}], only constant value is supported",
                     entryText
                 );
             }

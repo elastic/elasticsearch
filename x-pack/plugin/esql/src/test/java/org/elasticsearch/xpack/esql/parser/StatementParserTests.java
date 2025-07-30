@@ -2968,7 +2968,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testNamedFunctionArgumentEmptyMap() {
+    public void testNamedFunctionNamedParametersEmptyMap() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "30"),
             Map.entry("where {}", "27"),
@@ -2987,7 +2987,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testNamedFunctionArgumentMapWithNULL() {
+    public void testNamedFunctionNamedParametersMapWithNULL() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -3007,13 +3007,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Invalid named function argument [\"option\":null], NULL is not supported"
+                    "Invalid named parameter [\"option\":null], NULL is not supported"
                 )
             );
         }
     }
 
-    public void testNamedFunctionArgumentMapWithEmptyKey() {
+    public void testNamedFunctionNamedParametersMapWithEmptyKey() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -3033,7 +3033,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Invalid named function argument [\"\":1], empty key is not supported"
+                    "Invalid named parameter [\"\":1], empty key is not supported"
                 )
             );
             expectError(
@@ -3042,13 +3042,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Invalid named function argument [\"  \":1], empty key is not supported"
+                    "Invalid named parameter [\"  \":1], empty key is not supported"
                 )
             );
         }
     }
 
-    public void testNamedFunctionArgumentMapWithDuplicatedKey() {
+    public void testNamedFunctionNamedParametersMapWithDuplicatedKey() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -3068,13 +3068,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Duplicated function arguments with the same name [dup] is not supported"
+                    "Duplicated named parameters with the same name [dup] is not supported"
                 )
             );
         }
     }
 
-    public void testNamedFunctionArgumentInInvalidPositions() {
+    public void testNamedFunctionNamedParametersInInvalidPositions() {
         // negative, named arguments are not supported outside of a functionExpression where booleanExpression or indexPattern is supported
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
@@ -3103,7 +3103,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
+    public void testNamedFunctionNamedParametersWithUnsupportedNamedParameterTypes() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -3124,7 +3124,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                    "Invalid named parameter [\"option1\":?n1], only constant value is supported"
                 )
             );
             expectError(
@@ -3134,7 +3134,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     null,
                     "line 1:{}: {}",
                     error,
-                    "Invalid named function argument [\"option1\":?n1], only constant value is supported"
+                    "Invalid named parameter [\"option1\":?n1], only constant value is supported"
                 )
             );
         }
@@ -3967,7 +3967,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "FROM foo* | COMPLETION prompt WITH { \"inference_id\": \"inferenceId\", \"unknown_option\": 3 }",
-            "line 1:42: Inavalid option [unknown_option] in COMPLETION, expected one of [[inference_id]]"
+            "line 1:31: Inavalid option [unknown_option] in COMPLETION, expected one of [[inference_id]]"
         );
 
         expectError("FROM foo* | COMPLETION WITH inferenceId", "line 1:24: extraneous input 'WITH' expecting {");

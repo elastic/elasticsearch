@@ -386,7 +386,7 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        return 0; // TODO
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 
     public static class Configuration {

@@ -25,6 +25,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -63,7 +64,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 
-public class JinaAIService extends SenderService {
+public class JinaAIService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "jinaai";
 
     private static final String SERVICE_NAME = "Jina AI";
@@ -345,6 +346,11 @@ public class JinaAIService extends SenderService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.JINA_AI_INTEGRATION_ADDED;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        return RerankingInferenceService.LARGE_WINDOW_SIZE;
     }
 
     public static class Configuration {

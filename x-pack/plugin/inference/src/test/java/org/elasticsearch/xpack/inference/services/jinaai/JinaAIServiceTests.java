@@ -28,6 +28,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
@@ -1848,5 +1849,10 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     @Override
     public InferenceService createInferenceService() {
         return createJinaAIService();
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(RerankingInferenceService.LARGE_WINDOW_SIZE));
     }
 }

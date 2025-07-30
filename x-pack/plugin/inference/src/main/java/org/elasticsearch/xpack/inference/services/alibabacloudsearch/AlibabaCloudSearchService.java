@@ -26,6 +26,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -69,7 +70,7 @@ import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.Alib
 import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings.SERVICE_ID;
 import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings.WORKSPACE_NAME;
 
-public class AlibabaCloudSearchService extends SenderService {
+public class AlibabaCloudSearchService extends SenderService implements RerankingInferenceService {
     public static final String NAME = AlibabaCloudSearchUtils.SERVICE_NAME;
     private static final String SERVICE_NAME = "AlibabaCloud AI Search";
 
@@ -388,6 +389,11 @@ public class AlibabaCloudSearchService extends SenderService {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.V_8_16_0;
+    }
+
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        return RerankingInferenceService.LARGE_WINDOW_SIZE;
     }
 
     public static class Configuration {

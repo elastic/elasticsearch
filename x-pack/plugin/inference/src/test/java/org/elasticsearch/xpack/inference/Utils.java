@@ -91,13 +91,14 @@ public final class Utils {
     }
 
     public static void storeDenseModel(
+        String inferenceId,
         ModelRegistry modelRegistry,
         int dimensions,
         SimilarityMeasure similarityMeasure,
         DenseVectorFieldMapper.ElementType elementType
     ) throws Exception {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
-            TestDenseInferenceServiceExtension.TestInferenceService.NAME,
+            inferenceId,
             new TestDenseInferenceServiceExtension.TestServiceSettings("dense_model", dimensions, similarityMeasure, elementType)
         );
         storeModel(modelRegistry, model);

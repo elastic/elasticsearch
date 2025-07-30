@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.GetRerankerAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
@@ -22,6 +23,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class RerankWindowSizeIT extends ESIntegTestCase {
 
     @Before
@@ -41,7 +43,7 @@ public class RerankWindowSizeIT extends ESIntegTestCase {
         assertEquals(333, response.getWindowSize());
     }
 
-    public void testActionNotARerankder() {
+    public void testActionNotAReranker() {
         var e = expectThrows(
             ElasticsearchStatusException.class,
             () -> client().execute(GetRerankerAction.INSTANCE, new GetRerankerAction.Request("sparse-endpoint")).actionGet()

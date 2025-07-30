@@ -63,6 +63,7 @@ public class ShardBulkInferenceActionFilterBasicLicenseIT extends ESIntegTestCas
         ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
         Utils.storeSparseModel("sparse-endpoint", modelRegistry);
         Utils.storeDenseModel(
+            "dense-endpoint",
             modelRegistry,
             randomIntBetween(1, 100),
             // dot product means that we need normalized vectors; it's not worth doing that in this test

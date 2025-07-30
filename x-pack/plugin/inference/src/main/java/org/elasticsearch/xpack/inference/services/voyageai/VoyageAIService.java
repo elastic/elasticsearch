@@ -372,7 +372,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        https://docs.voyageai.com/reference/reranker-api
+        https:// docs.voyageai.com/reference/reranker-api
         return RerankingInferenceService.LARGE_WINDOW_SIZE;
     }
 

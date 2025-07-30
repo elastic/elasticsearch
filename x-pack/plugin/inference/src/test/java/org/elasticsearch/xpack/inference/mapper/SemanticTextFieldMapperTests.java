@@ -178,6 +178,14 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     ) throws IOException {
         validateIndexVersion(minIndexVersion, useLegacyFormat);
         IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(), minIndexVersion, maxIndexVersion);
+        return createMapperServiceWithIndexVersion(mappings, useLegacyFormat, indexVersion);
+    }
+
+    private MapperService createMapperServiceWithIndexVersion(
+        XContentBuilder mappings,
+        boolean useLegacyFormat,
+        IndexVersion indexVersion
+    ) throws IOException {
         var settings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), indexVersion)
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
@@ -517,7 +525,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 inferenceId,
                 new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
-            assertSemanticTextField(mapperService, fieldName, true, null, null);
+            var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
+            assertSemanticTextField(mapperService, fieldName, true, null, expectedIndexOptions);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
         }
 
@@ -528,7 +537,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 searchInferenceId,
                 new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
-            assertSemanticTextField(mapperService, fieldName, true, null, null);
+            var expectedIndexOptions = getDefaultSparseVectorIndexOptionsForMapper(mapperService);
+            assertSemanticTextField(mapperService, fieldName, true, null, expectedIndexOptions);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId);
         }
     }
@@ -918,6 +928,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public void testSuccessfulParse() throws IOException {
         for (int depth = 1; depth < 4; depth++) {
+            final IndexVersion indexVersion = SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat);
+
             final String fieldName1 = randomFieldName(depth);
             final String fieldName2 = randomFieldName(depth + 1);
             final String searchInferenceId = randomAlphaOfLength(8);
@@ -950,15 +962,23 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 );
             });
 
-            MapperService mapperService = createMapperService(mapping, useLegacyFormat);
-            assertSemanticTextField(mapperService, fieldName1, true, null, indexOptions);
+            var expectedIndexOptions = indexOptions;
+            if (expectedIndexOptions == null) {
+                expectedIndexOptions = new SemanticTextIndexOptions(
+                    SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
+                    SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
+                );
+            }
+
+            MapperService mapperService = createMapperServiceWithIndexVersion(mapping, useLegacyFormat, indexVersion);
+            assertSemanticTextField(mapperService, fieldName1, true, null, expectedIndexOptions);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName1,
                 model1.getInferenceEntityId(),
                 setSearchInferenceId ? searchInferenceId : model1.getInferenceEntityId()
             );
-            assertSemanticTextField(mapperService, fieldName2, true, null, indexOptions);
+            assertSemanticTextField(mapperService, fieldName2, true, null, expectedIndexOptions);
             assertInferenceEndpoints(
                 mapperService,
                 fieldName2,

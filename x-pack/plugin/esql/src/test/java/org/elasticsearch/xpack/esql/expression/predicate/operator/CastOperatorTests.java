@@ -35,7 +35,13 @@ public class CastOperatorTests extends ESTestCase {
             TestCastOperator.class,
             DocsV3Support.OperatorCategory.CAST
         );
-        var docs = new DocsV3Support.OperatorsDocsSupport("cast", CastOperatorTests.class, op, CastOperatorTests::signatures);
+        var docs = new DocsV3Support.OperatorsDocsSupport(
+            "cast",
+            CastOperatorTests.class,
+            op,
+            CastOperatorTests::signatures,
+            DocsV3Support.callbacksFromSystemProperty()
+        );
         docs.renderSignature();
         docs.renderDocs();
     }

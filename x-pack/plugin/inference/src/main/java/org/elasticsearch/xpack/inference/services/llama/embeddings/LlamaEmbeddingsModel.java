@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.llama.embeddings;
 
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -17,6 +16,8 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.llama.LlamaModel;
 import org.elasticsearch.xpack.inference.services.llama.action.LlamaActionVisitor;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettings;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettings;
 
 import java.util.Map;
 
@@ -33,6 +34,8 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to embeddings
+     * @param taskSettings the settings for the task
+     * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the secret settings for the model, such as API keys or tokens
      * @param context the context for parsing configuration settings
      */
@@ -41,6 +44,7 @@ public class LlamaEmbeddingsModel extends LlamaModel {
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         Map<String, Object> secrets,
         ConfigurationParseContext context
@@ -50,6 +54,7 @@ public class LlamaEmbeddingsModel extends LlamaModel {
             taskType,
             service,
             LlamaEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
             chunkingSettings,
             retrieveSecretSettings(secrets)
         );
@@ -83,6 +88,7 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      * @param taskType the type of task this model is designed for
      * @param service the name of the inference service
      * @param serviceSettings the settings for the inference service, specific to embeddings
+     * @param taskSettings the settings for the task
      * @param chunkingSettings the chunking settings for processing input data
      * @param secrets the secret settings for the model, such as API keys or tokens
      */
@@ -91,14 +97,36 @@ public class LlamaEmbeddingsModel extends LlamaModel {
         TaskType taskType,
         String service,
         LlamaEmbeddingsServiceSettings serviceSettings,
+        OpenAiEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         SecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, EmptyTaskSettings.INSTANCE, chunkingSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets)
         );
         setPropertiesFromServiceSettings(serviceSettings);
+    }
+
+    /**
+     * Factory method to create a LlamaEmbeddingsModel with overridden task settings based on the request.
+     * If the request does not specify task settings, the original model is returned.
+     *
+     * @param model the original LlamaEmbeddingsModel
+     * @param taskSettings the task settings to override
+     * @return a new LlamaEmbeddingsModel with overridden task settings or the original model if no overrides are specified
+     */
+    public static LlamaEmbeddingsModel of(LlamaEmbeddingsModel model, Map<String, Object> taskSettings) {
+        if (taskSettings == null || taskSettings.isEmpty()) {
+            return model;
+        }
+
+        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        return new LlamaEmbeddingsModel(model, OpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+    }
+
+    private LlamaEmbeddingsModel(LlamaEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {
+        super(originalModel, taskSettings);
     }
 
     @Override
@@ -113,7 +141,12 @@ public class LlamaEmbeddingsModel extends LlamaModel {
      * @return an ExecutableAction representing the Llama embeddings model
      */
     @Override
-    public ExecutableAction accept(LlamaActionVisitor creator) {
-        return creator.create(this);
+    public ExecutableAction accept(LlamaActionVisitor creator, Map<String, Object> taskSettings) {
+        return creator.create(this, taskSettings);
+    }
+
+    @Override
+    public OpenAiEmbeddingsTaskSettings getTaskSettings() {
+        return (OpenAiEmbeddingsTaskSettings) super.getTaskSettings();
     }
 }

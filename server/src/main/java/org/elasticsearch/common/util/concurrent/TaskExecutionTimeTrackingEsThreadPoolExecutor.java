@@ -27,6 +27,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
@@ -258,12 +261,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * Can be extended to remember multiple past frames.
      */
     public static class FramedTimeTracker {
-        final long interval;
+        private final long interval;
         private final Supplier<Long> timeNow;
-        private long ongoingTasks;
-        private long currentFrame;
-        private long currentTime;
-        private long previousTime;
+        private final AtomicReference<FrameWindow> frameWindowRef = new AtomicReference<>(new FrameWindow());
+        private final AtomicBoolean updatingFrame = new AtomicBoolean();
+        private final AtomicLong currentFrameNum = new AtomicLong();
 
         // for testing
         public FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
@@ -283,56 +285,135 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         }
 
         /**
-         * Update frames to current time. There are no guaranties that it will be invoked frequently.
-         * For example when there are no tasks and no requests for previousFrameTime.
-         *
-         * When it's invoked frequently, at least once per frame, we move currentTime into previousTime.
-         * That concludes currentTime and it's accurate.
-         *
-         * When it's invoked infrequently, once in multiple frames, current and previous frames are going to be stale.
-         * Which is ok, that means there were no changes in tasks(start/end), all ongoing tasks are still running.
-         * That means ongoing tasks fully utilized previous frames. And we can accurately tell previous frame usage.
+         * Returns current FrameWindow. If window is stale, it will slide to current time.
+         * @param now - current frame
          */
-        private void updateFrame0(long nowTime) {
-            var now = nowTime / interval;
-            if (currentFrame < now) {
-                if (currentFrame == now - 1) {
-                    previousTime = currentTime; //
+        private FrameWindow getWindow(long now) {
+            var current = currentFrameNum.get();
+            // first time in new frame
+            if (current < now) {
+                // only one thread will perform frame update, others spinWait
+                if (updatingFrame.compareAndSet(false, true)) {
+                    final var moveOffset = now - current;
+                    final var newWindow = frameWindowRef.get().moveBy(moveOffset);
+                    frameWindowRef.set(newWindow);
+                    currentFrameNum.set(now);
+                    updatingFrame.set(false);
                 } else {
-                    previousTime = ongoingTasks * interval;
+                    while (updatingFrame.get()) {
+                        Thread.onSpinWait();
+                    }
+                    // an edge case when all the following happen:
+                    // 1. window was stale, at least 1 frame
+                    // 2. two or more threads try to update window
+                    // 3. it's happening at the end of the frame, beginning new frame
+                    // for example, lets say interval is 10
+                    // and there are two concurrent calls getWindow(9)->frame0 and getWindow(10)->frame1
+                    // both need to update window, but those are different windows,
+                    // two things might happen:
+                    // 1. getWindow(9) updates window and uses it, but getWindow(10) need to update window again
+                    // 2. getWindow(10) updates window, then getWindow(9) will see a newer window, so we record task in a newer frame,
+                    // basically rounding-up frame when it's happening.
+                    if (currentFrameNum.get() < now) {
+                        return getWindow(now);
+                    }
                 }
-                currentTime = ongoingTasks * interval;
-                currentFrame = now;
             }
+            return frameWindowRef.get();
         }
 
         /**
          * Start tracking new task, assume that task runs indefinitely, or at least till end of frame.
          * If task finishes sooner than end of interval {@link FramedTimeTracker#endTask()} will deduct remaining time.
          */
-        public synchronized void startTask() {
-            var now = timeNow.get();
-            updateFrame0(now);
-            currentTime += (currentFrame + 1) * interval - now;
-            ++ongoingTasks;
+        public void startTask() {
+            final var nowTime = timeNow.get();
+            final var now = nowTime / interval;
+            final var frameWindow = getWindow(now);
+            frameWindow.now().ongoingTasks.increment();
+            frameWindow.now().startEndDiff.add((now + 1) * interval - nowTime);
         }
 
         /**
          * Stop task tracking. We already assumed that task runs till end of frame, here we deduct not used time.
          */
-        public synchronized void endTask() {
-            var now = timeNow.get();
-            updateFrame0(now);
-            currentTime -= (currentFrame + 1) * interval - now;
-            --ongoingTasks;
+        public void endTask() {
+            final var nowTime = timeNow.get();
+            final var now = nowTime / interval;
+            final var frameWindow = getWindow(now);
+            frameWindow.now().ongoingTasks.decrement();
+            frameWindow.now().startEndDiff.add(-((now + 1) * interval - nowTime));
         }
 
         /**
-         * Returns previous frame total execution time.
+         * Returns previous frame total execution time
          */
-        public synchronized long previousFrameTime() {
-            updateFrame0(timeNow.get());
-            return previousTime;
+        public long previousFrameTime() {
+            final var now = timeNow.get() / interval;
+            final var frameWindow = getWindow(now);
+            // total time is sum of ongoing tasks in frame N-1 and all starts and ends in N frame
+            // so for the previous frame (now-1), it would be (now-2) ongoing tasks + (now -1) start/end tasks
+            final var ongoingTasks = frameWindow.now(-2).ongoingTasks.sum();
+            final var startEndDiff = frameWindow.now(-1).startEndDiff.sum();
+            return ongoingTasks * interval + startEndDiff;
+        }
+
+        /**
+         * A single frame that tracks how many tasks are still running at the end of frame
+         * and diffs from task start and end.
+         */
+        record Frame(LongAdder ongoingTasks, LongAdder startEndDiff) {
+            Frame() {
+                this(new LongAdder(), new LongAdder());
+            }
+        }
+
+        /**
+         * A frame window represent 3 consecutive frames. frames[0] is now, frames[1] is now-1.
+         */
+        record FrameWindow(Frame[] frames) {
+            FrameWindow() {
+                this(new Frame(), new Frame(), new Frame());
+            }
+
+            FrameWindow(Frame past2, Frame past1, Frame now) {
+                this(new Frame[] { now, past1, past2 });
+            }
+
+            FrameWindow {
+                assert frames.length == 3;
+            }
+
+            /**
+             * Creates a new window by sliding current by moveFrames. If new window overlaps with current Frames are reused.
+             * So there is no risk of losing data when start/end update frame in a past window.
+             */
+            FrameWindow moveBy(long moveFrames) {
+                // a new frame always starts with previous ongoing tasks
+                final var ongoingTasks = now().ongoingTasks.sum();
+                final FrameWindow newWindow;
+                if (moveFrames == 1) {
+                    newWindow = new FrameWindow(now(-1), now(), new Frame());
+                } else if (moveFrames == 2) {
+                    newWindow = new FrameWindow(now(), new Frame(), new Frame());
+                } else {
+                    newWindow = new FrameWindow();
+                }
+                // propagate ongoing tasks to all new frames
+                for (var newFrame = 0; newFrame < Math.min(moveFrames, 3); newFrame++) {
+                    newWindow.frames[newFrame].ongoingTasks.add(ongoingTasks);
+                }
+                return newWindow;
+            }
+
+            Frame now() {
+                return frames[0];
+            }
+
+            Frame now(int offset) {
+                assert offset >= -2 && offset <= 0;
+                return frames[-offset];
+            }
         }
     }
 }

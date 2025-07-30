@@ -547,7 +547,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".asset-criticality.asset-criticality-*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.v1.latest.security*").privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.v1.latest.security*").privileges("read", "write").build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")

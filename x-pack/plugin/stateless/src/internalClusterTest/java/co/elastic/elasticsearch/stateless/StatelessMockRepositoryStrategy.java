@@ -17,10 +17,12 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
@@ -211,4 +213,23 @@ public class StatelessMockRepositoryStrategy {
         return originalSupplier.get();
     }
 
+    public void blobContainerCompareAndSetRegister(
+        Runnable originalRunnable,
+        OperationPurpose purpose,
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<Boolean> listener
+    ) {
+        originalRunnable.run();
+    }
+
+    public void blobContainerGetRegister(
+        Runnable originalRunnable,
+        OperationPurpose purpose,
+        String key,
+        ActionListener<OptionalBytesReference> listener
+    ) {
+        originalRunnable.run();
+    }
 }

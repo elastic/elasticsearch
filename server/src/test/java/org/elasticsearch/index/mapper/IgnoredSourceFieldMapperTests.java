@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
@@ -330,7 +331,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     public void testEncodeFieldToMap() throws IOException {
         String value = randomAlphaOfLength(5);
         ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> b.field("my_value", value));
-        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME + ".my_value").binaryValue().bytes;
+        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.ignoredFieldName("my_value")).binaryValue().bytes;
         IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMulti(bytes).getFirst();
         assertEquals("my_value", mappedNameValue.nameValue().name());
         assertEquals(value, mappedNameValue.map().get("my_value"));
@@ -342,11 +343,12 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(
             b -> { b.startObject("my_object").field("my_value", value).endObject(); }
         );
-        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
-        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        var byteRef = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.ignoredFieldName("my_object")).binaryValue();
+        byte[] bytes = ArrayUtil.copyOfSubArray(byteRef.bytes, byteRef.offset, byteRef.length);
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMulti(bytes).getFirst();
         assertEquals("my_object", mappedNameValue.nameValue().name());
         assertEquals(value, ((Map<String, ?>) mappedNameValue.map().get("my_object")).get("my_value"));
-        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, mappedNameValue.map()));
+        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMapMulti(List.of(mappedNameValue)));
     }
 
     public void testEncodeArrayToMapAndDecode() throws IOException {
@@ -356,11 +358,12 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject().field("int_value", 20).endObject();
             b.endArray();
         });
-        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
-        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        var byteRef = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.ignoredFieldName("my_array")).binaryValue();
+        byte[] bytes = ArrayUtil.copyOfSubArray(byteRef.bytes, byteRef.offset, byteRef.length);
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMulti(bytes).getFirst();
         assertEquals("my_array", mappedNameValue.nameValue().name());
         assertThat((List<?>) mappedNameValue.map().get("my_array"), Matchers.contains(Map.of("int_value", 10), Map.of("int_value", 20)));
-        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, mappedNameValue.map()));
+        assertArrayEquals(bytes, IgnoredSourceFieldMapper.encodeFromMapMulti(List.of(mappedNameValue)));
     }
 
     public void testMultipleIgnoredFieldsRootObject() throws IOException {

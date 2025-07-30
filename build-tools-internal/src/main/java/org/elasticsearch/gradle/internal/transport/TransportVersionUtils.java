@@ -10,12 +10,13 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
-
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.AttributeContainer;
 import org.gradle.api.file.Directory;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -154,7 +155,7 @@ class TransportVersionUtils {
             this.max = (int) Math.pow(10, numDigits);
         }
 
-        public int bumpVersionNumber(int tvIDToBump) {
+        public int bumpTransportVersion(int tvIDToBump) {
             int zeroesCleared = (tvIDToBump / value) * value;
             int newId = zeroesCleared + value;
             if ((newId / value) % max == 0) {
@@ -166,24 +167,35 @@ class TransportVersionUtils {
         }
     }
 
-    public static int getPriorLatestId(Path dataDir, String majorMinor) throws IOException {
-        var pattern = Pattern.compile("^(\\d+)\\.(\\d+)\\.csv$");
-
-        var matcher = pattern.matcher(majorMinor);
-        var major = Integer.parseInt(matcher.group(1));
-        var minor = Integer.parseInt(matcher.group(2));
-        if (minor > 0) {
-            return getLatestId(dataDir, major + "." + (minor - 1));
+    public record MajorMinor(int major, int minor) {
+        public static MajorMinor of(String majorMinor) {
+            String[] versionParts = majorMinor.split("\\.");
+            assert versionParts.length == 2;
+            return new MajorMinor(Integer.parseInt(versionParts[0]), Integer.parseInt(versionParts[1]));
         }
 
+        public static MajorMinor of(Version version) {
+            return new MajorMinor(version.getMajor(), version.getMinor());
+        }
+
+        @Override
+        public @NotNull String toString() {
+            return major + "." + minor;
+        }
+    }
+
+    public static int getPriorLatestId(Path dataDir, String majorMinor) throws IOException {
+        var version = MajorMinor.of(majorMinor);
+        if (version.minor() > 0) {
+            return getLatestId(dataDir, version.major + "." + (version.minor - 1));
+        }
         try (var pathStream = Files.list(Objects.requireNonNull(dataDir.resolve(LATEST_DIR)))) {
             var highestMinorOfPrevMajor = pathStream.flatMap(path -> {
-                var m = pattern.matcher(path.getFileName().toString());
-                var fileMajor = Integer.parseInt(m.group(1));
-                var fileMinor = Integer.parseInt(m.group(2));
-                return fileMajor == major - 1 ? Stream.of(fileMinor) : Stream.empty();
+                var fileMajorMinor = path.getFileName().toString().replace(".csv", "");
+                var fileVersion = MajorMinor.of(fileMajorMinor);
+                return fileVersion.major == version.major - 1 ? Stream.of(fileVersion.minor) : Stream.empty();
             }).sorted().toList().getLast();
-            return getLatestId(dataDir, (major - 1) + "." + highestMinorOfPrevMajor);
+            return getLatestId(dataDir, (version.major - 1) + "." + highestMinorOfPrevMajor);
         }
     }
 

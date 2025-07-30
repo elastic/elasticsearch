@@ -310,20 +310,28 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
             return;
         }
 
-        Set<String> badCommands = new HashSet<>();
+        Set<Source> badCommands = new HashSet<>();
 
         enrich.forEachUp(LogicalPlan.class, u -> {
-            if (u instanceof Aggregate) {
-                badCommands.add("STATS");
-            } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
-                badCommands.add("another ENRICH with coordinator policy");
-            } else if (u instanceof LookupJoin) {
-                badCommands.add("LOOKUP JOIN");
-            } else if (u instanceof Fork) {
-                badCommands.add("FORK");
+            if (u instanceof ExecutesOn.Coordinator
+                || u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR
+                || u instanceof LookupJoin) {
+                badCommands.add(u.source());
             }
+
+            // if (u instanceof Aggregate) {
+            // badCommands.add("STATS");
+            // } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
+            // badCommands.add("another ENRICH with coordinator policy");
+            // } else if (u instanceof LookupJoin) {
+            // badCommands.add("LOOKUP JOIN");
+            // } else if (u instanceof Fork) {
+            // badCommands.add("FORK");
+            // }
         });
 
-        badCommands.forEach(c -> failures.add(fail(enrich, "ENRICH with remote policy can't be executed after " + c)));
+        badCommands.forEach(
+            f -> failures.add(fail(enrich, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source()))
+        );
     }
 }

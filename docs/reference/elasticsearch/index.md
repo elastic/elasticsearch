@@ -43,8 +43,12 @@
 {{es}} is the search and analytics engine that powers the {{stack}}.
 
 - [Get started](docs-content://get-started/index.md)
-- [Search your data](docs-content://solutions/search/querying-for-search.md)
-- Query data with [the Query DSL](docs-content://explore-analyze/query-filter/languages/querydsl.md), [ES|QL](docs-content://explore-analyze/query-filter/languages/esql.md), [EQL](docs-content://explore-analyze/query-filter/languages/eql.md), or [SQL](docs-content://explore-analyze/query-filter/languages/sql.md)
+- [Learn how to search your data](docs-content://solutions/search/querying-for-search.md)
+- Query data programmatically: use query languages to run advanced search, filtering, or analytics
+  - [Query DSL](docs-content://explore-analyze/query-filter/languages/querydsl.md): full JSON-based query language
+  - [ES|QL](docs-content://explore-analyze/query-filter/languages/esql.md): fast, SQL-like language with piped syntax
+  - [EQL](docs-content://explore-analyze/query-filter/languages/eql.md): for event-based time series data, such as logs, metrics, and traces
+  - [SQL](docs-content://explore-analyze/query-filter/languages/sql.md): SQL-style queries on Elasticsearch data
 - [Search applications](docs-content://solutions/search/search-applications.md)
 - [Aggregations](docs-content://explore-analyze/query-filter/aggregations.md)
 - [Geospatial analysis](docs-content://explore-analyze/geospatial-analysis.md)

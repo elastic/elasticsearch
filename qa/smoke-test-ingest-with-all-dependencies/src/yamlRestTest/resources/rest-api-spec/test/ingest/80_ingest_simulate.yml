@@ -1931,3 +1931,81 @@ setup:
   - match: { docs.0.doc._index: "simple-data-stream1" }
   - match: { docs.0.doc._source.bar: "baz" }
   - match: { docs.0.doc.error.type: "document_parsing_exception" }
+
+---
+"Test ingest simulate with mapping addition on subobjects":
+
+  - skip:
+      features:
+        - headers
+        - allowed_warnings
+
+  - do:
+      indices.put_index_template:
+        name: subobject-template
+        body:
+          index_patterns: subobject-index*
+          template:
+            mappings:
+              properties:
+                a.b:
+                  type: match_only_text
+
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "a.b": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - match: { docs.0.doc.error.type: "mapper_parsing_exception" }
+
+  # Here we provide a mapping_substitution to the subobject, and make sure that it is applied rather than throwing an
+  # exception.
+  - do:
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        mapping_merge_reason: "index_template"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "subobject-index-1",
+                "_id": "AZgsHA0B41JjTOmNiBKC",
+                "_source": {
+                  "a.b": "some text"
+                }
+              }
+            ],
+            "mapping_addition": {
+              "properties": {
+                "a.b": {
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+  - length: { docs: 1 }
+  - match: { docs.0.doc._index: "subobject-index-1" }
+  - match: { docs.0.doc._source.a\.b: "some text" }
+  - not_exists: docs.0.doc.error

@@ -14,12 +14,14 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Map.entry;
@@ -33,7 +35,8 @@ public class SimulateBulkRequestTests extends ESTestCase {
             getMapOrEmpty(getTestPipelineSubstitutions()),
             getMapOrEmpty(getTestComponentTemplateSubstitutions()),
             getMapOrEmpty(getTestIndexTemplateSubstitutions()),
-            getMapOrEmpty(getTestMappingAddition())
+            getMapOrEmpty(getTestMappingAddition()),
+            getTestMappingMergeReason()
         );
     }
 
@@ -52,7 +55,8 @@ public class SimulateBulkRequestTests extends ESTestCase {
                 null,
                 getTestPipelineSubstitutions(),
                 getTestComponentTemplateSubstitutions(),
-                getTestMappingAddition()
+                getTestMappingAddition(),
+                getTestMappingMergeReason()
             )
         );
         assertThrows(
@@ -61,12 +65,19 @@ public class SimulateBulkRequestTests extends ESTestCase {
                 getTestPipelineSubstitutions(),
                 null,
                 getTestComponentTemplateSubstitutions(),
-                getTestMappingAddition()
+                getTestMappingAddition(),
+                getTestMappingMergeReason()
             )
         );
         assertThrows(
             NullPointerException.class,
-            () -> new SimulateBulkRequest(getTestPipelineSubstitutions(), getTestPipelineSubstitutions(), null, getTestMappingAddition())
+            () -> new SimulateBulkRequest(
+                getTestPipelineSubstitutions(),
+                getTestPipelineSubstitutions(),
+                null,
+                getTestMappingAddition(),
+                getTestMappingMergeReason()
+            )
         );
         assertThrows(
             NullPointerException.class,
@@ -74,7 +85,8 @@ public class SimulateBulkRequestTests extends ESTestCase {
                 getTestPipelineSubstitutions(),
                 getTestPipelineSubstitutions(),
                 getTestComponentTemplateSubstitutions(),
-                null
+                null,
+                getTestMappingMergeReason()
             )
         );
     }
@@ -83,13 +95,15 @@ public class SimulateBulkRequestTests extends ESTestCase {
         Map<String, Map<String, Object>> pipelineSubstitutions,
         Map<String, Map<String, Object>> componentTemplateSubstitutions,
         Map<String, Map<String, Object>> indexTemplateSubstitutions,
-        Map<String, Object> mappingAddition
+        Map<String, Object> mappingAddition,
+        String mappingMergeReason
     ) throws IOException {
         SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
             pipelineSubstitutions,
             componentTemplateSubstitutions,
             indexTemplateSubstitutions,
-            mappingAddition
+            mappingAddition,
+            mappingMergeReason
         );
         /*
          * Note: SimulateBulkRequest does not implement equals or hashCode, so we can't test serialization in the usual way for a
@@ -97,11 +111,18 @@ public class SimulateBulkRequestTests extends ESTestCase {
          */
         SimulateBulkRequest copy = copyWriteable(simulateBulkRequest, null, SimulateBulkRequest::new);
         assertThat(copy.getPipelineSubstitutions(), equalTo(simulateBulkRequest.getPipelineSubstitutions()));
+        assertThat(copy.getMappingMergeReason(), equalTo(simulateBulkRequest.getMappingMergeReason()));
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testGetComponentTemplateSubstitutions() throws IOException {
-        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            getTestMappingMergeReason()
+        );
         assertThat(simulateBulkRequest.getComponentTemplateSubstitutions(), equalTo(Map.of()));
         String substituteComponentTemplatesString = """
               {
@@ -135,7 +156,13 @@ public class SimulateBulkRequestTests extends ESTestCase {
             XContentType.JSON
         ).v2();
         Map<String, Map<String, Object>> substituteComponentTemplates = (Map<String, Map<String, Object>>) tempMap;
-        simulateBulkRequest = new SimulateBulkRequest(Map.of(), substituteComponentTemplates, Map.of(), Map.of());
+        simulateBulkRequest = new SimulateBulkRequest(
+            Map.of(),
+            substituteComponentTemplates,
+            Map.of(),
+            Map.of(),
+            getTestMappingMergeReason()
+        );
         Map<String, ComponentTemplate> componentTemplateSubstitutions = simulateBulkRequest.getComponentTemplateSubstitutions();
         assertThat(componentTemplateSubstitutions.size(), equalTo(2));
         assertThat(
@@ -160,7 +187,13 @@ public class SimulateBulkRequestTests extends ESTestCase {
     }
 
     public void testGetIndexTemplateSubstitutions() throws IOException {
-        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+        SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            getTestMappingMergeReason()
+        );
         assertThat(simulateBulkRequest.getIndexTemplateSubstitutions(), equalTo(Map.of()));
         String substituteIndexTemplatesString = """
               {
@@ -196,7 +229,7 @@ public class SimulateBulkRequestTests extends ESTestCase {
             randomBoolean(),
             XContentType.JSON
         ).v2();
-        simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), substituteIndexTemplates, Map.of());
+        simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), substituteIndexTemplates, Map.of(), getTestMappingMergeReason());
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = simulateBulkRequest.getIndexTemplateSubstitutions();
         assertThat(indexTemplateSubstitutions.size(), equalTo(2));
         assertThat(
@@ -222,7 +255,8 @@ public class SimulateBulkRequestTests extends ESTestCase {
             getTestPipelineSubstitutions(),
             getTestComponentTemplateSubstitutions(),
             getTestIndexTemplateSubstitutions(),
-            getTestMappingAddition()
+            getTestMappingAddition(),
+            getTestMappingMergeReason()
         );
         simulateBulkRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         simulateBulkRequest.waitForActiveShards(randomIntBetween(1, 10));
@@ -307,5 +341,13 @@ public class SimulateBulkRequestTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    private static String getTestMappingMergeReason() {
+        if (randomBoolean()) {
+            return null;
+        } else {
+            return randomFrom(MapperService.MergeReason.values()).toString().toLowerCase(Locale.ROOT);
+        }
     }
 }

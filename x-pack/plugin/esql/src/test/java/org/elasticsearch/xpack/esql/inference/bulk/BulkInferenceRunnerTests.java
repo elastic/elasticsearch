@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -27,6 +28,7 @@ import org.mockito.stubbing.Answer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
@@ -63,7 +65,7 @@ public class BulkInferenceRunnerTests extends ESTestCase {
     }
 
     public void testSuccessfulBulkExecution() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1000));
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
         List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
 
         Client client = mockClient(invocation -> {
@@ -117,7 +119,7 @@ public class BulkInferenceRunnerTests extends ESTestCase {
     }
 
     public void testBulkExecutionWhenInferenceRunnerSometimesFails() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1000));
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
 
         Client client = mockClient(invocation -> {
             ActionListener<InferenceAction.Response> listener = invocation.getArgument(2);
@@ -141,6 +143,34 @@ public class BulkInferenceRunnerTests extends ESTestCase {
             assertThat(exception.get(), notNullValue());
             assertThat(exception.get().getMessage(), equalTo("inference failure"));
         });
+    }
+
+    public void testParallelBulkExecution() throws Exception {
+        int batches = between(50, 100);
+        CountDownLatch latch = new CountDownLatch(batches);
+
+        for (int i = 0; i < batches; i++) {
+            List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
+            List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
+
+            Client client = mockClient(invocation -> {
+                runWithRandomDelay(() -> {
+                    ActionListener<InferenceAction.Response> l = invocation.getArgument(2);
+                    l.onResponse(responses.get(requests.indexOf(invocation.getArgument(1, InferenceAction.Request.class))));
+                });
+                return null;
+            });
+
+            ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> {
+                assertThat(r, equalTo(responses));
+                LogManager.getLogger(BulkInferenceRunnerTests.class).warn("Received [{}] responses", responses.size());
+                latch.countDown();
+            }, ESTestCase::fail);
+
+            inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
+        }
+
+        latch.await();
     }
 
     private BulkInferenceRunner.Factory inferenceRunnerFactory(Client client) {
@@ -198,7 +228,7 @@ public class BulkInferenceRunnerTests extends ESTestCase {
         if (randomBoolean()) {
             runnable.run();
         } else {
-            threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
+            threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 100_000)), threadPool.generic());
         }
     }
 }

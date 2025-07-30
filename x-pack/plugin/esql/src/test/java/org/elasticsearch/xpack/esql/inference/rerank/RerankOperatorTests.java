@@ -93,13 +93,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
-            "RerankOperator[inference_id=["
-                + SIMPLE_INFERENCE_ID
-                + "], query=["
-                + SIMPLE_QUERY
-                + "], score_channel=["
-                + scoreChannel
-                + "]]"
+            "RerankOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "], query=[" + SIMPLE_QUERY + "], score_channel=[" + scoreChannel + "]]"
         );
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -41,6 +42,12 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             return queryBuilder;
         }
 
+        if (queryBuilder instanceof MultiMatchQueryBuilder) {
+            // This is a placeholder for the actual multi-field handling logic.
+            // Going forward, we will also send fieldNamesWithWeights and resolvedIndices
+            return handleMultiFieldQuery(queryBuilder);
+        }
+
         String fieldName = fieldsWithBoosts.keySet().iterator().next();
         Float fieldBoost = fieldsWithBoosts.get(fieldName);
 
@@ -58,6 +65,13 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             // so rewrite the entire query to work on a semantic_text field.
             return buildInferenceQuery(queryBuilder, indexInformation, fieldBoost);
         }
+    }
+
+    /**
+     * Handle multi-field queries
+     */
+    private QueryBuilder handleMultiFieldQuery(QueryBuilder queryBuilder) {
+        return queryBuilder;
     }
 
     /**

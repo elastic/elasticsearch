@@ -168,6 +168,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         if (false == apiKeyMetadata.isEmpty()) {
                             apiKeyField.put("metadata", apiKeyMetadata);
                         }
+
                         if (false == apiKeyField.isEmpty()) {
                             userObject.put(API_KEY, apiKeyField);
                         }
@@ -189,6 +190,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     if (realmType != null) {
                         realmField.put("type", realmType);
                     }
+
                     if (false == realmField.isEmpty()) {
                         userObject.put(REALM_KEY, realmField);
                     }

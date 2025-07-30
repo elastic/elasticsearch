@@ -77,7 +77,6 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
 
     private TestThreadPool threadPool;
     private Executor executor = null;
-    private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
     private final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node-1").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
     private final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node-2").roles(Set.of(DATA_HOT_NODE_ROLE)).build();
@@ -95,9 +94,16 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         int numThreads = randomBoolean() ? 1 : between(2, 16);
         threadPool = new TestThreadPool(
             "test",
-            new FixedExecutorBuilder(Settings.EMPTY, ESQL_TEST_EXECUTOR, numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            new FixedExecutorBuilder(
+                Settings.EMPTY,
+                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+                numThreads,
+                1024,
+                "esql",
+                EsExecutors.TaskTrackingConfig.DEFAULT
+            )
         );
-        executor = threadPool.executor(ESQL_TEST_EXECUTOR);
+        executor = threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME);
     }
 
     @After

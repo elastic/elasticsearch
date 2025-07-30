@@ -1,6 +1,0 @@
-pr: 127524
-summary: Resolve groupings in aggregate before resolving references to groupings in
-  the aggregations
-area: ES|QL
-type: bug
-issues: []

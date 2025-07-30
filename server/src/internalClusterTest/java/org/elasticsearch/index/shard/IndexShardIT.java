@@ -396,16 +396,16 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             // Verify that each shard has write-load reported.
             final ClusterState state = getInstanceFromNode(ClusterService.class).state();
             assertEquals(state.projectState(ProjectId.DEFAULT).metadata().getTotalNumberOfShards(), shardWriteLoads.size());
-            double maximumLoadRecorded = 0;
             for (IndexMetadata indexMetadata : state.projectState(ProjectId.DEFAULT).metadata()) {
+                double maximumLoadRecorded = 0;
                 for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
                     final ShardId shardId = new ShardId(indexMetadata.getIndex(), i);
                     assertTrue(shardWriteLoads.containsKey(shardId));
                     maximumLoadRecorded = Math.max(shardWriteLoads.get(shardId), maximumLoadRecorded);
                 }
+                // Each index should have seen some write-load
+                assertThat(maximumLoadRecorded, greaterThan(0.0));
             }
-            // And that at least one is greater than zero
-            assertThat(maximumLoadRecorded, greaterThan(0.0));
         } finally {
             updateClusterSettings(
                 Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build()

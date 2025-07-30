@@ -1203,8 +1203,8 @@ public final class OptimizerRules {
      * 2. a == 1 OR a IN (2) becomes a IN (1, 2)
      * 3. a IN (1) OR a IN (2) becomes a IN (1, 2)
      *
-     * This rule does NOT check for type compatibility as that phase has been
-     * already be verified in the analyzer.
+     * By default (see {@link #shouldValidateIn()}), this rule does NOT check for type compatibility as that phase has
+     * already been verified in the analyzer, but this behavior can be changed by subclasses.
      */
     public static class CombineDisjunctionsToIn extends OptimizerExpressionRule<Or> {
         public CombineDisjunctionsToIn() {
@@ -1214,7 +1214,7 @@ public final class OptimizerRules {
         @Override
         protected Expression rule(Or or) {
             Expression e = or;
-            // look only at equals and In
+            // look only at Equals and In
             List<Expression> exps = splitOr(e);
 
             Map<Expression, Set<Expression>> found = new LinkedHashMap<>();
@@ -1223,7 +1223,7 @@ public final class OptimizerRules {
 
             for (Expression exp : exps) {
                 if (exp instanceof Equals eq) {
-                    // consider only equals against foldables
+                    // consider only Equals against foldables
                     if (eq.right().foldable()) {
                         found.computeIfAbsent(eq.left(), k -> new LinkedHashSet<>()).add(eq.right());
                     } else {
@@ -1243,10 +1243,30 @@ public final class OptimizerRules {
             }
 
             if (found.isEmpty() == false) {
-                // combine equals alongside the existing ors
+                // combine Equals alongside the existing ORs
                 final ZoneId finalZoneId = zoneId;
                 found.forEach(
-                    (k, v) -> { ors.add(v.size() == 1 ? createEquals(k, v, finalZoneId) : createIn(k, new ArrayList<>(v), finalZoneId)); }
+                    (k, v) -> {
+                        if (v.size() == 1) {
+                            ors.add(createEquals(k, v.iterator().next(), finalZoneId));
+                        } else {
+                            In in = createIn(k, new ArrayList<>(v), finalZoneId);
+                            // IN has its own particularities when it comes to type resolution and not all implementations
+                            // double check the validity of an internally created IN (like the one created here). EQL is one where the IN
+                            // implementation is like this mechanism here has been specifically created for it
+                            if (shouldValidateIn()) {
+                                Expression.TypeResolution resolution = in.validateInTypes();
+                                if (resolution.unresolved()) {
+                                    // if the created In is not valid, fall back to regular Equals combined with ORs
+                                    in.list().forEach(inValue -> ors.add(createEquals(k, inValue, finalZoneId)));
+                                } else {
+                                    ors.add(in);
+                                }
+                            } else {
+                                ors.add(in);
+                            }
+                        }
+                    }
                 );
 
                 Expression combineOr = combineOr(ors);
@@ -1261,12 +1281,16 @@ public final class OptimizerRules {
             return e;
         }
 
-        protected Equals createEquals(Expression k, Set<Expression> v, ZoneId finalZoneId) {
-            return new Equals(k.source(), k, v.iterator().next(), finalZoneId);
-        }
-
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
             return new In(key.source(), key, values, zoneId);
+        }
+
+        protected boolean shouldValidateIn() {
+            return false;
+        }
+
+        private Equals createEquals(Expression key, Expression value, ZoneId finalZoneId) {
+            return new Equals(key.source(), key, value, finalZoneId);
         }
     }
 

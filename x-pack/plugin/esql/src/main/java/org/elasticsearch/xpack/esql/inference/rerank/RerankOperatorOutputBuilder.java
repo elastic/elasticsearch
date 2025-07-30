@@ -47,7 +47,6 @@ public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuil
      */
     @Override
     public Page buildOutput() {
-        int blockCount = Integer.max(inputPage.getBlockCount(), scoreChannel + 1);
         Page outputPage = inputPage.appendBlock(scoreBlockBuilder.build());
 
         if (scoreChannel == inputPage.getBlockCount()) {

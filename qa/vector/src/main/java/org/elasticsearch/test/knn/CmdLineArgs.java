@@ -52,7 +52,8 @@ record CmdLineArgs(
     int quantizeBits,
     VectorEncoding vectorEncoding,
     int dimensions,
-    boolean earlyTermination
+    boolean earlyTermination,
+    KnnIndexTester.MergePolicyType mergePolicy
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -79,6 +80,7 @@ record CmdLineArgs(
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
     static final ParseField SEED_FIELD = new ParseField("seed");
+    static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
@@ -112,6 +114,7 @@ record CmdLineArgs(
         PARSER.declareBoolean(Builder::setEarlyTermination, EARLY_TERMINATION_FIELD);
         PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, SEED_FIELD);
+        PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
     }
 
     @Override
@@ -179,6 +182,7 @@ record CmdLineArgs(
         private boolean earlyTermination;
         private float filterSelectivity = 1f;
         private long seed = 1751900822751L;
+        private KnnIndexTester.MergePolicyType mergePolicy = null;
 
         public Builder setDocVectors(List<String> docVectors) {
             if (docVectors == null || docVectors.isEmpty()) {
@@ -304,6 +308,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setMergePolicy(String mergePolicy) {
+            this.mergePolicy = KnnIndexTester.MergePolicyType.valueOf(mergePolicy.toUpperCase(Locale.ROOT));
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -337,7 +346,8 @@ record CmdLineArgs(
                 quantizeBits,
                 vectorEncoding,
                 dimensions,
-                earlyTermination
+                earlyTermination,
+                mergePolicy
             );
         }
     }

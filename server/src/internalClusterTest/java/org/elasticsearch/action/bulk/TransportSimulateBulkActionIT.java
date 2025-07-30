@@ -61,7 +61,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
             }
             """;
         indicesAdmin().create(new CreateIndexRequest(indexName).mapping(mapping)).actionGet();
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"

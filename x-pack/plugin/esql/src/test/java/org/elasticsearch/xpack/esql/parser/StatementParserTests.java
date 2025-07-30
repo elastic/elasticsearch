@@ -3714,6 +3714,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
     }
 
+    public void testRerankEmptyOptions() {
+        assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
+
+        var plan = processingCommand("RERANK \"query text\" ON title WITH {}");
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.inferenceId(), equalTo(literalString(".rerank-v1-elasticsearch")));
+        assertThat(rerank.scoreAttribute(), equalTo(attribute("_score")));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
+    }
+
     public void testRerankInferenceId() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
 
@@ -3871,7 +3883,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testCompletionEmptyOptions() {
-        // TODO: fix the grammar to allow empty mapExpression. Then we should have a more explicit error message.
         expectError(
             "FROM foo* | COMPLETION targetField = prompt WITH { }",
             "line 1:45: Missing mandatory option [inference_id] in COMPLETION"

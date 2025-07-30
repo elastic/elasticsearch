@@ -1029,22 +1029,27 @@ public class ESONSource {
         } else {
             int elementCount = 0;
             for (Type type : arr.arrEntry.mutationArray) {
-                if (type instanceof Mutation mutation) {
-                    // This is a mutated element - create new FieldEntry with mutation
-                    flatKeyArray.add(new FieldEntry(null, mutation));
-                    elementCount++;
-                } else if (type instanceof ESONObject nestedObj) {
-                    // Nested object - flatten recursively
-                    flattenObject(nestedObj, null, flatKeyArray);
-                    elementCount++;
-                } else if (type instanceof ESONArray nestedArr) {
-                    // Nested array - flatten recursively
-                    flattenArray(nestedArr, null, flatKeyArray);
-                    elementCount++;
-                } else {
-                    // Regular type (FixedValue, VariableValue, NullValue) - create field entry
-                    flatKeyArray.add(new FieldEntry(null, type));
-                    elementCount++;
+                switch (type) {
+                    case Mutation mutation -> {
+                        // This is a mutated element - create new FieldEntry with mutation
+                        flatKeyArray.add(new FieldEntry(null, mutation));
+                        elementCount++;
+                    }
+                    case ESONObject nestedObj -> {
+                        // Nested object - flatten recursively
+                        flattenObject(nestedObj, null, flatKeyArray);
+                        elementCount++;
+                    }
+                    case ESONArray nestedArr -> {
+                        // Nested array - flatten recursively
+                        flattenArray(nestedArr, null, flatKeyArray);
+                        elementCount++;
+                    }
+                    case null, default -> {
+                        // Regular type (FixedValue, VariableValue, NullValue) - create field entry
+                        flatKeyArray.add(new FieldEntry(null, type));
+                        elementCount++;
+                    }
                 }
             }
 
@@ -1059,7 +1064,7 @@ public class ESONSource {
         out.writeByte((byte) 'N');
         // TODO: How to write size
         // TODO: Assert flattened or support transition to flattened
-        for  (KeyEntry entry : object.getKeyArray()) {
+        for (KeyEntry entry : object.getKeyArray()) {
             if (entry instanceof ObjectEntry) {
 
             } else if (entry instanceof ArrayEntry) {
@@ -1069,6 +1074,5 @@ public class ESONSource {
             }
             entry.writeTo(out);
         }
-
     }
 }

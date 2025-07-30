@@ -2703,7 +2703,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     indicesService,
                     mock(FileSettingsService.class),
                     threadPool,
-                    false
+                    false,
+                    IndexMetadataRestoreTransformer.NoOpRestoreTransformer.getInstance()
                 );
                 actions.put(
                     TransportPutMappingAction.TYPE,

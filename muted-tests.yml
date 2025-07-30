@@ -599,6 +599,9 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=bbq_hnsw}
   issue: https://github.com/elastic/elasticsearch/issues/132141
+- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
+  method: testRelocationWhileForceMerging
+  issue: https://github.com/elastic/elasticsearch/issues/131789
 
 # Examples:
 #

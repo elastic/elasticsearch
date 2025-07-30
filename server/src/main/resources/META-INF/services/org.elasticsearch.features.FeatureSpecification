@@ -14,6 +14,7 @@ org.elasticsearch.rest.action.admin.cluster.GetSnapshotsFeatures
 org.elasticsearch.index.IndexFeatures
 org.elasticsearch.index.mapper.MapperFeatures
 org.elasticsearch.search.SearchFeatures
+org.elasticsearch.synonyms.SynonymFeatures
 org.elasticsearch.search.retriever.RetrieversFeatures
 org.elasticsearch.script.ScriptFeatures
 org.elasticsearch.cluster.routing.RoutingFeatures

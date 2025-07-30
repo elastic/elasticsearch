@@ -34,20 +34,20 @@ public class TestPolicyManagerTests extends ESTestCase {
             List.of(),
             Map.of(),
             c -> new PolicyScope(PLUGIN, "example-plugin" + scopeCounter.incrementAndGet(), "org.example.module"),
-            Map.of(),
             new TestPathLookup(Map.of()),
+            List.of(),
             List.of()
         );
         policyManager.setActive(true);
     }
 
-    public void testReset() {
+    public void testResetAfterTest() {
         assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
         assertFalse(policyManager.classEntitlementsMap.isEmpty());
 
-        policyManager.reset();
+        policyManager.resetAfterTest();
 
         assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin2", policyManager.getEntitlements(getClass()).componentName());

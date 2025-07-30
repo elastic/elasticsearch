@@ -737,6 +737,7 @@ public final class ThreadContext implements Writeable, TraceContext {
                 entry -> entry.getKey().equalsIgnoreCase("authorization")
                     || entry.getKey().equalsIgnoreCase("es-secondary-authorization")
                     || entry.getKey().equalsIgnoreCase("ES-Client-Authentication")
+                    || entry.getKey().equalsIgnoreCase("X-Client-Authentication")
             );
 
         final ThreadContextStruct newContext = new ThreadContextStruct(

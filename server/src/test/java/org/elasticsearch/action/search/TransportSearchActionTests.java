@@ -838,14 +838,18 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
-            RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
-                @Override
-                public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
-                    if (disconnectedNodes.remove(node)) {
-                        disconnectedLatch.countDown();
+            RemoteClusterServiceTests.addConnectionListener(
+                remoteClusterService,
+                remoteIndicesByCluster.keySet(),
+                new TransportConnectionListener() {
+                    @Override
+                    public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
+                        if (disconnectedNodes.remove(node)) {
+                            disconnectedLatch.countDown();
+                        }
                     }
                 }
-            });
+            );
             for (DiscoveryNode disconnectedNode : disconnectedNodes) {
                 service.addFailToSendNoConnectRule(disconnectedNode.getAddress());
             }
@@ -1149,14 +1153,18 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             CountDownLatch disconnectedLatch = new CountDownLatch(numDisconnectedClusters);
-            RemoteClusterServiceTests.addConnectionListener(remoteClusterService, new TransportConnectionListener() {
-                @Override
-                public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
-                    if (disconnectedNodes.remove(node)) {
-                        disconnectedLatch.countDown();
+            RemoteClusterServiceTests.addConnectionListener(
+                remoteClusterService,
+                remoteIndicesByCluster.keySet(),
+                new TransportConnectionListener() {
+                    @Override
+                    public void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {
+                        if (disconnectedNodes.remove(node)) {
+                            disconnectedLatch.countDown();
+                        }
                     }
                 }
-            });
+            );
             for (DiscoveryNode disconnectedNode : disconnectedNodes) {
                 service.addFailToSendNoConnectRule(disconnectedNode.getAddress());
             }

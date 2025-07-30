@@ -39,6 +39,9 @@ public final class VectorWritables {
         if (EsqlCapabilities.Cap.L1_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
             entries.add(L1Norm.ENTRY);
         }
+        if (EsqlCapabilities.Cap.L2_NORM_VECTOR_SIMILARITY_FUNCTION.isEnabled()) {
+            entries.add(L2Norm.ENTRY);
+        }
 
         return Collections.unmodifiableList(entries);
     }

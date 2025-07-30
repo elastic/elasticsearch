@@ -330,8 +330,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
     public void testEncodeFieldToMap() throws IOException {
         String value = randomAlphaOfLength(5);
         ParsedDocument parsedDocument = getParsedDocumentWithFieldLimit(b -> b.field("my_value", value));
-        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME).binaryValue().bytes;
-        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMap(bytes);
+        byte[] bytes = parsedDocument.rootDoc().getField(IgnoredSourceFieldMapper.NAME + ".my_value").binaryValue().bytes;
+        IgnoredSourceFieldMapper.MappedNameValue mappedNameValue = IgnoredSourceFieldMapper.decodeAsMapMulti(bytes).getFirst();
         assertEquals("my_value", mappedNameValue.nameValue().name());
         assertEquals(value, mappedNameValue.map().get("my_value"));
     }

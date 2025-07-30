@@ -407,6 +407,20 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public static MappedNameValue decodeAsMap(byte[] value) throws IOException {
         BytesRef bytes = new BytesRef(value);
         IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(bytes);
+        return nameValueToMapped(nameValue);
+    }
+
+    public static List<MappedNameValue> decodeAsMapMulti(byte[] value) throws IOException {
+        BytesRef bytes = new BytesRef(value);
+        List<NameValue> nameValues = decodeMulti(bytes);
+        List<MappedNameValue> mappedValues = new ArrayList<>(nameValues.size());
+        for (var nameValue : nameValues) {
+            mappedValues.add(nameValueToMapped(nameValue));
+        }
+        return mappedValues;
+    }
+
+    private static MappedNameValue nameValueToMapped(NameValue nameValue) throws IOException {
         XContentBuilder xContentBuilder = XContentBuilder.builder(XContentDataHelper.getXContentType(nameValue.value()).xContent());
         xContentBuilder.startObject().field(nameValue.name());
         XContentDataHelper.decodeAndWrite(xContentBuilder, nameValue.value());
@@ -423,6 +437,23 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
      * @throws IOException
      */
     public static byte[] encodeFromMap(MappedNameValue mappedNameValue, Map<String, Object> map) throws IOException {
+        return IgnoredSourceFieldMapper.encode(filteredNameValue(mappedNameValue, map));
+    }
+
+    public record MappedNameValueWithFilter(MappedNameValue originalValue, Map<String, Object> filteredValue) {}
+
+    public static byte[] encodeFromMapMulti(List<MappedNameValueWithFilter> filteredValues) throws IOException {
+        List<NameValue> filteredNameValues = new ArrayList<>(filteredValues.size());
+        for (var filteredValue : filteredValues) {
+            filteredNameValues.add(filteredNameValue(filteredValue.originalValue, filteredValue.filteredValue));
+        }
+        var encoded = encodeMulti(filteredNameValues);
+        assert encoded.offset == 0;
+        return encoded.bytes;
+    }
+
+    private static IgnoredSourceFieldMapper.NameValue filteredNameValue(MappedNameValue mappedNameValue, Map<String, Object> map)
+        throws IOException {
         // The first entry is the field name, we skip to get to the value to encode.
         assert map.size() == 1;
         Object content = map.values().iterator().next();
@@ -435,12 +466,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
         // Clone the NameValue with the updated value.
         NameValue oldNameValue = mappedNameValue.nameValue();
-        IgnoredSourceFieldMapper.NameValue filteredNameValue = new IgnoredSourceFieldMapper.NameValue(
+        return new IgnoredSourceFieldMapper.NameValue(
             oldNameValue.name(),
             oldNameValue.parentOffset(),
             XContentDataHelper.encodeXContentBuilder(xContentBuilder),
             oldNameValue.doc()
         );
-        return IgnoredSourceFieldMapper.encode(filteredNameValue);
     }
 }

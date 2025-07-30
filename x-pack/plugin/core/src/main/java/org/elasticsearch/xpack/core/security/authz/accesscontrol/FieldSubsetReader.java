@@ -402,6 +402,27 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                         visitor.binaryField(fieldInfo, value);
                     }
                 }
+            } else if (fieldInfo.name.startsWith(IgnoredSourceFieldMapper.NAME)) {
+                List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = IgnoredSourceFieldMapper.decodeAsMapMulti(value);
+                List<IgnoredSourceFieldMapper.MappedNameValueWithFilter> filteredNameValues = new ArrayList<>(mappedNameValues.size());
+                boolean didFilter = false;
+                for (var mappedNameValue : mappedNameValues) {
+                    Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
+                    if (transformedField.isEmpty()) {
+                        didFilter = true;
+                        continue;
+                    }
+                    var topValue = mappedNameValue.map().values().iterator().next();
+                    if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
+                        didFilter = true;
+                    }
+                    filteredNameValues.add(new IgnoredSourceFieldMapper.MappedNameValueWithFilter(mappedNameValue, transformedField));
+                }
+                if (didFilter) {
+                    visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMapMulti(filteredNameValues));
+                } else {
+                    visitor.binaryField(fieldInfo, value);
+                }
             } else {
                 visitor.binaryField(fieldInfo, value);
             }

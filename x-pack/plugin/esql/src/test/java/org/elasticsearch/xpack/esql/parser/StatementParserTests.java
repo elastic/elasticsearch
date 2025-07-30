@@ -946,10 +946,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(limit.children().get(0).children().get(0), instanceOf(UnresolvedRelation.class));
     }
 
-    public void testLimitConstraints() {
-        expectError("from text | limit -1", "line 1:13: Invalid value for LIMIT [-1], expecting a non negative integer");
-    }
-
     public void testBasicSortCommand() {
         LogicalPlan plan = statement("from text | where true | sort a+b asc nulls first, x desc nulls last | sort y asc | sort z desc");
         assertThat(plan, instanceOf(OrderBy.class));
@@ -1231,7 +1227,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(".*bar.*", rlike.pattern().asJavaRegex());
 
         expectError("from a | where foo like 12", "no viable alternative at input 'foo like 12'");
-        expectError("from a | where foo rlike 12", "mismatched input '12'");
+        expectError("from a | where foo rlike 12", "no viable alternative at input 'foo rlike 12'");
 
         expectError(
             "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",

@@ -29,7 +29,7 @@ import static java.util.Objects.requireNonNull;
 
 public class TestPolicyManager extends PolicyManager {
 
-    boolean isActive = true;
+    boolean isActive = false;
     boolean isTriviallyAllowingTestCode = true;
     String[] entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
 

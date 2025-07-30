@@ -266,7 +266,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private class UtilizationTracker {
         long lastPollTime = System.nanoTime();
         long lastTotalExecutionTime = 0;
-        volatile double lastValue = Float.NaN;
+        volatile double lastValue = Double.NaN;
 
         public synchronized double pollUtilization() {
             final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();

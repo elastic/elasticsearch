@@ -402,6 +402,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
         if (applyPipelines(task, bulkRequest, executor, listener) == false) {
+            for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
+                if (docWriteRequest instanceof IndexRequest indexRequest) {
+                    indexRequest.flattenAndSerializeStructuredSource();
+                }
+            }
             doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
         }
     }

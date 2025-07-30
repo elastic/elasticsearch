@@ -39,6 +39,10 @@ to `bbq_hnsw` automatically.
 
 ## Default and custom endpoints
 
+You can use either preconfigured endpoints in your `semantic_text` fields which
+are ideal for most use cases or create custom endpoints and reference them in
+the field mappings.
+
 ### Using the default ELSER endpoint
 
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
@@ -109,7 +113,7 @@ stack: preview 9.1
 serverless: preview
 ```
 
-If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
+If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service through the Elastic Inference Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
 set up `semantic_text` with the following API request:
 
 ```console
@@ -126,7 +130,10 @@ PUT my-index-000001
 }
 ```
 
+::::{note}
 While we do encourage experimentation, we do not recommend implementing production use cases on top of this feature while it is in Technical Preview.
+
+::::
 
 ## Parameters for `semantic_text` fields [semantic-text-params]
 

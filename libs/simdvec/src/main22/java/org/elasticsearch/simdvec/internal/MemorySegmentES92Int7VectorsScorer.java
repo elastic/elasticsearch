@@ -34,9 +34,9 @@ public final class MemorySegmentES92Int7VectorsScorer extends ES92Int7VectorsSco
 
     static {
         // default to platform supported bitsize
-        final int VECTOR_BITSIZE = VectorShape.preferredShape().vectorBitSize();
-        FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(VECTOR_BITSIZE));
-        INT_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(VECTOR_BITSIZE));
+        final int vectorBitSize = VectorShape.preferredShape().vectorBitSize();
+        FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(vectorBitSize));
+        INT_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(vectorBitSize));
     }
 
     private final MemorySegment memorySegment;

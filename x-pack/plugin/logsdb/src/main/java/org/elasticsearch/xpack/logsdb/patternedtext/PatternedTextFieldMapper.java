@@ -33,8 +33,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.IndexSettings.USE_DOC_VALUES_SKIPPER;
-
 /**
  * A {@link FieldMapper} that assigns every document the same value.
  */
@@ -62,25 +60,12 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final TextParams.Analyzers analyzers;
-        private final boolean enableDocValuesSkipper;
 
         public Builder(String name, MappingParserContext context) {
-            this(
-                name,
-                context.indexVersionCreated(),
-                context.getIndexSettings(),
-                context.getIndexAnalyzers(),
-                USE_DOC_VALUES_SKIPPER.get(context.getSettings())
-            );
+            this(name, context.indexVersionCreated(), context.getIndexSettings(), context.getIndexAnalyzers());
         }
 
-        public Builder(
-            String name,
-            IndexVersion indexCreatedVersion,
-            IndexSettings indexSettings,
-            IndexAnalyzers indexAnalyzers,
-            boolean enableDocValuesSkipper
-        ) {
+        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
@@ -90,7 +75,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 m -> ((PatternedTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
             );
-            this.enableDocValuesSkipper = enableDocValuesSkipper;
         }
 
         @Override
@@ -120,8 +104,8 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 patternedTextFieldType.templateIdFieldName(),
                 indexSettings.getMode(),
                 indexCreatedVersion,
-                enableDocValuesSkipper
-            ).build(context);
+                true
+            ).indexed(false).build(context);
             return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper);
         }
     }
@@ -132,7 +116,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
     private final IndexAnalyzers indexAnalyzers;
     private final IndexSettings indexSettings;
     private final NamedAnalyzer indexAnalyzer;
-    private final boolean enableDocValuesSkipper;
     private final int positionIncrementGap;
     private final FieldType fieldType;
     private final KeywordFieldMapper templateIdMapper;
@@ -152,7 +135,6 @@ public class PatternedTextFieldMapper extends FieldMapper {
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.indexSettings = builder.indexSettings;
-        this.enableDocValuesSkipper = builder.enableDocValuesSkipper;
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.templateIdMapper = templateIdMapper;
     }
@@ -164,7 +146,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers, enableDocValuesSkipper).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers).init(this);
     }
 
     @Override

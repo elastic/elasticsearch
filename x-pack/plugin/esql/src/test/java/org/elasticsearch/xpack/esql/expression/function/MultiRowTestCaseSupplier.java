@@ -36,6 +36,14 @@ public final class MultiRowTestCaseSupplier {
 
     private MultiRowTestCaseSupplier() {}
 
+    public static List<TypedDataSupplier> nullCases(int minRows, int maxRows) {
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(cases, minRows, maxRows, "null", DataType.NULL, () -> null);
+
+        return cases;
+    }
+
     public static List<TypedDataSupplier> intCases(int minRows, int maxRows, int min, int max, boolean includeZero) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 

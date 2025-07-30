@@ -82,18 +82,50 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     public void testKeywordKey() throws IOException {
-        runLookup(DataType.KEYWORD, new UsingSingleLookupTable(new String[] { "aa", "bb", "cc", "dd" }));
+        runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" } }));
+    }
+
+    public void testJoinOnTwoKeys() throws IOException {
+        runLookup(
+            List.of(DataType.KEYWORD, DataType.LONG),
+            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "cc", "dd" }, new Long[] { 12L, 33L, 1L, 42L } })
+        );
+    }
+
+    public void testJoinOnThreeKeys() throws IOException {
+        runLookup(
+            List.of(DataType.KEYWORD, DataType.LONG, DataType.KEYWORD),
+            new UsingSingleLookupTable(
+                new Object[][] {
+                    new String[] { "aa", "bb", "cc", "dd" },
+                    new Long[] { 12L, 33L, 1L, 42L },
+                    new String[] { "one", "two", "three", "four" }, }
+            )
+        );
+    }
+
+    public void testJoinOnFourKeys() throws IOException {
+        runLookup(
+            List.of(DataType.KEYWORD, DataType.LONG, DataType.KEYWORD, DataType.INTEGER),
+            new UsingSingleLookupTable(
+                new Object[][] {
+                    new String[] { "aa", "bb", "cc", "dd" },
+                    new Long[] { 12L, 33L, 1L, 42L },
+                    new String[] { "one", "two", "three", "four" },
+                    new Integer[] { 1, 2, 3, 4 }, }
+            )
+        );
     }
 
     public void testLongKey() throws IOException {
-        runLookup(DataType.LONG, new UsingSingleLookupTable(new Long[] { 12L, 33L, 1L }));
+        runLookup(List.of(DataType.LONG), new UsingSingleLookupTable(new Object[][] { new Long[] { 12L, 33L, 1L } }));
     }
 
     /**
      * LOOKUP multiple results match.
      */
     public void testLookupIndexMultiResults() throws IOException {
-        runLookup(DataType.KEYWORD, new UsingSingleLookupTable(new String[] { "aa", "bb", "bb", "dd" }));
+        runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" } }));
     }
 
     interface PopulateIndices {
@@ -101,52 +133,87 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     }
 
     class UsingSingleLookupTable implements PopulateIndices {
-        private final Map<Object, List<Integer>> matches = new HashMap<>();
-        private final Object[] lookupData;
+        private final Map<List<Object>, List<Integer>> matches = new HashMap<>();
+        private final Object[][] lookupData;
 
-        UsingSingleLookupTable(Object[] lookupData) {
+        // Accepts array of arrays, each sub-array is values for a key field
+        // All subarrays must have the same length
+        UsingSingleLookupTable(Object[][] lookupData) {
             this.lookupData = lookupData;
-            for (int i = 0; i < lookupData.length; i++) {
-                matches.computeIfAbsent(lookupData[i], k -> new ArrayList<>()).add(i);
+            int numRows = lookupData[0].length;
+            for (int i = 0; i < numRows; i++) {
+                List<Object> key = new ArrayList<>();
+                for (Object[] col : lookupData) {
+                    key.add(col[i]);
+                }
+                matches.computeIfAbsent(key, k -> new ArrayList<>()).add(i);
             }
         }
 
         @Override
         public void populate(int docCount, List<String> expected) {
             List<IndexRequestBuilder> docs = new ArrayList<>();
+            int numFields = lookupData.length;
+            int numRows = lookupData[0].length;
             for (int i = 0; i < docCount; i++) {
-                Object key = lookupData[i % lookupData.length];
-                docs.add(client().prepareIndex("source").setSource(Map.of("key", key)));
+                List<Object> key = new ArrayList<>();
+                Map<String, Object> sourceDoc = new HashMap<>();
+                for (int f = 0; f < numFields; f++) {
+                    Object val = lookupData[f][i % numRows];
+                    key.add(val);
+                    sourceDoc.put("key" + f, val);
+                }
+                docs.add(client().prepareIndex("source").setSource(sourceDoc));
+                String keyString;
+                if (key.size() == 1) {
+                    keyString = String.valueOf(key.get(0));
+                } else {
+                    keyString = String.join(",", key.stream().map(String::valueOf).toArray(String[]::new));
+                }
                 for (Integer match : matches.get(key)) {
-                    expected.add(key + ":" + match);
+                    expected.add(keyString + ":" + match);
                 }
             }
-            for (int i = 0; i < lookupData.length; i++) {
-                docs.add(client().prepareIndex("lookup").setSource(Map.of("key", lookupData[i], "l", i)));
+            for (int i = 0; i < numRows; i++) {
+                Map<String, Object> lookupDoc = new HashMap<>();
+                for (int f = 0; f < numFields; f++) {
+                    lookupDoc.put("key" + f, lookupData[f][i]);
+                }
+                lookupDoc.put("l", i);
+                docs.add(client().prepareIndex("lookup").setSource(lookupDoc));
             }
             Collections.sort(expected);
             indexRandom(true, true, docs);
         }
     }
 
-    private void runLookup(DataType keyType, PopulateIndices populateIndices) throws IOException {
+    private void runLookup(List<DataType> keyTypes, PopulateIndices populateIndices) throws IOException {
+        String[] fieldMappers = new String[keyTypes.size() * 2];
+        for (int i = 0; i < keyTypes.size(); i++) {
+            fieldMappers[2 * i] = "key" + i;
+            fieldMappers[2 * i + 1] = "type=" + keyTypes.get(i).esType();
+        }
         client().admin()
             .indices()
             .prepareCreate("source")
             .setSettings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1))
-            .setMapping("key", "type=" + keyType.esType())
+            .setMapping(fieldMappers)
             .get();
-        client().admin()
-            .indices()
-            .prepareCreate("lookup")
-            .setSettings(
-                Settings.builder()
-                    .put(IndexSettings.MODE.getKey(), "lookup")
-                    // TODO lookup index mode doesn't seem to force a single shard. That'll break the lookup command.
-                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            )
-            .setMapping("key", "type=" + keyType.esType(), "l", "type=long")
-            .get();
+
+        Settings.Builder lookupSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "lookup")
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1);
+        {
+            String[] lookupMappers = new String[keyTypes.size() * 2 + 2];
+            int i = 0;
+            for (; i < keyTypes.size(); i++) {
+                lookupMappers[2 * i] = "key" + i;
+                lookupMappers[2 * i + 1] = "type=" + keyTypes.get(i).esType();
+            }
+            lookupMappers[2 * i] = "l";
+            lookupMappers[2 * i + 1] = "type=long";
+            client().admin().indices().prepareCreate("lookup").setSettings(lookupSettings).setMapping(lookupMappers).get();
+        }
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
         int docCount = between(10, 1000);
@@ -198,15 +265,20 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 DocIdSetIterator.NO_MORE_DOCS,
                 false // no scoring
             );
+            List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>();
+            for (int i = 0; i < keyTypes.size(); i++) {
+                final int idx = i;
+                fieldInfos.add(
+                    new ValuesSourceReaderOperator.FieldInfo(
+                        "key" + idx,
+                        PlannerUtils.toElementType(keyTypes.get(idx)),
+                        shard -> searchContext.getSearchExecutionContext().getFieldType("key" + idx).blockLoader(blContext())
+                    )
+                );
+            }
             ValuesSourceReaderOperator.Factory reader = new ValuesSourceReaderOperator.Factory(
                 PhysicalSettings.VALUES_LOADING_JUMBO_SIZE.getDefault(Settings.EMPTY),
-                List.of(
-                    new ValuesSourceReaderOperator.FieldInfo(
-                        "key",
-                        PlannerUtils.toElementType(keyType),
-                        shard -> searchContext.getSearchExecutionContext().getFieldType("key").blockLoader(blContext())
-                    )
-                ),
+                fieldInfos,
                 List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
                     throw new IllegalStateException("can't load source here");
                 }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
@@ -225,7 +297,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             );
             final String finalNodeWithShard = nodeWithShard;
             List<LookupFromIndexOperator.MatchConfig> matchFields = new ArrayList<>();
-            matchFields.add(new LookupFromIndexOperator.MatchConfig(new FieldAttribute.FieldName("key"), 1, keyType));
+            for (int i = 0; i < keyTypes.size(); i++) {
+                matchFields.add(new LookupFromIndexOperator.MatchConfig(new FieldAttribute.FieldName("key" + i), i + 1, keyTypes.get(i)));
+            }
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
                 matchFields,
                 "test",
@@ -245,16 +319,28 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     List.of(reader.get(driverContext), lookup.get(driverContext)),
                     new PageConsumerOperator(page -> {
                         try {
-                            Block keyBlock = page.getBlock(1);
-                            LongVector loadedBlock = page.<LongBlock>getBlock(2).asVector();
+                            List<Block> keyBlocks = new ArrayList<>();
+                            for (int i = 0; i < keyTypes.size(); i++) {
+                                keyBlocks.add(page.getBlock(i + 1));
+                            }
+                            LongVector loadedBlock = page.<LongBlock>getBlock(keyTypes.size() + 1).asVector();
                             for (int p = 0; p < page.getPositionCount(); p++) {
-                                List<Object> key = BlockTestUtils.valuesAtPositions(keyBlock, p, p + 1).get(0);
-                                assertThat(key, hasSize(1));
-                                Object keyValue = key.get(0);
-                                if (keyValue instanceof BytesRef b) {
-                                    keyValue = b.utf8ToString();
+                                StringBuilder result = new StringBuilder();
+                                for (int j = 0; j < keyBlocks.size(); j++) {
+                                    List<Object> key = BlockTestUtils.valuesAtPositions(keyBlocks.get(j), p, p + 1).get(0);
+                                    assertThat(key, hasSize(1));
+                                    Object keyValue = key.get(0);
+                                    if (keyValue instanceof BytesRef b) {
+                                        keyValue = b.utf8ToString();
+                                    }
+                                    result.append(keyValue);
+                                    if (j < keyBlocks.size() - 1) {
+                                        result.append(",");
+                                    }
+
                                 }
-                                results.add(keyValue + ":" + loadedBlock.getLong(p));
+                                result.append(":" + loadedBlock.getLong(p));
+                                results.add(result.toString());
                             }
                         } finally {
                             page.releaseBlocks();

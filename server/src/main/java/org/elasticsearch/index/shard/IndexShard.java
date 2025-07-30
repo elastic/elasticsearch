@@ -2755,7 +2755,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * setting is set to true, throttling will pause indexing completely. Otherwise, indexing will be throttled to one thread.
      */
     public void activateThrottling() {
-        assert shardRouting.primary() : "only primaries can be throttled: " + shardRouting;
         try {
             getEngine().activateThrottling();
         } catch (AlreadyClosedException ex) {

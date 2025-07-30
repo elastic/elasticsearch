@@ -147,6 +147,9 @@ public abstract class Engine implements Closeable {
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
     protected final boolean enableRecoverySource;
+    // This should only be enabled in serverless. In stateful clusters, where we have
+    // indexing replicas, if pause throttling gets enabled on replicas, it will indirectly
+    // pause the primary as well which might prevent us from relocating the primary shard.
     protected final boolean pauseIndexingOnThrottle;
 
     private final AtomicBoolean isClosing = new AtomicBoolean();

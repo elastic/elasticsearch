@@ -88,6 +88,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -124,11 +125,13 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class IndexShardIT extends ESSingleNodeTestCase {
     private static final Logger logger = LogManager.getLogger(IndexShardIT.class);
@@ -346,9 +349,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .threadPoolUsageStatsMap()
                     .get(ThreadPool.Names.WRITE);
                 assertNotNull(writeThreadPoolStats);
-                assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
-                assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
-                assertThat(writeThreadPoolStats.averageThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
+                assertThat(writeThreadPoolStats.numberOfThreads(), greaterThanOrEqualTo(0));
+                assertThat(writeThreadPoolStats.utilizationSamples(), not(empty()));
             }
         } finally {
             updateClusterSettings(
@@ -1022,11 +1024,16 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
 
         private NodeUsageStatsForThreadPools makeRandomNodeUsageStats(String nodeId) {
-            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-                randomNonNegativeInt(),
-                randomFloat(),
-                randomNonNegativeLong()
-            );
+            final List<NodeUsageStatsForThreadPools.UtilizationSample> utilizationSamples = IntStream.range(0, randomIntBetween(1, 10))
+                .mapToObj(
+                    i -> new NodeUsageStatsForThreadPools.UtilizationSample(
+                        randomInstantBetween(Instant.MIN, Instant.MAX),
+                        randomFloatBetween(0.0f, 1.0f, true)
+                    )
+                )
+                .toList();
+            final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats =
+                new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(randomIntBetween(1, 1_000), utilizationSamples);
             Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> statsForThreadPools = new HashMap<>();
             statsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolStats);
             return new NodeUsageStatsForThreadPools(nodeId, statsForThreadPools);

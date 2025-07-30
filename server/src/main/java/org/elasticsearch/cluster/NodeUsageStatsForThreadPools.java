@@ -9,13 +9,15 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Record of a node's thread pool usage stats (operation load). Maps thread pool stats by thread pool name.
@@ -27,7 +29,7 @@ import java.util.Objects;
 public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPoolUsageStats> threadPoolUsageStatsMap) implements Writeable {
 
     public NodeUsageStatsForThreadPools(StreamInput in) throws IOException {
-        this(in.readString(), in.readMap(ThreadPoolUsageStats::new));
+        this(in.readString(), in.readMap(ThreadPoolUsageStats::readFrom));
     }
 
     @Override
@@ -36,86 +38,60 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
         out.writeMap(threadPoolUsageStatsMap, StreamOutput::writeWriteable);
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(nodeId, threadPoolUsageStatsMap);
-    }
+    /**
+     * One utilization sample
+     *
+     * @param instant The time we received the sample
+     * @param utilization The utilization value in the range [0.0, 1.0]
+     */
+    public record UtilizationSample(Instant instant, float utilization) implements Writeable {
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        NodeUsageStatsForThreadPools other = (NodeUsageStatsForThreadPools) o;
-        for (var entry : other.threadPoolUsageStatsMap.entrySet()) {
-            var loadStats = threadPoolUsageStatsMap.get(entry.getKey());
-            if (loadStats == null || loadStats.equals(entry.getValue()) == false) {
-                return false;
-            }
+        public UtilizationSample(StreamInput in) throws IOException {
+            this(Instant.ofEpochMilli(in.readVLong()), in.readFloat());
         }
-        return true;
-    }
 
-    @Override
-    public String toString() {
-        StringBuilder builder = new StringBuilder(getClass().getSimpleName() + "{nodeId=" + nodeId + ", threadPoolUsageStatsMap=[");
-        for (var entry : threadPoolUsageStatsMap.entrySet()) {
-            builder.append("{ThreadPool.Names=" + entry.getKey() + ", ThreadPoolUsageStats=" + entry.getValue() + "}");
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(instant.toEpochMilli());
+            out.writeFloat(utilization);
         }
-        builder.append("]}");
-        return builder.toString();
     }
 
     /**
      * Record of usage stats for a thread pool.
      *
-     * @param totalThreadPoolThreads Total number of threads in the thread pool.
-     * @param averageThreadPoolUtilization Percent of thread pool threads that are in use, averaged over some period of time.
-     * @param averageThreadPoolQueueLatencyMillis How much time tasks spend in the thread pool queue. Zero if there is nothing being queued
-     *                                            in the write thread pool.
+     * @param numberOfThreads Total number of threads in the thread pool.
+     * @param utilizationSamples The list of recent utilization samples
      */
-    public record ThreadPoolUsageStats(
-        int totalThreadPoolThreads,
-        float averageThreadPoolUtilization,
-        long averageThreadPoolQueueLatencyMillis
-    ) implements Writeable {
+    public record ThreadPoolUsageStats(int numberOfThreads, List<UtilizationSample> utilizationSamples) implements Writeable {
 
-        public ThreadPoolUsageStats(StreamInput in) throws IOException {
-            this(in.readVInt(), in.readFloat(), in.readVLong());
+        public ThreadPoolUsageStats {
+            assert numberOfThreads > 0;
+            assert utilizationSamples.isEmpty() == false;
+        }
+
+        public static ThreadPoolUsageStats readFrom(StreamInput in) throws IOException {
+            final int numberOfThreads = in.readVInt();
+            final List<UtilizationSample> utilizationSamples;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.THREAD_POOL_UTILIZATION_MULTI_SAMPLE_CLUSTER_INFO)) {
+                utilizationSamples = in.readCollectionAsImmutableList(UtilizationSample::new);
+            } else {
+                utilizationSamples = List.of(new UtilizationSample(Instant.now(), in.readFloat()));
+                in.readVLong(); // Skip over the queue latency
+            }
+            return new ThreadPoolUsageStats(numberOfThreads, utilizationSamples);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.totalThreadPoolThreads);
-            out.writeFloat(this.averageThreadPoolUtilization);
-            out.writeVLong(this.averageThreadPoolQueueLatencyMillis);
+            out.writeVInt(this.numberOfThreads);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.THREAD_POOL_UTILIZATION_MULTI_SAMPLE_CLUSTER_INFO)) {
+                out.writeGenericList(utilizationSamples, StreamOutput::writeWriteable);
+            } else {
+                out.writeFloat(this.utilizationSamples.getLast().utilization());
+                out.writeVLong(0L); // Dummy queue latency value
+            }
         }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(totalThreadPoolThreads, averageThreadPoolUtilization, averageThreadPoolQueueLatencyMillis);
-        }
-
-        @Override
-        public String toString() {
-            return "[totalThreadPoolThreads="
-                + totalThreadPoolThreads
-                + ", averageThreadPoolUtilization="
-                + averageThreadPoolUtilization
-                + ", averageThreadPoolQueueLatencyMillis="
-                + averageThreadPoolQueueLatencyMillis
-                + "]";
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ThreadPoolUsageStats other = (ThreadPoolUsageStats) o;
-            return totalThreadPoolThreads == other.totalThreadPoolThreads
-                && averageThreadPoolUtilization == other.averageThreadPoolUtilization
-                && averageThreadPoolQueueLatencyMillis == other.averageThreadPoolQueueLatencyMillis;
-        }
-
     } // ThreadPoolUsageStats
 
 }

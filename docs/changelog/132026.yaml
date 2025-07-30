@@ -1,5 +1,0 @@
-pr: 132026
-summary: "Refactor semantic query rewrite interceptors to support multi-field queries with boost handling"
-area: Relevance
-type: enhancement
-issues: []

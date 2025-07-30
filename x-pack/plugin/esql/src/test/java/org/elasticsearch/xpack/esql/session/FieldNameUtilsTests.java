@@ -2199,6 +2199,34 @@ public class FieldNameUtilsTests extends ESTestCase {
             | SORT _fork""", IndexResolver.ALL_FIELDS);
     }
 
+    public void testForkRefs1() {
+        assertFieldNames("""
+            FROM employees
+            | KEEP first_name, last_name
+            | FORK
+               ( EVAL x = first_name)
+               ( EVAL x = last_name)
+            """, Set.of("first_name", "last_name", "last_name.*", "first_name.*"));
+    }
+
+    public void testForkRefs2() {
+        assertFieldNames("""
+            FROM employees
+            | FORK
+               ( KEEP first_name | EVAL x = first_name)
+               ( KEEP last_name | EVAL x = last_name)
+            """, Set.of("first_name", "last_name", "last_name.*", "first_name.*"));
+    }
+
+    public void testForkRefs3() {
+        assertFieldNames("""
+            FROM employees
+            | FORK
+               ( KEEP first_name | EVAL last_name = first_name)
+               ( KEEP first_name | EVAL x = first_name)
+            """, Set.of("first_name", "first_name.*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, new EnrichResolution(), expected, Set.of());
     }

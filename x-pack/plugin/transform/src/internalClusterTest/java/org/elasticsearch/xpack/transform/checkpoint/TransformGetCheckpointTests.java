@@ -247,7 +247,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
                     IndexShard mockIndexShard = mock(IndexShard.class);
                     when(mockIndexService.getShard(j)).thenReturn(mockIndexShard);
                     SeqNoStats seqNoStats = new SeqNoStats(42 + i + j, 42 + i + j, 42 + i + j);
-                    when(mockIndexShard.seqNoStats()).thenReturn(seqNoStats);
+                    when(mockIndexShard.seqNoStats(true)).thenReturn(seqNoStats);
                 }
 
                 when(mockIndicesService.indexServiceSafe(indexMeta.getIndex())).thenReturn(mockIndexService);

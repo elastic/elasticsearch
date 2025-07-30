@@ -116,13 +116,13 @@ public class TransportGetCheckpointNodeActionTests extends ESTestCase {
 
     private void mockIndexServiceResponse() {
         IndexShard indexShardA0 = mock(IndexShard.class);
-        when(indexShardA0.seqNoStats()).thenReturn(new SeqNoStats(3_000, 2_000, 3_000));
+        when(indexShardA0.seqNoStats(true)).thenReturn(new SeqNoStats(3_000, 2_000, 3_000));
         IndexShard indexShardA1 = mock(IndexShard.class);
-        when(indexShardA1.seqNoStats()).thenReturn(new SeqNoStats(3_000, 2_000, 3_001));
+        when(indexShardA1.seqNoStats(true)).thenReturn(new SeqNoStats(3_000, 2_000, 3_001));
         IndexShard indexShardB0 = mock(IndexShard.class);
-        when(indexShardB0.seqNoStats()).thenReturn(new SeqNoStats(3_000, 2_000, 4_000));
+        when(indexShardB0.seqNoStats(true)).thenReturn(new SeqNoStats(3_000, 2_000, 4_000));
         IndexShard indexShardB1 = mock(IndexShard.class);
-        when(indexShardB1.seqNoStats()).thenReturn(new SeqNoStats(3_000, 2_000, 4_001));
+        when(indexShardB1.seqNoStats(true)).thenReturn(new SeqNoStats(3_000, 2_000, 4_001));
         Settings commonIndexSettings = Settings.builder()
             .put(SETTING_VERSION_CREATED, 1_000_000)
             .put(SETTING_NUMBER_OF_SHARDS, 2)

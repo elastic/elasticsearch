@@ -319,7 +319,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final List<Object> components = new ArrayList<>();
         this.repositoriesService.set(services.repositoriesService());
         this.threadPool.set(threadPool);
-        this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), services.rerouteService()));
+        this.failShardsListener.set(
+            new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), services.rerouteService(), threadPool)
+        );
         if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);

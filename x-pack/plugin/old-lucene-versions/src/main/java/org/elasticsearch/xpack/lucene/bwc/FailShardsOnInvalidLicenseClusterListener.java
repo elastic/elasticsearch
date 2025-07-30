@@ -20,6 +20,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -34,13 +35,20 @@ public final class FailShardsOnInvalidLicenseClusterListener implements LicenseS
 
     private final RerouteService rerouteService;
 
+    private final ThreadPool threadPool;
+
     final Set<IndexShard> shardsToFail = new HashSet<>();
 
     private boolean allowed;
 
-    public FailShardsOnInvalidLicenseClusterListener(XPackLicenseState xPackLicenseState, RerouteService rerouteService) {
+    public FailShardsOnInvalidLicenseClusterListener(
+        XPackLicenseState xPackLicenseState,
+        RerouteService rerouteService,
+        ThreadPool threadPool
+    ) {
         this.xPackLicenseState = xPackLicenseState;
         this.rerouteService = rerouteService;
+        this.threadPool = threadPool;
         this.allowed = ARCHIVE_FEATURE.checkWithoutTracking(xPackLicenseState);
         xPackLicenseState.addListener(this);
     }
@@ -48,7 +56,7 @@ public final class FailShardsOnInvalidLicenseClusterListener implements LicenseS
     @Override
     public synchronized void afterIndexShardStarted(IndexShard indexShard) {
         shardsToFail.add(indexShard);
-        failActiveShardsIfNecessary();
+        threadPool.generic().execute(() -> failActiveShardsIfNecessary());
     }
 
     @Override
@@ -75,11 +83,10 @@ public final class FailShardsOnInvalidLicenseClusterListener implements LicenseS
             });
         }
         this.allowed = allowed;
-        failActiveShardsIfNecessary();
+        threadPool.generic().execute(() -> failActiveShardsIfNecessary());
     }
 
-    private void failActiveShardsIfNecessary() {
-        assert Thread.holdsLock(this);
+    private synchronized void failActiveShardsIfNecessary() {
         if (allowed == false) {
             for (IndexShard indexShard : shardsToFail) {
                 try {

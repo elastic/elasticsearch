@@ -79,7 +79,9 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin, Clust
     public Collection<?> createComponents(PluginServices services) {
         ThreadPool threadPool = services.threadPool();
 
-        this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), services.rerouteService()));
+        this.failShardsListener.set(
+            new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), services.rerouteService(), threadPool)
+        );
         if (DiscoveryNode.isMasterNode(services.environment().settings())) {
             // We periodically look through the indices and identify if there are any archive indices,
             // then marking the feature as used. We do this on each master node so that if one master fails, the

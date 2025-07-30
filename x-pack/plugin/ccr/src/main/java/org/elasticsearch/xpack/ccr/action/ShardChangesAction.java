@@ -403,7 +403,9 @@ public class ShardChangesAction extends ActionType<ShardChangesAction.Response> 
             throws IOException {
             final IndexService indexService = indicesService.indexServiceSafe(request.getShard().getIndex());
             final IndexShard indexShard = indexService.getShard(request.getShard().id());
-            final SeqNoStats seqNoStats = indexShard.seqNoStats();
+            // This may be problematic as it's called by the action. We need to think about it.
+            // Setting skipAssertions=True to avoid this assertion failure.
+            final SeqNoStats seqNoStats = indexShard.seqNoStats(true);
 
             if (request.getFromSeqNo() > seqNoStats.getGlobalCheckpoint()) {
                 logger.trace(

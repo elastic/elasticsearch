@@ -292,7 +292,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
     }
 
     public static void adaptBulkShardOperationsResponse(BulkShardOperationsResponse response, IndexShard indexShard) {
-        final SeqNoStats seqNoStats = indexShard.seqNoStats();
+        // Skip assertions since run with primary shard reference / operation permit
+        final SeqNoStats seqNoStats = indexShard.seqNoStats(true);
         // return a fresh global checkpoint after the operations have been replicated for the shard follow task
         response.setGlobalCheckpoint(seqNoStats.getGlobalCheckpoint());
         response.setMaxSeqNo(seqNoStats.getMaxSeqNo());

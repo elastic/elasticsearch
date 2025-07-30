@@ -1400,7 +1400,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws AlreadyClosedException if shard is closed
      */
     public SeqNoStats seqNoStats() {
-        return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        return seqNoStats(false);
+    }
+
+    public SeqNoStats seqNoStats(boolean skipAssertions) {
+        return getEngine(skipAssertions).getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
     public IndexingStats indexingStats() {
@@ -1463,11 +1467,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public MergeStats mergeStats() {
-        final Engine engine = getEngineOrNull();
-        if (engine == null) {
-            return new MergeStats();
-        }
-        return engine.getMergeStats();
+        return tryWithEngineOrNull(engine -> {
+            if (engine == null) {
+                return new MergeStats();
+            }
+            return engine.getMergeStats();
+        });
     }
 
     public SegmentsStats segmentStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
@@ -1707,14 +1712,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        final Engine engine = getEngine();
+        final Engine engine = getEngine(true); // should primarily happen on search nodes
         return engine.acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
         readAllowed();
         markSearcherAccessed();
-        final Engine engine = getEngine();
+        final Engine engine = getEngine(true); // should primarily happen on search nodes
         return engine.acquireSearcher(source, Engine.SearcherScope.EXTERNAL, this::wrapSearcher);
     }
 
@@ -2661,7 +2666,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void onSettingsChanged() {
         engineResetLock.readLock().lock();
         try {
-            var engine = getCurrentEngine(true);
+            // TODO this may be called by a cluster state update thread and we need to consider whether it is an issue
+            // java.lang.AssertionError: Expected current thread
+            // [Thread[#97,elasticsearch[node_t3][clusterApplierService#updateTask][T#1],5,TGRP-StatelessIT]] to not be the cluster state
+            // update thread. Reason: [method IndexShard#getCurrentEngine (or one of its variant) can block]
+            // at __randomizedtesting.SeedInfo.seed([6244501B70969C37]:0)
+            // at org.elasticsearch.cluster.service.ClusterApplierService.assertNotClusterStateUpdateThread(ClusterApplierService.java:386)
+            // at org.elasticsearch.index.shard.IndexShard.assertCurrentThreadWithEngine(IndexShard.java:3550)
+            // at org.elasticsearch.index.shard.IndexShard.getCurrentEngine(IndexShard.java:3430)
+            // at org.elasticsearch.index.shard.IndexShard.onSettingsChanged(IndexShard.java:2673)
+            // at org.elasticsearch.index.IndexService.updateMetadata(IndexService.java:1013)
+            // at org.elasticsearch.indices.cluster.IndicesClusterStateService.updateIndices(IndicesClusterStateService.java:662)
+            // at org.elasticsearch.indices.cluster.IndicesClusterStateService.doApplyClusterState(IndicesClusterStateService.java:322)
+            // at org.elasticsearch.indices.cluster.IndicesClusterStateService.applyClusterState(IndicesClusterStateService.java:278)
+            // at org.elasticsearch.cluster.service.ClusterApplierService.callClusterStateAppliers(ClusterApplierService.java:572)
+            // at org.elasticsearch.cluster.service.ClusterApplierService.callClusterStateAppliers(ClusterApplierService.java:558)
+            // at org.elasticsearch.cluster.service.ClusterApplierService.applyChanges(ClusterApplierService.java:531)
+            // at org.elasticsearch.cluster.service.ClusterApplierService.runTask(ClusterApplierService.java:460)
+            // at org.elasticsearch.cluster.service.ClusterApplierService$UpdateTask.run(ClusterApplierService.java:159)
+            // at org.elasticsearch.common.util.concurrent.ThreadContext$ContextPreservingRunnable.run(ThreadContext.java:1000)
+            // at
+            // org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.runAndClean
+            // (PrioritizedEsThreadPoolExecutor.java:218)
+            // at
+            // org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor$TieBreakingPrioritizedRunnable.run
+            // (PrioritizedEsThreadPoolExecutor.java:184)
+            // at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1095)
+            // at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:619)
+            // at java.base/java.lang.Thread.run(Thread.java:1447)
+            var engine = getCurrentEngine(true, true);
             if (engine != null) {
                 engine.onSettingsChanged();
             }
@@ -2674,7 +2707,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Acquires a lock on Lucene soft-deleted documents to prevent them from being trimmed
      */
     public Closeable acquireHistoryRetentionLock() {
-        return getEngine().acquireHistoryRetentionLock();
+        // Skip assertions since this is called either during recovery, or under a primary permit (thus during ingestion) which is not
+        // something that can happen concurrently with hollowing (primary relocation holds permits) or unhollowing (we block ingestion).
+        return getEngine(true).acquireHistoryRetentionLock();
     }
 
     /**
@@ -2682,7 +2717,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * This method should be called after acquiring the retention lock; See {@link #acquireHistoryRetentionLock()}
      */
     public boolean hasCompleteHistoryOperations(String reason, long startingSeqNo) {
-        return getEngine().hasCompleteOperationHistory(reason, startingSeqNo);
+        // Skip assertions since this is called during recovery.
+        return getEngine(true).hasCompleteOperationHistory(reason, startingSeqNo);
     }
 
     /**
@@ -2691,7 +2727,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the minimum retained sequence number
      */
     public long getMinRetainedSeqNo() {
-        return getEngine().getMinRetainedSeqNo();
+        // Skip assertions since this is called under a primary permit
+        return getEngine(true).getMinRetainedSeqNo();
     }
 
     /**
@@ -3045,7 +3082,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the local checkpoint
      */
     public long getLocalCheckpoint() {
-        return getEngine().getPersistedLocalCheckpoint();
+        return getLocalCheckpoint(false);
+    }
+
+    public long getLocalCheckpoint(boolean skipAssertions) {
+        return getEngine(skipAssertions).getPersistedLocalCheckpoint();
     }
 
     /**
@@ -3087,7 +3128,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         assert assertPrimaryMode();
         // only sync if there are no operations in flight, or when using async durability
-        final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        // Skip assertions because this is called either from an async thread (so OK to block) or from the post operation of a replication
+        // action under a primary permit -- which would not be concurrent with either hollowing/unhollowing (since ingestion is blocked
+        // before hollowing, due to the primary relocation, and due to our own blocker during unhollowing).
+        final SeqNoStats stats = getEngine(true).getSeqNoStats(replicationTracker.getGlobalCheckpoint());
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
             final var trackedGlobalCheckpointsNeedSync = replicationTracker.trackedGlobalCheckpointsNeedSync();
@@ -3150,7 +3194,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
         assert assertReplicationTarget();
-        final long localCheckpoint = getLocalCheckpoint();
+        final long localCheckpoint = getLocalCheckpoint(true);
         if (globalCheckpoint > localCheckpoint) {
             /*
              * This can happen during recovery when the shard has started its engine but recovery is not finalized and is receiving global
@@ -3390,9 +3434,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     @Deprecated
     Engine getEngine() {
+        return getEngine(false);
+    }
+
+    @Deprecated
+    Engine getEngine(boolean skipAssertions) {
         engineResetLock.readLock().lock();
         try {
-            return getCurrentEngine(false);
+            return getCurrentEngine(false, skipAssertions);
         } finally {
             engineResetLock.readLock().unlock();
         }
@@ -3408,13 +3457,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine getEngineOrNull() {
         engineResetLock.readLock().lock();
         try {
-            return getCurrentEngine(true);
+            return getCurrentEngine(true, false);
         } finally {
             engineResetLock.readLock().unlock();
         }
     }
 
-    private Engine getCurrentEngine(boolean allowNoEngine) {
+    private Engine getCurrentEngine(boolean allowNoEngine, boolean skipAssertions) {
+        // We only reset a shard when it's relocating (primary relocation) or started (unhollowing)
+        boolean shardRoutingEngineResettable = shardRouting.started() || shardRouting.relocating();
+        assert skipAssertions
+            || shardRouting.primary() == false // exclude non-primary shards. We only reset primary shards.
+            || shardRoutingEngineResettable == false
+            || state() != IndexShardState.STARTED // exclude getting the engine when not started. We only reset started shards.
+            || assertCurrentThreadWithEngine("method IndexShard#getCurrentEngine (or one of its variant) can block");
         assert engineResetLock.isReadLockedByCurrentThread() || engineResetLock.isWriteLockedByCurrentThread() /* for resets */;
         var engine = currentEngine.get();
         if (engine == null && allowNoEngine == false) {
@@ -3482,12 +3538,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws              AlreadyClosedException if the current engine instance is {@code null}.
      */
     public <R, E extends Exception> R withEngineException(CheckedFunction<Engine, R, E> operation) throws E {
-        assert assertCurrentThreadWithEngine();
+        assert assertCurrentThreadWithEngine("method IndexShard#withEngineException (or one of its variant) can block");
         assert operation != null;
 
         engineResetLock.readLock().lock();
         try {
-            var engine = getCurrentEngine(false);
+            var engine = getCurrentEngine(false, false);
             return operation.apply(engine);
         } finally {
             engineResetLock.readLock().unlock();
@@ -3513,7 +3569,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private <R> R withEngine(Function<Engine, R> operation, boolean allowNoEngine, boolean blockIfResetting) {
         assert operation != null;
-        assert blockIfResetting == false || assertCurrentThreadWithEngine(); // assert current thread can block on engine resets
+        // assert current thread can block on engine resets
+        assert blockIfResetting == false || assertCurrentThreadWithEngine("method IndexShard#withEngine (or one of its variant) can block");
         boolean locked = true;
         if (blockIfResetting) {
             engineResetLock.readLock().lock();
@@ -3526,7 +3583,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (locked) {
             try {
-                var engine = getCurrentEngine(allowNoEngine);
+                var engine = getCurrentEngine(allowNoEngine, blockIfResetting == false);
                 return operation.apply(engine);
             } finally {
                 engineResetLock.readLock().unlock();
@@ -3536,8 +3593,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private static boolean assertCurrentThreadWithEngine() {
-        var message = "method IndexShard#withEngine (or one of its variant) can block";
+    private static boolean assertCurrentThreadWithEngine(String message) {
         assert ClusterApplierService.assertNotClusterStateUpdateThread(message);
         assert MasterService.assertNotMasterUpdateThread(message);
         assert Transports.assertNotTransportThread(message);
@@ -4600,7 +4656,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     engineResetLock.writeLock().lock();
                     try {
-                        var engine = getCurrentEngine(false);
+                        var engine = getCurrentEngine(false, true);
                         engine.prepareForEngineReset();
                         var newEngine = createEngine(newEngineConfig(replicationTracker));
                         getAndSetCurrentEngine(newEngine);

@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -70,10 +71,16 @@ public class CollectOperator implements Operator {
     private volatile IsBlockedResult blocked = NOT_BLOCKED;
 
     private int pagesReceived;
-    private int pagesEmitted;
+    private int pagesSaved;
     private long rowsReceived;
-    private long rowsEmitted;
+    private long rowsSaved;
+    private long rowsCreated;
+    private long rowsUpdated;
+    private long rowsNoop;
     private long bulkBytesSent;
+    private long bulkBytesSaved;
+    private long bulkTookMillis;
+    private long bulkIngestTookMillis;
 
     public CollectOperator(
         Client client,
@@ -103,8 +110,9 @@ public class CollectOperator implements Operator {
         rowsReceived += page.getPositionCount();
         try {
             BulkRequest request = request(page);
-            bulkBytesSent += request.estimatedSizeInBytes();
-            Listener listener = new Listener(page.getPositionCount());
+            long bulkSize = request.estimatedSizeInBytes();
+            bulkBytesSent += bulkSize;
+            Listener listener = new Listener(page.getPositionCount(), bulkSize);
             blocked = new IsBlockedResult(listener.blockedFuture, "indexing");
             client.bulk(request, listener);
         } catch (IOException e) {
@@ -182,15 +190,33 @@ public class CollectOperator implements Operator {
         if (phase != Phase.READY_TO_OUTPUT) {
             return null;
         }
-        Block rowCount = null;
+        Block rowsSaved = null;
+        Block rowsCreated = null;
+        Block rowsUpdated = null;
+        Block rowsNoop = null;
+        Block bytesSaved = null;
+        Block bulkTookMillis = null;
+        Block bulkIngestTookMillis = null;
         try {
-            rowCount = driverContext.blockFactory().newConstantLongBlockWith(rowsEmitted, 1);
-            Page result = new Page(rowCount);
-            rowCount = null;
+            rowsSaved = driverContext.blockFactory().newConstantLongBlockWith(this.rowsSaved, 1);
+            rowsCreated = driverContext.blockFactory().newConstantLongBlockWith(this.rowsCreated, 1);
+            rowsUpdated = driverContext.blockFactory().newConstantLongBlockWith(this.rowsUpdated, 1);
+            rowsNoop = driverContext.blockFactory().newConstantLongBlockWith(this.rowsNoop, 1);
+            bytesSaved = driverContext.blockFactory().newConstantLongBlockWith(this.bulkBytesSaved, 1);
+            bulkTookMillis = driverContext.blockFactory().newConstantLongBlockWith(this.bulkTookMillis, 1);
+            bulkIngestTookMillis = driverContext.blockFactory().newConstantLongBlockWith(this.bulkIngestTookMillis, 1);
+            Page result = new Page(rowsSaved, rowsCreated, rowsUpdated, rowsNoop, bytesSaved, bulkTookMillis, bulkIngestTookMillis);
+            rowsSaved = null;
+            rowsCreated = null;
+            rowsUpdated = null;
+            rowsNoop = null;
+            bytesSaved = null;
+            bulkTookMillis = null;
+            bulkIngestTookMillis = null;
             phase = Phase.FINISHED;
             return result;
         } finally {
-            Releasables.close(rowCount);
+            Releasables.close(rowsSaved, rowsCreated, rowsUpdated, rowsNoop, bytesSaved, bulkTookMillis, bulkIngestTookMillis);
         }
     }
 
@@ -214,18 +240,36 @@ public class CollectOperator implements Operator {
     private class Listener implements ActionListener<BulkResponse> {
         private final SubscribableListener<Void> blockedFuture = new SubscribableListener<>();
         private final int positionCount;
+        private final long bulkSize;
 
-        Listener(int positionCount) {
+        Listener(int positionCount, long bulkSize) {
             driverContext.addAsyncAction();
             this.positionCount = positionCount;
+            this.bulkSize = bulkSize;
         }
 
         @Override
         public void onResponse(BulkResponse bulkItemResponses) {
-            pagesEmitted++;
-            rowsEmitted += positionCount;
             if (bulkItemResponses.hasFailures()) {
-                failureCollector.unwrapAndCollect(new ElasticsearchException(bulkItemResponses.buildFailureMessage()));
+                onFailure(new ElasticsearchException(bulkItemResponses.buildFailureMessage()));
+                return;
+            }
+            pagesSaved++;
+            rowsSaved += positionCount;
+            for (BulkItemResponse i : bulkItemResponses.getItems()) {
+                switch (i.getResponse().getResult()) {
+                    case CREATED -> rowsCreated++;
+                    case UPDATED -> rowsUpdated++;
+                    case NOOP -> rowsNoop++;
+                    case DELETED, NOT_FOUND -> {
+                        assert false : "delete and not_found not supported but was [" + i.getResponse().getResult() + "]";
+                    }
+                }
+            }
+            bulkBytesSaved += bulkSize;
+            bulkTookMillis += bulkItemResponses.getTookInMillis();
+            if (bulkItemResponses.getIngestTookInMillis() != BulkResponse.NO_INGEST_TOOK) {
+                bulkIngestTookMillis += bulkItemResponses.getIngestTookInMillis();
             }
             unblock();
         }

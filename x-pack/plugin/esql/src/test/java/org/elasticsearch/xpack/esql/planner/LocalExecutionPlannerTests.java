@@ -345,6 +345,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             FoldContext.small(),
             shardContexts,
             null,
+            null,
             new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
         );
     }

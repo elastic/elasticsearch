@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -20,19 +19,19 @@ import java.util.List;
 import java.util.Objects;
 
 public class CollectExec extends UnaryExec {
-    private final ReferenceAttribute rowsEmittedAttribute;
+    private final List<Attribute> outputAttributes;
     private final Literal index;
     private final List<NamedExpression> idFields;
 
     public CollectExec(
         Source source,
         PhysicalPlan child,
-        ReferenceAttribute rowsEmittedAttribute,
+        List<Attribute> outputAttributes,
         Literal index,
         List<NamedExpression> idFields
     ) {
         super(source, child);
-        this.rowsEmittedAttribute = rowsEmittedAttribute;
+        this.outputAttributes = outputAttributes;
         this.index = index;
         this.idFields = idFields;
     }
@@ -49,12 +48,12 @@ public class CollectExec extends UnaryExec {
 
     @Override
     protected NodeInfo<CollectExec> info() {
-        return NodeInfo.create(this, CollectExec::new, child(), rowsEmittedAttribute, index, idFields);
+        return NodeInfo.create(this, CollectExec::new, child(), outputAttributes, index, idFields);
     }
 
     @Override
     public CollectExec replaceChild(PhysicalPlan newChild) {
-        return new CollectExec(source(), newChild, rowsEmittedAttribute, index, idFields);
+        return new CollectExec(source(), newChild, outputAttributes, index, idFields);
     }
 
     public Literal index() {
@@ -72,7 +71,7 @@ public class CollectExec extends UnaryExec {
 
     @Override
     public List<Attribute> output() {
-        return List.of(rowsEmittedAttribute);
+        return outputAttributes;
     }
 
     @Override

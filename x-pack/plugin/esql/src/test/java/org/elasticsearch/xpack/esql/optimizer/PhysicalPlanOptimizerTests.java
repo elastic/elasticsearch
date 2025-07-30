@@ -7899,6 +7899,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                 FoldContext.small(),
                 List.of(),
                 null,
+                null,
                 new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
             ),
             List.of()

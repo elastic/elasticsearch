@@ -388,10 +388,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source(ctx), "COLLECT command currently requires a snapshot build");
         }
         Source src = source(ctx);
-        ReferenceAttribute rowsEmittedAttribute = new ReferenceAttribute(src, "rows_emitted", DataType.LONG);
         Literal index = Literal.keyword(source(ctx.COLLECT_INDEX()), ctx.COLLECT_INDEX().getText());
         List<NamedExpression> idFields = ctx.COLLECT_ID() != null ? visitQualifiedNamePatterns(ctx.qualifiedNamePatterns()) : List.of();
-        return input -> new Collect(src, input, rowsEmittedAttribute, index, idFields);
+        return input -> new Collect(src, input, index, idFields);
     }
 
     @Override

@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.plan.physical.CollectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
@@ -359,6 +360,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 indexDocConsumer.accept(indexDocVector.asBlock());
             }
         }
+    }
+
+    @Override
+    public PhysicalOperation collect(CollectExec collect, PhysicalOperation source, LocalExecutionPlannerContext context) {
+        throw new UnsupportedOperationException();
     }
 
     private class TestHashAggregationOperator extends HashAggregationOperator {

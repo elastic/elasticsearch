@@ -617,6 +617,9 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: testDenseVectorMappingUpdate {initialType=hnsw updateType=int8_hnsw}
   issue: https://github.com/elastic/elasticsearch/issues/132164
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_hnsw updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132165
 
 # Examples:
 #

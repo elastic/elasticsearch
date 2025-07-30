@@ -215,7 +215,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             assertThat(sort.getSort()[0].getMissingValue(), equalTo(DateUtils.MAX_NANOSECOND));
         }
 
-        // ensure when no change in behaviour when a missing value is set
+        // ensure no change in behaviour when a missing value is set
         indexSettingsBuilder.put("index.sort.missing", "_first");
         for (var version : allVersions) {
             indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, version);

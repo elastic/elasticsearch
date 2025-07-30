@@ -55,6 +55,13 @@ public class TestPolicyManager extends PolicyManager {
         this.testOnlyClasspath = testOnlyClasspath;
     }
 
+    public final void resetAfterTest() {
+        isActive = false;
+        isTriviallyAllowingTestCode = true;
+        entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
+        clearModuleEntitlementsCache();
+    }
+
     public void setActive(boolean newValue) {
         this.isActive = newValue;
     }

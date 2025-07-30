@@ -41,7 +41,7 @@ import java.nio.file.Path;
  */
 public class EntitlementMetaTests extends ESTestCase {
     public void testSelfTestPasses() {
-        assumeTrue("Not yet working in serverless", TestEntitlementsRule.isEnabledForTest());
+        assumeTrue("Not yet working in serverless", TestEntitlementsRule.isEnabledForTests());
         Elasticsearch.entitlementSelfTest();
     }
 

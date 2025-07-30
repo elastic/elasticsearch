@@ -74,7 +74,7 @@ public class TestEntitlementsRule implements TestRule {
     static {
         PathLookup pathLookup = new TestPathLookup(BASE_DIR_PATHS);
         try {
-            if (isEnabledForTest()) {
+            if (isEnabledForTests()) {
                 POLICY_MANAGER = createPolicyManager(pathLookup);
                 loadAgent(POLICY_MANAGER, pathLookup);
             } else {
@@ -107,6 +107,7 @@ public class TestEntitlementsRule implements TestRule {
                 public void evaluate() throws Throwable {
                     if (active.compareAndSet(false, true)) {
                         try {
+                            BASE_DIR_PATHS.keySet().retainAll(List.of(TEMP));
                             POLICY_MANAGER.setActive(false == withoutEntitlements);
                             POLICY_MANAGER.setTriviallyAllowingTestCode(false == withEntitlementsOnTestCode);
                             if (entitledPackages != null) {
@@ -115,16 +116,12 @@ public class TestEntitlementsRule implements TestRule {
                             } else {
                                 POLICY_MANAGER.setEntitledTestPackages();
                             }
-                            BASE_DIR_PATHS.keySet().retainAll(List.of(TEMP));
                             POLICY_MANAGER.clearModuleEntitlementsCache();
                             // evaluate the suite
                             base.evaluate();
                         } finally {
-                            POLICY_MANAGER.setActive(false);
-                            POLICY_MANAGER.setTriviallyAllowingTestCode(true);
-                            POLICY_MANAGER.setEntitledTestPackages();
                             BASE_DIR_PATHS.keySet().retainAll(List.of(TEMP));
-                            POLICY_MANAGER.clearModuleEntitlementsCache();
+                            POLICY_MANAGER.resetAfterTest();
                             active.set(false);
                         }
                     } else {
@@ -144,6 +141,7 @@ public class TestEntitlementsRule implements TestRule {
     /**
      * Temporarily adds node paths based entitlements based on a node's {@code settings} and {@code configPath}
      * until the returned handle is closed.
+     * @see PathLookup
      */
     public Closeable addEntitledNodePaths(Settings settings, Path configPath) {
         if (POLICY_MANAGER == null) {
@@ -250,7 +248,7 @@ public class TestEntitlementsRule implements TestRule {
         };
     }
 
-    public static boolean isEnabledForTest() {
+    public static boolean isEnabledForTests() {
         return Booleans.parseBoolean(System.getProperty("es.entitlement.enableForTests", "false"));
     }
 
@@ -272,7 +270,7 @@ public class TestEntitlementsRule implements TestRule {
 
         String separator = System.getProperty("path.separator");
 
-        // In productions, plugins would have access to their respective bundle directories,
+        // In production, plugins would have access to their respective bundle directories,
         // and so they'd be able to read from their jars. In testing, we approximate this
         // by considering the entire classpath to be "source paths" of all plugins. This
         // also has the effect of granting read access to everything on the test-only classpath,

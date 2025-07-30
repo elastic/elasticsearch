@@ -1089,7 +1089,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
             try (RemoteClusterService service = new RemoteClusterService(createSettings("cluster_1", seedList), transportService)) {
                 service.initializeRemoteClusters();
-                assertTrue(service.isCrossClusterSearchEnabled());
+                assertTrue(hasRegisteredClusters(service));
                 final var numTasks = between(3, 5);
                 final var taskLatch = new CountDownLatch(numTasks);
 

@@ -408,9 +408,6 @@ tests:
   method: testMatchInsideEval
   issue: https://github.com/elastic/elasticsearch/issues/131336
 - class: org.elasticsearch.packaging.test.DockerTests
-  method: test022InstallPluginsFromLocalArchive
-  issue: https://github.com/elastic/elasticsearch/issues/116866
-- class: org.elasticsearch.packaging.test.DockerTests
   method: test071BindMountCustomPathWithDifferentUID
   issue: https://github.com/elastic/elasticsearch/issues/120917
 - class: org.elasticsearch.packaging.test.DockerTests
@@ -479,21 +476,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
   method: testReader
   issue: https://github.com/elastic/elasticsearch/issues/131573
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testSearchShardsOnIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131662
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testSearchIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131693
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testOpenPITOnIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131695
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
   method: testLookupJoinAliasesSkipOld
   issue: https://github.com/elastic/elasticsearch/issues/131697
-- class: org.elasticsearch.search.SearchWithIndexBlocksIT
-  method: testMultiSearchIndicesWithIndexRefreshBlocks
-  issue: https://github.com/elastic/elasticsearch/issues/131698
 - class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
   method: testTimeoutSetting
   issue: https://github.com/elastic/elasticsearch/issues/131656
@@ -515,9 +500,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/600_flattened_ignore_above/flattened ignore_above multi-value field}
   issue: https://github.com/elastic/elasticsearch/issues/131967
-- class: org.elasticsearch.search.routing.SearchReplicaSelectionIT
-  method: testNodeSelection
-  issue: https://github.com/elastic/elasticsearch/issues/132017
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/132078
@@ -545,6 +527,94 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=int8_hnsw}
   issue: https://github.com/elastic/elasticsearch/issues/132117
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132119
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=bbq_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132120
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132122
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=int4_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132123
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132124
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=int4_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132125
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=int8_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132126
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=bbq_disk updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132127
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=int8_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132129
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: "testDenseVectorMappingUpdate {initialType=flat updateType=bbq_disk #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/132130
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=bbq_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132132
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_hnsw updateType=int4_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132133
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=bbq_flat updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132134
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/132135
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/132136
+- class: org.elasticsearch.upgrades.RunningSnapshotIT
+  method: testRunningSnapshotCompleteAfterUpgrade {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/132137
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=int4_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132140
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132141
+- class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
+  method: testRelocationWhileForceMerging
+  issue: https://github.com/elastic/elasticsearch/issues/131789
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=int4_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132149
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132150
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=bbq_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132151
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: "testDenseVectorMappingUpdate {initialType=bbq_hnsw updateType=bbq_disk #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/132152
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=hnsw updateType=int8_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132164
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_hnsw updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132165
+- class: org.elasticsearch.indices.cluster.FieldCapsForceConnectTimeoutIT
+  method: testTimeoutSetting
+  issue: https://github.com/elastic/elasticsearch/issues/132179
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: "testDenseVectorMappingUpdate {initialType=bbq_flat updateType=bbq_disk #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/132184
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=bbq_hnsw updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132188
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: "testDenseVectorMappingUpdate {initialType=int8_flat updateType=bbq_disk #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/132189
+
 
 # Examples:
 #

@@ -132,10 +132,6 @@ class TrainedModelAssignmentRebalancer {
 
     /**
      *  Transfers assignments from the source AssignmentPlan to the destination AssignmentPlan.Builder.
-     *
-     * @param source
-     * @param dest
-     * @param originalNodeById
      */
     private static void copyAssignments(
         AssignmentPlan source,
@@ -147,13 +143,6 @@ class TrainedModelAssignmentRebalancer {
             for (Map.Entry<AssignmentPlan.Node, Integer> sourceAssignment : sourceNodeAssignments.entrySet()) {
                 AssignmentPlan.Node node = originalNodeById.get(sourceAssignment.getKey().id());
                 dest.assignModelToNode(deployment, node, sourceAssignment.getValue());
-                // if (deployment.currentAllocationsByNodeId().containsKey(node.id())) {
-                // // TODO (#101612) requiredMemory should be calculated by the AssignmentPlan.Builder
-                // // As the node has all its available memory we need to manually account memory of models with
-                // // current allocations.
-                // long requiredMemory = deployment.estimateMemoryUsageBytes(deployment.currentAllocationsByNodeId().get(node.id()));
-                // dest.accountMemory(deployment, node, requiredMemory);
-                // }
             }
         }
     }

@@ -461,20 +461,8 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         private int getAssignedAllocations(Deployment deployment, Node node) {
-            // int currentAllocations = getCurrentAllocations(deployment, node);
             return assignments.get(deployment).get(node);
-            // return currentAllocations + assignmentAllocations;
         }
-
-        // private static int getCurrentAllocations(Deployment m, Node n) {
-        // return m.currentAllocationsByNodeId.containsKey(n.id()) ? m.currentAllocationsByNodeId.get(n.id()) : 0;
-        // }
-
-        // public void accountMemory(Deployment m, Node n) {
-        // // TODO (#101612) remove or refactor unused method
-        // long requiredMemory = getDeploymentMemoryRequirement(m, n, getCurrentAllocations(m, n));
-        // accountMemory(m, n, requiredMemory);
-        // }
 
         public void accountMemory(Deployment m, Node n, long requiredMemory) {
             // TODO (#101612) computation of required memory should be done internally

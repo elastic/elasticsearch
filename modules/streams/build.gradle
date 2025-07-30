@@ -20,7 +20,7 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'streams', 'indices'
+    include '_common', 'streams', 'indices', 'cluster.health'
   }
 }
 

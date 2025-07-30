@@ -47,6 +47,11 @@
   - do:
       indices.create:
         index: logs
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
   - do:
       catch: conflict
       streams.logs_enable: { }
@@ -59,6 +64,11 @@
   - do:
       indices.create:
         index: logs.test
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
   - do:
       catch: conflict
       streams.logs_enable: { }

@@ -537,6 +537,12 @@ tests:
     - test {yaml=search.vectors/135_knn_query_nested_search_ivf/*}
     - test {p0=search.vectors/135_knn_query_nested_search_ivf/*}
   issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.search.nested.VectorNestedIT
+  method: testNestedKNnnSearchWithMultipleSegments
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.upgrades.SemanticTextUpgradeI
+  method: testSemanticTextOperations*
+  issue: https://github.com/elastic/elasticsearch/issues/131749
 
 # Examples:
 #

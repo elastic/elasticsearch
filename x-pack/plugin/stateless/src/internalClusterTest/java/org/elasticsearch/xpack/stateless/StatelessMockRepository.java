@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -273,6 +275,29 @@ public class StatelessMockRepository extends FsRepository {
                     purpose,
                     blobNamePrefix
                 );
+            }
+
+            @Override
+            public void compareAndSetRegister(
+                OperationPurpose purpose,
+                String key,
+                BytesReference expected,
+                BytesReference updated,
+                ActionListener<Boolean> listener
+            ) {
+                getStrategy().blobContainerCompareAndSetRegister(
+                    () -> super.compareAndSetRegister(purpose, key, expected, updated, listener),
+                    purpose,
+                    key,
+                    expected,
+                    updated,
+                    listener
+                );
+            }
+
+            @Override
+            public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
+                getStrategy().blobContainerGetRegister(() -> super.getRegister(purpose, key, listener), purpose, key, listener);
             }
         }
     }

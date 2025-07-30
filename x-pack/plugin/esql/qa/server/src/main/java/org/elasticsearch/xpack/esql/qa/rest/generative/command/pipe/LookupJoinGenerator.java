@@ -48,10 +48,11 @@ public class LookupJoinGenerator implements CommandGenerator {
                 continue; // no candidate keys of the right type, skip this column
             }
             EsqlQueryGenerator.Column key = randomFrom(candidateKeys);
-            if (usedColumns.contains(key.name())) {
+            if (usedColumns.contains(key.name()) || usedColumns.contains(idxKey)) {
                 continue; // already used this column, skip
             } else {
                 usedColumns.add(key.name());
+                usedColumns.add(idxKey);
             }
             keyNames.add(key.name());
             joinOn.add(idxKey);

@@ -280,6 +280,9 @@ tests:
 - class: org.elasticsearch.xpack.ccr.action.ShardFollowTaskReplicationTests
   method: testChangeFollowerHistoryUUID
   issue: https://github.com/elastic/elasticsearch/issues/127680
+- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
+  method: testKnnVectors
+  issue: https://github.com/elastic/elasticsearch/issues/127689
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/350_point_in_time/point-in-time with index filter}
   issue: https://github.com/elastic/elasticsearch/issues/127741
@@ -617,6 +620,32 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: testDenseVectorMappingUpdate {initialType=int4_hnsw updateType=bbq_disk}
   issue: https://github.com/elastic/elasticsearch/issues/132165
+- class: org.elasticsearch.*YamlTestSuiteIT
+  methods:
+    - test {yaml=search.vectors/130_knn_query_nested_search/*}
+    - test {p0=search.vectors/130_knn_query_nested_search/*}
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.*YamlTestSuiteIT
+  methods:
+    - test {yaml=search.vectors/100_knn_nested_search/*}
+    - test {p0=search.vectors/100_knn_nested_search/*}
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.*YamlTestSuiteIT
+  methods:
+    - test {yaml=search.vectors/101_knn_nested_search_bits/*}
+    - test {p0=search.vectors/101_knn_nested_search_bits/*}
+- class: org.elasticsearch.*YamlTestSuiteIT
+  methods:
+    - test {yaml=search.vectors/135_knn_query_nested_search_ivf/*}
+    - test {p0=search.vectors/135_knn_query_nested_search_ivf/*}
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.search.nested.VectorNestedIT
+  method: testNestedKNnnSearchWithMultipleSegments
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
+  method: testSemanticTextOperations*
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+
 
 # Examples:
 #

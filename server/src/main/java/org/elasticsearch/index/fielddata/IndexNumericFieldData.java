@@ -144,10 +144,19 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         boolean reverse
     ) {
         SortField sortField = sortField(missingValue, sortMode, nested, reverse);
-        if (indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19)
-            || getNumericType().sortFieldType != SortField.Type.INT) {
+        if (getNumericType() == NumericType.DATE_NANOSECONDS
+            && indexCreatedVersion.before(IndexVersions.V_7_14_0)
+            && missingValue == null
+            && Long.valueOf(0L).equals(sortField.getMissingValue())) {
+            // 7.14 changed the default missing value of sort on date_nanos, from Long.MIN_VALUE
+            // to 0L - for compatibility we require to a missing value of MIN_VALUE to allow to
+            // open the index.
+            sortField.setMissingValue(Long.MIN_VALUE);
             return sortField;
-        }
+        } else if (indexCreatedVersion.onOrAfter(IndexVersions.INDEX_INT_SORT_INT_TYPE_8_19)
+            || getNumericType().sortFieldType != SortField.Type.INT) {
+                return sortField;
+            }
         if ((sortField instanceof SortedNumericSortField) == false) {
             return sortField;
         }

@@ -333,7 +333,6 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_9_1 = def(9_112_0_01);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_9_1 = def(9_112_0_02);
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS_9_1 = def(9_112_0_03);
-    // Below is the first version in 9.2 and NOT in 9.1.
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_1 = def(9_112_0_04);
     public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
     public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
@@ -355,7 +354,8 @@ public class TransportVersions {
     public static final TransportVersion RERANK_SNIPPETS = def(9_130_0_00);
     public static final TransportVersion PIPELINE_TRACKING_INFO = def(9_131_0_00);
     public static final TransportVersion COMPONENT_TEMPLATE_TRACKING_INFO = def(9_132_0_00);
-    public static final TransportVersion ML_TRANSFORM_SYSTEM_INDEX_MIGRATE_REASON = def(9_133_0_00);
+    public static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = def(9_133_0_00);
+    public static final TransportVersion ML_TRANSFORM_SYSTEM_INDEX_MIGRATE_REASON = def(9_134_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -54,12 +54,12 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
         final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
         final int[] scratch = new int[targetQuery.length];
-        float[] targetQueryCpoy = ArrayUtil.copyArray(targetQuery);
+        float[] targetQueryCopy = ArrayUtil.copyArray(targetQuery);
         if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
-            VectorUtil.l2normalize(targetQueryCpoy);
+            VectorUtil.l2normalize(targetQueryCopy);
         }
         final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
-            targetQueryCpoy,
+            targetQueryCopy,
             scratch,
             (byte) 4,
             fieldEntry.globalCentroid()

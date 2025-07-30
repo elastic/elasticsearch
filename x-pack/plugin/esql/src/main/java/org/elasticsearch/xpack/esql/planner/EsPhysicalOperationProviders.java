@@ -18,13 +18,18 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.hash.Murmur3Hasher;
+import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.LuceneSliceQueue;
@@ -33,6 +38,7 @@ import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.TimeSeriesSourceOperatorFactory;
 import org.elasticsearch.compute.lucene.read.TimeSeriesExtractFieldOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.CollectOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -66,6 +72,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
@@ -85,6 +92,8 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -593,14 +602,75 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         Layout.Builder layout = new Layout.Builder();
         layout.append(collect.output());
         BytesRef index = (BytesRef) collect.index().value();
-        List<Function<Block, CollectOperator.Writer>> writers = new ArrayList<>(collect.child().output().size());
+        List<Function<Block, CollectOperator.FieldWriter>> fieldWriters = new ArrayList<>(collect.child().output().size());
         BytesRef scratch = new BytesRef();
         for (Attribute a : collect.child().output()) {
-            writers.add(block -> {
+            fieldWriters.add(block -> {
                 PositionToXContent toXContent = PositionToXContent.positionToXContent(a.dataType(), block, scratch);
                 return (builder, valueIndex) -> toXContent.nameAndValueToXContent(a.name(), builder, ToXContent.EMPTY_PARAMS, valueIndex);
             });
         }
-        return source.with(new CollectOperator.Factory(client, index.utf8ToString(), writers), layout.build());
+        List<Function<Page, CollectOperator.IdWriter>> idWriters = new ArrayList<>(collect.idFields().size());
+        List<NamedExpression> idFields = new ArrayList<>(collect.idFields());
+        idFields.sort(Comparator.comparing(NamedExpression::name));
+        for (NamedExpression e : idFields) {
+            Layout.ChannelAndType channel = source.layout.get(e.id());
+            idWriters.add(writer(channel.type(), channel.channel(), e.name()));
+        }
+        return source.with(new CollectOperator.Factory(client, index.utf8ToString(), fieldWriters, idWriters), layout.build());
+    }
+
+    private Function<Page, CollectOperator.IdWriter> writer(DataType type, int channel, String name) {
+        BytesRef utf8Name = new BytesRef(name);
+        MurmurHash3.Hash128 nameHash = new MurmurHash3.Hash128();
+        MurmurHash3.hash128(utf8Name.bytes, utf8Name.offset, utf8Name.length, CollectOperator.ID_SEED, nameHash);
+        return switch (type) {
+            case KEYWORD, TEXT -> page -> new AbstractIdWriter<>(nameHash, (BytesRefBlock) page.getBlock(channel)) {
+                private final BytesRef scratch = new BytesRef();
+
+                @Override
+                protected void writeAtOffset(BreakingBytesRefBuilder builder, int offset) {
+                    builder.append(block.getBytesRef(offset, scratch));
+                }
+            };
+            case LONG -> page -> new AbstractIdWriter<>(nameHash, (LongBlock) page.getBlock(channel)) {
+                @Override
+                protected void writeAtOffset(BreakingBytesRefBuilder builder, int offset) {
+                    builder.append(block.getLong(offset));
+                }
+            };
+            default -> throw new UnsupportedOperationException("NOCOMMIT " + type);
+        };
+    }
+
+    private abstract class AbstractIdWriter<B extends Block> implements CollectOperator.IdWriter {
+        private final MurmurHash3.Hash128 nameHash;
+        protected final B block;
+
+        private AbstractIdWriter(MurmurHash3.Hash128 nameHash, B block) {
+            this.nameHash = nameHash;
+            this.block = block;
+        }
+
+        @Override
+        public void write(BreakingBytesRefBuilder builder, int position) {
+            builder.append(nameHash.h1);
+            builder.append(nameHash.h2);
+            int count = block.getValueCount(position);
+            switch (count) {
+                case 0 -> {
+                }
+                case 1 -> writeAtOffset(builder, block.getFirstValueIndex(position));
+                default -> {
+                    int start = block.getFirstValueIndex(position);
+                    int end = start + count;
+                    for (int i = start; i < end; i++) {
+                        writeAtOffset(builder, i);
+                    }
+                }
+            }
+        }
+
+        protected abstract void writeAtOffset(BreakingBytesRefBuilder builder, int offset);
     }
 }

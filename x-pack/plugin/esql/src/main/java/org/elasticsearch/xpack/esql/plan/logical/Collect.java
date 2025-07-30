@@ -6,18 +6,16 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,16 +29,25 @@ import java.util.Objects;
 public class Collect extends UnaryPlan implements TelemetryAware, SortAgnostic {
     private final ReferenceAttribute rowsEmittedAttribute;
     private final Literal index;
+    private final List<NamedExpression> idFields;
 
-    public Collect(Source source, LogicalPlan child, ReferenceAttribute rowsEmittedAttribute, Literal index) {
+    public Collect(
+        Source source,
+        LogicalPlan child,
+        ReferenceAttribute rowsEmittedAttribute,
+        Literal index,
+        List<NamedExpression> idFields
+    ) {
         super(source, child);
         this.rowsEmittedAttribute = rowsEmittedAttribute;
         this.index = index;
+        this.idFields = idFields;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();    }
+        throw new UnsupportedOperationException();
+    }
 
     @Override
     public String getWriteableName() {
@@ -49,12 +56,12 @@ public class Collect extends UnaryPlan implements TelemetryAware, SortAgnostic {
 
     @Override
     protected NodeInfo<Collect> info() {
-        return NodeInfo.create(this, Collect::new, child(), rowsEmittedAttribute, index);
+        return NodeInfo.create(this, Collect::new, child(), rowsEmittedAttribute, index, idFields);
     }
 
     @Override
     public Collect replaceChild(LogicalPlan newChild) {
-        return new Collect(source(), newChild, rowsEmittedAttribute, index);
+        return new Collect(source(), newChild, rowsEmittedAttribute, index, idFields);
     }
 
     public ReferenceAttribute rowsEmittedAttribute() {
@@ -63,6 +70,10 @@ public class Collect extends UnaryPlan implements TelemetryAware, SortAgnostic {
 
     public Literal index() {
         return index;
+    }
+
+    public List<NamedExpression> idFields() {
+        return idFields;
     }
 
     @Override
@@ -82,12 +93,12 @@ public class Collect extends UnaryPlan implements TelemetryAware, SortAgnostic {
 
     @Override
     public boolean expressionsResolved() {
-        return true;
+        return Resolvables.resolved(idFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, child());
+        return Objects.hash(index, idFields, child());
     }
 
     @Override
@@ -100,7 +111,6 @@ public class Collect extends UnaryPlan implements TelemetryAware, SortAgnostic {
         }
 
         Collect other = (Collect) obj;
-
-        return Objects.equals(index, other.index) && Objects.equals(child(), other.child());
+        return index.equals(other.index) && idFields.equals(other.idFields) && Objects.equals(child(), other.child());
     }
 }

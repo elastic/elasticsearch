@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -21,11 +22,19 @@ import java.util.Objects;
 public class CollectExec extends UnaryExec {
     private final ReferenceAttribute rowsEmittedAttribute;
     private final Literal index;
+    private final List<NamedExpression> idFields;
 
-    public CollectExec(Source source, PhysicalPlan child, ReferenceAttribute rowsEmittedAttribute, Literal index) {
+    public CollectExec(
+        Source source,
+        PhysicalPlan child,
+        ReferenceAttribute rowsEmittedAttribute,
+        Literal index,
+        List<NamedExpression> idFields
+    ) {
         super(source, child);
         this.rowsEmittedAttribute = rowsEmittedAttribute;
         this.index = index;
+        this.idFields = idFields;
     }
 
     @Override
@@ -36,21 +45,24 @@ public class CollectExec extends UnaryExec {
     @Override
     public String getWriteableName() {
         throw new UnsupportedOperationException();
-
     }
 
     @Override
     protected NodeInfo<CollectExec> info() {
-        return NodeInfo.create(this, CollectExec::new, child(), rowsEmittedAttribute, index);
+        return NodeInfo.create(this, CollectExec::new, child(), rowsEmittedAttribute, index, idFields);
     }
 
     @Override
     public CollectExec replaceChild(PhysicalPlan newChild) {
-        return new CollectExec(source(), newChild, rowsEmittedAttribute, index);
+        return new CollectExec(source(), newChild, rowsEmittedAttribute, index, idFields);
     }
 
     public Literal index() {
         return index;
+    }
+
+    public List<NamedExpression> idFields() {
+        return idFields;
     }
 
     @Override
@@ -65,7 +77,7 @@ public class CollectExec extends UnaryExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, child());
+        return Objects.hash(index, idFields, child());
     }
 
     @Override
@@ -79,6 +91,6 @@ public class CollectExec extends UnaryExec {
         }
 
         CollectExec other = (CollectExec) obj;
-        return Objects.equals(index, other.index) && Objects.equals(child(), other.child());
+        return index.equals(other.index) && idFields.equals(other.idFields) && child().equals(other.child());
     }
 }

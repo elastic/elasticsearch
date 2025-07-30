@@ -148,7 +148,7 @@ public class MapperUtils {
         }
 
         if (p instanceof Collect collect) {
-            return new CollectExec(collect.source(), child, collect.rowsEmittedAttribute(), collect.index());
+            return new CollectExec(collect.source(), child, collect.rowsEmittedAttribute(), collect.index(), collect.idFields());
         }
 
         return unsupported(p);

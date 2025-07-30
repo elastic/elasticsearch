@@ -12,6 +12,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -129,6 +130,12 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
      */
     public void append(BytesRef bytes) {
         append(bytes.bytes, bytes.offset, bytes.length);
+    }
+
+    public void append(long l) {
+        grow(bytes.length + Long.BYTES);
+        ByteUtils.writeLongBE(l, bytes.bytes, bytes.length);
+        bytes.length += Long.BYTES;
     }
 
     /**

@@ -390,7 +390,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source src = source(ctx);
         ReferenceAttribute rowsEmittedAttribute = new ReferenceAttribute(src, "rows_emitted", DataType.LONG);
         Literal index = Literal.keyword(source(ctx.COLLECT_INDEX()), ctx.COLLECT_INDEX().getText());
-        return input -> new Collect(src, input, rowsEmittedAttribute, index);
+        List<NamedExpression> idFields = ctx.COLLECT_ID() != null ? visitQualifiedNamePatterns(ctx.qualifiedNamePatterns()) : List.of();
+        return input -> new Collect(src, input, rowsEmittedAttribute, index, idFields);
     }
 
     @Override

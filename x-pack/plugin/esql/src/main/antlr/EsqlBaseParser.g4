@@ -305,7 +305,7 @@ lookupCommand
     ;
 
 collectCommand
-    : COLLECT COLLECT_INDEX
+    : COLLECT COLLECT_INDEX (COLLECT_ID qualifiedNamePatterns)?
     ;
 
 inlinestatsCommand

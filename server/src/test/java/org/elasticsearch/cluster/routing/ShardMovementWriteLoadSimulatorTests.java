@@ -21,6 +21,7 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -87,16 +88,16 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         assertThat(calculatedNodeUsageStats, Matchers.aMapWithSize(2));
 
         final var shardWriteLoad = allocation.clusterInfo().getShardWriteLoads().get(randomShard.shardId());
-        final var expectedUtilisationReductionAtSource = shardWriteLoad / originalNode0ThreadPoolStats.totalThreadPoolThreads();
-        final var expectedUtilisationIncreaseAtDestination = shardWriteLoad / originalNode1ThreadPoolStats.totalThreadPoolThreads();
+        final var expectedUtilisationReductionAtSource = shardWriteLoad / originalNode0ThreadPoolStats.numberOfThreads();
+        final var expectedUtilisationIncreaseAtDestination = shardWriteLoad / originalNode1ThreadPoolStats.numberOfThreads();
 
         // Some node_0 utilization should have been moved to node_1
-        if (expectedUtilisationReductionAtSource > originalNode0ThreadPoolStats.averageThreadPoolUtilization()) {
+        if (expectedUtilisationReductionAtSource > originalNode0ThreadPoolStats.utilizationSamples().getLast().utilization()) {
             // We don't return utilization less than zero because that makes no sense
             assertThat(getAverageWritePoolUtilization(shardMovementWriteLoadSimulator, "node_0"), equalTo(0.0f));
         } else {
             assertThat(
-                (double) originalNode0ThreadPoolStats.averageThreadPoolUtilization() - getAverageWritePoolUtilization(
+                (double) originalNode0ThreadPoolStats.utilizationSamples().getLast().utilization() - getAverageWritePoolUtilization(
                     shardMovementWriteLoadSimulator,
                     "node_0"
                 ),
@@ -105,7 +106,9 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         }
         assertThat(
             (double) getAverageWritePoolUtilization(shardMovementWriteLoadSimulator, "node_1") - originalNode1ThreadPoolStats
-                .averageThreadPoolUtilization(),
+                .utilizationSamples()
+                .getLast()
+                .utilization(),
             closeTo(expectedUtilisationIncreaseAtDestination, 0.001f)
         );
 
@@ -117,11 +120,11 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
         // The utilization numbers should return to their original values
         assertThat(
             getAverageWritePoolUtilization(shardMovementWriteLoadSimulator, "node_0"),
-            equalTo(originalNode0ThreadPoolStats.averageThreadPoolUtilization())
+            equalTo(originalNode0ThreadPoolStats.utilizationSamples().getLast().utilization())
         );
         assertThat(
             getAverageWritePoolUtilization(shardMovementWriteLoadSimulator, "node_1"),
-            equalTo(originalNode1ThreadPoolStats.averageThreadPoolUtilization())
+            equalTo(originalNode1ThreadPoolStats.utilizationSamples().getLast().utilization())
         );
     }
 
@@ -150,14 +153,18 @@ public class ShardMovementWriteLoadSimulatorTests extends ESTestCase {
     private float getAverageWritePoolUtilization(ShardMovementWriteLoadSimulator shardMovementWriteLoadSimulator, String nodeId) {
         final var generatedNodeUsageStates = shardMovementWriteLoadSimulator.simulatedNodeUsageStatsForThreadPools();
         final var node0WritePoolStats = generatedNodeUsageStates.get(nodeId).threadPoolUsageStatsMap().get("write");
-        return node0WritePoolStats.averageThreadPoolUtilization();
+        return node0WritePoolStats.utilizationSamples().getLast().utilization();
     }
 
     private NodeUsageStatsForThreadPools.ThreadPoolUsageStats randomThreadPoolUsageStats() {
         return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
             randomIntBetween(4, 16),
-            randomBoolean() ? 0.0f : randomFloatBetween(0.1f, 1.0f, true),
-            randomLongBetween(0, 60_000)
+            List.of(
+                new NodeUsageStatsForThreadPools.UtilizationSample(
+                    randomInstantBetween(Instant.MIN, Instant.MAX),
+                    randomBoolean() ? 0.0f : randomFloatBetween(0.1f, 1.0f, true)
+                )
+            )
         );
     }
 

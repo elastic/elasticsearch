@@ -18,7 +18,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -86,13 +88,17 @@ public class ShardMovementWriteLoadSimulator {
     ) {
         final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = value.threadPoolUsageStatsMap()
             .get(ThreadPool.Names.WRITE);
-        return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
-            writeThreadPoolStats.totalThreadPoolThreads(),
-            (float) Math.max(
-                (writeThreadPoolStats.averageThreadPoolUtilization() + (writeLoadDelta / writeThreadPoolStats.totalThreadPoolThreads())),
-                0.0
-            ),
-            writeThreadPoolStats.averageThreadPoolQueueLatencyMillis()
+        final float newWritePoolUtilization = (float) Math.max(
+            (writeThreadPoolStats.utilizationSamples().getLast().utilization() + (writeLoadDelta / writeThreadPoolStats.numberOfThreads())),
+            0.0
         );
+        final List<NodeUsageStatsForThreadPools.UtilizationSample> newUtilizationSamples = new ArrayList<>(
+            writeThreadPoolStats.utilizationSamples()
+        );
+        final NodeUsageStatsForThreadPools.UtilizationSample previousUtilization = newUtilizationSamples.removeLast();
+        newUtilizationSamples.add(
+            new NodeUsageStatsForThreadPools.UtilizationSample(previousUtilization.instant(), newWritePoolUtilization)
+        );
+        return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(writeThreadPoolStats.numberOfThreads(), newUtilizationSamples);
     }
 }

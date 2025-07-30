@@ -46,6 +46,10 @@ public interface LeafQueryGenerator {
 
     class KeywordQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
+            if (fieldMapping == null) {
+                return List.of(QueryBuilders.termQuery(path, value));
+            }
+
             boolean isIndexed = (Boolean) fieldMapping.getOrDefault("index", true);
             boolean hasDocValues = (Boolean) fieldMapping.getOrDefault("doc_values", true);
             if (isIndexed || hasDocValues) {
@@ -67,6 +71,10 @@ public interface LeafQueryGenerator {
 
     class TextQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
+            if (fieldMapping == null) {
+                return List.of(QueryBuilders.termQuery(path, value));
+            }
+
             boolean isIndexed = (Boolean) fieldMapping.getOrDefault("index", true);
             if (isIndexed == false) {
                 return List.of();

@@ -26,16 +26,11 @@ public class QueryGenerator {
         this.mappingRaw = mappingRaw;
     }
 
-    public List<QueryBuilder> generateQueries(String path, Map<String, Object> mapping, Object value) {
+    public List<QueryBuilder> generateQueries(String type, String path, Map<String, Object> mapping, Object value) {
         // This query generator cannot handle fields with periods in the name.
         if (path.equals("host.name")) {
             return List.of();
         }
-        if (mapping == null) {
-            return List.of();
-        }
-
-        var type = (String) mapping.get("type");
         var leafQueryGenerator = LeafQueryGenerator.buildForType(type);
         var leafQueries = leafQueryGenerator.generate(mapping, path, value);
         return leafQueries.stream().map(q -> wrapInNestedQuery(path, q)).toList();
@@ -61,15 +56,18 @@ public class QueryGenerator {
         for (int i = 0; i < path.length - 1; i++) {
             var field = path[i];
             mapping = (Map<String, Object>) mapping.get(field);
+
+            // dynamic field
+            if (mapping == null) {
+                break;
+            }
+
             boolean nested = "nested".equals(mapping.get("type"));
             if (nested) {
                 result.add(String.join(".", Arrays.copyOfRange(path, 0, i + 1)));
             }
             mapping = (Map<String, Object>) mapping.get("properties");
         }
-
-        mapping = (Map<String, Object>) mapping.get(path[path.length - 1]);
-        assert mapping.containsKey("properties") == false;
         return result;
     }
 }

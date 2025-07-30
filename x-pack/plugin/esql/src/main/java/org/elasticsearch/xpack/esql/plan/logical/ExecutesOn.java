@@ -13,7 +13,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 public interface ExecutesOn {
     enum ExecuteLocation {
         COORDINATOR,
-        REMOTE
+        REMOTE,
+        ANY; // Can be executed on either coordinator or remote nodes
     }
 
     ExecuteLocation executesOn();

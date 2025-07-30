@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
@@ -21,8 +20,9 @@ import org.elasticsearch.xpack.esql.plan.logical.SurrogateLogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
 
-import java.util.LinkedList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
@@ -105,13 +105,10 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, PostAnalys
     }
 
     private void checkRemoteJoin(Failures failures) {
-        List<Source> fails = new LinkedList<>();
+        Set<Source> fails = new HashSet<>();
 
         this.forEachUp(UnaryPlan.class, u -> {
-            if (u instanceof PipelineBreaker || u instanceof ExecutesOn.Coordinator) {
-                fails.add(u.source());
-            }
-            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
+            if (u instanceof PipelineBreaker || (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR)) {
                 fails.add(u.source());
             }
         });

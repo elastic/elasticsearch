@@ -371,6 +371,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             frozenIndexCheck(resolvedIndices);
         }
+        logger.info("Executing search request on node [{}] with indices [{}]", clusterService.getNodeName(), resolvedIndices);
 
         ActionListener<SearchRequest> rewriteListener = listener.delegateFailureAndWrap((delegate, rewritten) -> {
             if (ccsCheckCompatibility) {
@@ -1313,6 +1314,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters,
         SearchPhaseProvider searchPhaseProvider
     ) {
+        logger.info("Executing search locally.");
         if (searchRequest.allowPartialSearchResults() == null) {
             // No user preference defined in search request - apply cluster service default
             searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
@@ -1905,11 +1907,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
                             targetNodes.add(perNode.getNode());
                         }
-                        if (perNode.getSearchContextId().getSearcherId() != null) {
-                            for (ShardRouting shard : shards) {
-                                if (shard.currentNodeId().equals(perNode.getNode()) == false) {
-                                    targetNodes.add(shard.currentNodeId());
-                                }
+                        for (ShardRouting shard : shards) {
+                            if (shard.currentNodeId().equals(perNode.getNode()) == false) {
+                                targetNodes.add(shard.currentNodeId());
                             }
                         }
                     } catch (IndexNotFoundException | ShardNotFoundException e) {

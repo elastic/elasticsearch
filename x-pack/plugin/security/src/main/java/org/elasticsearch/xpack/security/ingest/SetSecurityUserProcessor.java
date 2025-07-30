@@ -106,7 +106,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
         Object fieldValue = document.getFieldValue(field, Object.class, true);
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> userObject = fieldValue instanceof Map ? (Map<String, Object>) fieldValue : new HashMap<>();
+        final Map<String, Object> userObject = fieldValue instanceof Map ? (Map<String, Object>) fieldValue : new HashMap<>();
 
         for (Property property : properties) {
             switch (property) {

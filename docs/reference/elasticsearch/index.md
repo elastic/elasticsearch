@@ -22,7 +22,7 @@
 - [Secure the Elastic Stack](docs-content://deploy-manage/security.md)
 - [Upgrade Elasticsearch](docs-content://deploy-manage/upgrade/deployment-or-cluster.md)
 - [Set up a cluster for high availability](docs-content://deploy-manage/tools.md)
-- [Monitor a cluster](docs-content://deploy-manage/monitor/cloud-health-perf.md)
+- [Stack monitoring](docs-content://deploy-manage/monitor/stack-monitoring.md)
 - [Troubleshooting](docs-content://troubleshoot/elasticsearch.md)
 - [Optimizations](docs-content://deploy-manage/production-guidance/optimize-performance.md)
 

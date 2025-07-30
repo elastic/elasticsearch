@@ -86,7 +86,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         return getCentroidIteratorNoParent(fieldInfo, centroids, numCentroids, scorer, quantized, queryParams, globalCentroidDp);
     }
 
-    private CentroidIterator getCentroidIteratorNoParent(
+    private static CentroidIterator getCentroidIteratorNoParent(
         FieldInfo fieldInfo,
         IndexInput centroids,
         int numCentroids,
@@ -96,15 +96,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         float globalCentroidDp
     ) throws IOException {
         final NeighborQueue neighborQueue = new NeighborQueue(numCentroids, true);
-        int4QuantizedScoreBulk(
+        score(
             neighborQueue,
-            centroids,
             numCentroids,
             0,
             scorer,
             quantizeQuery,
             queryParams,
-            new float[3], // targetCorrections
             globalCentroidDp,
             fieldInfo.getVectorSimilarityFunction(),
             new float[ES91Int4VectorsScorer.BULK_SIZE]
@@ -125,7 +123,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         };
     }
 
-    private CentroidIterator getCentroidIteratorWithParents(
+    private static CentroidIterator getCentroidIteratorWithParents(
         FieldInfo fieldInfo,
         IndexInput centroids,
         int numParents,
@@ -138,16 +136,13 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final int maxChildrenSize = centroids.readVInt();
         final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);
         final float[] scores = new float[ES91Int4VectorsScorer.BULK_SIZE];
-        final float[] centroidCorrectiveValues = new float[3];
-        int4QuantizedScoreBulk(
+        score(
             parentsQueue,
-            centroids,
             numParents,
             0,
             scorer,
             quantizeQuery,
             queryParams,
-            centroidCorrectiveValues, // targetCorrections
             globalCentroidDp,
             fieldInfo.getVectorSimilarityFunction(),
             scores
@@ -170,7 +165,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 scorer,
                 quantizeQuery,
                 queryParams,
-                centroidCorrectiveValues,
                 globalCentroidDp,
                 scores
             );
@@ -214,7 +208,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                             scorer,
                             quantizeQuery,
                             queryParams,
-                            centroidCorrectiveValues,
                             globalCentroidDp,
                             scores
                         );
@@ -225,7 +218,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         };
     }
 
-    private void populateOneChildrenGroup(
+    private static void populateOneChildrenGroup(
         NeighborQueue neighborQueue,
         IndexInput centroids,
         long parentOffset,
@@ -235,7 +228,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         ES91Int4VectorsScorer scorer,
         byte[] quantizeQuery,
         OptimizedScalarQuantizer.QuantizationResult queryParams,
-        float[] targetCorrections,
         float globalCentroidDp,
         float[] scores
     ) throws IOException {
@@ -243,30 +235,26 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         int childrenOrdinal = centroids.readInt();
         int numChildren = centroids.readInt();
         centroids.seek(childrenOffset + centroidQuantizeSize * childrenOrdinal);
-        int4QuantizedScoreBulk(
+        score(
             neighborQueue,
-            centroids,
             numChildren,
             childrenOrdinal,
             scorer,
             quantizeQuery,
             queryParams,
-            targetCorrections,
             globalCentroidDp,
             fieldInfo.getVectorSimilarityFunction(),
             scores
         );
     }
 
-    private void int4QuantizedScoreBulk(
+    private static void score(
         NeighborQueue neighborQueue,
-        IndexInput centroids,
         int size,
         int scoresOffset,
         ES91Int4VectorsScorer scorer,
         byte[] quantizeQuery,
         OptimizedScalarQuantizer.QuantizationResult queryCorrections,
-        float[] targetCorrections,
         float centroidDp,
         VectorSimilarityFunction similarityFunction,
         float[] scores
@@ -290,44 +278,17 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         }
 
         for (; i < size; i++) {
-            float score = int4QuantizedScore(
-                centroids,
-                scorer,
+            float score = scorer.score(
                 quantizeQuery,
-                queryCorrections,
-                targetCorrections,
-                centroidDp,
-                similarityFunction
+                queryCorrections.lowerInterval(),
+                queryCorrections.upperInterval(),
+                queryCorrections.quantizedComponentSum(),
+                queryCorrections.additionalCorrection(),
+                similarityFunction,
+                centroidDp
             );
             neighborQueue.add(scoresOffset + i, score);
         }
-    }
-
-    private float int4QuantizedScore(
-        IndexInput centroids,
-        ES91Int4VectorsScorer scorer,
-        byte[] quantizeQuery,
-        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
-        float[] targetCorrections,
-        float centroidDp,
-        VectorSimilarityFunction similarityFunction
-    ) throws IOException {
-        float qcDist = scorer.int4DotProduct(quantizeQuery);
-        centroids.readFloats(targetCorrections, 0, 3);
-        final int targetComponentSum = Short.toUnsignedInt(centroids.readShort());
-        return scorer.applyCorrections(
-            queryCorrections.lowerInterval(),
-            queryCorrections.upperInterval(),
-            queryCorrections.quantizedComponentSum(),
-            queryCorrections.additionalCorrection(),
-            similarityFunction,
-            centroidDp,
-            targetCorrections[0],
-            targetCorrections[1],
-            targetComponentSum,
-            targetCorrections[2],
-            qcDist
-        );
     }
 
     @Override

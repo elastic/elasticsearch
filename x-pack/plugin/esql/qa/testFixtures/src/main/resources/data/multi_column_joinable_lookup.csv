@@ -13,5 +13,7 @@ id_int,name_str,is_active_bool,ip_addr,other1,other2
 ,Kate,false,192.168.1.11,mu,12000
 12,Liam,true,192.168.1.12,nu,13000
 13,Mia,false,192.168.1.13,xi,14000
-14,Nina,true,192.168.1.14,omicron,15000
+[14],Nina,true,192.168.1.14,omicron,15000
 16,Paul,true,192.168.1.16,pi,16000
+[17,18],Olivia,true,192.168.1.17,rho,17000
+[1,19,20],Sophia,true,192.168.1.21,sigma,21000

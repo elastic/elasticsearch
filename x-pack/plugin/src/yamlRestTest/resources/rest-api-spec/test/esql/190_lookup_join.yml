@@ -113,7 +113,7 @@ setup:
           - { "index": { } }
           - { "key": 1, "color": "red" }
           - { "index": { } }
-          - { "key": 2, "color": "yellow" }
+          - { "key": 2, "color": "blue" }
   - do:
       bulk:
         index: "test-lookup-1"

@@ -49,7 +49,7 @@ public class LookupJoinGenerator implements CommandGenerator {
             }
             EsqlQueryGenerator.Column key = randomFrom(candidateKeys);
             if (usedColumns.contains(key.name()) || usedColumns.contains(idxKey)) {
-                continue; // already used this column, skip
+                continue; // already used this column from the lookup index, or will discard the main index column by RENAME'ing below, skip
             } else {
                 usedColumns.add(key.name());
                 usedColumns.add(idxKey);
@@ -74,7 +74,6 @@ public class LookupJoinGenerator implements CommandGenerator {
                 stringBuilder.append(", ");
             }
         }
-        stringBuilder.append("| LIMIT 10");
         String cmdString = stringBuilder.toString();
         return new CommandDescription(LOOKUP_JOIN, this, cmdString, Map.of());
     }

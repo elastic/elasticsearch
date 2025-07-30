@@ -33,8 +33,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * deletion until all references are released, preventing data corruption during
  * long-running operations.
  */
-public class LocalCommitsRefs {
-
+public class ShardLocalCommitsRefs {
     /**
      * Holds the references count for a commit
      */
@@ -45,7 +44,7 @@ public class LocalCommitsRefs {
         ? ConcurrentCollections.newConcurrentSet()
         : null;
 
-    public LocalCommitsRefs() {
+    public ShardLocalCommitsRefs() {
         this.acquiredGenerations = new ConcurrentHashMap<>();
     }
 

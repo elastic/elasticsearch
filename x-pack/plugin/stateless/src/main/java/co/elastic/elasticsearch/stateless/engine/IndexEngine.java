@@ -24,7 +24,7 @@ import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
+import co.elastic.elasticsearch.stateless.commits.ShardLocalReadersTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -76,9 +76,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -89,7 +87,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.index.engine.Engine.FlushResult.NO_FLUSH;
@@ -117,7 +114,6 @@ public class IndexEngine extends InternalEngine {
     private final Function<String, BlobContainer> translogBlobContainer;
     private final RefreshThrottler refreshThrottler;
     private final long mergeForceRefreshSize;
-    private final IndexEngineLocalReaderListener localReaderListener;
     private final CommitBCCResolver commitBCCResolver;
     private final DocumentSizeAccumulator documentSizeAccumulator;
     private final DocumentSizeReporter documentParsingReporter;
@@ -127,9 +123,7 @@ public class IndexEngine extends InternalEngine {
     private volatile long hollowMaxSeqNo = SequenceNumbers.UNASSIGNED_SEQ_NO;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
-
-    // The values of this map are sets of BCCs referenced by the reader. This map is guarded by the openReaders monitor.
-    private final Map<DirectoryReader, Set<PrimaryTermAndGeneration>> openReaders = new HashMap<>();
+    private final ShardLocalReadersTracker localReadersTracker;
 
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
@@ -144,10 +138,10 @@ public class IndexEngine extends InternalEngine {
         HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService cacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
-        IndexEngineLocalReaderListener localReaderListener,
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
-        EngineMetrics metrics
+        EngineMetrics metrics,
+        ShardLocalReadersTracker shardLocalReadersTracker
     ) {
         this(
             engineConfig,
@@ -157,11 +151,11 @@ public class IndexEngine extends InternalEngine {
             hollowShardsService,
             cacheWarmingService,
             refreshThrottlerFactory,
-            localReaderListener,
             commitBCCResolver,
             documentParsingProvider,
             metrics,
-            (shardId) -> false
+            (shardId) -> false,
+            shardLocalReadersTracker
         );
     }
 
@@ -174,11 +168,11 @@ public class IndexEngine extends InternalEngine {
         HollowShardsService hollowShardsService,
         SharedBlobCacheWarmingService cacheWarmingService,
         RefreshThrottler.Factory refreshThrottlerFactory,
-        IndexEngineLocalReaderListener localReaderListener,
         CommitBCCResolver commitBCCResolver,
         DocumentParsingProvider documentParsingProvider,
         EngineMetrics metrics,
-        Predicate<ShardId> shouldSkipMerges
+        Predicate<ShardId> shouldSkipMerges,
+        ShardLocalReadersTracker shardLocalReadersTracker
     ) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
@@ -189,7 +183,6 @@ public class IndexEngine extends InternalEngine {
         this.cacheWarmingService = cacheWarmingService;
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         this.mergeForceRefreshSize = MERGE_FORCE_REFRESH_SIZE.get(config().getIndexSettings().getSettings()).getBytes();
-        this.localReaderListener = localReaderListener;
         this.commitBCCResolver = commitBCCResolver;
         this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
         this.documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
@@ -198,6 +191,7 @@ public class IndexEngine extends InternalEngine {
             documentSizeAccumulator
         );
         this.shouldSkipMerges = shouldSkipMerges;
+        this.localReadersTracker = shardLocalReadersTracker;
         // We have to track the initial BCC references held by local readers at this point instead of doing it in
         // #createInternalReaderManager because that method is called from the super constructor and at that point,
         // commitBCCResolver field is not set yet.
@@ -267,26 +261,11 @@ public class IndexEngine extends InternalEngine {
             return;
         }
 
-        ElasticsearchDirectoryReader.addReaderCloseListener(directoryReader, ignored -> onLocalReaderClosed(directoryReader));
-        synchronized (openReaders) {
-            openReaders.put(directoryReader, referencedBCCsForCommit);
-        }
-    }
-
-    private void onLocalReaderClosed(DirectoryReader reader) {
-        Set<PrimaryTermAndGeneration> bccDependencies;
-        Set<PrimaryTermAndGeneration> remainingReferencedBCCs;
-        // CHM iterators are weakly consistent, meaning that we're not guaranteed to see new insertions while we compute
-        // the set of remainingReferencedBCCs, that's why we use a regular HashMap with synchronized.
-        synchronized (openReaders) {
-            bccDependencies = openReaders.remove(reader);
-            assert bccDependencies != null : openReaders + " -> " + reader;
-            assert bccDependencies.isEmpty() == false;
-            remainingReferencedBCCs = openReaders.values().stream().flatMap(Collection::stream).collect(Collectors.toSet());
-        }
-
-        long bccHoldingCommit = bccDependencies.stream().max(PrimaryTermAndGeneration::compareTo).get().generation();
-        localReaderListener.onLocalReaderClosed(bccHoldingCommit, remainingReferencedBCCs);
+        ElasticsearchDirectoryReader.addReaderCloseListener(
+            directoryReader,
+            ignored -> localReadersTracker.onLocalReaderClosed(directoryReader)
+        );
+        localReadersTracker.trackOpenReader(directoryReader, referencedBCCsForCommit);
     }
 
     static long getLatestCommittedGeneration(DirectoryReader directoryReader) {
@@ -491,9 +470,7 @@ public class IndexEngine extends InternalEngine {
 
     // visible for testing
     Map<DirectoryReader, Set<PrimaryTermAndGeneration>> getOpenReaders() {
-        synchronized (openReaders) {
-            return Map.copyOf(openReaders);
-        }
+        return localReadersTracker.getOpenReaders();
     }
 
     @Override

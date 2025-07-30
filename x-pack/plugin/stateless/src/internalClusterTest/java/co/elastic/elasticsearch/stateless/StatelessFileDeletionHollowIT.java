@@ -34,7 +34,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -56,7 +55,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
@@ -71,13 +69,10 @@ import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STA
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.sameInstance;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCase {
 
@@ -530,8 +525,6 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCas
         assertThat(unhollowShard, sameInstance(indexShard));
         assertThat(unhollowShard.getOperationPrimaryTerm(), equalTo(primaryTerm));
 
-        // TODO ES-10929
-        //
         // The searcher acquired on the IndexEngine uses segment files that have been merged away during the first force-merge. Lucene
         // uses the IndexFileDeleter to count the references on segment files to delete them when they are not needed anymore, and we
         // track the local reader to ensure the BCC is not deleted from the object store. At the time the IndexWriter was closed during
@@ -547,14 +540,11 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCas
         // while the prewarming (reading commits in BCC using cache) also updates the IndexBlobStoreCacheDirectory metadata. Also,
         // metadata are updated on upload so if there are not more uploads some metadata remains even if the file were deleted.
 
-        // Wait for BCC to be deleted from the object store
         var blobName = BatchedCompoundCommit.blobNameFromGeneration(searcher.getDirectoryReader().getIndexCommit().getGeneration());
-        assertBusy(() -> {
-            var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
-                .listBlobs(OperationPurpose.INDICES)
-                .keySet();
-            assertThat("BCC for generation 5 is deleted from object store", blobs.contains(blobName), equalTo(false));
-        });
+        var blobs = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
+            .listBlobs(OperationPurpose.INDICES)
+            .keySet();
+        assertThat("BCC for generation 5 is still in the object store", blobs.contains(blobName), equalTo(true));
 
         assertThat(Set.of(indexDirectory.listAll()), not(hasItem("_0.si")));
         assertThat(Set.of(indexDirectory.listAll()), not(hasItem("_1.si")));
@@ -562,12 +552,23 @@ public class StatelessFileDeletionHollowIT extends AbstractStatelessIntegTestCas
         assertThat(Set.of(indexDirectory.getBlobStoreCacheDirectory().listAll()), hasItem("_0.si"));
         assertThat(Set.of(indexDirectory.getBlobStoreCacheDirectory().listAll()), hasItem("_1.si"));
 
-        var uncategorizedException = expectThrows(Exception.class, () -> ensureSearcherCanAccessStoredFieldFile(searcher));
-        var noSuchFileException = ExceptionsHelper.unwrap(uncategorizedException, NoSuchFileException.class);
-        assertThat(noSuchFileException, notNullValue());
-        assertThat(noSuchFileException.getMessage(), anyOf(containsString("stateless_commit_4"), containsString("stateless_commit_5")));
+        ensureSearcherCanAccessStoredFieldFile(searcher);
 
         IOUtils.close(searcher);
+
+        assertBusy(() -> {
+            var blobsAfterRelease = getObjectStoreService(indexNodeA).getProjectBlobContainer(unhollowShard.shardId(), primaryTerm)
+                .listBlobs(OperationPurpose.INDICES)
+                .keySet();
+            assertThat("BCC for generation 5 is deleted from object store", blobsAfterRelease.contains(blobName), equalTo(false));
+        });
+
+        // In order to clear the IndexDirectory references to the deleted blobs, we force a flush that would upload a new BCC
+        // and clear the deleted files from the IndexDirectory
+        indicesAdmin().prepareFlush(indexName).setForce(true).get();
+
+        assertThat(Set.of(indexDirectory.getBlobStoreCacheDirectory().listAll()), not(hasItem("_0.si")));
+        assertThat(Set.of(indexDirectory.getBlobStoreCacheDirectory().listAll()), not(hasItem("_1.si")));
     }
 
     private void logLastCommittedSegmentInfos(IndexShard shard) throws IOException {

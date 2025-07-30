@@ -30,28 +30,29 @@ import java.util.Objects;
 /**
  * Index deletion policy used in {@link HollowIndexEngine}.
  * <p>
- * This policy allows to retain Lucene commits across engine resets: it uses an instance of {@link LocalCommitsRefs}, created once when the
- * index shard is created, to keep track of the acquired commits. When an {@link HollowIndexEngine} is created, its new
- * {@link IndexEngineDeletionPolicy} receives the same {@link LocalCommitsRefs} instance and therefore can know the commits that were
- * previously acquired by a different engine instance.
+ * This policy allows to retain Lucene commits across engine resets: it uses an instance of {@link ShardLocalCommitsRefs},
+ * created once when the index shard is created, to keep track of the acquired commits. When an {@link HollowIndexEngine} is created,
+ * its new {@link IndexEngineDeletionPolicy} receives the same {@link ShardLocalCommitsRefs} instance and therefore can know the commits
+ * that were previously acquired by a different engine instance.
  * <p>
  * This policy does not delete commits locally. A commit can be deleted in the future when the shard is recovered (when we search for
  * unused commits) or the next time the shard is unhollowed.
  * <p>
+
  * Note: this policy is not intended to be used in an {@link org.apache.lucene.index.IndexWriter}, but it implements
  * {@link ElasticsearchIndexDeletionPolicy} so that it can be used within an {@link HollowIndexEngine} in a similar way other engine
  * implementations use index deletion policies.
  */
 public class HollowIndexEngineDeletionPolicy extends ElasticsearchIndexDeletionPolicy {
 
-    private final LocalCommitsRefs commitsRefs;
+    private final ShardLocalCommitsRefs commitsRefs;
 
     private IndexCommit commit;
     private boolean initialized;
     private SafeCommitInfo safeCommitInfo;
 
-    public HollowIndexEngineDeletionPolicy(LocalCommitsRefs localCommitsRefs) {
-        this.commitsRefs = localCommitsRefs;
+    public HollowIndexEngineDeletionPolicy(ShardLocalCommitsRefs shardLocalCommitsRefs) {
+        this.commitsRefs = shardLocalCommitsRefs;
     }
 
     public synchronized void onInit(IndexCommit commit, SafeCommitInfo safeCommitInfo) throws IOException {

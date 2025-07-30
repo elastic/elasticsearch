@@ -5524,7 +5524,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             ),
             new PushDownInferencePlan()
         ),
-        // | RERANK "some text" ON x INTO y OPTIONS { "inference_id" : "inferenceID" }
+        // | RERANK "some text" ON x INTO y WITH { "inference_id" : "inferenceID" }
         new PushdownShadowingGeneratingPlanTestCase(
             (plan, attr) -> new Rerank(
                 EMPTY,

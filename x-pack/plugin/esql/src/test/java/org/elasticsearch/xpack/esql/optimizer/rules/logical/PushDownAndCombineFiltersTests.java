@@ -287,8 +287,8 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
         assertEquals(expectedOptimizedPlan, new PushDownAndCombineFilters().apply(filterB));
     }
 
-    // from ... | where a > 1 | RERANK "query" ON title OPTIONS { "inference_id" : "inferenceId" } | where b < 2 and _score > 1
-    // => ... | where a > 1 AND b < 2| RERANK "query" ON title OPTIONS { "inference_id" : "inferenceId" } | where _score > 1
+    // from ... | where a > 1 | RERANK "query" ON title WITH { "inference_id" : "inferenceId" } | where b < 2 and _score > 1
+    // => ... | where a > 1 AND b < 2| RERANK "query" ON title WITH { "inference_id" : "inferenceId" } | where _score > 1
     public void testPushDownFilterPastRerank() {
         FieldAttribute a = getFieldAttribute("a");
         FieldAttribute b = getFieldAttribute("b");

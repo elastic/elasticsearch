@@ -11,7 +11,7 @@ The `COMPLETION` command allows you to send prompts and context to a Large Langu
 
 ::::{tab-set}
 
-:::{tab-item} >= 9.2.0
+:::{tab-item} 9.2.0+
 
 ```esql
 COMPLETION [column =] prompt WITH { "inference_id" : "my_inference_endpoint" }

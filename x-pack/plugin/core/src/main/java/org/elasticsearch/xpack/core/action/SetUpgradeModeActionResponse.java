@@ -23,9 +23,9 @@ public class SetUpgradeModeActionResponse extends AcknowledgedResponse {
         this.alreadyInUpgradeMode = in.getTransportVersion().onOrAfter(ML_TRANSFORM_SYSTEM_INDEX_MIGRATE_REASON) && in.readBoolean();
     }
 
-    public SetUpgradeModeActionResponse(boolean acknowledged, boolean modified) {
+    public SetUpgradeModeActionResponse(boolean acknowledged, boolean alreadyInUpgradeMode) {
         super(acknowledged);
-        this.alreadyInUpgradeMode = modified;
+        this.alreadyInUpgradeMode = alreadyInUpgradeMode;
     }
 
     @Override

@@ -62,7 +62,7 @@ public interface LeafQueryGenerator {
             if (s.isEmpty() || ignoreAbove < s.length()) {
                 return List.of();
             }
-            return List.of(QueryBuilders.termQuery(path, value), QueryBuilders.wildcardQuery(path, value + "*"));
+            return List.of(QueryBuilders.wildcardQuery(path, value + "*"));
         }
     }
 
@@ -73,16 +73,15 @@ public interface LeafQueryGenerator {
             }
             var results = new ArrayList<QueryBuilder>();
             results.add(QueryBuilders.matchQuery(path, value));
-            var phraseQuery = buildPhraseQuery(path, value);
+            var phraseQuery = buildPhraseQuery(path, (String) value);
             if (phraseQuery != null) {
                 results.add(phraseQuery);
             }
             return results;
         }
 
-        private static QueryBuilder buildPhraseQuery(String path, Object value) {
-            String needle = (String) value;
-            var tokens = Arrays.asList(needle.split("[^a-zA-Z0-9]"));
+        private static QueryBuilder buildPhraseQuery(String path, String value) {
+            var tokens = Arrays.asList(value.split("[^a-zA-Z0-9]"));
             if (tokens.isEmpty()) {
                 return null;
             }

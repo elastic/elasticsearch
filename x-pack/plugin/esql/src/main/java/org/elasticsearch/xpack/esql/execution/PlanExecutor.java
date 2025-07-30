@@ -42,6 +42,7 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class PlanExecutor {
 
     private final IndexResolver indexResolver;
+    private final PreAnalyzer preAnalyzer;
     private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
@@ -58,6 +59,7 @@ public class PlanExecutor {
         Settings settings
     ) {
         this.indexResolver = indexResolver;
+        this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry);
@@ -84,7 +86,7 @@ public class PlanExecutor {
             cfg,
             indexResolver,
             enrichPolicyResolver,
-            new PreAnalyzer(),
+            preAnalyzer,
             new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldContext)),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg, foldContext)),

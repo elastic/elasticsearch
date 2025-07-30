@@ -57,6 +57,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapperTests;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -725,10 +726,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         for (int i = 0; i < 5; i++) {
             Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
             final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
+            IndexVersion indexVersion = SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
             final SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(TaskType.SPARSE_EMBEDDING);
             String fieldName = "field";
 
-            MapperService mapperService = createMapperService(
+            MapperService mapperService = createMapperServiceWithIndexVersion(
                 mapping(
                     b -> addSemanticTextMapping(
                         b,
@@ -740,17 +742,31 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         new MinimalServiceSettings(model)
                     )
                 ),
-                useLegacyFormat
+                useLegacyFormat,
+                indexVersion
             );
-            assertSemanticTextField(mapperService, fieldName, true, chunkingSettings, indexOptions);
+            var expectedIndexOptions = (indexOptions == null)
+                                       ? new SemanticTextIndexOptions(
+                                            SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
+                                            SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
+                                        )
+                                       : indexOptions;
+            assertSemanticTextField(mapperService, fieldName, true, chunkingSettings, expectedIndexOptions);
 
             final SemanticTextIndexOptions newIndexOptions = randomSemanticTextIndexOptions(TaskType.SPARSE_EMBEDDING);
+            expectedIndexOptions = (newIndexOptions == null)
+                                   ? new SemanticTextIndexOptions(
+                                        SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
+                                        SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
+                                    )
+                                   : newIndexOptions;
+
             ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
             merge(
                 mapperService,
                 mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, newChunkingSettings, newIndexOptions))
             );
-            assertSemanticTextField(mapperService, fieldName, true, newChunkingSettings, newIndexOptions);
+            assertSemanticTextField(mapperService, fieldName, true, newChunkingSettings, expectedIndexOptions);
         }
     }
 
@@ -959,13 +975,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 );
             });
 
-            var expectedIndexOptions = indexOptions;
-            if (expectedIndexOptions == null) {
-                expectedIndexOptions = new SemanticTextIndexOptions(
-                    SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
-                    SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
-                );
-            }
+            var expectedIndexOptions = (indexOptions == null)
+                ? new SemanticTextIndexOptions(
+                        SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
+                        SparseVectorFieldMapper.SparseVectorIndexOptions.getDefaultIndexOptions(indexVersion)
+                    )
+                : indexOptions;
 
             MapperService mapperService = createMapperServiceWithIndexVersion(mapping, useLegacyFormat, indexVersion);
             assertSemanticTextField(mapperService, fieldName1, true, null, expectedIndexOptions);

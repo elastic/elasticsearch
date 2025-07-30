@@ -461,7 +461,6 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -2043,19 +2042,12 @@ public class MachineLearning extends Plugin
 
     @Override
     public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-        boolean isAlreadyInUpgradeMode = MlMetadata.getMlMetadata(clusterService.state()).isUpgradeMode();
-        if (isAlreadyInUpgradeMode) {
-            // ML is already in upgrade mode, so nothing will write to the ML system indices during their upgrade
-            listener.onResponse(Collections.singletonMap("already_in_upgrade_mode", true));
-            return;
-        }
-
         // Enable ML upgrade mode before upgrading the ML system indices to ensure nothing writes to them during the upgrade
         Client originClient = new OriginSettingClient(client, ML_ORIGIN);
         originClient.execute(
             SetUpgradeModeAction.INSTANCE,
             new SetUpgradeModeAction.Request(true),
-            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Collections.singletonMap("already_in_upgrade_mode", false)))
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Map.of("already_in_upgrade_mode", r.alreadyInUpgradeMode())))
         );
     }
 

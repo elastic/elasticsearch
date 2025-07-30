@@ -14,7 +14,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
@@ -33,7 +33,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class AbstractTransportSetUpgradeModeAction extends AcknowledgedTransportMasterNodeAction<SetUpgradeModeActionRequest> {
+public abstract class AbstractTransportSetUpgradeModeAction extends TransportMasterNodeAction<
+    SetUpgradeModeActionRequest,
+    SetUpgradeModeActionResponse> {
 
     private static final Logger logger = LogManager.getLogger(AbstractTransportSetUpgradeModeAction.class);
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
@@ -54,6 +56,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
             threadPool,
             actionFilters,
             SetUpgradeModeActionRequest::new,
+            SetUpgradeModeActionResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
@@ -65,7 +68,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
         Task task,
         SetUpgradeModeActionRequest request,
         ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
+        ActionListener<SetUpgradeModeActionResponse> listener
     ) throws Exception {
         // Don't want folks spamming this endpoint while it is in progress, only allow one request to be handled at a time
         if (isRunning.compareAndSet(false, true) == false) {
@@ -93,7 +96,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
         if (request.enabled() == upgradeMode) {
             logger.info("Upgrade mode noop");
             isRunning.set(false);
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            listener.onResponse(new SetUpgradeModeActionResponse(true, upgradeMode));
             return;
         }
 
@@ -107,7 +110,7 @@ public abstract class AbstractTransportSetUpgradeModeAction extends Acknowledged
         ActionListener<AcknowledgedResponse> wrappedListener = ActionListener.wrap(r -> {
             logger.info("Finished setting [upgrade_mode] for feature name [{}]", featureName());
             isRunning.set(false);
-            listener.onResponse(r);
+            listener.onResponse(new SetUpgradeModeActionResponse(r.isAcknowledged(), false));
         }, e -> {
             logger.info("Failed to set [upgrade_mode] for feature name [{}]", featureName());
             isRunning.set(false);

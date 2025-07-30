@@ -186,18 +186,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public void prepareForIndicesMigration(ClusterService clusterService, Client client, ActionListener<Map<String, Object>> listener) {
-        if (TransformMetadata.upgradeMode(clusterService.state())) {
-            // Transform is already in upgrade mode, so nothing will write to the Transform system indices during their upgrade
-            listener.onResponse(Map.of("already_in_upgrade_mode", true));
-            return;
-        }
-
         // Enable Transform upgrade mode before upgrading the system indices to ensure nothing writes to them during the upgrade
         var originClient = new OriginSettingClient(client, TRANSFORM_ORIGIN);
         originClient.execute(
             SetTransformUpgradeModeAction.INSTANCE,
             new SetUpgradeModeActionRequest(true),
-            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Map.of("already_in_upgrade_mode", false)))
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(Map.of("already_in_upgrade_mode", r.alreadyInUpgradeMode())))
         );
     }
 

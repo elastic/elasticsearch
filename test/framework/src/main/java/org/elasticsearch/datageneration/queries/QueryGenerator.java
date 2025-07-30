@@ -34,10 +34,7 @@ public class QueryGenerator {
         if (mapping == null) {
             return List.of();
         }
-        boolean isIndexed = (Boolean) mapping.getOrDefault("index", true);
-        if (isIndexed == false) {
-            return List.of();
-        }
+
         var type = (String) mapping.get("type");
         var leafQueryGenerator = LeafQueryGenerator.buildForType(type);
         var leafQueries = leafQueryGenerator.generate(mapping, path, value);

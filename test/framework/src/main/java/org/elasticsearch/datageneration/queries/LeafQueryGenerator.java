@@ -46,13 +46,18 @@ public interface LeafQueryGenerator {
 
     class KeywordQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
-            return List.of(QueryBuilders.termQuery(path, value));
+            boolean isIndexed = (Boolean) fieldMapping.getOrDefault("index", true);
+            boolean hasDocValues = (Boolean) fieldMapping.getOrDefault("doc_values", true);
+            if (isIndexed || hasDocValues) {
+                return List.of(QueryBuilders.termQuery(path, value));
+            }
+            return List.of();
         }
     }
 
     class WildcardQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
-            // Queries with emojis currently fail due to https://github.com/elastic/elasticsearch/issues/132144
+            // Queries with emojis can currently fail due to https://github.com/elastic/elasticsearch/issues/132144
             if (containsHighSurrogates((String) value)) {
                 return List.of();
             }
@@ -62,6 +67,11 @@ public interface LeafQueryGenerator {
 
     class TextQueryGenerator implements LeafQueryGenerator {
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
+            boolean isIndexed = (Boolean) fieldMapping.getOrDefault("index", true);
+            if (isIndexed == false) {
+                return List.of();
+            }
+
             var results = new ArrayList<QueryBuilder>();
             results.add(QueryBuilders.matchQuery(path, value));
             var phraseQuery = buildPhraseQuery(path, (String) value);

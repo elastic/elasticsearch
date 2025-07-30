@@ -22,7 +22,6 @@ public class GetRerankerAction extends ActionType<GetRerankerAction.Response> {
     public static final GetRerankerAction INSTANCE = new GetRerankerAction();
     public static final String NAME = "cluster:internal/xpack/inference/rerank/get";
 
-
     public GetRerankerAction() {
         super(NAME);
     }

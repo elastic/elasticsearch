@@ -608,6 +608,12 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
   method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=hnsw}
   issue: https://github.com/elastic/elasticsearch/issues/132150
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=bbq_flat}
+  issue: https://github.com/elastic/elasticsearch/issues/132151
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: "testDenseVectorMappingUpdate {initialType=bbq_hnsw updateType=bbq_disk #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/132152
 
 # Examples:
 #

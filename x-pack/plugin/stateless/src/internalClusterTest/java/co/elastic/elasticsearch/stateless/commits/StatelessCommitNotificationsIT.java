@@ -133,10 +133,10 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
                 hollowShardsService,
                 sharedBlobCacheWarmingService,
                 refreshThrottlerFactory,
-                statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
-                engineMetrics
+                engineMetrics,
+                statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
             ) {
                 @Override
                 protected void afterFlush(long generation) {

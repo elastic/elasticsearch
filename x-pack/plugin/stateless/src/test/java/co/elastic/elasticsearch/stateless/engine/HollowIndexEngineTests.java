@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.commits.HollowIndexEngineDeletionPolicy;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
-import co.elastic.elasticsearch.stateless.commits.LocalCommitsRefs;
+import co.elastic.elasticsearch.stateless.commits.ShardLocalCommitsRefs;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
 import org.apache.lucene.index.NoMergePolicy;
@@ -67,7 +67,7 @@ public class HollowIndexEngineTests extends EngineTestCase {
             globalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
             new NoneCircuitBreakerService(),
             null,
-            policy -> new HollowIndexEngineDeletionPolicy(new LocalCommitsRefs())
+            policy -> new HollowIndexEngineDeletionPolicy(new ShardLocalCommitsRefs())
         );
     }
 

@@ -1095,7 +1095,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * References on the Lucene commits acquired on the engines and maintained across engine resets.
          */
-        private final LocalCommitsRefs localCommitsRefs;
+        private final ShardLocalCommitsTracker shardLocalCommitsTracker;
 
         private List<Tuple<Long, ActionListener<Void>>> generationListeners = null;
         private List<Consumer<UploadedBccInfo>> uploadedBccConsumers = null;
@@ -1145,7 +1145,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
             this.addGlobalCheckpointListenerFunction = addGlobalCheckpointListenerFunction;
             this.triggerTranslogReplicator = triggerTranslogReplicator;
-            this.localCommitsRefs = new LocalCommitsRefs();
+            this.shardLocalCommitsTracker = new ShardLocalCommitsTracker(new ShardLocalReadersTracker(this), new ShardLocalCommitsRefs());
         }
 
         /**
@@ -1166,8 +1166,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return state == State.RELOCATING;
         }
 
-        public LocalCommitsRefs getLocalCommitsRefs() {
-            return localCommitsRefs;
+        public ShardLocalCommitsTracker shardLocalCommitsTracker() {
+            return shardLocalCommitsTracker;
         }
 
         /**
@@ -3098,8 +3098,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return getSafe(shardsCommitsStates, shardId);
     }
 
-    public LocalCommitsRefs getLocalCommitsRefsForShard(ShardId shardId) {
-        return getSafe(shardsCommitsStates, shardId).getLocalCommitsRefs();
+    public ShardLocalCommitsTracker getShardLocalCommitsTracker(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId).shardLocalCommitsTracker();
     }
 
     private void waitForClusterStateProcessed(long clusterStateVersion, Runnable whenDone) {

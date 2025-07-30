@@ -102,10 +102,10 @@ public class StatelessConcurrentRefreshIT extends AbstractStatelessIntegTestCase
                 hollowShardsService,
                 sharedBlobCacheWarmingService,
                 refreshThrottlerFactory,
-                statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
                 statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
                 documentParsingProvider,
-                engineMetrics
+                engineMetrics,
+                statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
             ) {
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog) throws IOException {

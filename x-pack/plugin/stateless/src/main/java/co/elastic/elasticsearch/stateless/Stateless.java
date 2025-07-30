@@ -1384,11 +1384,11 @@ public class Stateless extends Plugin
             hollowShardsService,
             sharedBlobCacheWarmingService,
             refreshThrottlerFactory,
-            statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
             statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
             documentParsingProvider,
             engineMetrics,
-            skipMerges.get()
+            skipMerges.get(),
+            statelessCommitService.getShardLocalCommitsTracker(engineConfig.getShardId()).shardLocalReadersTracker()
         );
     }
 
@@ -1417,8 +1417,8 @@ public class Stateless extends Plugin
                     internalRefreshListeners = CollectionUtils.appendToCopy(internalRefreshListeners, collectorRefreshListener);
                 }
 
-                final var localCommitsRefs = getCommitService().getLocalCommitsRefsForShard(config.getShardId());
-                assert localCommitsRefs != null : config.getShardId();
+                final var shardLocalCommitsTracker = getCommitService().getShardLocalCommitsTracker(config.getShardId());
+                assert shardLocalCommitsTracker != null : config.getShardId();
 
                 final IndexEngineDeletionPolicy.CommitsListener indexEngineDeletionPolicyCommitsListener;
                 if (hollowShardsEnabled) {
@@ -1488,13 +1488,13 @@ public class Stateless extends Plugin
                             // If there is no default policy, we assume it is an hollow index engine
                             if (policy instanceof CombinedDeletionPolicy combinedDeletionPolicy) {
                                 return new IndexEngineDeletionPolicy(
-                                    localCommitsRefs,
+                                    shardLocalCommitsTracker.shardLocalCommitsRefs(),
                                     combinedDeletionPolicy,
                                     indexEngineDeletionPolicyCommitsListener
                                 );
                             } else {
                                 assert policy == null : "Only expect CombinedDeletionPolicy or null policy";
-                                return new HollowIndexEngineDeletionPolicy(localCommitsRefs);
+                                return new HollowIndexEngineDeletionPolicy(shardLocalCommitsTracker.shardLocalCommitsRefs());
                             }
                         } else {
                             return policy;

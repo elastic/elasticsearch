@@ -1742,7 +1742,7 @@ setup:
   - not_exists: docs.0.doc.error
 
 ---
-"Simulate ingest with data stream with mapping and setting overrides":
+"Simulate ingest with data stream with mapping overrides":
   - skip:
       features: headers
 

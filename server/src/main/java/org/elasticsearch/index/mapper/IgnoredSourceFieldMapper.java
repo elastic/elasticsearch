@@ -198,12 +198,15 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     }
 
     static BytesRef encodeMulti(List<NameValue> values) {
+        assert values.isEmpty() == false;
         try {
             BytesStreamOutput stream = new BytesStreamOutput();
             stream.writeVInt(values.size());
+            String fieldName = values.getFirst().name;
+            stream.writeString(fieldName);
             for (var value : values) {
+                assert fieldName.equals(value.name);
                 stream.writeVInt(value.parentOffset);
-                stream.writeString(value.name);
                 stream.writeBytesRef(value.value);
             }
             return stream.bytes().toBytesRef();
@@ -216,10 +219,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         try {
             StreamInput stream = new BytesArray(value).streamInput();
             var count = stream.readVInt();
+            assert count >= 1;
+            String fieldName = stream.readString();
             List<NameValue> values = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 int parentOffset = stream.readVInt();
-                String fieldName = stream.readString();
                 BytesRef valueBytes = stream.readBytesRef();
                 values.add(new NameValue(fieldName, parentOffset, valueBytes, null));
             }

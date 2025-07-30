@@ -396,7 +396,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                     if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
                         // The field contains an object or an array, reconstruct it from the transformed map in case
                         // any subfield has been filtered out.
-                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue, transformedField));
+                        visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMap(mappedNameValue.withMap(transformedField)));
                     } else {
                         // The field contains a leaf value, and it hasn't been filtered out. It is safe to propagate the original value.
                         visitor.binaryField(fieldInfo, value);
@@ -404,7 +404,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 }
             } else if (fieldInfo.name.startsWith(IgnoredSourceFieldMapper.NAME)) {
                 List<IgnoredSourceFieldMapper.MappedNameValue> mappedNameValues = IgnoredSourceFieldMapper.decodeAsMapMulti(value);
-                List<IgnoredSourceFieldMapper.MappedNameValueWithFilter> filteredNameValues = new ArrayList<>(mappedNameValues.size());
+                List<IgnoredSourceFieldMapper.MappedNameValue> filteredNameValues = new ArrayList<>(mappedNameValues.size());
                 boolean didFilter = false;
                 for (var mappedNameValue : mappedNameValues) {
                     Map<String, Object> transformedField = filter(mappedNameValue.map(), filter, 0);
@@ -416,7 +416,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                     if (topValue instanceof Map<?, ?> || topValue instanceof List<?>) {
                         didFilter = true;
                     }
-                    filteredNameValues.add(new IgnoredSourceFieldMapper.MappedNameValueWithFilter(mappedNameValue, transformedField));
+                    filteredNameValues.add(mappedNameValue.withMap(transformedField));
                 }
                 if (didFilter) {
                     visitor.binaryField(fieldInfo, IgnoredSourceFieldMapper.encodeFromMapMulti(filteredNameValues));

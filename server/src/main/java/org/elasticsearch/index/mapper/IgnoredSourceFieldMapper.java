@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -398,7 +399,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         });
     }
 
-    public record MappedNameValue(NameValue nameValue, XContentType type, Map<String, Object> map) {}
+    public record MappedNameValue(NameValue nameValue, XContentType type, Map<String, Object> map) {
+        public MappedNameValue withMap(Map<String, Object> map) {
+            return new MappedNameValue(new NameValue(nameValue.name, nameValue.parentOffset, null, nameValue.doc), type, map);
+        }
+    }
 
     /**
      * Parses the passed byte array as a NameValue and converts its decoded value to a map of maps that corresponds to the field-value
@@ -435,32 +440,28 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
     /**
      * Clones the passed NameValue, using the passed map to produce its value.
-     * @param mappedNameValue containing the NameValue to clone
-     * @param map containing a simple field-value pair, or a deeper field-value subtree for objects and arrays with fields
+     * @param mappedNameValue containing the NameValue to clone and the map containing a simple field-value pair, or a deeper
+     *                        field-value subtree for objects and arrays with fields
      * @return a byte array containing the encoding form of the cloned NameValue
      * @throws IOException
      */
-    public static byte[] encodeFromMap(MappedNameValue mappedNameValue, Map<String, Object> map) throws IOException {
-        return IgnoredSourceFieldMapper.encode(filteredNameValue(mappedNameValue, map));
+    public static byte[] encodeFromMap(MappedNameValue mappedNameValue) throws IOException {
+        return IgnoredSourceFieldMapper.encode(mappedToNameValue(mappedNameValue));
     }
 
-    public record MappedNameValueWithFilter(MappedNameValue originalValue, Map<String, Object> filteredValue) {}
-
-    public static byte[] encodeFromMapMulti(List<MappedNameValueWithFilter> filteredValues) throws IOException {
+    public static byte[] encodeFromMapMulti(List<MappedNameValue> filteredValues) throws IOException {
         List<NameValue> filteredNameValues = new ArrayList<>(filteredValues.size());
         for (var filteredValue : filteredValues) {
-            filteredNameValues.add(filteredNameValue(filteredValue.originalValue, filteredValue.filteredValue));
+            filteredNameValues.add(mappedToNameValue(filteredValue));
         }
         var encoded = encodeMulti(filteredNameValues);
-        assert encoded.offset == 0;
-        return encoded.bytes;
+        return ArrayUtil.copyOfSubArray(encoded.bytes, encoded.offset, encoded.length);
     }
 
-    private static IgnoredSourceFieldMapper.NameValue filteredNameValue(MappedNameValue mappedNameValue, Map<String, Object> map)
-        throws IOException {
+    private static IgnoredSourceFieldMapper.NameValue mappedToNameValue(MappedNameValue mappedNameValue) throws IOException {
         // The first entry is the field name, we skip to get to the value to encode.
-        assert map.size() == 1;
-        Object content = map.values().iterator().next();
+        assert mappedNameValue.map.size() == 1;
+        Object content = mappedNameValue.map.values().iterator().next();
 
         // Check if the field contains a single value or an object.
         @SuppressWarnings("unchecked")

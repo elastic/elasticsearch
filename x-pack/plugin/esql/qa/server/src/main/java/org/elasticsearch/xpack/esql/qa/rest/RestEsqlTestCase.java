@@ -1420,16 +1420,17 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    record CapabilitesCacheKey(RestClient client, List<String> capabilities) {}
     /**
      * Cache of capabilities.
      */
-    private static final ConcurrentMap<List<String>, Boolean> capabilities = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<CapabilitesCacheKey, Boolean> capabilities = new ConcurrentHashMap<>();
 
     public static boolean hasCapabilities(RestClient client, List<String> requiredCapabilities) {
         if (requiredCapabilities.isEmpty()) {
             return true;
         }
-        return capabilities.computeIfAbsent(requiredCapabilities, r -> {
+        return capabilities.computeIfAbsent(new CapabilitesCacheKey(client, requiredCapabilities), r -> {
             try {
                 return clusterHasCapability(client, "POST", "/_query", List.of(), requiredCapabilities).orElse(false);
             } catch (IOException e) {

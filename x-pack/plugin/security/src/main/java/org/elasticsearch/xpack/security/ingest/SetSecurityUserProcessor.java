@@ -146,10 +146,12 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     if (authentication.isApiKey()) {
                         final String apiKey = "api_key";
                         final Object existingApiKeyField = userObject.get(apiKey);
+
                         @SuppressWarnings("unchecked")
                         final Map<String, Object> apiKeyField = existingApiKeyField instanceof Map
                             ? (Map<String, Object>) existingApiKeyField
                             : HashMap.newHashMap(3);
+
                         final Map<String, Object> subjectMetadata = authentication.getAuthenticatingSubject().getMetadata();
                         if (subjectMetadata.containsKey(AuthenticationField.API_KEY_NAME_KEY)) {
                             apiKeyField.put("name", subjectMetadata.get(AuthenticationField.API_KEY_NAME_KEY));
@@ -169,6 +171,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                 case REALM:
                     final String realmKey = "realm";
                     final Object existingRealmField = userObject.get(realmKey);
+
                     @SuppressWarnings("unchecked")
                     final Map<String, Object> realmField = existingRealmField instanceof Map
                         ? (Map<String, Object>) existingRealmField

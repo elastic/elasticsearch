@@ -1421,6 +1421,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     record CapabilitesCacheKey(RestClient client, List<String> capabilities) {}
+
     /**
      * Cache of capabilities.
      */

@@ -76,7 +76,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
+    public IngestDocument execute(IngestDocument document) throws Exception {
         final Authentication authentication = this.securityContext != null ? securityContext.getAuthentication() : null;
         final User user = authentication != null ? authentication.getEffectiveSubject().getUser() : null;
 
@@ -103,7 +103,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
             }
         }
 
-        Object fieldValue = ingestDocument.getFieldValue(field, Object.class, true);
+        Object fieldValue = document.getFieldValue(field, Object.class, true);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> userObject = fieldValue instanceof Map ? (Map<String, Object>) fieldValue : new HashMap<>();
@@ -199,8 +199,8 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     throw new UnsupportedOperationException("unsupported property [" + property + "]");
             }
         }
-        ingestDocument.setFieldValue(field, userObject);
-        return ingestDocument;
+        document.setFieldValue(field, userObject);
+        return document;
     }
 
     @Override

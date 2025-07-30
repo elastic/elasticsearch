@@ -2604,11 +2604,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testNamedFunctionArgumentInMap() {
+    public void testFunctionNamedParameterInMap() {
         // functions can be scalar, grouping and aggregation
         // functions can be in eval/where/stats/sort/dissect/grok commands, commands in snapshot are not covered
         // positive
-        // In eval and where clause as function arguments
+        // In eval and where clause as function named parameters
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
         expectedMap1.put("option1", "string");
         expectedMap1.put("option2", 1);
@@ -2652,7 +2652,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 """)
         );
 
-        // In stats, by and sort as function arguments
+        // In stats, by and sort as function named parameters
         assertEquals(
             new OrderBy(
                 EMPTY,
@@ -2688,7 +2688,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 """)
         );
 
-        // In dissect and grok as function arguments
+        // In dissect and grok as function named parameter
         LogicalPlan plan = statement("""
             from test
             | dissect fn1(f1, f2, {"option1":"string", "option2":1,"option3":[2.0,3.0,4.0],"option4":[true,false]}) "%{bar}"
@@ -2707,7 +2707,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(ur, relation("test"));
     }
 
-    public void testNamedFunctionArgumentInMapWithNamedParameters() {
+    public void testFunctionNamedParameterInMapWithNamedParameters() {
         // map entry values provided in named parameter, arrays are not supported by named parameters yet
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
         expectedMap1.put("option1", "string");
@@ -2850,7 +2850,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(ur, relation("test"));
     }
 
-    public void testNamedFunctionArgumentWithCaseSensitiveKeys() {
+    public void testFunctionNamedParameterWithCaseSensitiveKeys() {
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(3);
         expectedMap1.put("option", "string");
         expectedMap1.put("Option", 1);
@@ -2888,7 +2888,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testMultipleNamedFunctionArgumentsNotAllowed() {
+    public void testMultipleFunctionNamedParametersNotAllowed() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "41"),
             Map.entry("where {}", "38"),
@@ -2912,7 +2912,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testNamedFunctionArgumentNotInMap() {
+    public void testFunctionNamedParameterNotInMap() {
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "38"),
             Map.entry("where {}", "35"),
@@ -2936,7 +2936,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testNamedFunctionArgumentNotConstant() {
+    public void testFunctionNamedParameterNotConstant() {
         Map<String, String[]> commands = Map.ofEntries(
             Map.entry("eval x = {}", new String[] { "31", "35" }),
             Map.entry("where {}", new String[] { "28", "32" }),

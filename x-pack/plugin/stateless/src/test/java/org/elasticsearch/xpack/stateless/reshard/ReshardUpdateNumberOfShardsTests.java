@@ -15,9 +15,7 @@
  * permission is obtained from Elasticsearch B.V.
  */
 
-package co.elastic.elasticsearch.stateless.allocation;
-
-import co.elastic.elasticsearch.stateless.reshard.ReshardIndexService;
+package co.elastic.elasticsearch.stateless.reshard;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -81,12 +79,12 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
         final String index = "test";
 
         var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
-        RoutingTable updatedRoutingTable = ReshardIndexService.reshardUpdateNumberOfShards(
-            reshardingMetadata,
-            clusterState.projectState(),
-            createCustomRoleStrategy(2),
-            metadata.getProject().index(index).getIndex()
+        final RoutingTable updatedRoutingTable = ReshardIndexService.addShardsToRoutingTable(
+            RoutingTable.builder(createCustomRoleStrategy(2), clusterState.projectState().routingTable()),
+            metadata.getProject().index(index).getIndex(),
+            reshardingMetadata
         ).build();
+
         ProjectMetadata projectMetadata = ReshardIndexService.metadataUpdateNumberOfShards(
             clusterState.projectState(),
             reshardingMetadata,
@@ -96,7 +94,6 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
             .putProjectMetadata(projectMetadata)
             .putRoutingTable(metadata.getProject().id(), updatedRoutingTable)
             .build();
-        // clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(newMetadata).build();
 
         assertThat(clusterState.metadata().getProject().index("test").getNumberOfShards(), equalTo(2));
 

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPools.ThreadPoolUsageStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -74,6 +75,22 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             return Decision.NO;
         }
 
+        if (nodeWriteThreadPoolStats.averageThreadPoolUtilization() + calculateShardMovementChange(nodeWriteThreadPoolStats, shardWriteLoad) >= nodeWriteThreadPoolLoadThreshold) {
+            // The node's write thread pool usage would be raised above the high utilization threshold. This could lead to a hot spot on
+            // this node and is undesirable.
+            logger.debug(
+                "The high utilization threshold of {} would be exceeded on node {} if shard {} with estimated write load {} were "
+                    + "assigned to it. Cannot allocate shard {} to node {} without risking increased write latencies.",
+                nodeWriteThreadPoolLoadThreshold,
+                node.nodeId(),
+                shardRouting.shardId(),
+                shardWriteLoad,
+                shardRouting.shardId(),
+                node.nodeId()
+            );
+            return Decision.NO;
+        }
+
         return Decision.YES;
     }
 
@@ -86,4 +103,14 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
         return Decision.YES;
     }
 
+    /**
+     * Calculates the change to the node's write thread pool utilization percentage if the shard is added to the node.
+     * Returns the percent thread pool utilization change.
+     */
+    private float calculateShardMovementChange(ThreadPoolUsageStats nodeWriteThreadPoolStats, double shardWriteLoad) {
+        assert shardWriteLoad > 0;
+        // NOMERGE: move this into an utility class, should be commonly accessible with the simulator.
+        // TODO: implement..
+        return 0;
+    }
 }

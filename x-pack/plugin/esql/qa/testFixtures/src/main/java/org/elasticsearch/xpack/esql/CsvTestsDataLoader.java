@@ -348,8 +348,8 @@ public class CsvTestsDataLoader {
 
         try (InputStream content = response.getEntity().getContent()) {
             XContentType xContentType = XContentType.fromMediaType(response.getEntity().getContentType().getValue());
-            Map<String, ?> responseMap = XContentHelper.convertToMap(xContentType.xContent(), content, false);
-            List<Map<String, ?>> endpoints = (List<Map<String, ?>>) responseMap.get("endpoints");
+            Map<String, Object> responseMap = XContentHelper.convertToMap(xContentType.xContent(), content, false);
+            List<Map<String, ?>> endpoints = (List<Map<String, ?>>) responseMap.getOrDefault("endpoints", List.of());
             for (Map<String, ?> endpoint : endpoints) {
                 String inferenceId = (String) endpoint.get("inference_id");
                 String taskType = (String) endpoint.get("task_type");

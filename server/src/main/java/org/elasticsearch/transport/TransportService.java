@@ -284,7 +284,8 @@ public class TransportService extends AbstractLifecycleComponent
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
             if (remoteClusterClient) {
-                remoteClusterService.listenForUpdates(clusterSettings);
+                // we wouldn't actually instantiate LinkedClusterConnectionConfigListener here, instead it would be injected via SPI
+                remoteClusterService.listenForUpdates(new LinkedClusterConnectionConfigListener.ClusterSettingsListener(clusterSettings));
             }
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
         }

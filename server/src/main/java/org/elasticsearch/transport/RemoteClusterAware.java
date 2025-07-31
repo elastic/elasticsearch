@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
@@ -208,34 +207,27 @@ public abstract class RemoteClusterAware {
         return perClusterIndices;
     }
 
-    void validateAndUpdateRemoteCluster(String clusterAlias, Settings settings) {
-        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+    void validateAndUpdateRemoteCluster(LinkedClusterConnectionConfig config) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(config.getClusterAlias())) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
-        updateRemoteCluster(clusterAlias, settings);
+        updateRemoteCluster(config);
     }
 
     /**
      * Subclasses must implement this to receive information about updated cluster aliases.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings);
+    protected abstract void updateRemoteCluster(LinkedClusterConnectionConfig config);
+
+    public void listenForUpdates(ClusterSettings clusterSettings) {
+        assert false : "this will be removed";
+    }
 
     /**
-     * Registers this instance to listen to updates on the cluster settings.
+     * Registers this instance to listen to updates on linked cluster configuration.
      */
-    public void listenForUpdates(ClusterSettings clusterSettings) {
-        List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
-            RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
-            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
-            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
-            ProxyConnectionStrategy.PROXY_ADDRESS,
-            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME
-        );
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
+    public void listenForUpdates(LinkedClusterConnectionConfigListener listener) {
+        listener.listenForConnectionConfigChanges(this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

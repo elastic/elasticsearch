@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
+
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionReference;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -67,14 +68,16 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
             allDefinitions.forEach(definition -> {
                 // Validate that all definitions are referenced in the codebase:
                 if (allTvNames.contains(definition.name()) == false) {
-                    throw new IllegalStateException("Transport version definition file "
-                        + definition.path(resourcesDir) + " is not referenced in the codebase.");
+                    throw new IllegalStateException(
+                        "Transport version definition file " + definition.path(resourcesDir) + " is not referenced in the codebase."
+                    );
                 }
 
                 // Validate that all Ids are in decending order:
                 if (Comparators.isInOrder(definition.ids(), Comparator.reverseOrder()) == false) {
-                    throw new IllegalStateException("Transport version definition file "
-                        + definition.path(resourcesDir) + " does not have ordered ids");
+                    throw new IllegalStateException(
+                        "Transport version definition file " + definition.path(resourcesDir) + " does not have ordered ids"
+                    );
                 }
 
                 // Validate that the name is in the correct format:
@@ -83,8 +86,11 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
                 // Validate that there are no duplicate ids across any files:
                 for (var id : definition.ids()) {
                     if (seenIds.contains(id)) {
-                        throw new IllegalStateException("Transport version definition file "
-                            + definition.path(resourcesDir) + " contains an id also present in another file");
+                        throw new IllegalStateException(
+                            "Transport version definition file "
+                                + definition.path(resourcesDir)
+                                + " contains an id also present in another file"
+                        );
                     }
                     seenIds.add(id);
                 }

@@ -10,6 +10,7 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
+
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -69,11 +70,7 @@ class TransportVersionUtils {
         Path filePath = resourcesDir.resolve(LATEST_DIR).resolve(version.toString() + CSV_SUFFIX);
         String[] parts = Files.readString(filePath, StandardCharsets.UTF_8).split(",");
         assert parts.length == 2;
-        return new TransportVersionLatest(
-            version,
-            parts[0],
-            Integer.parseInt(parts[1])
-        );
+        return new TransportVersionLatest(version, parts[0], Integer.parseInt(parts[1]));
     }
 
     static TransportVersionDefinition readDefinitionFile(Path resourcesDir, String name) {
@@ -98,7 +95,6 @@ class TransportVersionUtils {
             throw new UncheckedIOException("Unable to read definition file", e);
         }
     }
-
 
     static Stream<TransportVersionDefinition> readAllDefinitionFiles(Path resourcesDir) throws IOException {
         var definitionsStream = Files.list(resourcesDir.resolve(DEFINED_DIR));

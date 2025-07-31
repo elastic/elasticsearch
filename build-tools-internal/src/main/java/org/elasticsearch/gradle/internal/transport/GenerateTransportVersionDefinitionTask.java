@@ -90,10 +90,10 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
             TransportVersionLatest latest = TransportVersionUtils.readLatestFile(resourcesDir, minorVersion);
             TransportVersionLatest newLatest = null;
 
-
             if (name.equals(latest.name())) {
                 if (targetMinorVersions.contains(minorVersion) == false) {
-                    // Regenerate to make this operation idempotent. Need to undo prior updates to the latest files if the list of minor versions has changed.
+                    // Regenerate to make this operation idempotent. Need to undo prior updates to the latest files if the list of minor
+                    // versions has changed.
                 }
             } else {
                 if (targetMinorVersions.contains(minorVersion)) {

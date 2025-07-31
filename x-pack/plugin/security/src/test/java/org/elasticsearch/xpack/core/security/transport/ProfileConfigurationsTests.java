@@ -16,6 +16,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.hamcrest.Matchers;
 
 import java.nio.file.Path;
@@ -39,11 +40,11 @@ public class ProfileConfigurationsTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);
         final SslConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, true);
+        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, true);
         assertThat(profileConfigurations.size(), Matchers.equalTo(3));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("full", "cert", "default"));
-        assertThat(profileConfigurations.get("full").verificationMode(), Matchers.equalTo(SslVerificationMode.FULL));
-        assertThat(profileConfigurations.get("cert").verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
+        assertThat(profileConfigurations.get("full").configuration().verificationMode(), Matchers.equalTo(SslVerificationMode.FULL));
+        assertThat(profileConfigurations.get("cert").configuration().verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
         assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
     }
 
@@ -56,10 +57,10 @@ public class ProfileConfigurationsTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);
         final SslConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, true);
+        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, true);
         assertThat(profileConfigurations.size(), Matchers.equalTo(2));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("none", "default"));
-        assertThat(profileConfigurations.get("none").verificationMode(), Matchers.equalTo(SslVerificationMode.NONE));
+        assertThat(profileConfigurations.get("none").configuration().verificationMode(), Matchers.equalTo(SslVerificationMode.NONE));
         assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
     }
 
@@ -81,12 +82,15 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, true);
+        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, true);
 
         if (transportSslEnabled && remoteClusterServerSslEnabled) {
             assertThat(profileConfigurations.size(), Matchers.equalTo(2));
             assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("default", "_remote_cluster"));
-            assertThat(profileConfigurations.get("_remote_cluster").verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
+            assertThat(
+                profileConfigurations.get("_remote_cluster").configuration().verificationMode(),
+                Matchers.equalTo(SslVerificationMode.CERTIFICATE)
+            );
             assertThat(
                 profileConfigurations.get("default"),
                 Matchers.sameInstance(sslService.getSSLConfiguration("xpack.security.transport.ssl"))
@@ -101,7 +105,10 @@ public class ProfileConfigurationsTests extends ESTestCase {
         } else if (remoteClusterServerSslEnabled) {
             assertThat(profileConfigurations.size(), Matchers.equalTo(1));
             assertThat(profileConfigurations.keySet(), contains("_remote_cluster"));
-            assertThat(profileConfigurations.get("_remote_cluster").verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
+            assertThat(
+                profileConfigurations.get("_remote_cluster").configuration().verificationMode(),
+                Matchers.equalTo(SslVerificationMode.CERTIFICATE)
+            );
         } else {
             assertThat(profileConfigurations, anEmptyMap());
         }
@@ -123,7 +130,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, true);
+        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, true);
         assertThat(profileConfigurations.size(), Matchers.equalTo(1));
         assertThat(profileConfigurations.keySet(), contains("default"));
         assertThat(
@@ -150,11 +157,14 @@ public class ProfileConfigurationsTests extends ESTestCase {
             .build();
         final Environment env = TestEnvironment.newEnvironment(settings);
         SSLService sslService = new SSLService(env);
-        final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
+        final Map<String, SslProfile> profileConfigurations = ProfileConfigurations.get(settings, sslService, false);
         if (remoteClusterPortEnabled) {
             assertThat(profileConfigurations.size(), Matchers.equalTo(3));
             assertThat(profileConfigurations.keySet(), containsInAnyOrder("default", "client", "_remote_cluster"));
-            assertThat(profileConfigurations.get("_remote_cluster").verificationMode(), is(SslVerificationMode.CERTIFICATE));
+            assertThat(
+                profileConfigurations.get("_remote_cluster").configuration().verificationMode(),
+                is(SslVerificationMode.CERTIFICATE)
+            );
         } else {
             assertThat(profileConfigurations.size(), Matchers.equalTo(2));
             assertThat(profileConfigurations.keySet(), containsInAnyOrder("default", "client"));
@@ -163,7 +173,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
             profileConfigurations.get("default"),
             Matchers.sameInstance(sslService.getSSLConfiguration("xpack.security.transport.ssl"))
         );
-        assertThat(profileConfigurations.get("client").clientAuth(), is(SslClientAuthenticationMode.NONE));
+        assertThat(profileConfigurations.get("client").configuration().clientAuth(), is(SslClientAuthenticationMode.NONE));
     }
 
     private Settings.Builder getBaseSettings() {

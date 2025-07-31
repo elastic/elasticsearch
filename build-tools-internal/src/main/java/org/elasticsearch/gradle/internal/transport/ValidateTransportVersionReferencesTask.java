@@ -23,6 +23,7 @@ import org.gradle.api.tasks.TaskAction;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Predicate;
 
 /**
  * Validates that each transport version named reference has a constant definition.
@@ -41,19 +42,24 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
+        final Predicate<String> referenceChecker;
+        if (getDefinitionsDirectory().isPresent()) {
+            Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
+            referenceChecker = (name) -> Files.exists(definitionsDir.resolve(name + ".csv"));
+        } else {
+            referenceChecker = (name) -> false;
+        }
         Path namesFile = getReferencesFile().get().getAsFile().toPath();
 
         for (var tvReference : TransportVersionUtils.readReferencesFile(namesFile)) {
-            Path constantFile = definitionsDir.resolve(tvReference.name() + ".csv");
-            if (Files.exists(constantFile) == false) {
+            if (referenceChecker.test(tvReference.name()) == false) {
                 throw new RuntimeException(
                     "TransportVersion.fromName(\""
                         + tvReference.name()
                         + "\") was used at "
                         + tvReference.location()
                         + ", but lacks a"
-                        + " transport version constant definition. This can be generated with the <TODO> task" // todo
+                        + " transport version definition. This can be generated with the <TODO> task" // todo
                 );
             }
         }

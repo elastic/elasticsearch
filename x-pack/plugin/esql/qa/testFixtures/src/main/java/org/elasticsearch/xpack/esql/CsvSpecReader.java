@@ -31,6 +31,7 @@ public final class CsvSpecReader {
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
+        private boolean approximate = false;
         private CsvTestCase testCase;
 
         private CsvSpecParser() {}
@@ -44,6 +45,8 @@ public final class CsvSpecReader {
                     earlySchema.append(line.substring(SCHEMA_PREFIX.length()).trim());
                 } else if (line.toLowerCase(Locale.ROOT).startsWith("required_capability:")) {
                     requiredCapabilities.add(line.substring("required_capability:".length()).trim());
+                } else if (line.toLowerCase(Locale.ROOT).startsWith("approximate:")) {
+                    approximate = Boolean.parseBoolean(line.substring("approximate:".length()).trim());
                 } else {
                     if (line.endsWith(";")) {
                         // pick up the query
@@ -52,6 +55,7 @@ public final class CsvSpecReader {
                         testCase.query = query.toString();
                         testCase.earlySchema = earlySchema.toString();
                         testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
+                        testCase.approximate = approximate;
                         requiredCapabilities.clear();
                         earlySchema.setLength(0);
                         query.setLength(0);
@@ -116,6 +120,7 @@ public final class CsvSpecReader {
         private final List<Pattern> expectedWarningsRegex = new ArrayList<>();
         public boolean ignoreOrder;
         public List<String> requiredCapabilities = List.of();
+        public boolean approximate = false;
 
         /**
          * Returns the warning headers expected to be added by the test. To declare such a header, use the `warning:definition` format

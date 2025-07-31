@@ -1,0 +1,36 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.core.ssl;
+
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.common.ssl.SslConfiguration;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLSocketFactory;
+
+public interface SslProfile {
+    SslConfiguration configuration();
+
+    SSLContext sslContext();
+
+    SSLSocketFactory socketFactory();
+
+    HostnameVerifier hostnameVerifier();
+
+    SSLConnectionSocketFactory socketConnectionFactory();
+
+    /**
+     * @return An object that is useful for configuring Apache Http Client v4.x
+     */
+    SSLIOSessionStrategy ioSessionStrategy4();
+
+    SSLEngine engine(String host, int port);
+}

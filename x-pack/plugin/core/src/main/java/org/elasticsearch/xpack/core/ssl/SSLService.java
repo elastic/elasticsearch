@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ssl;
 import org.apache.http.HttpHost;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.nio.reactor.IOSession;
 import org.apache.logging.log4j.LogManager;
@@ -214,6 +215,14 @@ public class SSLService {
 
     public static void registerSettings(List<Setting<?>> settingList) {
         settingList.add(DIAGNOSE_TRUST_EXCEPTIONS_SETTING);
+    }
+
+    public SslProfile profile(String profileName) {
+        final SslConfiguration configuration = getSSLConfiguration(profileName);
+        if (configuration == null) {
+            throw new IllegalArgumentException(Strings.format("No SSL configuration for context name [%s]", profileName));
+        }
+        return sslContextHolder(configuration);
     }
 
     /**
@@ -797,7 +806,7 @@ public class SSLService {
         }
     }
 
-    final class SSLContextHolder {
+    final class SSLContextHolder implements SslProfile {
         private volatile SSLContext context;
         private final SslKeyConfig keyConfig;
         private final SslTrustConfig trustConfig;
@@ -812,8 +821,38 @@ public class SSLService {
             this.reloadListeners = new ArrayList<>();
         }
 
-        SSLContext sslContext() {
+        public SSLContext sslContext() {
             return context;
+        }
+
+        @Override
+        public SslConfiguration configuration() {
+            return this.sslConfiguration;
+        }
+
+        @Override
+        public SSLSocketFactory socketFactory() {
+            return SSLService.this.sslSocketFactory(this.sslConfiguration);
+        }
+
+        @Override
+        public HostnameVerifier hostnameVerifier() {
+            return SSLService.getHostnameVerifier(this.sslConfiguration);
+        }
+
+        @Override
+        public SSLConnectionSocketFactory socketConnectionFactory() {
+            return new SSLConnectionSocketFactory(socketFactory(), hostnameVerifier());
+        }
+
+        @Override
+        public SSLIOSessionStrategy ioSessionStrategy4() {
+            return SSLService.this.sslIOSessionStrategy(this.sslConfiguration);
+        }
+
+        @Override
+        public SSLEngine engine(String host, int port) {
+            return SSLService.this.createSSLEngine(this.configuration(), host, port);
         }
 
         synchronized void reload() {

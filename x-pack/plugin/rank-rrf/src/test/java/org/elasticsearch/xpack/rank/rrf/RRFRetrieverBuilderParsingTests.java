@@ -273,7 +273,7 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             }
             """;
 
-        expectParsingException(multipleRetrieversContent, "unknown field [standard] after retriever");
+        expectParsingException(multipleRetrieversContent, "unknown field [standard], expected [retriever] or [weight]");
 
         // Test case 2: Weight without retriever
         String weightOnlyContent = """

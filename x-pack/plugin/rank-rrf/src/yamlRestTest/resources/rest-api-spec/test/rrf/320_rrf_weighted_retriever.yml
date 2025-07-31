@@ -2,7 +2,7 @@ setup:
   - requires:
       cluster_features: [ "rrf_retriever.weighted_support" ]
       reason: "RRF retriever Weighted support"
-      test_runner_features: [ "contains" ]
+      test_runner_features: [ "contains", "close_to" ]
   - do:
       indices.create:
         index: restaurants
@@ -104,6 +104,12 @@ setup:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "1" }
+  # Document 2: matches "burgers" with weight 0.9
+  # RRF score = 1/(60+1) * 0.9 = 0.01475
+  - close_to: {hits.hits.0._score: {value:  0.01475, error: 0.0001}}
+  # Document 1: matches "pizza" with weight 0.1
+  # RRF score = 1/(60+1) * 0.1 = 0.00164
+  - close_to: {hits.hits.1._score: {value:  0.00164, error: 0.0001}}
 
 ---
 "Weighted RRF retriever errors on negative weight":
@@ -130,3 +136,4 @@ setup:
                   weight: 0.7
   - match: { error.type: "x_content_parse_exception" }
   - contains: { error.reason: "failed to parse field" }
+  

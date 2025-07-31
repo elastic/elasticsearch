@@ -97,7 +97,13 @@ public class RRFRetrieverComponent implements ToXContentObject {
                     parser.nextToken();
                     weight = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "unknown field [{}] after retriever", fieldName);
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "unknown field [{}], expected [{}] or [{}]",
+                        fieldName,
+                        RETRIEVER_FIELD.getPreferredName(),
+                        WEIGHT_FIELD.getPreferredName()
+                    );
                 }
             } while (parser.nextToken() == XContentParser.Token.FIELD_NAME);
 

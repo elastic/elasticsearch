@@ -80,12 +80,25 @@ public class ShardMovementWriteLoadSimulator {
         return Collections.unmodifiableMap(adjustedNodeUsageStatsForThreadPools);
     }
 
+    /**
+     * averageThreadPoolUtilization
+     *    total shard execution time (sum of shard write loads) / total execution time (totalThreadPoolThreads x duration)
+     *    (30 + 20 + 40) / (4 x 30s) = 90 / 120 = .75
+     *
+     * writeLoadDelta / totalThreadPoolThreads
+     * 20 / 4 = 5
+     *
+     */
+
     private static NodeUsageStatsForThreadPools.ThreadPoolUsageStats replaceWritePoolStats(
         NodeUsageStatsForThreadPools value,
         double writeLoadDelta
     ) {
         final NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = value.threadPoolUsageStatsMap()
             .get(ThreadPool.Names.WRITE);
+        var newAverageThreadPoolUtilization = (writeThreadPoolStats.averageThreadPoolUtilization() + (writeLoadDelta / writeThreadPoolStats
+            .totalThreadPoolThreads()));
+        assert newAverageThreadPoolUtilization < 1.00;
         return new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(
             writeThreadPoolStats.totalThreadPoolThreads(),
             (float) Math.max(

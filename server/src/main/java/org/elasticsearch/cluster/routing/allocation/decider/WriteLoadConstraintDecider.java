@@ -55,6 +55,8 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             return Decision.YES;
         }
 
+        // NOMERGE: should create a utility class (eventually, maybe duplicate code for this class, for now, if simulator does have bug)
+        // to calculate the change node's usage change with assignment of the new shard
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().isEmpty() == false;
         assert nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE) != null;
         var nodeWriteThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap().get(ThreadPool.Names.WRITE);

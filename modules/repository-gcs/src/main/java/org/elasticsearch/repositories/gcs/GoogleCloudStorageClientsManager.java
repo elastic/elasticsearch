@@ -76,7 +76,7 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
                 continue;
             }
             final ProjectSecrets projectSecrets = project.custom(ProjectSecrets.TYPE);
-            // Project secrets can be null when node restarts. It may not have any s3 credentials if s3 is not in use.
+            // Project secrets can be null when node restarts. It may not have any GCS credentials if GCS is not in use.
             if (projectSecrets == null || projectSecrets.getSettingNames().stream().noneMatch(key -> key.startsWith(GCS_SETTING_PREFIX))) {
                 // Most likely there won't be any existing client, but attempt to remove it anyway just in case
                 perProjectClientsHolders.remove(project.id());

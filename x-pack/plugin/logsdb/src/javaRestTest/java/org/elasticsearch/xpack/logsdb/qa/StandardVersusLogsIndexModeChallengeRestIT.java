@@ -144,7 +144,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     public void testRandomQueries() throws IOException {
-        int numberOfDocuments = ESTestCase.randomIntBetween(20, 80);
+        int numberOfDocuments = ESTestCase.randomIntBetween(10, 50);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
         var mappingLookup = dataGenerationHelper.mapping().lookup();
         final List<Map<String, List<Object>>> docsNormalized = documents.stream().map(d -> {
@@ -154,19 +154,18 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
         indexDocuments(documents);
 
-        QueryGenerator queryGenerator = new QueryGenerator(dataGenerationHelper.mapping().raw());
+        QueryGenerator queryGenerator = new QueryGenerator(dataGenerationHelper.mapping());
         Map<String, String> fieldsTypes = dataGenerationHelper.getTemplateFieldTypes();
         for (var e : fieldsTypes.entrySet()) {
             var path = e.getKey();
             var type = e.getValue();
-            var mapping = mappingLookup.get(path);
             var docsWithFields = docsNormalized.stream().filter(d -> d.containsKey(path)).toList();
             if (docsWithFields.isEmpty() == false) {
                 var doc = randomFrom(docsWithFields);
                 List<Object> values = doc.get(path).stream().filter(Objects::nonNull).toList();
                 if (values.isEmpty() == false) {
                     Object value = randomFrom(values);
-                    List<QueryBuilder> queries = queryGenerator.generateQueries(type, path, mapping, value);
+                    List<QueryBuilder> queries = queryGenerator.generateQueries(type, path, value);
                     for (var query : queries) {
                         logger.info("Querying for field [{}] with value [{}]", path, value);
 

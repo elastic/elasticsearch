@@ -10,6 +10,7 @@
 package org.elasticsearch.datageneration.queries;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 
@@ -20,19 +21,24 @@ import java.util.Map;
 
 public class QueryGenerator {
 
-    private final Map<String, Object> mappingRaw;
+    private final Mapping mapping;
 
-    public QueryGenerator(Map<String, Object> mappingRaw) {
-        this.mappingRaw = mappingRaw;
+    public QueryGenerator(Mapping mapping) {
+        this.mapping = mapping;
     }
 
-    public List<QueryBuilder> generateQueries(String type, String path, Map<String, Object> mapping, Object value) {
+    public List<QueryBuilder> generateQueries(String type, String path, Object value) {
         // This query generator cannot handle fields with periods in the name.
         if (path.equals("host.name")) {
             return List.of();
         }
+        // Can handle dynamically mapped fields, but not runtime fields
+        if (isRuntimeField(path)) {
+            return List.of();
+        }
         var leafQueryGenerator = LeafQueryGenerator.buildForType(type);
-        var leafQueries = leafQueryGenerator.generate(mapping, path, value);
+        var fieldMapping = mapping.lookup().get(path);
+        var leafQueries = leafQueryGenerator.generate(fieldMapping, path, value);
         return leafQueries.stream().map(q -> wrapInNestedQuery(path, q)).toList();
     }
 
@@ -48,7 +54,7 @@ public class QueryGenerator {
 
     @SuppressWarnings("unchecked")
     private List<String> getNestedPathPrefixes(String[] path) {
-        Map<String, Object> mapping = mappingRaw;
+        Map<String, Object> mapping = this.mapping.raw();
         mapping = (Map<String, Object>) mapping.get("_doc");
         mapping = (Map<String, Object>) mapping.get("properties");
 
@@ -69,5 +75,24 @@ public class QueryGenerator {
             mapping = (Map<String, Object>) mapping.get("properties");
         }
         return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean isRuntimeField(String path) {
+        String[] parts = path.split("\\.");
+        var topLevelMapping = (Map<String, Object>) mapping.raw().get("_doc");
+        boolean inRuntimeContext = "runtime".equals(topLevelMapping.get("dynamic"));
+        for (int i = 0; i < parts.length - 1; i++) {
+            var pathToHere = String.join(".", Arrays.copyOfRange(parts, 0, i + 1));
+            Map<String, Object> fieldMapping = mapping.lookup().get(pathToHere);
+            if (fieldMapping == null) {
+                break;
+            }
+            if (fieldMapping.containsKey("dynamic")) {
+                // lower down dynamic definitions override higher up behavior
+                inRuntimeContext = "runtime".equals(fieldMapping.get("dynamic"));
+            }
+        }
+        return inRuntimeContext;
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -374,7 +375,7 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         );
         assertThat(ex.getMessage(), containsString("Unknown column [local_tag] in right side of join"));
 
-        // Add KEEP clause to try and trick the field-caps result parser
+        // Add KEEP clause to try and trick the field-caps result parser into returning empty mapping
         ex = expectThrows(
             VerificationException.class,
             () -> runQuery("FROM logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())
@@ -385,22 +386,13 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             VerificationException.class,
             () -> runQuery("FROM logs-*,c*:logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())
         );
-        // FIXME: strictly speaking this message is not correct, as the index is available, but the field is not
-        assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available"));
+        assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
 
-        try (EsqlQueryResponse resp = runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())) {
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values, hasSize(0));
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertThat(executionInfo.getClusters().size(), equalTo(1));
-            assertTrue(executionInfo.isPartial());
-
-            var remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
-            assertThat(remoteCluster.getFailures().size(), equalTo(1));
-            var failure = remoteCluster.getFailures().get(0);
-            assertThat(failure.reason(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
-        }
+        ex = expectThrows(
+            VerificationException.class,
+            () -> runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())
+        );
+        assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
 
         setSkipUnavailable(REMOTE_CLUSTER_1, false);
         try (
@@ -422,19 +414,40 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
         }
 
-        // Add KEEP clause to try and trick the field-caps result parser
+        // Add KEEP clause to try and trick the field-caps result parser into returning empty mapping
         ex = expectThrows(
             VerificationException.class,
             () -> runQuery("FROM c*:logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())
         );
-        assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+        assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
 
         ex = expectThrows(
             VerificationException.class,
             () -> runQuery("FROM logs-*,c*:logs-* | LOOKUP JOIN values_lookup ON v | KEEP v", randomBoolean())
         );
-        assertThat(ex.getMessage(), containsString("lookup index [values_lookup] is not available in remote cluster [cluster-a]"));
+        assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
+    }
 
+    public void testLookupJoinEmptyIndex() throws IOException {
+        setupClusters(2);
+        populateEmptyIndices(LOCAL_CLUSTER, "values_lookup");
+        populateEmptyIndices(REMOTE_CLUSTER_1, "values_lookup");
+
+        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+
+        Exception ex;
+        for (String index : List.of("values_lookup", "values_lookup_map", "values_lookup_map_lookup")) {
+            ex = expectThrows(
+                VerificationException.class,
+                () -> runQuery("FROM logs-* | LOOKUP JOIN " + index + " ON v | KEEP v", randomBoolean())
+            );
+            assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
+            ex = expectThrows(
+                VerificationException.class,
+                () -> runQuery("FROM c*:logs-* | LOOKUP JOIN " + index + " ON v | KEEP v", randomBoolean())
+            );
+            assertThat(ex.getMessage(), containsString("Unknown column [v] in right side of join"));
+        }
     }
 
     public void testLookupJoinIndexMode() throws IOException {
@@ -568,6 +581,25 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
             .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName));
         assertAcked(client.admin().indices().aliases(indicesAliasesRequestBuilder.request()));
+    }
+
+    protected void populateEmptyIndices(String clusterAlias, String indexName) {
+        Client client = client(clusterAlias);
+        // Empty body
+        assertAcked(client.admin().indices().prepareCreate(indexName));
+        client.admin().indices().prepareRefresh(indexName).get();
+        // mappings + settings
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName + "_map_lookup")
+                .setMapping()
+                .setSettings(Settings.builder().put("index.mode", "lookup"))
+        );
+        client.admin().indices().prepareRefresh(indexName + "_map_lookup").get();
+        // mappings only
+        assertAcked(client.admin().indices().prepareCreate(indexName + "_map").setMapping());
+        client.admin().indices().prepareRefresh(indexName + "_map").get();
     }
 
 }

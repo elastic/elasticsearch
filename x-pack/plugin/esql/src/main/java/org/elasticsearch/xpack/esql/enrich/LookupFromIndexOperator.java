@@ -12,7 +12,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
@@ -24,11 +23,8 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -39,25 +35,6 @@ import java.util.function.Function;
 
 // TODO rename package
 public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
-    public record MatchConfig(FieldAttribute.FieldName fieldName, int channel, DataType type) implements Writeable {
-        public MatchConfig(FieldAttribute match, Layout.ChannelAndType input) {
-            // TODO: Using exactAttribute was supposed to handle TEXT fields with KEYWORD subfields - but we don't allow these in lookup
-            // indices, so the call to exactAttribute looks redundant now.
-            this(match.exactAttribute().fieldName(), input.channel(), input.type());
-        }
-
-        public MatchConfig(StreamInput in) throws IOException {
-            this(new FieldAttribute.FieldName(in.readString()), in.readInt(), DataType.readFrom(in));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(fieldName.string());
-            out.writeInt(channel);
-            type.writeTo(out);
-        }
-
-    }
 
     public record Factory(
         List<MatchConfig> matchFields,
@@ -76,11 +53,11 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
             for (MatchConfig matchField : matchFields) {
                 stringBuilder.append(" input_type=")
-                    .append(matchField.type)
+                    .append(matchField.type())
                     .append(" match_field=")
-                    .append(matchField.fieldName.string())
+                    .append(matchField.fieldName().string())
                     .append(" inputChannel=")
-                    .append(matchField.channel);
+                    .append(matchField.channel());
             }
             stringBuilder.append("]");
             return stringBuilder.toString();
@@ -149,7 +126,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         Block[] inputBlockArray = new Block[matchFields.size()];
         for (int i = 0; i < matchFields.size(); i++) {
             MatchConfig matchField = matchFields.get(i);
-            int inputChannel = matchField.channel;
+            int inputChannel = matchField.channel();
             final Block inputBlock = inputPage.getBlock(inputChannel);
             inputBlockArray[i] = inputBlock;
         }
@@ -214,11 +191,11 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         stringBuilder.append("LookupOperator[index=").append(lookupIndex).append(" load_fields=").append(loadFields);
         for (MatchConfig matchField : matchFields) {
             stringBuilder.append(" input_type=")
-                .append(matchField.type)
+                .append(matchField.type())
                 .append(" match_field=")
-                .append(matchField.fieldName.string())
+                .append(matchField.fieldName().string())
                 .append(" inputChannel=")
-                .append(matchField.channel);
+                .append(matchField.channel());
         }
         stringBuilder.append("]");
         return stringBuilder.toString();

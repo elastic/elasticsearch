@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -315,9 +316,9 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 TEST_REQUEST_TIMEOUT
             );
             final String finalNodeWithShard = nodeWithShard;
-            List<LookupFromIndexOperator.MatchConfig> matchFields = new ArrayList<>();
+            List<MatchConfig> matchFields = new ArrayList<>();
             for (int i = 0; i < keyTypes.size(); i++) {
-                matchFields.add(new LookupFromIndexOperator.MatchConfig(new FieldAttribute.FieldName("key" + i), i + 1, keyTypes.get(i)));
+                matchFields.add(new MatchConfig(new FieldAttribute.FieldName("key" + i), i + 1, keyTypes.get(i)));
             }
             LookupFromIndexOperator.Factory lookup = new LookupFromIndexOperator.Factory(
                 matchFields,

@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
+import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -769,7 +770,7 @@ public class LocalExecutionPlanner {
         if (join.leftFields().size() != join.rightFields().size()) {
             throw new IllegalArgumentException("can't plan [" + join + "]: mismatching left and right field count");
         }
-        List<LookupFromIndexOperator.MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
+        List<MatchConfig> matchFields = new ArrayList<>(join.leftFields().size());
         for (int i = 0; i < join.leftFields().size(); i++) {
             TypedAttribute left = (TypedAttribute) join.leftFields().get(i);
             FieldAttribute right = (FieldAttribute) join.rightFields().get(i);
@@ -777,7 +778,7 @@ public class LocalExecutionPlanner {
             if (input == null) {
                 throw new IllegalArgumentException("can't plan [" + join + "][" + left + "]");
             }
-            matchFields.add(new LookupFromIndexOperator.MatchConfig(right, input));
+            matchFields.add(new MatchConfig(right, input));
         }
 
         return source.with(

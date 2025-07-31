@@ -156,10 +156,10 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
             new ReferenceAttribute(Source.EMPTY, "lint", DataType.INTEGER)
         );
 
-        List<LookupFromIndexOperator.MatchConfig> matchFields = new ArrayList<>();
+        List<MatchConfig> matchFields = new ArrayList<>();
         for (int i = 0; i < numberOfJoinColumns; i++) {
             FieldAttribute.FieldName matchField = new FieldAttribute.FieldName("match" + i);
-            matchFields.add(new LookupFromIndexOperator.MatchConfig(matchField, i, inputDataType));
+            matchFields.add(new MatchConfig(matchField, i, inputDataType));
         }
         return new LookupFromIndexOperator.Factory(
             matchFields,

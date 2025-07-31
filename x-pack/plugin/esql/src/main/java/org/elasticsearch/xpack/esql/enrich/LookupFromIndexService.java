@@ -102,12 +102,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     ) {
         List<QueryList> queryLists = new ArrayList<>();
         for (int i = 0; i < request.matchFields.size(); i++) {
-            LookupFromIndexOperator.MatchConfig matchField = request.matchFields.get(i);
+            MatchConfig matchField = request.matchFields.get(i);
             QueryList q = termQueryList(
                 context.getFieldType(matchField.fieldName().string()),
                 context,
                 aliasFilter,
-                request.inputPage.getBlock(i),
+                request.inputPage.getBlock(matchField.channel()),
                 matchField.type()
             ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
             queryLists.add(q);
@@ -129,13 +129,13 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     public static class Request extends AbstractLookupService.Request {
-        private final List<LookupFromIndexOperator.MatchConfig> matchFields;
+        private final List<MatchConfig> matchFields;
 
         Request(
             String sessionId,
             String index,
             String indexPattern,
-            List<LookupFromIndexOperator.MatchConfig> matchFields,
+            List<MatchConfig> matchFields,
             Page inputPage,
             List<NamedExpression> extractFields,
             Source source
@@ -146,12 +146,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
-        private final List<LookupFromIndexOperator.MatchConfig> matchFields;
+        private final List<MatchConfig> matchFields;
 
         // Right now we assume that the page contains the same number of blocks as matchFields and that the blocks are in the same order
-        // so we are not passing any explicit channel information for now
-        // In the future it might be possible to include channel information in the matchFields, or expressions, or both,
-        // so that the same channel can be reused for multiple match fields or multiple times inside the same expression
+        // The channel information inside the MatchConfig, should say the same thing
         TransportRequest(
             String sessionId,
             ShardId shardId,
@@ -159,7 +157,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Page inputPage,
             Page toRelease,
             List<NamedExpression> extractFields,
-            List<LookupFromIndexOperator.MatchConfig> matchFields,
+            List<MatchConfig> matchFields,
             Source source
         ) {
             super(sessionId, shardId, indexPattern, inputPage, toRelease, extractFields, source);
@@ -190,14 +188,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
-            List<LookupFromIndexOperator.MatchConfig> matchFields = null;
+            List<MatchConfig> matchFields = null;
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_ON_MANY_FIELDS)) {
-                matchFields = planIn.readCollectionAsList(LookupFromIndexOperator.MatchConfig::new);
+                matchFields = planIn.readCollectionAsList(MatchConfig::new);
             } else {
                 String matchField = in.readString();
                 // For older versions, we only support a single match field.
                 matchFields = new ArrayList<>(1);
-                matchFields.add(new LookupFromIndexOperator.MatchConfig(new FieldAttribute.FieldName(matchField), 0, inputDataType));
+                matchFields.add(new MatchConfig(new FieldAttribute.FieldName(matchField), 0, inputDataType));
             }
             var source = Source.EMPTY;
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {

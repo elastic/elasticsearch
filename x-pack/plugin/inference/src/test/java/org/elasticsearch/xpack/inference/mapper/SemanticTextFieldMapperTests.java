@@ -1478,13 +1478,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             IndexVersionUtils.getPreviousVersion(IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT)
         );
 
-        assertSemanticTextField(
-            mapperService,
-            "field",
-            true,
-            null,
-            null
-        );
+        assertSemanticTextField(mapperService, "field", true, null, null);
     }
 
     public void testSpecifiedDenseVectorIndexOptions() throws IOException {

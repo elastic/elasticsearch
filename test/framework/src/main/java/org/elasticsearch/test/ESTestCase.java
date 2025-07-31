@@ -546,7 +546,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @AfterClass
     public static void resetEntitlements() {
-        TestEntitlementBootstrap.reset();
+        TestEntitlementBootstrap.resetAfterTest();
     }
 
     // setup mock filesystems for this test run. we change PathUtils
@@ -1180,6 +1180,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             result = result * end + (1.0 - result) * start;
         }
         return result;
+    }
+
+    public static Double randomOptionalDouble() {
+        return randomFrom(randomDouble(), null);
     }
 
     public static long randomLong() {

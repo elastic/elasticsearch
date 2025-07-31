@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
@@ -29,7 +28,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 
 import java.util.List;
@@ -71,7 +69,6 @@ public class LocalMapper {
         //
         // Pipeline breakers
         //
-
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
             return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
@@ -85,14 +82,9 @@ public class LocalMapper {
             return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
         }
 
-        if (unary instanceof Sample sample) {
-            return new SampleExec(sample.source(), mappedChild, sample.probability());
-        }
-
         //
         // Pipeline operators
         //
-
         return MapperUtils.mapUnary(unary, mappedChild);
     }
 

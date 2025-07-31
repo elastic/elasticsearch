@@ -205,11 +205,9 @@ class ValuesFromSingleReader extends ValuesReader {
     private record ColumnAtATimeWork(BlockLoader.ColumnAtATimeReader reader, int idx) {}
 
     /**
-     * Work for
-     * @param reader
-     * @param builder
-     * @param loader
-     * @param idx
+     * Work for rows stride readers.
+     * @param reader reads the values
+     * @param idx destination in array of {@linkplain Block}s we build
      */
     private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int idx)
         implements

@@ -18,12 +18,14 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class AzureRepositoryMissingCredentialsIT extends ESIntegTestCase {
 
     @Override

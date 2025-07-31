@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -218,7 +219,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             logger.trace("starting async refresh");
 
             try (var ignoredRefs = fetchRefs) {
-                maybeFetchIndicesStats(diskThresholdEnabled);
+                maybeFetchIndicesStats(diskThresholdEnabled || writeLoadConstraintEnabled == WriteLoadDeciderStatus.ENABLED);
                 maybeFetchNodeStats(diskThresholdEnabled || estimatedHeapThresholdEnabled);
                 maybeFetchNodesEstimatedHeapUsage(estimatedHeapThresholdEnabled);
                 maybeFetchNodesUsageStatsForThreadPools(writeLoadConstraintEnabled);
@@ -308,7 +309,14 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void fetchIndicesStats() {
             final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear();
-            indicesStatsRequest.store(true);
+            if (diskThresholdEnabled) {
+                // This returns the shard sizes on disk
+                indicesStatsRequest.store(true);
+            }
+            if (writeLoadConstraintEnabled == WriteLoadDeciderStatus.ENABLED) {
+                // This returns the shard write-loads
+                indicesStatsRequest.indexing(true);
+            }
             indicesStatsRequest.indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED_HIDDEN);
             indicesStatsRequest.timeout(fetchTimeout);
             client.admin()
@@ -357,6 +365,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                 }
 
                                 final ShardStats[] stats = indicesStatsResponse.getShards();
+                                final Map<ShardId, Double> shardWriteLoadByIdentifierBuilder = new HashMap<>();
                                 final Map<String, Long> shardSizeByIdentifierBuilder = new HashMap<>();
                                 final Map<ShardId, Long> shardDataSetSizeBuilder = new HashMap<>();
                                 final Map<ClusterInfo.NodeAndShard, String> dataPath = new HashMap<>();
@@ -364,6 +373,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                     new HashMap<>();
                                 buildShardLevelInfo(
                                     adjustShardStats(stats),
+                                    shardWriteLoadByIdentifierBuilder,
                                     shardSizeByIdentifierBuilder,
                                     shardDataSetSizeBuilder,
                                     dataPath,
@@ -377,7 +387,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                                     Map.copyOf(shardSizeByIdentifierBuilder),
                                     Map.copyOf(shardDataSetSizeBuilder),
                                     Map.copyOf(dataPath),
-                                    Map.copyOf(reservedSpace)
+                                    Map.copyOf(reservedSpace),
+                                    Map.copyOf(shardWriteLoadByIdentifierBuilder)
                                 );
                             }
 
@@ -534,8 +545,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 estimatedHeapUsages.put(nodeId, new EstimatedHeapUsage(nodeId, maxHeapSize.getBytes(), estimatedHeapUsage));
             }
         });
-        final Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolUsageStats = new HashMap<>();
-        nodeThreadPoolUsageStatsPerNode.forEach((nodeId, nodeWriteLoad) -> { nodeThreadPoolUsageStats.put(nodeId, nodeWriteLoad); });
         return new ClusterInfo(
             leastAvailableSpaceUsages,
             mostAvailableSpaceUsages,
@@ -544,7 +553,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             indicesStatsSummary.dataPath,
             indicesStatsSummary.reservedSpace,
             estimatedHeapUsages,
-            nodeThreadPoolUsageStats
+            nodeThreadPoolUsageStatsPerNode,
+            indicesStatsSummary.shardWriteLoads()
         );
     }
 
@@ -574,6 +584,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     static void buildShardLevelInfo(
         ShardStats[] stats,
+        Map<ShardId, Double> shardWriteLoads,
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizeBuilder,
         Map<ClusterInfo.NodeAndShard, String> dataPathByShard,
@@ -584,25 +595,31 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             dataPathByShard.put(ClusterInfo.NodeAndShard.from(shardRouting), s.getDataPath());
 
             final StoreStats storeStats = s.getStats().getStore();
-            if (storeStats == null) {
-                continue;
-            }
-            final long size = storeStats.sizeInBytes();
-            final long dataSetSize = storeStats.totalDataSetSizeInBytes();
-            final long reserved = storeStats.reservedSizeInBytes();
+            if (storeStats != null) {
+                final long size = storeStats.sizeInBytes();
+                final long dataSetSize = storeStats.totalDataSetSizeInBytes();
+                final long reserved = storeStats.reservedSizeInBytes();
 
-            final String shardIdentifier = ClusterInfo.shardIdentifierFromRouting(shardRouting);
-            logger.trace("shard: {} size: {} reserved: {}", shardIdentifier, size, reserved);
-            shardSizes.put(shardIdentifier, size);
-            if (dataSetSize > shardDataSetSizeBuilder.getOrDefault(shardRouting.shardId(), -1L)) {
-                shardDataSetSizeBuilder.put(shardRouting.shardId(), dataSetSize);
+                final String shardIdentifier = ClusterInfo.shardIdentifierFromRouting(shardRouting);
+                logger.trace("shard: {} size: {} reserved: {}", shardIdentifier, size, reserved);
+                shardSizes.put(shardIdentifier, size);
+                if (dataSetSize > shardDataSetSizeBuilder.getOrDefault(shardRouting.shardId(), -1L)) {
+                    shardDataSetSizeBuilder.put(shardRouting.shardId(), dataSetSize);
+                }
+                if (reserved != StoreStats.UNKNOWN_RESERVED_BYTES) {
+                    final ClusterInfo.ReservedSpace.Builder reservedSpaceBuilder = reservedSpaceByShard.computeIfAbsent(
+                        new ClusterInfo.NodeAndPath(shardRouting.currentNodeId(), s.getDataPath()),
+                        t -> new ClusterInfo.ReservedSpace.Builder()
+                    );
+                    reservedSpaceBuilder.add(shardRouting.shardId(), reserved);
+                }
             }
-            if (reserved != StoreStats.UNKNOWN_RESERVED_BYTES) {
-                final ClusterInfo.ReservedSpace.Builder reservedSpaceBuilder = reservedSpaceByShard.computeIfAbsent(
-                    new ClusterInfo.NodeAndPath(shardRouting.currentNodeId(), s.getDataPath()),
-                    t -> new ClusterInfo.ReservedSpace.Builder()
-                );
-                reservedSpaceBuilder.add(shardRouting.shardId(), reserved);
+            final IndexingStats indexingStats = s.getStats().getIndexing();
+            if (indexingStats != null) {
+                final double shardWriteLoad = indexingStats.getTotal().getPeakWriteLoad();
+                if (shardWriteLoad > shardWriteLoads.getOrDefault(shardRouting.shardId(), -1.0)) {
+                    shardWriteLoads.put(shardRouting.shardId(), shardWriteLoad);
+                }
             }
         }
     }
@@ -630,9 +647,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         Map<String, Long> shardSizes,
         Map<ShardId, Long> shardDataSetSizes,
         Map<ClusterInfo.NodeAndShard, String> dataPath,
-        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace
+        Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace,
+        Map<ShardId, Double> shardWriteLoads
     ) {
-        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(Map.of(), Map.of(), Map.of(), Map.of());
+        static final IndicesStatsSummary EMPTY = new IndicesStatsSummary(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
     }
 
 }

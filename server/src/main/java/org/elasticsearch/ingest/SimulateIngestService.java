@@ -53,9 +53,13 @@ public class SimulateIngestService extends IngestService {
         if (rawPipelineSubstitutions != null) {
             for (Map.Entry<String, Map<String, Object>> entry : rawPipelineSubstitutions.entrySet()) {
                 String pipelineId = entry.getKey();
+                Map<String, Object> pipelineConfig = entry.getValue();
+
+                IngestService.validateNoSystemPropertiesInPipelineConfig(pipelineConfig);
+
                 Pipeline pipeline = Pipeline.create(
                     pipelineId,
-                    entry.getValue(),
+                    pipelineConfig,
                     ingestService.getProcessorFactories(),
                     ingestService.getScriptService(),
                     ingestService.getProjectResolver().getProjectId(),

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -42,7 +43,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * @param shardContexts per-shard loading information
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public record Factory(List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) implements OperatorFactory {
+    public record Factory(ByteSizeValue jumboSize, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel)
+        implements
+            OperatorFactory {
         public Factory {
             if (fields.isEmpty()) {
                 throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
@@ -51,7 +54,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(driverContext.blockFactory(), fields, shardContexts, docChannel);
+            return new ValuesSourceReaderOperator(driverContext.blockFactory(), jumboSize.getBytes(), fields, shardContexts, docChannel);
         }
 
         @Override
@@ -85,10 +88,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     public record ShardContext(IndexReader reader, Supplier<SourceLoader> newSourceLoader, double storedFieldsSequentialProportion) {}
 
+    final BlockFactory blockFactory;
+    /**
+     * When the loaded fields {@link Block}s' estimated size grows larger than this,
+     * we finish loading the {@linkplain Page} and return it, even if
+     * the {@linkplain Page} is shorter than the incoming {@linkplain Page}.
+     * <p>
+     *     NOTE: This only applies when loading single segment non-descending
+     *     row stride bytes. This is the most common way to get giant fields,
+     *     but it isn't all the ways.
+     * </p>
+     */
+    final long jumboBytes;
     final FieldWork[] fields;
     final List<ShardContext> shardContexts;
     private final int docChannel;
-    final BlockFactory blockFactory;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
@@ -101,14 +115,21 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * @param fields fields to load
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public ValuesSourceReaderOperator(BlockFactory blockFactory, List<FieldInfo> fields, List<ShardContext> shardContexts, int docChannel) {
+    public ValuesSourceReaderOperator(
+        BlockFactory blockFactory,
+        long jumboBytes,
+        List<FieldInfo> fields,
+        List<ShardContext> shardContexts,
+        int docChannel
+    ) {
         if (fields.isEmpty()) {
             throw new IllegalStateException("ValuesSourceReaderOperator doesn't support empty fields");
         }
+        this.blockFactory = blockFactory;
+        this.jumboBytes = jumboBytes;
         this.fields = fields.stream().map(FieldWork::new).toArray(FieldWork[]::new);
         this.shardContexts = shardContexts;
         this.docChannel = docChannel;
-        this.blockFactory = blockFactory;
     }
 
     @Override

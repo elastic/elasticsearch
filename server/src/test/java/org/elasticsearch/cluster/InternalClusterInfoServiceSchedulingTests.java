@@ -21,11 +21,14 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -95,6 +98,18 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
             mockEstimatedHeapUsageCollector,
             nodeUsageStatsForThreadPoolsCollector
         );
+        final WriteLoadConstraintMonitor usageMonitor = spy(
+            new WriteLoadConstraintMonitor(
+                clusterService.getClusterSettings(),
+                threadPool.relativeTimeInMillisSupplier(),
+                clusterService::state,
+                new RerouteService() {
+                    @Override
+                    public void reroute(String reason, Priority priority, ActionListener<Void> listener) {}
+                }
+            )
+        );
+        clusterInfoService.addListener(usageMonitor::onNewInfo);
         clusterService.addListener(clusterInfoService);
         clusterInfoService.addListener(ignored -> {});
 

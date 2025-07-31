@@ -1980,6 +1980,54 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testShardFieldStatsWithDeletes() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build();
+        IndexShard shard = newShard(true, settings);
+        assertNull(shard.getShardFieldStats());
+        recoverShardFromStore(shard);
+        boolean liveDocsTrackingEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
+
+        // index some documents
+        int numDocs = between(5, 10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", "first_" + i, """
+                {
+                    "f1": "foo",
+                    "f2": "bar"
+                }
+                """);
+        }
+        shard.refresh("test");
+        var stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(1));
+        assertThat(stats.liveDocsBytes(), equalTo(0L));
+
+        // delete a doc
+        deleteDoc(shard, "first_0");
+
+        // Refresh and fetch new stats:
+        shard.refresh("test");
+        stats = shard.getShardFieldStats();
+        // More segments because delete operation is stored in the new segment for replication purposes.
+        assertThat(stats.numSegments(), equalTo(2));
+        // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
+        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 120L : 0L));
+
+        // delete another doc:
+        deleteDoc(shard, "first_1");
+        shard.getMinRetainedSeqNo();
+
+        // Refresh and fetch new stats:
+        shard.refresh("test");
+        stats = shard.getShardFieldStats();
+        // More segments because delete operation is stored in the new segment for replication purposes.
+        assertThat(stats.numSegments(), equalTo(3));
+        // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
+        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 144L : 0L));
+
+        closeShards(shard);
+    }
+
     public void testIndexingOperationsListeners() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");

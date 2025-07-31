@@ -322,6 +322,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long nextPostingListOffset() throws IOException;
     }
 
+    // TODO : change this to allow (batched) centroid search (with current top)
     public interface ScoredCentroidIterator {
         boolean hasNext();
 

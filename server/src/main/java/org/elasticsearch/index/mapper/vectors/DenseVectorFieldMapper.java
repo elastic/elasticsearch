@@ -2740,7 +2740,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
-                KnnVectorsFormat vectorsFormat = this.indexOptions.getVectorsFormat(ElementType.FLOAT);
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),

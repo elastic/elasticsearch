@@ -138,10 +138,11 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // also sort segments by affinity and eventually filter out the long tail
         List<LeafReaderContext> selectedSegments = new ArrayList<>();
 
-        double cutoff_affinity = 0.1; // minimum affinity score for a segment to be considered
-        double higher_affinity = 0.55; // min affinity for increasing nProbe
-        double lower_affinity = 0.2; // max affinity for decreasing nProbe
-        int max_adjustment = 100;
+        // TODO : are these magic numbers ?
+        double cutoff_affinity = 0.01; // minimum affinity score for a segment to be considered
+        double higher_affinity = 0.6; // min affinity for increasing nProbe
+        double lower_affinity = 0.59; // max affinity for decreasing nProbe
+        int max_adjustment = 20;
 
         Map<LeafReaderContext, Integer> segmentNProbeMap = new HashMap<>();
         // Process segments based on their affinity scores
@@ -181,14 +182,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         // For very high affinity scores, increase nProbe
         if (affinityScore >= highThreshold) {
-            //int adjustment = (int) Math.ceil((affinityScore - highThreshold) * maxAdjustment);
-            return Math.min(baseNProbe * 2, baseNProbe + maxAdjustment);
+            int adjustment = (int) Math.ceil((affinityScore - highThreshold) * maxAdjustment);
+            return Math.min(baseNProbe * adjustment, baseNProbe + maxAdjustment);
         }
 
         // For low affinity scores, decrease nProbe
         if (affinityScore <= lowThreshold) {
-            //int adjustment = (int) Math.ceil((lowThreshold - affinityScore) * maxAdjustment);
-            return Math.max(baseNProbe / 2, 1); // Ensure nProbe doesn't go below 1
+            int adjustment = (int) Math.ceil((lowThreshold - affinityScore) * maxAdjustment);
+            return Math.max(baseNProbe / 3, 1); // Ensure nProbe doesn't go below 1
         }
 
         return baseNProbe;

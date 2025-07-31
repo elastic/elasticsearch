@@ -76,6 +76,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             final float qcDist = scorer.int4DotProduct(quantized);
             centroids.readFloats(centroidCorrectiveValues, 0, 3);
             final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
+            // TODO : fix this
             float score = Float.NaN;/*int4QuantizedScore(
                                     qcDist,
                                     queryParams,

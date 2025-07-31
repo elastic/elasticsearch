@@ -88,7 +88,7 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
             InferenceIndexInformationForField indexInfo = resolveIndicesForField(fieldName, resolvedIndices);
             fieldInfoMap.put(fieldName, indexInfo);
 
-            if (indexInfo.getInferenceIndices().isEmpty() ==false) {
+            if (indexInfo.getInferenceIndices().isEmpty() == false) {
                 hasSemanticField = true;
             }
         }
@@ -105,7 +105,6 @@ public abstract class SemanticQueryRewriteInterceptor implements QueryRewriteInt
         MultiMatchQueryBuilder.Type type = multiMatchQueryBuilder.type();
         Float tieBreaker = multiMatchQueryBuilder.tieBreaker();
         boolean shouldUseTieBreaker = (tieBreaker != null);
-
 
         Map<String, Float> nonSemanticFields = new HashMap<>();
         for (Map.Entry<String, Float> fieldEntry : fieldsWithBoosts.entrySet()) {

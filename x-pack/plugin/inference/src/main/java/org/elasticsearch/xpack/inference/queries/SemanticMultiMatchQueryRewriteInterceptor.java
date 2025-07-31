@@ -35,11 +35,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
         InferenceIndexInformationForField indexInformation,
         Float fieldBoost
     ) {
-        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(
-            indexInformation.fieldName(),
-            getQuery(queryBuilder),
-            false
-        );
+        SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(indexInformation.fieldName(), getQuery(queryBuilder), false);
         semanticQueryBuilder.boost(queryBuilder.boost() * fieldBoost);
         semanticQueryBuilder.queryName(queryBuilder.queryName());
         return semanticQueryBuilder;
@@ -55,11 +51,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
 
         // Add the semantic part for inference indices
         boolQueryBuilder.should(
-            createSemanticSubQuery(
-                indexInformation.getInferenceIndices(),
-                indexInformation.fieldName(),
-                getQuery(queryBuilder)
-            )
+            createSemanticSubQuery(indexInformation.getInferenceIndices(), indexInformation.fieldName(), getQuery(queryBuilder))
         );
 
         // Add the non-semantic part for non-inference indices
@@ -81,7 +73,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor extends SemanticQueryRewr
     public String getQueryName() {
         return MultiMatchQueryBuilder.NAME;
     }
-
 
     public static void copyMultiMatchConfiguration(MultiMatchQueryBuilder source, MultiMatchQueryBuilder target) {
         target.type(source.type());

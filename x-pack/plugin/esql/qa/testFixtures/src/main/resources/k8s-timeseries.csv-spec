@@ -98,6 +98,7 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 
 oneRateWithTBucket
 required_capability: metrics_command
+required_capability: tbucket
 TS k8s
 | STATS max(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute)
 | SORT time_bucket DESC | LIMIT 2;
@@ -119,6 +120,7 @@ max(rate(network.total_bytes_in)):double | sum(rate(network.total_bytes_in)):dou
 
 twoRatesWithTBucket
 required_capability: metrics_command
+required_capability: tbucket
 TS k8s | STATS max(rate(network.total_bytes_in)), sum(rate(network.total_bytes_in)) BY time_bucket = tbucket(5minute) | SORT time_bucket DESC | LIMIT 3;
 
 max(rate(network.total_bytes_in)):double | sum(rate(network.total_bytes_in)):double | time_bucket:datetime    

@@ -19,11 +19,10 @@ import static org.elasticsearch.common.util.concurrent.TaskExecutionTimeTracking
 
 public class FramedTimeTrackerTests extends ESTestCase {
 
-    private FakeTime fakeTime;
-
     private final int frame = 10;
     private final int windowLen = 30;
     private final int window = windowLen * frame;
+    private FakeTime fakeTime;
 
     /**
      * creates new tracker with frame interval=1 and and windowSize = 100 frames
@@ -46,10 +45,10 @@ public class FramedTimeTrackerTests extends ESTestCase {
 
     public void testSingleWindow() {
         var tracker = newTracker();
-        var startOffset = between(0, window / 2);
+        var startOffset = between(0, window / 2 - 1);
         fakeTime.time += startOffset;
         tracker.startTask();
-        var taskDuration = between(0, window / 2);
+        var taskDuration = between(0, window / 2 - 1);
         fakeTime.time += taskDuration;
         tracker.endTask();
         fakeTime.time += frame;
@@ -58,7 +57,7 @@ public class FramedTimeTrackerTests extends ESTestCase {
 
     public void testMultiWindow() {
         var tracker = newTracker();
-        var startTime = between(0, frame);
+        var startTime = between(0, frame - 1);
         var taskDuration = between(1, 10) * window;
         fakeTime.time += startTime;
         tracker.startTask();

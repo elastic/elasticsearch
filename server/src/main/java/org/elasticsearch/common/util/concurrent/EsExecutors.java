@@ -580,7 +580,8 @@ public class EsExecutors {
     /**
      * @param trackExecutionTime Whether to track execution stats
      * @param trackUtilization Enables thread-pool utilization metrics
-     * @param utilizationReportingInterval When utilization is enabled, specifies interval for measurement
+     * @param utilizationReportingInterval When utilization is enabled, specifies interval for reporting utilization, default 30 seconds
+     * @param utilizationSamplingInterval When utilization is enabled, specifies sample interval, default 1 second
      * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
      * @param trackMaxQueueLatency Whether to track max queue latency
      * @param executionTimeEwmaAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage)

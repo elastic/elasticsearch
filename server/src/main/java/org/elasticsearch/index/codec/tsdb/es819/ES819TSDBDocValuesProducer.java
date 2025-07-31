@@ -1060,7 +1060,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs) throws IOException {
+                    public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
                         for (int i = 0; i < docs.count(); i++) {
                             builder.appendLong(0L);
                         }
@@ -1072,7 +1072,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs) throws IOException {
+                    public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
                         for (int i = 0; i < docs.count(); i++) {
                             builder.appendInt(0);
                         }
@@ -1084,10 +1084,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
-                        throws IOException {
+                    public void loadBlock(
+                        BlockLoader.DoubleBuilder builder,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        BlockDocValuesReader.ToDouble toDouble
+                    ) throws IOException {
                         double value = toDouble.convert(0L);
-                        for (int i = 0; i < docs.count(); i++) {
+                        for (int i = offset; i < docs.count(); i++) {
                             builder.appendDouble(value);
                         }
                     }
@@ -1169,8 +1173,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs) throws IOException {
-                        for (int i = 0; i < docs.count(); i++) {
+                    public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                        for (int i = offset; i < docs.count(); i++) {
                             if (disi.advanceExact(docs.get(i))) {
                                 builder.appendLong(0L);
                             } else {
@@ -1189,8 +1193,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs) throws IOException {
-                        for (int i = 0; i < docs.count(); i++) {
+                    public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                        for (int i = offset; i < docs.count(); i++) {
                             if (disi.advanceExact(docs.get(i))) {
                                 builder.appendInt(0);
                             } else {
@@ -1209,10 +1213,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     }
 
                     @Override
-                    public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
-                        throws IOException {
+                    public void loadBlock(
+                        BlockLoader.DoubleBuilder builder,
+                        BlockLoader.Docs docs,
+                        int offset,
+                        BlockDocValuesReader.ToDouble toDouble
+                    ) throws IOException {
                         double value = toDouble.convert(0L);
-                        for (int i = 0; i < docs.count(); i++) {
+                        for (int i = offset; i < docs.count(); i++) {
                             if (disi.advanceExact(docs.get(i))) {
                                 builder.appendDouble(value);
                             } else {
@@ -1307,8 +1315,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs) throws IOException {
-                    for (int i = 0; i < docs.count(); i++) {
+                public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
                         doc = docs.get(i);
                         builder.appendLong(longValue());
                     }
@@ -1343,8 +1351,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs) throws IOException {
-                    for (int i = 0; i < docs.count(); i++) {
+                public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
                         doc = docs.get(i);
                         builder.appendInt(Math.toIntExact(longValue()));
                     }
@@ -1381,9 +1389,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
-                    throws IOException {
-                    for (int i = 0; i < docs.count(); i++) {
+                public void loadBlock(
+                    BlockLoader.DoubleBuilder builder,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    BlockDocValuesReader.ToDouble toDouble
+                ) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
                         doc = docs.get(i);
                         builder.appendDouble(toDouble.convert(longValue()));
                     }
@@ -1463,10 +1475,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs) throws IOException {
+                public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
                     // TODO: collect all doc ids for current block and then append values to builder?
 
-                    for (int i = 0; i < docs.count(); i++) {
+                    for (int i = offset; i < docs.count(); i++) {
                         int docId = docs.get(i);
                         if (disi.advanceExact(docId)) {
                             builder.appendLong(longValue());
@@ -1486,10 +1498,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs) throws IOException {
+                public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
                     // TODO: collect all doc ids for current block and then append values to builder?
 
-                    for (int i = 0; i < docs.count(); i++) {
+                    for (int i = offset; i < docs.count(); i++) {
                         int docId = docs.get(i);
                         if (disi.advanceExact(docId)) {
                             int value = Math.toIntExact(longValue());
@@ -1511,11 +1523,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
-                    throws IOException {
+                public void loadBlock(
+                    BlockLoader.DoubleBuilder builder,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    BlockDocValuesReader.ToDouble toDouble
+                ) throws IOException {
                     // TODO: collect all doc ids for current block and then append values to builder?
 
-                    for (int i = 0; i < docs.count(); i++) {
+                    for (int i = offset; i < docs.count(); i++) {
                         int docId = docs.get(i);
                         if (disi.advanceExact(docId)) {
                             double value = toDouble.convert(longValue());
@@ -1638,8 +1654,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs) throws IOException {
-                    for (int i = 0; i < docs.count(); i++) {
+                public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
                         doc = docs.get(i);
                         start = addresses.get(doc);
                         end = addresses.get(doc + 1L);
@@ -1676,8 +1692,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs) throws IOException {
-                    for (int i = 0; i < docs.count(); i++) {
+                public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
                         int docId = docs.get(i);
                         start = addresses.get(docId);
                         end = addresses.get(docId + 1L);
@@ -1718,9 +1734,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
-                    throws IOException {
-                    for (int i = 0; i < docs.count(); i++) {
+                public void loadBlock(
+                    BlockLoader.DoubleBuilder builder,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    BlockDocValuesReader.ToDouble toDouble
+                ) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
                         doc = docs.get(i);
                         start = addresses.get(doc);
                         end = addresses.get(doc + 1L);
@@ -1808,8 +1828,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs) throws IOException {
-                    for (int i = 0; i < docs.count(); i++) {
+                public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
                         if (disi.advanceExact(docs.get(i))) {
                             set();
                             if (count == 1) {
@@ -1846,8 +1866,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs) throws IOException {
-                    for (int i = 0; i < docs.count(); i++) {
+                public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
                         if (disi.advanceExact(docs.get(i))) {
                             set();
                             if (count == 1) {
@@ -1888,9 +1908,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
-                public void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
-                    throws IOException {
-                    for (int i = 0; i < docs.count(); i++) {
+                public void loadBlock(
+                    BlockLoader.DoubleBuilder builder,
+                    BlockLoader.Docs docs,
+                    int offset,
+                    BlockDocValuesReader.ToDouble toDouble
+                ) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
                         if (disi.advanceExact(docs.get(i))) {
                             set();
                             if (count == 1) {

@@ -17,16 +17,20 @@ import java.io.IOException;
 
 public abstract class BlockAwareNumericDocValues extends NumericDocValues {
 
-    public abstract void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs) throws IOException;
+    public abstract void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
 
     public abstract void loadDoc(BlockLoader.LongBuilder builder, int docId) throws IOException;
 
-    public abstract void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs) throws IOException;
+    public abstract void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
 
     public abstract void loadDoc(BlockLoader.IntBuilder builder, int docId) throws IOException;
 
-    public abstract void loadBlock(BlockLoader.DoubleBuilder builder, BlockLoader.Docs docs, BlockDocValuesReader.ToDouble toDouble)
-        throws IOException;
+    public abstract void loadBlock(
+        BlockLoader.DoubleBuilder builder,
+        BlockLoader.Docs docs,
+        int offset,
+        BlockDocValuesReader.ToDouble toDouble
+    ) throws IOException;
 
     public abstract void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble) throws IOException;
 }

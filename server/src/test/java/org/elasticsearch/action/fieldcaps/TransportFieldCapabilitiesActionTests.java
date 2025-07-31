@@ -41,17 +41,11 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction.checkBlocksAndFilterIndices;
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportFieldCapabilitiesActionTests extends ESTestCase {

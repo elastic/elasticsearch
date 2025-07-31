@@ -31,9 +31,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -335,6 +337,8 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
             if (randomBoolean()) {
                 startNodeShutdownMarker();
+            } else {
+                startAllocationFiltering();
             }
 
             if (completedSnapshotLatch.await(30, TimeUnit.SECONDS)) {
@@ -1316,6 +1320,80 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             });
         }
 
+        private void startAllocationFiltering() {
+            enqueueAction(() -> {
+                boolean rerun = true;
+                try (TransferableReleasables localReleasables = new TransferableReleasables()) {
+                    if (usually()) {
+                        return;
+                    }
+
+                    final List<TrackedIndex> trackedIndices = indices.values()
+                        .stream()
+                        .filter(index -> index.supportsAllocationFilter)
+                        .toList();
+                    if (trackedIndices.isEmpty()) {
+                        return;
+                    }
+                    final var trackedIndex = randomFrom(trackedIndices);
+                    if (localReleasables.add(tryAcquirePermit(trackedIndex.permits)) == null) {
+                        return;
+                    }
+
+                    if (localReleasables.add(blockNodeRestarts()) == null) {
+                        return;
+                    }
+                    final var trackedNode = randomFrom(shuffledNodes.stream().filter(node -> node.isDataNode).toList());
+
+                    final Releasable releaseAll = localReleasables.transfer();
+
+                    logger.info(" --> moving index [{}] away from node [{}]", trackedIndex.indexName, trackedNode.nodeName);
+
+                    SubscribableListener.<AcknowledgedResponse>newForked(
+                        l -> indicesAdmin().prepareUpdateSettings(trackedIndex.indexName)
+                            .setSettings(Settings.builder().put("index.routing.allocation.exclude._name", trackedNode.nodeName))
+                            .execute(l)
+                    ).addListener(mustSucceed(acknowledgedResponse -> {
+                        assertTrue(acknowledgedResponse.isAcknowledged());
+                        logger.info("--> updated index [{}] settings to exclude node [{}]", trackedIndex.indexName, trackedNode.nodeName);
+                        pollForIndexRebalanceCompletion(trackedNode, trackedIndex.indexName, releaseAll, this::startAllocationFiltering);
+                    }));
+                    rerun = false;
+
+                } finally {
+                    if (rerun) {
+                        startAllocationFiltering();
+                    }
+                }
+            });
+        }
+
+        private void pollForIndexRebalanceCompletion(
+            TrackedNode excludedNode,
+            String indexName,
+            Releasable onCompletion,
+            Runnable onSuccess
+        ) {
+            clientExecutor.execute(mustSucceed(() -> {
+                final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+                final ClusterState state = clusterService.state();
+
+                final var allRebalanced = state.routingTable(ProjectId.DEFAULT)
+                    .index(indexName)
+                    .allShards()
+                    .flatMap(IndexShardRoutingTable::allShards)
+                    .allMatch(shardRouting -> shardRouting.active() && excludedNode.nodeId.equals(shardRouting.currentNodeId()) == false);
+
+                if (allRebalanced) {
+                    logger.info("--> moved index [{}] away from node [{}]", indexName, excludedNode.nodeName);
+                    Releasables.close(onCompletion);
+                    onSuccess.run();
+                } else {
+                    pollForIndexRebalanceCompletion(excludedNode, indexName, onCompletion, onSuccess);
+                }
+            }));
+        }
+
         @Nullable // if we couldn't block node restarts
         private Releasable blockNodeRestarts() {
             try (TransferableReleasables localReleasables = new TransferableReleasables()) {
@@ -1459,6 +1537,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
             // these fields are only changed when all permits held by the delete/recreate process:
             private int shardCount;
+            private boolean supportsAllocationFilter;
             private Semaphore docPermits;
 
             private TrackedIndex(String indexName) {
@@ -1482,8 +1561,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 shardCount = between(1, 5);
                 docPermits = new Semaphore(between(1000, 3000));
                 logger.info("--> create index [{}] with max [{}] docs", indexName, docPermits.availablePermits());
+                final int replicaCount = between(0, cluster.numDataNodes() - 1);
+                supportsAllocationFilter = 1 + replicaCount < cluster.numDataNodes();
                 indicesAdmin().prepareCreate(indexName)
-                    .setSettings(indexSettings(shardCount, between(0, cluster.numDataNodes() - 1)))
+                    .setSettings(indexSettings(shardCount, replicaCount))
                     .execute(mustSucceed(response -> {
                         assertTrue(response.isAcknowledged());
                         logger.info("--> finished create index [{}]", indexName);
@@ -1763,11 +1844,13 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         private final String nodeName;
         private final boolean isMasterNode;
         private final boolean isDataNode;
+        private final String nodeId;
 
         TrackedNode(String nodeName, boolean isMasterNode, boolean isDataNode) {
             this.nodeName = nodeName;
             this.isMasterNode = isMasterNode;
             this.isDataNode = isDataNode;
+            this.nodeId = getNodeId(nodeName);
         }
 
         Semaphore getPermits() {

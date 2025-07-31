@@ -116,7 +116,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
+        BalancingWeightsFactory balancingWeightsFactory
     ) {
         this(
             delegateAllocator,
@@ -125,7 +126,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
             reconciler,
             telemetryProvider,
-            nodeAllocationStatsAndWeightsCalculator
+            nodeAllocationStatsAndWeightsCalculator,
+            balancingWeightsFactory
         );
     }
 
@@ -136,7 +138,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
         TelemetryProvider telemetryProvider,
-        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator
+        NodeAllocationStatsAndWeightsCalculator nodeAllocationStatsAndWeightsCalculator,
+        BalancingWeightsFactory balancingWeightsFactory
     ) {
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.nodeAllocationStatsAndWeightsCalculator = nodeAllocationStatsAndWeightsCalculator;
@@ -145,7 +148,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.threadPool = threadPool;
         this.reconciler = reconciler;
         this.desiredBalanceComputer = desiredBalanceComputer;
-        this.desiredBalanceReconciler = new DesiredBalanceReconciler(clusterService.getClusterSettings(), threadPool);
+        this.desiredBalanceReconciler = new DesiredBalanceReconciler(
+            clusterService.getClusterSettings(),
+            threadPool,
+            balancingWeightsFactory
+        );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override

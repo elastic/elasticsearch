@@ -89,6 +89,9 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
     private static final String LOCAL_NODE_ID = "node-1";
     private static final String OTHER_NODE_ID = "node-2";
+    private static final GlobalBalancingWeightsFactory BALANCING_WEIGHTS_FACTORY = new GlobalBalancingWeightsFactory(
+        BalancerSettings.DEFAULT
+    );
 
     public void testGatewayAllocatorPreemptsAllocation() {
         final var nodeId = randomFrom(LOCAL_NODE_ID, OTHER_NODE_ID);
@@ -174,7 +177,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             clusterService,
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            BALANCING_WEIGHTS_FACTORY
         );
         assertValidStats(desiredBalanceShardsAllocator.getStats());
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator(allocateUnassigned));
@@ -302,7 +306,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             clusterService,
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            BALANCING_WEIGHTS_FACTORY
         );
         var allocationService = new AllocationService(
             new AllocationDeciders(List.of()),
@@ -421,7 +426,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            BALANCING_WEIGHTS_FACTORY
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -549,7 +555,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            BALANCING_WEIGHTS_FACTORY
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -653,7 +660,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             reconcileAction,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            BALANCING_WEIGHTS_FACTORY
         );
 
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
@@ -746,7 +754,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            BALANCING_WEIGHTS_FACTORY
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -800,7 +809,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            BALANCING_WEIGHTS_FACTORY
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -850,7 +860,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            BALANCING_WEIGHTS_FACTORY
         ) {
             @Override
             public void resetDesiredBalance() {
@@ -946,7 +957,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             },
             (clusterState, rerouteStrategy) -> null,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            BALANCING_WEIGHTS_FACTORY
         ) {
 
             private ActionListener<Void> lastListener;

@@ -176,7 +176,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             clusterService,
             null,
             TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            EMPTY_NODE_ALLOCATION_STATS,
+            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
         ) {
             private RoutingAllocation lastAllocation;
 

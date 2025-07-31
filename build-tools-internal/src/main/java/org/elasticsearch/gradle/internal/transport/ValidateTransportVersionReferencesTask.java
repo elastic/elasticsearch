@@ -15,6 +15,7 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
@@ -30,6 +31,7 @@ import java.nio.file.Path;
 public abstract class ValidateTransportVersionReferencesTask extends DefaultTask {
 
     @InputDirectory
+    @Optional
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract DirectoryProperty getDefinitionsDirectory();
 
@@ -39,11 +41,11 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        Path constantsDir = getDefinitionsDirectory().getAsFile().get().toPath();
+        Path definitionsDir = getDefinitionsDirectory().getAsFile().get().toPath();
         Path namesFile = getReferencesFile().get().getAsFile().toPath();
 
         for (var tvReference : TransportVersionUtils.readReferencesFile(namesFile)) {
-            Path constantFile = constantsDir.resolve(tvReference.name() + ".csv");
+            Path constantFile = definitionsDir.resolve(tvReference.name() + ".csv");
             if (Files.exists(constantFile) == false) {
                 throw new RuntimeException(
                     "TransportVersion.fromName(\""

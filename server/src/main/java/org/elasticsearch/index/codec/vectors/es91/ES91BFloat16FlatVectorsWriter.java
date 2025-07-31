@@ -25,7 +25,6 @@ import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene95.OffHeapByteVectorValues;
-import org.apache.lucene.codecs.lucene95.OffHeapFloatVectorValues;
 import org.apache.lucene.codecs.lucene95.OrdToDocDISIReaderConfiguration;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocsWithFieldSet;
@@ -44,11 +43,11 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -281,11 +280,11 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
                 );
                 case FLOAT32 -> vectorsScorer.getRandomVectorScorerSupplier(
                     fieldInfo.getVectorSimilarityFunction(),
-                    new OffHeapFloatVectorValues.DenseOffHeapVectorValues(
+                    new OffHeapBFloat16VectorValues.DenseOffHeapVectorValues(
                         fieldInfo.getVectorDimension(),
                         docsWithField.cardinality(),
                         finalVectorDataInput,
-                        fieldInfo.getVectorDimension() * Float.BYTES,
+                        fieldInfo.getVectorDimension() * BFloat16.BYTES,
                         vectorsScorer,
                         fieldInfo.getVectorSimilarityFunction()
                     )
@@ -297,7 +296,7 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
             }, docsWithField.cardinality(), randomVectorScorerSupplier);
         } catch (Throwable t) {
             IOUtils.closeWhileHandlingException(vectorDataInput, tempVectorData);
-            IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempVectorData.getName());
+            segmentWriteState.directory.deleteFile(tempVectorData.getName());
             throw t;
         }
     }

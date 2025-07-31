@@ -1356,7 +1356,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                     ).addListener(mustSucceed(acknowledgedResponse -> {
                         assertTrue(acknowledgedResponse.isAcknowledged());
                         logger.info("--> updated index [{}] settings to exclude node [{}]", trackedIndex.indexName, trackedNode.nodeName);
-                        pollForIndexRebalanceCompletion(trackedNode, trackedIndex.indexName, releaseAll, this::startAllocationFiltering);
+                        pollForAllocationFilterCompletion(trackedNode, trackedIndex.indexName, releaseAll, this::startAllocationFiltering);
                     }));
                     rerun = false;
 
@@ -1368,7 +1368,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
             });
         }
 
-        private void pollForIndexRebalanceCompletion(
+        private void pollForAllocationFilterCompletion(
             TrackedNode excludedNode,
             String indexName,
             Releasable onCompletion,
@@ -1389,7 +1389,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                     Releasables.close(onCompletion);
                     onSuccess.run();
                 } else {
-                    pollForIndexRebalanceCompletion(excludedNode, indexName, onCompletion, onSuccess);
+                    pollForAllocationFilterCompletion(excludedNode, indexName, onCompletion, onSuccess);
                 }
             }));
         }

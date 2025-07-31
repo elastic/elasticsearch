@@ -68,21 +68,21 @@ public class InferenceResolverTests extends ESTestCase {
     public void testCollectInferenceIds() {
         // Rerank inference plan
         assertCollectInferenceIds(
-            "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH inferenceId=`rerank-inference-id`",
+            "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH { \"inference_id\": \"rerank-inference-id\" }",
             List.of("rerank-inference-id")
         );
 
         // Completion inference plan
         assertCollectInferenceIds(
-            "FROM books METADATA _score | COMPLETION \"italian food recipe\" WITH `completion-inference-id`",
+            "FROM books METADATA _score | COMPLETION \"italian food recipe\" WITH { \"inference_id\": \"completion-inference-id\" }",
             List.of("completion-inference-id")
         );
 
         // Multiple inference plans
         assertCollectInferenceIds("""
             FROM books METADATA _score
-            | RERANK \"italian food recipe\" ON title WITH inferenceId=`rerank-inference-id`
-            | COMPLETION \"italian food recipe\" WITH `completion-inference-id`
+            | RERANK "italian food recipe" ON title WITH { "inference_id": "rerank-inference-id" }
+            | COMPLETION "italian food recipe" WITH { "inference_id": "completion-inference-id" }
             """, List.of("rerank-inference-id", "completion-inference-id"));
 
         // No inference operations

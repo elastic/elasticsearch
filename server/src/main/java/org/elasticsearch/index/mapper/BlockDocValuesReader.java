@@ -186,9 +186,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count())) {
-                blockAware.loadBlock(builder, docs);
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset);
                 return builder.build();
             }
         }
@@ -275,9 +275,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count())) {
-                blockAware.loadBlock(builder, docs);
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset);
                 return builder.build();
             }
         }
@@ -397,9 +397,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count())) {
-                blockAware.loadBlock(builder, docs);
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset);
                 return builder.build();
             }
         }
@@ -486,9 +486,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count())) {
-                blockAware.loadBlock(builder, docs);
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.IntBuilder builder = factory.intsFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset);
                 return builder.build();
             }
         }
@@ -626,9 +626,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
-                blockAware.loadBlock(builder, docs, toDouble);
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset, toDouble);
                 return builder.build();
             }
         }
@@ -718,9 +718,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs) throws IOException {
-            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count())) {
-                blockAware.loadBlock(builder, docs, toDouble);
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            try (BlockLoader.DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
+                blockAware.loadBlock(builder, docs, offset, toDouble);
                 return builder.build();
             }
         }

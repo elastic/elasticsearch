@@ -62,7 +62,7 @@ import static org.mockito.Mockito.when;
 
 public class RemedialAllocationSettingServiceTests extends ESTestCase {
 
-    public void testRemediation() throws Exception {
+    public void testRemediationSettingsPresent() throws Exception {
         @SuppressWarnings("unchecked")
         MasterServiceTaskQueue<ClusterStateTaskListener> mockQueue = mock(MasterServiceTaskQueue.class);
         ClusterService mockClusterService = mock(ClusterService.class);
@@ -71,13 +71,12 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
         );
 
         // Settings for both having and not having the required allocation setting
-        Settings missingAllocation = Settings.EMPTY;
         Settings hasAllocation = Settings.builder()
             .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), Stateless.NAME)
             .build();
 
         // Single data stream project, failure store enabled, but has the allocation settings
-        ProjectMetadata project1 = getProjectWithDataStreams(
+        ProjectMetadata project = getProjectWithDataStreams(
             List.of(tuple("p1-ds1", 1)),
             List.of("p1-i1"),
             System.currentTimeMillis(),
@@ -87,8 +86,38 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
             true
         );
 
+        var state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+
+        ClusterChangedEvent mockEvent = mock(ClusterChangedEvent.class);
+        when(mockEvent.state()).thenReturn(state);
+        when(mockEvent.localNodeMaster()).thenReturn(true);
+
+        // Create service and verify
+        RemedialAllocationSettingService testService = new RemedialAllocationSettingService(mockClusterService);
+        verify(mockClusterService).createTaskQueue(eq("remediate-stateful-allocation-settings"), eq(Priority.URGENT), any());
+
+        // First stage - cluster changed
+        testService.clusterChanged(mockEvent);
+
+        // Verify Interactions
+        verifyNoInteractions(mockQueue);
+        verify(mockClusterService).removeListener(same(testService));
+        assertThat(testService.isRemediationComplete(), is(true));
+    }
+
+    public void testRemediationRequired() throws Exception {
+        @SuppressWarnings("unchecked")
+        MasterServiceTaskQueue<ClusterStateTaskListener> mockQueue = mock(MasterServiceTaskQueue.class);
+        ClusterService mockClusterService = mock(ClusterService.class);
+        when(mockClusterService.createTaskQueue(eq("remediate-stateful-allocation-settings"), eq(Priority.URGENT), any())).thenReturn(
+            mockQueue
+        );
+
+        // Settings for both having and not having the required allocation setting
+        Settings missingAllocation = Settings.EMPTY;
+
         // Another project with a few more streams, failure store enabled, missing allocation settings
-        ProjectMetadata project2 = getProjectWithDataStreams(
+        ProjectMetadata project = getProjectWithDataStreams(
             List.of(tuple("p2-ds1", 1), tuple("p2-ds2", 3)),
             List.of("p2-i1"),
             System.currentTimeMillis(),
@@ -98,22 +127,7 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
             true
         );
 
-        // A project with a stream, but without failure store enabled
-        ProjectMetadata project3 = getProjectWithDataStreams(
-            List.of(tuple("p3-ds1", 3)),
-            List.of("p3-i1"),
-            System.currentTimeMillis(),
-            missingAllocation,
-            0,
-            false,
-            false
-        );
-
-        var state = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(project1)
-            .putProjectMetadata(project2)
-            .putProjectMetadata(project3)
-            .build();
+        var state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
 
         ClusterChangedEvent mockEvent = mock(ClusterChangedEvent.class);
         when(mockEvent.state()).thenReturn(state);
@@ -150,18 +164,14 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
         assertThat(updateResult.v2(), nullValue());
         Metadata updatedMetadata = updateResult.v1().metadata();
 
-        // Project 1 sees no changes because it already has the allocation setting on its failure indices
-        ProjectMetadata project1Updated = updatedMetadata.getProject(project1.id());
-        assertThat(project1Updated.indices(), equalTo(project1.indices()));
-
-        // All of project 2's failure indices have been updated with the missing setting
-        ProjectMetadata project2Updated = updatedMetadata.getProject(project2.id());
-        project2Updated.dataStreams()
+        // All of project's failure indices have been updated with the missing setting
+        ProjectMetadata projectUpdated = updatedMetadata.getProject(project.id());
+        projectUpdated.dataStreams()
             .values()
             .stream()
             .map(DataStream::getFailureIndices)
             .flatMap(Collection::stream)
-            .map(project2Updated::index)
+            .map(projectUpdated::index)
             .forEach(idxMetadata -> {
                 assertThat(
                     idxMetadata.getIndex().getName(),
@@ -169,13 +179,13 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
                     equalTo(Stateless.NAME)
                 );
             });
-        // None of the other resources in project 2 are touched - they aren't the target of this fix
-        project2Updated.dataStreams()
+        // None of the other resources in project are touched - they aren't the target of this fix
+        projectUpdated.dataStreams()
             .values()
             .stream()
             .map(DataStream::getIndices)
             .flatMap(Collection::stream)
-            .map(project2Updated::index)
+            .map(projectUpdated::index)
             .forEach(idxMetadata -> {
                 assertThat(
                     idxMetadata.getIndex().getName(),
@@ -183,19 +193,56 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
                     equalTo(GatewayAllocator.ALLOCATOR_NAME)
                 );
             });
-        IndexMetadata project2index1 = project2Updated.index("p2-i1");
+        IndexMetadata projectIndex1 = projectUpdated.index("p2-i1");
         assertThat(
-            project2index1.getIndex().getName(),
-            ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(project2index1.getSettings()),
+            projectIndex1.getIndex().getName(),
+            ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(projectIndex1.getSettings()),
             equalTo(GatewayAllocator.ALLOCATOR_NAME)
         );
 
-        // Project 3 sees no changes because it has no failure indices
-        ProjectMetadata project3Updated = updatedMetadata.getProject(project3.id());
-        assertThat(project3Updated.indices(), equalTo(project3.indices()));
-
         // Complete listener and ensure remediation is complete
         clusterExecutor.taskSucceeded(clusterTask, updateResult.v2());
+        verify(mockClusterService).removeListener(same(testService));
+        assertThat(testService.isRemediationComplete(), is(true));
+    }
+
+    public void testRemediationNoFailureIndices() throws Exception {
+        @SuppressWarnings("unchecked")
+        MasterServiceTaskQueue<ClusterStateTaskListener> mockQueue = mock(MasterServiceTaskQueue.class);
+        ClusterService mockClusterService = mock(ClusterService.class);
+        when(mockClusterService.createTaskQueue(eq("remediate-stateful-allocation-settings"), eq(Priority.URGENT), any())).thenReturn(
+            mockQueue
+        );
+
+        // Settings for both having and not having the required allocation setting
+        Settings missingAllocation = Settings.EMPTY;
+
+        // A project with a stream, but without failure store enabled
+        ProjectMetadata project3 = getProjectWithDataStreams(
+            List.of(tuple("p3-ds1", 3)),
+            List.of("p3-i1"),
+            System.currentTimeMillis(),
+            missingAllocation,
+            0,
+            false,
+            false
+        );
+
+        var state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project3).build();
+
+        ClusterChangedEvent mockEvent = mock(ClusterChangedEvent.class);
+        when(mockEvent.state()).thenReturn(state);
+        when(mockEvent.localNodeMaster()).thenReturn(true);
+
+        // Create service and verify
+        RemedialAllocationSettingService testService = new RemedialAllocationSettingService(mockClusterService);
+        verify(mockClusterService).createTaskQueue(eq("remediate-stateful-allocation-settings"), eq(Priority.URGENT), any());
+
+        // First stage - cluster changed
+        testService.clusterChanged(mockEvent);
+
+        // Verify interactions
+        verifyNoInteractions(mockQueue);
         verify(mockClusterService).removeListener(same(testService));
         assertThat(testService.isRemediationComplete(), is(true));
     }
@@ -334,8 +381,8 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
             true
         );
 
-        // Another project with a few more streams, failure store enabled, missing allocation settings
-        ProjectMetadata project2 = getProjectWithDataStreams(
+        // A project with a few more streams, failure store enabled, missing allocation settings
+        ProjectMetadata project = getProjectWithDataStreams(
             List.of(tuple("p2-ds1", 1), tuple("p2-ds2", 3)),
             List.of("p2-i1"),
             System.currentTimeMillis(),
@@ -345,23 +392,10 @@ public class RemedialAllocationSettingServiceTests extends ESTestCase {
             true
         );
 
-        // A project with a stream, but without failure store enabled
-        ProjectMetadata project3 = getProjectWithDataStreams(
-            List.of(tuple("p3-ds1", 3)),
-            List.of("p3-i1"),
-            System.currentTimeMillis(),
-            missingAllocation,
-            0,
-            false,
-            false
-        );
+        // First state has project 2 (broken)
+        var stateBroken = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(randomFrom(project)).build();
 
-        var stateBroken = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(project1)
-            .putProjectMetadata(project2)
-            .putProjectMetadata(project3)
-            .build();
-
+        // Next state returned has project 1 (no remediation needed)
         var stateFixed = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project1).build();
 
         ClusterChangedEvent mockEvent = mock(ClusterChangedEvent.class);

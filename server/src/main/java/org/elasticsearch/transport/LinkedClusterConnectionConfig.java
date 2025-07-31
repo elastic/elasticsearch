@@ -49,4 +49,8 @@ public class LinkedClusterConnectionConfig {
     public Settings getSettings() {
         return settings;
     }
+
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
 }

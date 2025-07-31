@@ -220,9 +220,7 @@ public abstract class RemoteClusterAware {
      */
     protected abstract void updateRemoteCluster(String clusterAlias, LinkedClusterConnectionConfig config);
 
-    /**
-     * Registers this instance to listen to updates on the cluster settings.
-     */
+    // This will go away
     public void listenForUpdates(ClusterSettings clusterSettings) {
         List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
             RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
@@ -244,6 +242,9 @@ public abstract class RemoteClusterAware {
         );
     }
 
+    /**
+     * Registers this instance to listen to updates on linked cluster configuration.
+     */
     public void listenForUpdates(LinkedClusterConnectionConfigListener listener) {
         listener.listen(this::validateAndUpdateRemoteCluster);
     }

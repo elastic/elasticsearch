@@ -19,6 +19,7 @@ import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -73,7 +74,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.executionTimeEwmaAlpha(), 0);
         this.trackingConfig = trackingConfig;
-        this.framedTimeTracker = new FramedTimeTracker(trackingConfig.utilizationInterval().toNanos());
+        this.framedTimeTracker = new FramedTimeTracker(
+            trackingConfig.utilizationReportingInterval(),
+            trackingConfig.utilizationSamplingInterval()
+        );
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -154,7 +158,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     /**
-     * Returns thread-pool utilization from last completed time interval(frame) {@link TaskTrackingConfig#utilizationInterval()}.
+     * Returns thread-pool utilization from last completed time interval(frame) {@link TaskTrackingConfig#utilizationReportingInterval()}.
      * Utilization is measured as {@code all-threads-total-execution-time / (total-thread-count * interval)}.
      * This metric is updated once per interval, and returns last completed measurement. For example:
      * if interval is 30 seconds, at clock time 00:30-01:00 it will return utilization from 00:00-00:30.
@@ -164,7 +168,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
      * framedTimeTracker to remember multiple past frames, and return aggregated view from here.
      */
     public double utilization() {
-        return (double) framedTimeTracker.previousFrameTime() / (double) getMaximumPoolSize() / (double) framedTimeTracker.interval;
+        return (double) framedTimeTracker.totalTime() / (double) getMaximumPoolSize() / (double) framedTimeTracker.reportingInterval();
     }
 
     @Override
@@ -255,33 +259,35 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     }
 
     /**
-     * Tracks threads execution in continuous, non-overlapping, and even time frames. Provides accurate total execution time measurement
-     * for past frames, specifically previous frame (now - 1 frame) to measure utilization.
-     *
-     * Can be extended to remember multiple past frames.
+     * Tracks threads execution in continuous, non-overlapping, and even time frames.
      */
     public static class FramedTimeTracker {
-        private final long interval;
+        private final long reportingInterval;
+        private final long frameDuration;
         private final Supplier<Long> timeNow;
-        private final AtomicReference<FrameWindow> frameWindowRef = new AtomicReference<>(new FrameWindow());
+        private final AtomicReference<FrameWindow> frameWindowRef;
         private final AtomicBoolean updatingFrame = new AtomicBoolean();
         private final AtomicLong currentFrameNum = new AtomicLong();
 
         // for testing
-        public FramedTimeTracker(long intervalNano, Supplier<Long> timeNow) {
-            assert intervalNano > 0;
-            this.interval = intervalNano;
+        public FramedTimeTracker(long reportingInterval, long frameDuration, Supplier<Long> timeNow) {
+            assert reportingInterval / frameDuration > 0;
+            this.reportingInterval = reportingInterval;
+            this.frameDuration = frameDuration;
             this.timeNow = timeNow;
+            this.frameWindowRef = new AtomicReference<>(FrameWindow.empty((int) (reportingInterval/frameDuration)));
         }
 
-        FramedTimeTracker(long intervalNano) {
-            assert intervalNano > 0;
-            this.interval = intervalNano;
-            this.timeNow = System::nanoTime;
+        FramedTimeTracker(Duration reportingInterval, Duration frameInterval) {
+            this(
+                reportingInterval.toNanos(),
+                frameInterval.toNanos(),
+                System::nanoTime
+            );
         }
 
-        public long interval() {
-            return interval;
+        public long reportingInterval() {
+            return reportingInterval;
         }
 
         /**
@@ -328,10 +334,10 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
          */
         public void startTask() {
             final var nowTime = timeNow.get();
-            final var now = nowTime / interval;
+            final var now = nowTime / frameDuration;
             final var frameWindow = getWindow(now);
-            frameWindow.now().ongoingTasks.increment();
-            frameWindow.now().startEndDiff.add((now + 1) * interval - nowTime);
+            frameWindow.frames[0].ongoingTasks.increment();
+            frameWindow.frames[0].startEndDiff.add((now + 1) * frameDuration - nowTime);
         }
 
         /**
@@ -339,23 +345,27 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
          */
         public void endTask() {
             final var nowTime = timeNow.get();
-            final var now = nowTime / interval;
+            final var now = nowTime / frameDuration;
             final var frameWindow = getWindow(now);
-            frameWindow.now().ongoingTasks.decrement();
-            frameWindow.now().startEndDiff.add(-((now + 1) * interval - nowTime));
+            frameWindow.frames[0].ongoingTasks.decrement();
+            frameWindow.frames[0].startEndDiff.add(-((now + 1) * frameDuration - nowTime));
         }
 
         /**
-         * Returns previous frame total execution time
+         * Returns total execution time from last interval.
          */
-        public long previousFrameTime() {
-            final var now = timeNow.get() / interval;
+        public long totalTime() {
+            final var now = timeNow.get() / frameDuration;
             final var frameWindow = getWindow(now);
             // total time is sum of ongoing tasks in frame N-1 and all starts and ends in N frame
             // so for the previous frame (now-1), it would be (now-2) ongoing tasks + (now -1) start/end tasks
-            final var ongoingTasks = frameWindow.now(-2).ongoingTasks.sum();
-            final var startEndDiff = frameWindow.now(-1).startEndDiff.sum();
-            return ongoingTasks * interval + startEndDiff;
+            var totalTime = 0L;
+            for (var i = 1; i < frameWindow.frames.length - 1; i++) { // first and last frames are not used, see FrameWindow description
+                final var ongoingTasks = frameWindow.frames[i + 1].ongoingTasks.sum();
+                final var startEndDiff = frameWindow.frames[i].startEndDiff.sum();
+                totalTime += ongoingTasks * frameDuration + startEndDiff;
+            }
+            return totalTime;
         }
 
         /**
@@ -369,19 +379,20 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         }
 
         /**
-         * A frame window represent 3 consecutive frames. frames[0] is now, frames[1] is now-1.
+         * A frame window of consecutive frames. frames[0] is now, frames[1] is now-1.
+         * To calculate frame time usage we need to know ongoing-tasks from previous frame and all starts and ends in current frame.
+         * That means we cannot calculate time for first and last frames in the array. First one is in-progress, last one has no information
+         * about previous ongoing tasks. So completed frames are between 1..length-2.
          */
         record FrameWindow(Frame[] frames) {
-            FrameWindow() {
-                this(new Frame(), new Frame(), new Frame());
-            }
 
-            FrameWindow(Frame past2, Frame past1, Frame now) {
-                this(new Frame[] { now, past1, past2 });
-            }
-
-            FrameWindow {
-                assert frames.length == 3;
+            static FrameWindow empty(int size) {
+                // first and last frames are incomplete, adding two more frames
+                final var frames = new Frame[size + 2];
+                for (var i = 0; i < frames.length; i++) {
+                    frames[i] = new Frame();
+                }
+                return new FrameWindow(frames);
             }
 
             /**
@@ -389,30 +400,22 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
              * So there is no risk of losing data when start/endTask updates counters in the past window frame.
              */
             FrameWindow moveBy(long moveFrames) {
-                // a new frame always starts with previous ongoing tasks
-                final var ongoingTasks = now().ongoingTasks.sum();
-                final FrameWindow newWindow;
-                if (moveFrames == 1) {
-                    newWindow = new FrameWindow(now(-1), now(), new Frame());
-                } else if (moveFrames == 2) {
-                    newWindow = new FrameWindow(now(), new Frame(), new Frame());
-                } else {
-                    newWindow = new FrameWindow();
+                if (moveFrames == 0) {
+                    return this;
                 }
-                // propagate ongoing tasks to all new frames
-                for (var newFrame = 0; newFrame < Math.min(moveFrames, 3); newFrame++) {
-                    newWindow.frames[newFrame].ongoingTasks.add(ongoingTasks);
+                final var newFramesNum = (int) Math.min(frames.length, moveFrames); // non-overlapping frames with current window
+                final var newFrames = new Frame[frames.length];
+                // copy overlapping frames to the end of array
+                System.arraycopy(frames, 0, newFrames, newFramesNum, frames.length - newFramesNum);
+                // initialize new frames in the beginning of array
+                // a new frame always starts with last known ongoing tasks
+                final var ongoingTasks = frames[0].ongoingTasks.sum();
+                for (var i=0; i<newFramesNum; i++) {
+                    final var frame = new Frame();
+                    frame.ongoingTasks.add(ongoingTasks);
+                    newFrames[i] = frame;
                 }
-                return newWindow;
-            }
-
-            Frame now() {
-                return frames[0];
-            }
-
-            Frame now(int offset) {
-                assert offset >= -2 && offset <= 0;
-                return frames[-offset];
+                return new FrameWindow(newFrames);
             }
         }
     }

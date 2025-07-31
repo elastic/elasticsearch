@@ -233,6 +233,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
 
     public void testUtilization() throws InterruptedException {
         final var interval = Duration.ofMillis(100);
+        final var samplingInterval = Duration.ofMillis(10);
 
         final Consumer<Duration> trySleep = (d) -> {
             try {
@@ -256,7 +257,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             4,
             Executors.defaultThreadFactory(),
             new ThreadContext(Settings.EMPTY),
-            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).trackUtilization(interval).build()
+            EsExecutors.TaskTrackingConfig.builder().trackExecutionTime(0.3).trackUtilization(interval, samplingInterval).build()
         );
 
         try {

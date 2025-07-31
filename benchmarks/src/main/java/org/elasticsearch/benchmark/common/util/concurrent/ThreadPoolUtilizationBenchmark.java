@@ -14,6 +14,7 @@ import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Group;
+import org.openjdk.jmh.annotations.Measurement;
 import org.openjdk.jmh.annotations.Mode;
 import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Param;
@@ -23,11 +24,13 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.infra.Blackhole;
 
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 @Threads(Threads.MAX)
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
+@Measurement(iterations = 5, time = 1, timeUnit = TimeUnit.MINUTES)
 @State(Scope.Benchmark)
 @Fork(1)
 public class ThreadPoolUtilizationBenchmark {
@@ -38,14 +41,19 @@ public class ThreadPoolUtilizationBenchmark {
     /**
      * This makes very little difference, all the overhead is in the synchronization
      */
-    @Param({ "10" })
-    private int utilizationIntervalMs;
+    @Param({ "1000" })
+    private int frameDurationMs;
+
+    @Param({"10000"})
+    private int reportingDurationMs;
+
     private TaskExecutionTimeTrackingEsThreadPoolExecutor.FramedTimeTracker timeTracker;
 
     @Setup
     public void setup() {
         timeTracker = new TaskExecutionTimeTrackingEsThreadPoolExecutor.FramedTimeTracker(
-            TimeUnit.MILLISECONDS.toNanos(utilizationIntervalMs),
+            Duration.ofMillis(reportingDurationMs).toNanos(),
+            Duration.ofMillis(frameDurationMs).toNanos(),
             System::nanoTime
         );
     }

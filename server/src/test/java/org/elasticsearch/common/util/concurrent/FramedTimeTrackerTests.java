@@ -21,8 +21,15 @@ public class FramedTimeTrackerTests extends ESTestCase {
 
     private FakeTime fakeTime;
 
-    FramedTimeTracker newTracker(long interval) {
-        return new FramedTimeTracker(interval, fakeTime);
+    private final int frame = 10;
+    private final int windowLen = 30;
+    private final int window = windowLen * frame;
+
+    /**
+     * creates new tracker with frame interval=1 and and windowSize = 100 frames
+     */
+    FramedTimeTracker newTracker() {
+        return new FramedTimeTracker(window, frame, fakeTime);
     }
 
     @Before
@@ -31,70 +38,66 @@ public class FramedTimeTrackerTests extends ESTestCase {
     }
 
     public void testNoTasks() {
-        var tracker = newTracker(1);
-        tracker.previousFrameTime();
-        assertEquals(0, tracker.previousFrameTime());
-        fakeTime.time += between(1, 100);
-        assertEquals(0, tracker.previousFrameTime());
+        var tracker = newTracker();
+        assertEquals(0, tracker.totalTime());
+        fakeTime.time += randomNonNegativeInt();
+        assertEquals(0, tracker.totalTime());
     }
 
-    public void testSingleFrameTask() {
-        var tracker = newTracker(100);
-        fakeTime.time += 10;
+    public void testSingleWindow() {
+        var tracker = newTracker();
+        var startOffset = between(0, window / 2);
+        fakeTime.time += startOffset;
         tracker.startTask();
-        fakeTime.time += 10;
+        var taskDuration = between(0, window / 2);
+        fakeTime.time += taskDuration;
         tracker.endTask();
-        fakeTime.time += tracker.interval();
-        assertEquals(10, tracker.previousFrameTime());
+        fakeTime.time += frame;
+        assertEquals(taskDuration, tracker.totalTime());
     }
 
-    public void testTwoFrameTask() {
-        var tracker = newTracker(100);
-        var startTime = between(0, 100);
-        var taskDuration = tracker.interval();
+    public void testMultiWindow() {
+        var tracker = newTracker();
+        var startTime = between(0, frame);
+        var taskDuration = between(1, 10) * window;
         fakeTime.time += startTime;
         tracker.startTask();
         fakeTime.time += taskDuration;
         tracker.endTask();
-        assertEquals(tracker.interval() - startTime, tracker.previousFrameTime());
-    }
-
-    public void testMultiFrameTask() {
-        var interval = 10;
-        var tracker = newTracker(interval);
-        tracker.startTask();
-        var taskDuration = between(3, 100) * interval;
-        fakeTime.time += taskDuration;
-        tracker.endTask();
-        assertEquals(tracker.interval(), tracker.previousFrameTime());
+        fakeTime.time += frame;
+        assertEquals("must run for the whole window, except last frame", window - (frame - startTime), (int) tracker.totalTime());
     }
 
     public void testOngoingTask() {
-        var interval = 10;
-        var tracker = newTracker(interval);
+        var tracker = newTracker();
         tracker.startTask();
-        for (int i = 0; i < between(10, 100); i++) {
-            fakeTime.time += tracker.interval();
-            assertEquals(tracker.interval(), tracker.previousFrameTime());
+        // fill first window
+        for (int i = 0; i < windowLen; i++) {
+            assertEquals(frame * i, tracker.totalTime());
+            fakeTime.time += frame;
+        }
+        // after first window is filled, it's always full then
+        for (int i = 0; i < between(0, 1000); i++) {
+            assertEquals(window, tracker.totalTime());
+            fakeTime.time += frame;
         }
     }
 
     public void testMultipleTasks() {
-        var interval = between(1, 100) * 2; // using integer division by 2 below
-        var tracker = newTracker(interval);
-        var halfIntervalTasks = between(1, 10);
+        var tracker = newTracker();
+        var halfWindowTasks = between(1, 10);
         var notEndingTasks = between(1, 10);
 
-        range(0, halfIntervalTasks + notEndingTasks).forEach(t -> tracker.startTask());
-        fakeTime.time += interval / 2;
-        range(0, halfIntervalTasks).forEach(t -> tracker.endTask());
-        fakeTime.time += interval / 2;
-        var firstFrameTotalTime = interval * halfIntervalTasks / 2 + interval * notEndingTasks;
-        assertEquals(firstFrameTotalTime, tracker.previousFrameTime());
+        range(0, halfWindowTasks + notEndingTasks).forEach(t -> tracker.startTask());
+        fakeTime.time += window / 2;
+        range(0, halfWindowTasks).forEach(t -> tracker.endTask());
+        fakeTime.time += window / 2;
+        var firstFrameTotalTime = window * halfWindowTasks / 2 + window * notEndingTasks;
+        assertEquals(firstFrameTotalTime, tracker.totalTime());
 
-        fakeTime.time += interval;
-        var secondFrameTotalTime = interval * notEndingTasks;
-        assertEquals(secondFrameTotalTime, tracker.previousFrameTime());
+        fakeTime.time += window;
+        var secondFrameTotalTime = window * notEndingTasks;
+        assertEquals(secondFrameTotalTime, tracker.totalTime());
     }
 
     static class FakeTime implements Supplier<Long> {

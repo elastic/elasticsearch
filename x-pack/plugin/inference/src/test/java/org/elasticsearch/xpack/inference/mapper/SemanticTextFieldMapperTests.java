@@ -1166,29 +1166,26 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         String fieldName = "field";
 
         MapperService mapperService = createMapperService(
-            mapping(b -> addSemanticTextMapping(
-                b,
-                fieldName,
-                model.getInferenceEntityId(),
-                null,
-                chunkingSettings,
-                indexOptions,
-                modelSettings
-            )
-        ), useLegacyFormat);
+            mapping(
+                b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, chunkingSettings, indexOptions, modelSettings)
+            ),
+            useLegacyFormat
+        );
         assertSemanticTextField(mapperService, fieldName, true, chunkingSettings, indexOptions);
 
         ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
         merge(
             mapperService,
-            mapping(b -> addSemanticTextMapping(
-                b,
-                fieldName,
-                model.getInferenceEntityId(),
-                null,
-                newChunkingSettings,
-                indexOptions,
-                modelSettings)
+            mapping(
+                b -> addSemanticTextMapping(
+                    b,
+                    fieldName,
+                    model.getInferenceEntityId(),
+                    null,
+                    newChunkingSettings,
+                    indexOptions,
+                    modelSettings
+                )
             )
         );
         assertSemanticTextField(mapperService, fieldName, true, newChunkingSettings, indexOptions);

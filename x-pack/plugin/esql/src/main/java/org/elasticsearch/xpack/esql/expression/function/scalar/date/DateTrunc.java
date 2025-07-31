@@ -320,32 +320,35 @@ public class DateTrunc extends EsqlScalarFunction implements LocalSurrogateExpre
             // Extract min/max from SearchStats
             DataType fieldType = fa.dataType();
             FieldAttribute.FieldName fieldName = fa.fieldName();
-            var min = searchStats.min(fieldName);
-            var max = searchStats.max(fieldName);
+            // Extract min/max from SearchStats
+            Object minFromSearchStats = searchStats.min(fieldName);
+            Object maxFromSearchStats = searchStats.max(fieldName);
+            Long min = toLong(minFromSearchStats);
+            Long max = toLong(maxFromSearchStats);
             // Extract min/max from query
             Tuple<Long, Long> minMaxFromPredicates = minMaxFromPredicates(binaryComparisons);
             Long minFromPredicates = minMaxFromPredicates.v1();
             Long maxFromPredicates = minMaxFromPredicates.v2();
             // Consolidate min/max from SearchStats and query
-            if (minFromPredicates instanceof Long minValue) {
-                min = min instanceof Long m ? Math.max(m, minValue) : minValue;
+            if (minFromPredicates != null) {
+                min = min != null ? Math.max(min, minFromPredicates) : minFromPredicates;
             }
-            if (maxFromPredicates instanceof Long maxValue) {
-                max = max instanceof Long m ? Math.min(m, maxValue) : maxValue;
+            if (maxFromPredicates != null) {
+                max = max != null ? Math.min(max, maxFromPredicates) : maxFromPredicates;
             }
             // If min/max is available create rounding with them
-            if (min instanceof Long minValue && max instanceof Long maxValue && foldableTimeExpression.foldable() && minValue <= maxValue) {
+            if (min != null && max != null && foldableTimeExpression.foldable() && min <= max) {
                 Object foldedInterval = foldableTimeExpression.fold(FoldContext.small() /* TODO remove me */);
-                Rounding.Prepared rounding = roundingFunction.apply(foldedInterval, minValue, maxValue);
+                Rounding.Prepared rounding = roundingFunction.apply(foldedInterval, min, max);
                 long[] roundingPoints = rounding.fixedRoundingPoints();
                 if (roundingPoints == null) {
                     logger.trace(
                         "Fixed rounding point is null for field {}, minValue {} in string format {} and maxValue {} in string format {}",
                         fieldName,
-                        minValue,
-                        dateWithTypeToString(minValue, fieldType),
-                        maxValue,
-                        dateWithTypeToString(maxValue, fieldType)
+                        min,
+                        dateWithTypeToString(min, fieldType),
+                        max,
+                        dateWithTypeToString(max, fieldType)
                     );
                     return null;
                 }
@@ -366,7 +369,7 @@ public class DateTrunc extends EsqlScalarFunction implements LocalSurrogateExpre
         Holder<Boolean> foundMaxValue = new Holder<>(false);
         for (EsqlBinaryComparison binaryComparison : binaryComparisons) {
             if (binaryComparison.right() instanceof Literal l) {
-                long value = Long.parseLong(l.value().toString());
+                long value = toLong(l.value());
                 if (binaryComparison instanceof Equals) {
                     return new Tuple<>(value, value);
                 }
@@ -384,5 +387,9 @@ public class DateTrunc extends EsqlScalarFunction implements LocalSurrogateExpre
             }
         }
         return new Tuple<>(foundMinValue.get() ? min[0] : null, foundMaxValue.get() ? max[0] : null);
+    }
+
+    private static Long toLong(Object value) {
+        return value instanceof Long l ? l : null;
     }
 }

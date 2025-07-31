@@ -472,6 +472,15 @@ public final class RemoteClusterService extends RemoteClusterAware
         updateRemoteCluster(projectResolver.getProjectId(), clusterAlias, newSettings, false, listener);
     }
 
+    /**
+     * Adds, rebuilds, or closes and removes the connection for the specified remote cluster.
+     *
+     * @param projectId The project the remote cluster is associated with.
+     * @param clusterAlias The alias used for the remote cluster being connected.
+     * @param newSettings The updated settings for the remote connection.
+     * @param forceRebuild Forces an existing connection to be closed and reconnected even if the connection strategy does not require it.
+     * @param listener The listener invoked once the configured cluster has been connected.
+     */
     private synchronized void updateRemoteCluster(
         ProjectId projectId,
         String clusterAlias,

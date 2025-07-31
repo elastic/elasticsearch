@@ -239,7 +239,7 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
             clientCache = clientCache.entrySet()
                 .stream()
                 .filter(entry -> entry.getKey().equals(repositoryName) == false)
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, java.util.Map.Entry::getValue));
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
         // package private for tests

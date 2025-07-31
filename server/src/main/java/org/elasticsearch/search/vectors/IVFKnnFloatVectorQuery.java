@@ -15,6 +15,7 @@ import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.knn.KnnCollectorManager;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
@@ -77,7 +78,8 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         LeafReaderContext context,
         Bits acceptDocs,
         int visitedLimit,
-        KnnCollectorManager knnCollectorManager
+        KnnCollectorManager knnCollectorManager,
+        KnnSearchStrategy searchStrategy
     ) throws IOException {
         KnnCollector knnCollector = knnCollectorManager.newCollector(visitedLimit, searchStrategy, context);
         if (knnCollector == null) {
@@ -95,5 +97,10 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         reader.searchNearestVectors(field, query, knnCollector, acceptDocs);
         TopDocs results = knnCollector.topDocs();
         return results != null ? results : NO_RESULTS;
+    }
+
+    @Override
+    float[] getQueryVector() {
+        return query;
     }
 }

@@ -292,6 +292,13 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         IOUtils.close(rawVectorsReader, ivfCentroids, ivfClusters);
     }
 
+    public abstract ScoredCentroidIterator getScoredCentroidIterator(
+        FieldInfo fieldInfo,
+        int numCentroids,
+        IndexInput centroids,
+        float[] queryVector
+    ) throws IOException;
+
     protected record FieldEntry(
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
@@ -315,6 +322,16 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         long nextPostingListOffset() throws IOException;
     }
 
+    public interface ScoredCentroidIterator {
+        boolean hasNext();
+
+        void scorePostingList(long offset) throws IOException;
+
+        long next();
+
+        long nextPostingListOffset() throws IOException;
+    }
+
     interface PostingVisitor {
         // TODO maybe we can not specifically pass the centroid...
 
@@ -323,5 +340,17 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
 
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
+    }
+
+    public IndexInput getIvfCentroids() {
+        return ivfCentroids;
+    }
+
+    public int getNumCentroids(FieldInfo fieldInfo) {
+        return fields.get(fieldInfo.number).numCentroids;
+    }
+
+    public float[] getGlobalCentroid(FieldInfo fieldInfo) {
+        return fields.get(fieldInfo.number).globalCentroid;
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -85,6 +86,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -402,11 +404,15 @@ public class EsqlSession {
                     preAnalysis.inferencePlans,
                     l.map(preAnalysisResult::withInferenceResolution)
                 )
-            );
-        // first resolve the lookup indices, then the main indices
-        for (var index : preAnalysis.lookupIndices) {
-            listener = listener.andThen((l, preAnalysisResult) -> preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, l));
-        }
+            )
+            // first resolve the lookup indices, then the main indices
+            .<PreAnalysisResult>andThen((l, preAnalysisResult) -> {
+                try (var refs = new RefCountingListener(l.map(ignored -> preAnalysisResult))) {
+                    for (var index : preAnalysis.lookupIndices) {
+                        preAnalyzeLookupIndex(index, preAnalysisResult, executionInfo, refs.acquire());
+                    }
+                }
+            });
         listener.<PreAnalysisResult>andThen((l, result) -> {
             // resolve the main indices
             preAnalyzeMainIndices(preAnalysis, executionInfo, result, requestFilter, l);
@@ -448,7 +454,7 @@ public class EsqlSession {
         IndexPattern lookupIndexPattern,
         PreAnalysisResult result,
         EsqlExecutionInfo executionInfo,
-        ActionListener<PreAnalysisResult> listener
+        ActionListener<Void> listener
     ) {
         String localPattern = lookupIndexPattern.indexPattern();
         assert RemoteClusterAware.isRemoteIndexName(localPattern) == false
@@ -469,12 +475,10 @@ public class EsqlSession {
             return;
         }
         // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-        indexResolver.resolveAsMergedMapping(
-            patternWithRemotes,
-            fieldNames,
-            null,
-            listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
-        );
+        indexResolver.resolveAsMergedMapping(patternWithRemotes, fieldNames, null, listener.map(indexResolution -> {
+            receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution);
+            return null;
+        }));
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
@@ -812,7 +816,7 @@ public class EsqlSession {
     ) {
 
         public PreAnalysisResult(EnrichResolution enrichResolution, Set<String> fieldNames, Set<String> wildcardJoinIndices) {
-            this(null, new HashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY);
+            this(null, new ConcurrentHashMap<>(), enrichResolution, fieldNames, wildcardJoinIndices, InferenceResolution.EMPTY);
         }
 
         PreAnalysisResult withInferenceResolution(InferenceResolution newInferenceResolution) {

@@ -1,10 +1,7 @@
 // Tests focused on the SAMPLE command
 // Note: this tests only basic behavior, because of limitations of the CSV tests.
 // Most tests assert that the count, average and sum of some values are within a
-// range. These stats should be correctly adjusted for the sampling. Furthermore,
-// they also assert the value of MV_COUNT(VALUES(...)), which is not adjusted for
-// the sampling and therefore gives the size of the sample.
-// All ranges are very loose, so that the tests should practically never fail.
+// range. All ranges are very loose, so that the tests should practically never fail.
 
 row
 required_capability: sample_v3

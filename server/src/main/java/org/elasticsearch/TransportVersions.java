@@ -354,7 +354,8 @@ public class TransportVersions {
     public static final TransportVersion RERANK_SNIPPETS = def(9_130_0_00);
     public static final TransportVersion PIPELINE_TRACKING_INFO = def(9_131_0_00);
     public static final TransportVersion COMPONENT_TEMPLATE_TRACKING_INFO = def(9_132_0_00);
-    public static final TransportVersion THREAD_POOL_UTILIZATION_MULTI_SAMPLE_CLUSTER_INFO = def(9_133_0_00);
+    public static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = def(9_133_0_00);
+    public static final TransportVersion THREAD_POOL_UTILIZATION_MULTI_SAMPLE_CLUSTER_INFO = def(9_134_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -37,6 +37,7 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -655,7 +656,7 @@ public class SSLServiceTests extends ESTestCase {
 
         // ensure it actually goes through and calls the real method
         when(sslService.sslIOSessionStrategy(settings)).thenCallRealMethod();
-        when(sslService.sslIOSessionStrategy(sslConfig)).thenCallRealMethod();
+        when(sslService.sslIOSessionStrategy(Mockito.eq(sslConfig), Mockito.any(SSLContext.class))).thenCallRealMethod();
 
         final SSLIOSessionStrategy actual = sslService.sslIOSessionStrategy(settings);
         assertThat(actual, sameInstance(sslStrategy));
@@ -961,7 +962,7 @@ public class SSLServiceTests extends ESTestCase {
         final SSLService sslService = new SSLService(env);
         final SSLContext sslContext1 = sslService.sslContext(sslService.sslConfiguration(Settings.EMPTY));
         final SSLContext sslContext2 = sslService.profile("xpack.http.ssl").sslContext();
-     
+
         for (var sslContext : List.of(sslContext1, sslContext2)) {
             try (CloseableHttpClient client = HttpClients.custom().setSSLContext(sslContext).build()) {
                 // Execute a GET on a site known to have a valid certificate signed by a trusted public CA
@@ -992,9 +993,9 @@ public class SSLServiceTests extends ESTestCase {
     @Network
     public void testThatSSLIOSessionStrategyWithoutSettingsWorks() throws Exception {
         SSLService sslService = new SSLService(env);
-        SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        logger.info("SSL Configuration: {}", sslConfiguration);
-        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
+        SslProfile profile = sslService.profile("xpack.security.transport.ssl");
+        logger.info("SSL Configuration: {}", profile.configuration());
+        SSLIOSessionStrategy sslStrategy = profile.ioSessionStrategy4();
         try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 
@@ -1014,7 +1015,8 @@ public class SSLServiceTests extends ESTestCase {
             .setSecureSettings(secureSettings)
             .build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslService.getSSLConfiguration("xpack.security.transport.ssl"));
+        final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
+        final SSLIOSessionStrategy sslStrategy = profile.ioSessionStrategy4();
         try (CloseableHttpAsyncClient client = getAsyncHttpClient(sslStrategy)) {
             client.start();
 

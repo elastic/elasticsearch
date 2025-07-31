@@ -233,17 +233,17 @@ public class SSLService {
      *                      return a context created from the default configuration
      * @return Never {@code null}.
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
-     * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #getSSLConfiguration(String)}
-     * and {@link #sslIOSessionStrategy(SslConfiguration)} (Deprecated, but not removed because monitoring uses dynamic SSL settings)
+     * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #profile(String)}
+     * and {@link SslProfile#ioSessionStrategy4()}
+     * (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
     public SSLIOSessionStrategy sslIOSessionStrategy(Settings settingsToUse) {
         SslConfiguration config = sslConfiguration(settingsToUse);
-        return sslIOSessionStrategy(config);
+        return sslIOSessionStrategy(config, sslContext(config));
     }
 
-    public SSLIOSessionStrategy sslIOSessionStrategy(SslConfiguration config) {
-        SSLContext sslContext = sslContext(config);
+    SSLIOSessionStrategy sslIOSessionStrategy(SslConfiguration config, SSLContext sslContext) {
         String[] ciphers = supportedCiphers(sslParameters(sslContext).getCipherSuites(), config.getCipherSuites(), false);
         String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         HostnameVerifier verifier;
@@ -254,8 +254,7 @@ public class SSLService {
             verifier = NoopHostnameVerifier.INSTANCE;
         }
 
-        final SSLIOSessionStrategy strategy = sslIOSessionStrategy(sslContext, supportedProtocols, ciphers, verifier);
-        return strategy;
+        return sslIOSessionStrategy(sslContext, supportedProtocols, ciphers, verifier);
     }
 
     public static HostnameVerifier getHostnameVerifier(SslConfiguration sslConfiguration) {
@@ -847,7 +846,7 @@ public class SSLService {
 
         @Override
         public SSLIOSessionStrategy ioSessionStrategy4() {
-            return SSLService.this.sslIOSessionStrategy(this.sslConfiguration);
+            return sslIOSessionStrategy(this.sslConfiguration, context);
         }
 
         @Override

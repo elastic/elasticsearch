@@ -31,12 +31,9 @@ Combining `query` and `retrievers` is not supported.
 `normalizer` {applies_to}`stack: ga 9.1`
 :   (Optional, String)
 
-    The normalizer to use for score normalization. This serves as the default normalizer for all sub-retrievers.
+    The normalizer to use when using the [multi-field query format](../retrievers.md#multi-field-query-format).
     See [normalizers](#linear-retriever-normalizers) for supported values.
-    
-    When using the [multi-field query format](../retrievers.md#multi-field-query-format), this field is required when `query` is specified.
-    
-    When using the `retrievers` array format, this field serves as the default normalizer for all sub-retrievers. Individual sub-retrievers can override this default by specifying their own `normalizer` field.
+    Required when `query` is specified.
 
     ::::{warning}
     Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.

@@ -18,7 +18,6 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.serverless.multiproject.ServerlessMultiProjectPlugin;
-import co.elastic.elasticsearch.serverless.multiproject.action.DeleteProjectAction;
 import co.elastic.elasticsearch.serverless.multiproject.action.TransportGetProjectStatusAction;
 import co.elastic.elasticsearch.settings.secure.ServerlessSecureSettingsPlugin;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
@@ -34,6 +33,7 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
+import co.elastic.elasticsearch.stateless.multiproject.ProjectLease;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
@@ -63,18 +63,20 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -1153,7 +1155,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         Files.createDirectories(fileSettingsService.watchedFileDir());
         final long newVersion = reservedStateVersionCounter.incrementAndGet();
 
-        final String settingsJson = addProjectIdToSettingsJson(fileSettingsService, newVersion, projectId.id());
+        final String settingsJson = addProjectIdToSettingsJson(fileSettingsService.watchedFile(), newVersion, projectId.id());
         final String repositoryJson = getRepositoryJson(repositoryMetadata);
         final var projectSettingsJson = Strings.format("""
             {
@@ -1203,25 +1205,93 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 )
             )
         );
+
+        // TODO: Wait for the lease to be claimed. This is needed until we have ES-11206
+        final var blobContainer = getCurrentMasterObjectStoreService().getClusterRootContainer();
+        final var clusterUuid = internalCluster().clusterService().state().metadata().clusterUUID();
+        final var projectLeaseBlobName = ProjectLease.leaseBlobName(projectId);
+        assertBusy(() -> {
+            assertTrue(blobContainer.blobExists(OperationPurpose.CLUSTER_STATE, projectLeaseBlobName));
+            final ProjectLease projectLease = readProjectLease(projectLeaseBlobName);
+            assertTrue(projectLease.isAssigned());
+            assertEquals(projectLease.clusterUuidAsString(), clusterUuid);
+        });
     }
 
+    @SuppressWarnings("unchecked")
     protected void removeProject(ProjectId projectId) throws Exception {
         assert multiProjectIntegrationTest() : "multiProjectIntegrationTest() must be overridden to true for multi-project tests";
-        final var fileSettingsService = internalCluster().getCurrentMasterNodeInstance(FileSettingsService.class);
-        assertTrue(fileSettingsService.watching());
-        Files.createDirectories(fileSettingsService.watchedFileDir());
-        final long newVersion = reservedStateVersionCounter.incrementAndGet();
 
-        final String settingsJson = removeProjectIdFromSettingsJson(fileSettingsService, newVersion, projectId.id());
+        logger.info("--> marking project [{}] for deletion", projectId);
+        final var settingsJsonPath = getFileSettingsWatchedFile();
+        final var newVersion = nextReservedStateVersion();
 
-        Files.deleteIfExists(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".json"));
-        Files.deleteIfExists(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".secrets.json"));
-        Files.writeString(fileSettingsService.watchedFile(), settingsJson);
+        // Mark the project for deletion
+        // Project secrets file
+        final var projectSecretsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".secrets.json");
+        {
+            final var map = XContentHelper.convertToMap(JSON.xContent(), Files.readString(projectSecretsPath), false);
+            final var metadata = (Map<String, Object>) map.get("metadata");
+            metadata.put("version", Strings.format("%s", newVersion));
+            writeAndMoveContentAtomically(
+                XContentHelper.convertToJson(XContentTestUtils.convertToXContent(map, JSON), false, XContentType.JSON),
+                projectSecretsPath
+            );
+        }
+        // Project settings file
+        final var projectSettingsPath = settingsJsonPath.resolveSibling("project-" + projectId + ".json");
+        {
+            final var map = XContentHelper.convertToMap(JSON.xContent(), Files.readString(projectSettingsPath), false);
+            final var state = (Map<String, Object>) map.get("state");
+            state.put("marked_for_deletion", true); // mark for deletion
+            final var metadata = (Map<String, Object>) map.get("metadata");
+            metadata.put("version", Strings.format("%s", newVersion));
+            writeAndMoveContentAtomically(
+                XContentHelper.convertToJson(XContentTestUtils.convertToXContent(map, JSON), false, XContentType.JSON),
+                projectSettingsPath
+            );
+        }
 
-        @FixForMultiProject(description = "Remove the API call once https://elasticco.atlassian.net/browse/ES-11454 is resolved")
-        final var request = new DeleteProjectAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, projectId);
-        assertTrue(safeGet(client().execute(DeleteProjectAction.INSTANCE, request)).isAcknowledged());
-        assertThat(internalCluster().clusterService().state().blocks().projectBlocks(projectId).isEmpty(), is(true));
+        // Wait for lease to be released and project metadata to be removed
+        final var blobContainer = getCurrentMasterObjectStoreService().getClusterRootContainer();
+        final var projectLeaseBlobName = ProjectLease.leaseBlobName(projectId);
+        assertBusy(() -> {
+            assertTrue(blobContainer.blobExists(OperationPurpose.CLUSTER_STATE, projectLeaseBlobName));
+            final ProjectLease projectLease = readProjectLease(projectLeaseBlobName);
+            assertFalse(projectLease.isAssigned()); // Lease is released
+            assertArrayEquals(ProjectLease.NIL_UUID, projectLease.clusterUuid());
+            assertFalse(internalCluster().getInstance(ClusterService.class).state().metadata().hasProject(projectId));
+        });
+
+        // Clean up config files after project deletion
+        Files.deleteIfExists(projectSecretsPath);
+        Files.deleteIfExists(projectSettingsPath);
+        final String settingsJson = removeProjectIdFromSettingsJson(
+            settingsJsonPath,
+            reservedStateVersionCounter.incrementAndGet(),
+            projectId.id()
+        );
+        writeAndMoveContentAtomically(settingsJson, settingsJsonPath);
+        // TODO: Manually clean up the project registry. Otherwise the same project cannot be recreated due to the marked_for_deletion flag.
+        // This is temporary because the clean-up should happen automatically when the project config files are removed. See also ES-12411
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        clusterService.submitUnbatchedStateUpdateTask("delete-project-from-state-registry", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return ClusterState.builder(currentState)
+                    .putCustom(
+                        ProjectStateRegistry.TYPE,
+                        ProjectStateRegistry.builder(ProjectStateRegistry.get(currentState)).removeProject(projectId).build()
+                    )
+                    .build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e, "fail to delete project from state registry");
+            }
+        });
+        awaitClusterState(state -> ProjectStateRegistry.get(state).hasProject(projectId) == false);
     }
 
     protected Path getFileSettingsWatchedFile() throws IOException {
@@ -1259,9 +1329,8 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return Strings.toString(xContentBuilder);
     }
 
-    private String addProjectIdToSettingsJson(FileSettingsService fileSettingsService, long newVersion, String projectId)
-        throws IOException {
-        return updateSettingsJson(fileSettingsService, newVersion, map -> {
+    private String addProjectIdToSettingsJson(Path settingsJsonPath, long newVersion, String projectId) throws IOException {
+        return updateSettingsJson(settingsJsonPath, newVersion, map -> {
             @SuppressWarnings("unchecked")
             final var projects = new HashSet<>((Collection<String>) map.getOrDefault("projects", Set.of()));
             final var added = projects.add(projectId);
@@ -1270,26 +1339,24 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         });
     }
 
-    private String removeProjectIdFromSettingsJson(FileSettingsService fileSettingsService, long newVersion, String projectId)
-        throws IOException {
-        return updateSettingsJson(fileSettingsService, newVersion, map -> {
+    private String removeProjectIdFromSettingsJson(Path settingsJsonPath, long newVersion, String projectId) throws IOException {
+        return updateSettingsJson(settingsJsonPath, newVersion, map -> {
             @SuppressWarnings("unchecked")
             final var projects = (Collection<String>) map.getOrDefault("projects", new HashSet<>());
             final var removed = projects.remove(projectId);
             if (removed == false) {
-                logger.info("--> project [{}] does not exist in the test cluster", projectId);
+                logger.info("--> project [{}] does not exist in settings.json", projectId);
                 return;
             }
-            logger.info("--> removing project [{}]", projectId);
+            logger.info("--> removing project [{}] from settings.json", projectId);
             map.put("projects", projects);
         });
     }
 
-    private String updateSettingsJson(FileSettingsService fileSettingsService, long newVersion, Consumer<Map<String, Object>> updater)
-        throws IOException {
+    private String updateSettingsJson(Path settingsJsonPath, long newVersion, Consumer<Map<String, Object>> updater) throws IOException {
         final Map<String, Object> map;
-        if (Files.exists(fileSettingsService.watchedFile())) {
-            map = XContentHelper.convertToMap(JSON.xContent(), Files.readString(fileSettingsService.watchedFile()), false);
+        if (Files.exists(settingsJsonPath)) {
+            map = XContentHelper.convertToMap(JSON.xContent(), Files.readString(settingsJsonPath), false);
         } else {
             map = XContentHelper.convertToMap(JSON.xContent(), """
                 {
@@ -1310,5 +1377,11 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         metadata.put("version", Strings.format("%s", newVersion));
 
         return XContentHelper.convertToJson(XContentTestUtils.convertToXContent(map, JSON), false, XContentType.JSON);
+    }
+
+    protected static ProjectLease readProjectLease(String blobName) throws IOException {
+        try (var in = getCurrentMasterObjectStoreService().getClusterRootContainer().readBlob(OperationPurpose.CLUSTER_STATE, blobName)) {
+            return ProjectLease.fromBytes(new BytesArray(in.readAllBytes()));
+        }
     }
 }

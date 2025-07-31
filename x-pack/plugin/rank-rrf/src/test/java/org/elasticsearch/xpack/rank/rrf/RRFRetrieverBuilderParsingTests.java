@@ -336,6 +336,27 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             """;
 
         expectParsingException(negativeWeightContent, "[weight] must be non-negative");
+
+        // Test case 5: Retriever as non-object
+        String retrieverAsStringContent = """
+            {
+              "retriever": {
+                "rrf": {
+                  "retrievers": [
+                    {
+                      "retriever": "not_an_object"
+                    }
+                  ],
+                  "rank_window_size": 100,
+                  "rank_constant": 10,
+                  "min_score": 20.0,
+                  "_name": "foo_rrf"
+                }
+              }
+            }
+            """;
+
+        expectParsingException(retrieverAsStringContent, "retriever must be an object");
     }
 
     private void expectParsingException(String restContent, String expectedMessageFragment) throws IOException {

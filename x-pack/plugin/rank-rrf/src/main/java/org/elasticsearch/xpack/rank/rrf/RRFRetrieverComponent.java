@@ -82,6 +82,9 @@ public class RRFRetrieverComponent implements ToXContentObject {
                         throw new ParsingException(parser.getTokenLocation(), "only one retriever can be specified");
                     }
                     parser.nextToken();
+                    if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                        throw new ParsingException(parser.getTokenLocation(), "retriever must be an object");
+                    }
                     parser.nextToken();
                     String retrieverType = parser.currentName();
                     retriever = parser.namedObject(RetrieverBuilder.class, retrieverType, context);

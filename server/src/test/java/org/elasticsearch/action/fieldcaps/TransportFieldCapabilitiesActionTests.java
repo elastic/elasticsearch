@@ -138,7 +138,7 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             assertArrayEquals(concreteIndices, result);
         }
 
-        // Global block
+        // Global READ block
         {
             final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .putProjectMetadata(ProjectMetadata.builder(projectId).build())

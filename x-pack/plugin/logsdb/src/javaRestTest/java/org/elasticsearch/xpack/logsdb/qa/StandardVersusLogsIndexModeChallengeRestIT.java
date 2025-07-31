@@ -11,12 +11,16 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
+import org.elasticsearch.datageneration.matchers.source.SourceTransforms;
+import org.elasticsearch.datageneration.queries.QueryGenerator;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -37,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -132,10 +137,50 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         final MatchResult matchResult = Matcher.matchSource()
             .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
+            .expected(getQueryHits(queryBaseline(searchSourceBuilder), true))
             .ignoringSort(true)
-            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder), true));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
+    }
+
+    public void testRandomQueries() throws IOException {
+        int numberOfDocuments = ESTestCase.randomIntBetween(10, 50);
+        final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);
+        var mappingLookup = dataGenerationHelper.mapping().lookup();
+        final List<Map<String, List<Object>>> docsNormalized = documents.stream().map(d -> {
+            var document = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(d), true);
+            return SourceTransforms.normalize(document, mappingLookup);
+        }).toList();
+
+        indexDocuments(documents);
+
+        QueryGenerator queryGenerator = new QueryGenerator(dataGenerationHelper.mapping());
+        Map<String, String> fieldsTypes = dataGenerationHelper.getTemplateFieldTypes();
+        for (var e : fieldsTypes.entrySet()) {
+            var path = e.getKey();
+            var type = e.getValue();
+            var docsWithFields = docsNormalized.stream().filter(d -> d.containsKey(path)).toList();
+            if (docsWithFields.isEmpty() == false) {
+                var doc = randomFrom(docsWithFields);
+                List<Object> values = doc.get(path).stream().filter(Objects::nonNull).toList();
+                if (values.isEmpty() == false) {
+                    Object value = randomFrom(values);
+                    List<QueryBuilder> queries = queryGenerator.generateQueries(type, path, value);
+                    for (var query : queries) {
+                        logger.info("Querying for field [{}] with value [{}]", path, value);
+
+                        final SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(query).size(numberOfDocuments);
+                        final MatchResult matchResult = Matcher.matchSource()
+                            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
+                            .settings(getContenderSettings(), getBaselineSettings())
+                            .expected(getQueryHits(queryBaseline(searchSourceBuilder), false))
+                            .ignoringSort(true)
+                            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder), false));
+                        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+                    }
+                }
+            }
+        }
     }
 
     public void testTermsQuery() throws IOException {
@@ -150,9 +195,9 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         final MatchResult matchResult = Matcher.matchSource()
             .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
-            .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
+            .expected(getQueryHits(queryBaseline(searchSourceBuilder), true))
             .ignoringSort(true)
-            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder)));
+            .isEqualTo(getQueryHits(queryContender(searchSourceBuilder), true));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
@@ -291,12 +336,15 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     }
 
     @SuppressWarnings("unchecked")
-    private static List<Map<String, Object>> getQueryHits(final Response response) throws IOException {
+    private static List<Map<String, Object>> getQueryHits(final Response response, final boolean requireResults) throws IOException {
         final Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), response.getEntity().getContent(), true);
         final Map<String, Object> hitsMap = (Map<String, Object>) map.get("hits");
 
         final List<Map<String, Object>> hitsList = (List<Map<String, Object>>) hitsMap.get("hits");
-        assertThat(hitsList.size(), greaterThan(0));
+
+        if (requireResults) {
+            assertThat(hitsList.size(), greaterThan(0));
+        }
 
         return hitsList.stream()
             .sorted(Comparator.comparing((Map<String, Object> hit) -> ((String) hit.get("_id"))))

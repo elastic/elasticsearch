@@ -151,11 +151,23 @@ aggField
     ;
 
 qualifiedName
+    // TODO: Test all kind of valid/invalid qualifier strings and make sure they make sense. Same for patterns below.
+    // TODO: Account for qualifiers in parameters.
+    : name=unqualifiedName
+    | {this.isDevVersion()}? qualifier=UNQUOTED_SOURCE? name=unqualifiedName
+    ;
+
+unqualifiedName
     : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : identifierPattern (DOT identifierPattern)*
+    : name=unqualifiedNamePattern
+    | {this.isDevVersion()}? qualifier=UNQUOTED_SOURCE? name=unqualifiedNamePattern
+    ;
+
+unqualifiedNamePattern
+    : (identifierPattern (DOT identifierPattern)*)
     ;
 
 qualifiedNamePatterns

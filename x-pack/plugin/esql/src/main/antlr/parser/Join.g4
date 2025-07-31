@@ -11,7 +11,10 @@ joinCommand
     ;
 
 joinTarget
-    : index=indexPattern
+    // TODO: UNQUOTED_SOURCE should be restricted further - and we should have reserved
+    // characters for internal usage.
+    : index=indexPattern qualifier=UNQUOTED_SOURCE?
+    | {this.isDevVersion()}? index=indexPattern (AS? qualifier=UNQUOTED_SOURCE)?
     ;
 
 joinCondition

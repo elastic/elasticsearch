@@ -37,7 +37,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -69,7 +71,8 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         super.setUp();
         privateKeyIdGenerators = ConcurrentCollections.newConcurrentMap();
         statsCollector = new GcsRepositoryStatsCollector();
-        clientNames = IntStream.range(0, between(2, 5)).mapToObj(i -> randomIdentifier() + "_" + i).toList();
+        clientNames = Stream.concat(Stream.of("default"), IntStream.range(0, between(1, 4)).mapToObj(i -> randomIdentifier() + "_" + i))
+            .toList();
 
         final Settings.Builder builder = Settings.builder();
         final var mockSecureSettings = new MockSecureSettings();
@@ -180,6 +183,32 @@ public class GoogleCloudStorageClientsManagerTests extends ESTestCase {
         assertClientNotFound(projectId, clientName);
 
         assertThat(gcsClientsManager.getPerProjectClientsHolders(), not(hasKey(projectId)));
+    }
+
+    public void testClientsWithNoCredentialsAreFilteredOut() throws IOException {
+        final ProjectId projectId = randomUniqueProjectId();
+        updateProjectInClusterState(projectId, newProjectClientsSecrets(projectId, clientNames.toArray(String[]::new)));
+        for (var clientName : clientNames) {
+            assertNotNull(getClientFromManager(projectId, clientName));
+        }
+
+        final List<String> clientsWithIncorrectSecretsConfig = randomNonEmptySubsetOf(clientNames);
+
+        updateProjectInClusterState(projectId, clientNames.stream().collect(Collectors.toUnmodifiableMap(clientName -> {
+            if (clientsWithIncorrectSecretsConfig.contains(clientName)) {
+                return "gcs.client." + clientName + ".some_non_existing_setting";
+            } else {
+                return CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(clientName).getKey();
+            }
+        }, clientName -> TestUtils.createServiceAccount(random(), projectClientPrivateKeyId(projectId, clientName)))));
+
+        for (var clientName : clientNames) {
+            if (clientsWithIncorrectSecretsConfig.contains(clientName)) {
+                assertClientNotFound(projectId, clientName);
+            } else {
+                assertNotNull(getClientFromManager(projectId, clientName));
+            }
+        }
     }
 
     public void testClientsForMultipleProjects() throws InterruptedException {

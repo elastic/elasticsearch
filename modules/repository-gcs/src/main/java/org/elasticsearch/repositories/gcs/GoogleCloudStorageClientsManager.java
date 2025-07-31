@@ -14,11 +14,11 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -89,20 +89,25 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
                 .put(nodeGcsSettings)
                 .setSecureSettings(projectSecrets.getSettings())
                 .build();
-            final Map<String, GoogleCloudStorageClientSettings> clientSettings = GoogleCloudStorageClientSettings.load(currentSettings)
-                .entrySet()
+
+            final var allClientSettings = GoogleCloudStorageClientSettings.load(currentSettings);
+            assert allClientSettings.isEmpty() == false;
+            // Skip project clients that have no credentials configured. This should not happen in serverless.
+            // But it is safer to skip them and is also a more consistent behaviour with the cases when
+            // project secrets are not present.
+            final var clientSettings = allClientSettings.entrySet()
                 .stream()
-                // Skip project clients that have no credentials configured. This should not happen in serverless.
-                // But it is safer to skip them and is also a more consistent behaviour with the cases when
-                // project secrets are not present.
                 .filter(entry -> entry.getValue().getCredential() != null)
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            if (clientSettings.isEmpty()) {
-                // clientSettings should not be empty, i.e. there should be at least one client configured.
-                // But if it does somehow happen, log a warning and continue. The project will not have usable client but that is ok.
-                logger.warn("Skipping project [{}] with no client settings", project.id());
-                continue;
+            if (allClientSettings.size() != clientSettings.size()) {
+                logger.warn(
+                    "Project [{}] has [{}] GCS client settings, but [{}] is usable due to missing credentials for clients {}",
+                    project.id(),
+                    allClientSettings.size(),
+                    clientSettings.size(),
+                    Sets.difference(allClientSettings.keySet(), clientSettings.keySet())
+                );
             }
 
             // TODO: If performance is an issue, we may consider comparing just the relevant project secrets for new or updated clients
@@ -221,10 +226,7 @@ public class GoogleCloudStorageClientsManager implements ClusterStateApplier {
 
                 if (settings == null) {
                     throw new IllegalArgumentException(
-                        "Unknown client name ["
-                            + clientName
-                            + "]. Existing client configs: "
-                            + Strings.collectionToDelimitedString(allClientSettings().keySet(), ",")
+                        "Unknown client name [" + clientName + "]. Existing client configs: " + allClientSettings().keySet()
                     );
                 }
 

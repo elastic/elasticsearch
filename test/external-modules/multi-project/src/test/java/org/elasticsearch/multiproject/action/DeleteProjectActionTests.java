@@ -59,9 +59,9 @@ public class DeleteProjectActionTests extends ESTestCase {
         var projects = randomList(1, 5, ESTestCase::randomUniqueProjectId);
         var deletedProjects = randomSubsetOf(projects);
         var state = buildState(projects);
-        var listener = ActionListener.assertAtLeastOnce(ActionTestUtils.<AcknowledgedResponse>assertNoSuccessListener(e -> {
-            assertTrue(e instanceof IllegalArgumentException);
-        }));
+        var listener = ActionListener.assertAtLeastOnce(
+            ActionTestUtils.<AcknowledgedResponse>assertNoSuccessListener(e -> assertTrue(e instanceof IllegalArgumentException))
+        );
         var nonExistingTask = createTask(randomUniqueProjectId(), listener);
         var tasks = Stream.concat(Stream.of(nonExistingTask), deletedProjects.stream().map(this::createTask)).toList();
         var result = ClusterStateTaskExecutorUtils.executeHandlingResults(state, executor, tasks, t -> {}, DeleteProjectTask::onFailure);

@@ -240,64 +240,7 @@ public class SSLService {
     @Deprecated
     public SSLIOSessionStrategy sslIOSessionStrategy(Settings settingsToUse) {
         SslConfiguration config = sslConfiguration(settingsToUse);
-        return sslIOSessionStrategy(config, sslContext(config));
-    }
-
-    SSLIOSessionStrategy sslIOSessionStrategy(SslConfiguration config, SSLContext sslContext) {
-        String[] ciphers = supportedCiphers(sslParameters(sslContext).getCipherSuites(), config.getCipherSuites(), false);
-        String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
-        HostnameVerifier verifier;
-
-        if (config.verificationMode().isHostnameVerificationEnabled()) {
-            verifier = SSLIOSessionStrategy.getDefaultHostnameVerifier();
-        } else {
-            verifier = NoopHostnameVerifier.INSTANCE;
-        }
-
-        return sslIOSessionStrategy(sslContext, supportedProtocols, ciphers, verifier);
-    }
-
-    /**
-     * The {@link SSLParameters} that are associated with the {@code sslContext}.
-     * <p>
-     * This method exists to simplify testing since {@link SSLContext#getSupportedSSLParameters()} is {@code final}.
-     *
-     * @param sslContext The SSL context for the current SSL settings
-     * @return Never {@code null}.
-     */
-    SSLParameters sslParameters(SSLContext sslContext) {
-        return sslContext.getSupportedSSLParameters();
-    }
-
-    /**
-     * This method only exists to simplify testing of {@link #sslIOSessionStrategy(Settings)} because {@link SSLIOSessionStrategy} does
-     * not expose any of the parameters that you give it.
-     *
-     * @param sslContext SSL Context used to handle SSL / TCP requests
-     * @param protocols  Supported protocols
-     * @param ciphers    Supported ciphers
-     * @param verifier   Hostname verifier
-     * @return Never {@code null}.
-     */
-    SSLIOSessionStrategy sslIOSessionStrategy(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
-        return new SSLIOSessionStrategy(sslContext, protocols, ciphers, verifier) {
-            @Override
-            protected void verifySession(HttpHost host, IOSession iosession, SSLSession session) throws SSLException {
-                if (verifier.verify(host.getHostName(), session) == false) {
-                    final Certificate[] certs = session.getPeerCertificates();
-                    final X509Certificate x509 = (X509Certificate) certs[0];
-                    final X500Principal x500Principal = x509.getSubjectX500Principal();
-                    final String altNames = Strings.collectionToCommaDelimitedString(SslDiagnostics.describeValidHostnames(x509));
-                    throw new SSLPeerUnverifiedException(
-                        LoggerMessageFormat.format(
-                            "Expected SSL certificate to be valid for host [{}],"
-                                + " but it is only valid for subject alternative names [{}] and subject [{}]",
-                            new Object[] { host.getHostName(), altNames, x500Principal.toString() }
-                        )
-                    );
-                }
-            }
-        };
+        return SSLIOSessionStrategyBuilder.INSTANCE.sslIOSessionStrategy(config, sslContext(config));
     }
 
     /**
@@ -374,7 +317,7 @@ public class SSLService {
      *
      * @throws IllegalArgumentException if no supported ciphers are in the requested ciphers
      */
-    String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
+    static String[] supportedCiphers(String[] supportedCiphers, List<String> requestedCiphers, boolean log) {
         List<String> supportedCiphersList = new ArrayList<>(requestedCiphers.size());
         List<String> unsupportedCiphers = new LinkedList<>();
         boolean found;
@@ -795,7 +738,7 @@ public class SSLService {
 
         @Override
         public SSLIOSessionStrategy ioSessionStrategy4() {
-            return sslIOSessionStrategy(this.sslConfiguration, context);
+            return SSLIOSessionStrategyBuilder.INSTANCE.sslIOSessionStrategy(this.sslConfiguration, context);
         }
 
         @Override

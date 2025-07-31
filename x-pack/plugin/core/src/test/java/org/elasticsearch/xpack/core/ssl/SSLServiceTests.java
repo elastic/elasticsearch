@@ -539,7 +539,7 @@ public class SSLServiceTests extends ESTestCase {
 
         final SSLSocketFactory factory = profile.socketFactory();
         final SslConfiguration config = profile.configuration();
-        final String[] ciphers = sslService.supportedCiphers(factory.getSupportedCipherSuites(), config.getCipherSuites(), false);
+        final String[] ciphers = SSLService.supportedCiphers(factory.getSupportedCipherSuites(), config.getCipherSuites(), false);
         assertThat(factory.getDefaultCipherSuites(), is(ciphers));
 
         final String[] getSupportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
@@ -566,65 +566,13 @@ public class SSLServiceTests extends ESTestCase {
         final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
         final SSLEngine engine = profile.engine(null, -1);
         final SslConfiguration configuration = profile.configuration();
-        final String[] ciphers = sslService.supportedCiphers(engine.getSupportedCipherSuites(), configuration.getCipherSuites(), false);
+        final String[] ciphers = SSLService.supportedCiphers(engine.getSupportedCipherSuites(), configuration.getCipherSuites(), false);
         final String[] getSupportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         assertThat(engine.getEnabledCipherSuites(), is(ciphers));
         assertArrayEquals(ciphers, engine.getSSLParameters().getCipherSuites());
         // the order we set the protocols in is not going to be what is returned as internally the JDK may sort the versions
         assertThat(engine.getEnabledProtocols(), arrayContainingInAnyOrder(getSupportedProtocols));
         assertThat(engine.getSSLParameters().getProtocols(), arrayContainingInAnyOrder(getSupportedProtocols));
-    }
-
-    public void testSSLStrategy() {
-        // this just exhaustively verifies that the right things are called and that it uses the right parameters
-        SslVerificationMode mode = randomFrom(SslVerificationMode.values());
-        Settings settings = Settings.builder()
-            .put("supported_protocols", "protocols")
-            .put("cipher_suites", "INVALID_CIPHER")
-            .put("verification_mode", mode.name())
-            .build();
-        SSLService sslService = mock(SSLService.class);
-        SslConfiguration sslConfig = SslSettingsLoader.load(settings, null, env);
-        SSLParameters sslParameters = mock(SSLParameters.class);
-        SSLContext sslContext = mock(SSLContext.class);
-        String[] protocols = new String[] { "protocols" };
-        String[] ciphers = new String[] { "ciphers!!!" };
-        String[] supportedCiphers = new String[] { "supported ciphers" };
-        List<String> requestedCiphers = List.of("INVALID_CIPHER");
-        SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
-
-        when(sslService.sslConfiguration(settings)).thenReturn(sslConfig);
-        when(sslService.sslContext(sslConfig)).thenReturn(sslContext);
-        when(sslService.supportedCiphers(any(String[].class), anyList(), any(Boolean.TYPE))).thenAnswer(inv -> {
-            final Object[] args = inv.getArguments();
-            assertThat(args[0], is(supportedCiphers));
-            assertThat(args[1], is(requestedCiphers));
-            assertThat(args[2], is(false));
-            return ciphers;
-        });
-        when(sslService.sslParameters(sslContext)).thenReturn(sslParameters);
-        when(sslParameters.getCipherSuites()).thenReturn(supportedCiphers);
-
-        when(sslService.sslIOSessionStrategy(any(SSLContext.class), any(String[].class), any(String[].class), any(HostnameVerifier.class)))
-            .thenAnswer(inv -> {
-                final Object[] args = inv.getArguments();
-                assertThat(args[0], is(sslContext));
-                assertThat(args[1], is(protocols));
-                assertThat(args[2], is(ciphers));
-                if (mode.isHostnameVerificationEnabled()) {
-                    assertThat(args[3], instanceOf(DefaultHostnameVerifier.class));
-                } else {
-                    assertThat(args[3], sameInstance(NoopHostnameVerifier.INSTANCE));
-                }
-                return sslStrategy;
-            });
-
-        // ensure it actually goes through and calls the real method
-        when(sslService.sslIOSessionStrategy(settings)).thenCallRealMethod();
-        when(sslService.sslIOSessionStrategy(Mockito.eq(sslConfig), Mockito.any(SSLContext.class))).thenCallRealMethod();
-
-        final SSLIOSessionStrategy actual = sslService.sslIOSessionStrategy(settings);
-        assertThat(actual, sameInstance(sslStrategy));
     }
 
     public void testGetConfigurationByContextName() throws Exception {

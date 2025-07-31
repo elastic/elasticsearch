@@ -196,7 +196,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements Chunked
 
     @Override
     public String toString() {
-        if (!indexResponses.isEmpty()) {
+        if (indexResponses.size() > 0) {
             return "FieldCapabilitiesResponse{unmerged}";
         }
         return Strings.toString(this);

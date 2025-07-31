@@ -656,6 +656,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#completionCommand}.
    * @param ctx the parse tree
    */
@@ -705,16 +715,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitFuseCommand(EsqlBaseParser.FuseCommandContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
-   * @param ctx the parse tree
-   */
-  void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
-   * @param ctx the parse tree
-   */
-  void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

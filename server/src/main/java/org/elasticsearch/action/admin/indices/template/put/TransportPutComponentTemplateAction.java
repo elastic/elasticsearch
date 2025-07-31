@@ -85,7 +85,9 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
                 template,
                 componentTemplate.version(),
                 componentTemplate.metadata(),
-                componentTemplate.deprecated()
+                componentTemplate.deprecated(),
+                componentTemplate.createdDateMillis().orElse(null),
+                componentTemplate.modifiedDateMillis().orElse(null)
             );
         }
 

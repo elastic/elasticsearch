@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -185,6 +186,11 @@ public class TermVectorsService {
         if (fieldType.isIndexed() == false) {
             return false;
         }
+        // and must not be the nested path field
+        if (fieldType.name().equals(NestedPathFieldMapper.NAME)) {
+            return false;
+        }
+
         return true;
     }
 

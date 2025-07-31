@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -124,11 +125,16 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     @Override
     protected void performAsync(Page inputPage, ActionListener<OngoingJoin> listener) {
         Block[] inputBlockArray = new Block[matchFields.size()];
+        List<MatchConfig> newMatchFields = new ArrayList<>();
         for (int i = 0; i < matchFields.size(); i++) {
             MatchConfig matchField = matchFields.get(i);
             int inputChannel = matchField.channel();
             final Block inputBlock = inputPage.getBlock(inputChannel);
             inputBlockArray[i] = inputBlock;
+            // the matchFields we have are indexed by the input channel on the left side of the join
+            // create a new MatchConfig that uses the field name and type from the matchField
+            // but the new channel index in the inputBlockArray
+            newMatchFields.add(new MatchConfig(matchField.fieldName(), i, matchField.type()));
         }
         // we only add to the totalRows once, so we can use the first block
         totalRows += inputPage.getBlock(0).getTotalValueCount();
@@ -137,7 +143,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             sessionId,
             lookupIndex,
             lookupIndexPattern,
-            matchFields,
+            newMatchFields,
             new Page(inputBlockArray),
             loadFields,
             source

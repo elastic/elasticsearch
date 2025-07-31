@@ -29,6 +29,7 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -170,18 +171,18 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private CloseableHttpClient buildHttpClient(SSLService sslService) {
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
-        final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
-        final SSLSocketFactory socketFactory = sslService.sslSocketFactory(sslConfiguration);
+        final SslProfile profile = sslService.profile(HTTP_CLIENT_SSL);
+        final HostnameVerifier verifier = profile.hostnameVerifier();
+        final SSLSocketFactory socketFactory = profile.socketFactory();
         final SSLConnectionSocketFactory connectionSocketFactory = new SSLConnectionSocketFactory(socketFactory, verifier);
         return HttpClientBuilder.create().setSSLSocketFactory(connectionSocketFactory).build();
     }
 
     private RestClient buildRestClient(SSLService sslService, MockWebServer webServer) {
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
+        final SslProfile profile = sslService.profile(HTTP_CLIENT_SSL);
         final HttpHost httpHost = new HttpHost(webServer.getHostName(), webServer.getPort(), "https");
         return RestClient.builder(httpHost)
-            .setHttpClientConfigCallback(client -> client.setSSLStrategy(sslService.sslIOSessionStrategy(sslConfiguration)))
+            .setHttpClientConfigCallback(client -> client.setSSLStrategy(profile.ioSessionStrategy4()))
             .build();
     }
 

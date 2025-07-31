@@ -257,14 +257,6 @@ public class SSLService {
         return sslIOSessionStrategy(sslContext, supportedProtocols, ciphers, verifier);
     }
 
-    public static HostnameVerifier getHostnameVerifier(SslConfiguration sslConfiguration) {
-        if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
-            return new DefaultHostnameVerifier();
-        } else {
-            return NoopHostnameVerifier.INSTANCE;
-        }
-    }
-
     /**
      * The {@link SSLParameters} that are associated with the {@code sslContext}.
      * <p>
@@ -836,11 +828,15 @@ public class SSLService {
 
         @Override
         public HostnameVerifier hostnameVerifier() {
-            return SSLService.getHostnameVerifier(this.sslConfiguration);
+            if (this.sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
+                return new DefaultHostnameVerifier();
+            } else {
+                return NoopHostnameVerifier.INSTANCE;
+            }
         }
 
         @Override
-        public SSLConnectionSocketFactory socketConnectionFactory() {
+        public SSLConnectionSocketFactory connectionSocketFactory() {
             return new SSLConnectionSocketFactory(socketFactory(), hostnameVerifier());
         }
 

@@ -25,7 +25,7 @@ public interface SslProfile {
 
     HostnameVerifier hostnameVerifier();
 
-    SSLConnectionSocketFactory socketConnectionFactory();
+    SSLConnectionSocketFactory connectionSocketFactory();
 
     /**
      * @return An object that is useful for configuring Apache Http Client v4.x

@@ -47,12 +47,12 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
     public record UtilizationSample(Instant instant, float utilization) implements Writeable {
 
         public UtilizationSample(StreamInput in) throws IOException {
-            this(Instant.ofEpochMilli(in.readVLong()), in.readFloat());
+            this(in.readInstant(), in.readFloat());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(instant.toEpochMilli());
+            out.writeInstant(instant);
             out.writeFloat(utilization);
         }
     }
@@ -86,7 +86,7 @@ public record NodeUsageStatsForThreadPools(String nodeId, Map<String, ThreadPool
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(this.numberOfThreads);
             if (out.getTransportVersion().onOrAfter(TransportVersions.THREAD_POOL_UTILIZATION_MULTI_SAMPLE_CLUSTER_INFO)) {
-                out.writeGenericList(utilizationSamples, StreamOutput::writeWriteable);
+                out.writeCollection(utilizationSamples, StreamOutput::writeWriteable);
             } else {
                 out.writeFloat(this.utilizationSamples.getLast().utilization());
                 out.writeVLong(0L); // Dummy queue latency value

@@ -203,10 +203,19 @@ POST my-image-index/_search
 `knn` query can be used inside a nested query. The behaviour here is similar to [top level nested kNN search](docs-content://solutions/search/vector/knn.md#nested-knn-search):
 
 * kNN search over nested dense_vectors diversifies the top results over the top-level document
-* `filter`  over the top-level document metadata is supported and acts as a pre-filter
-* `filter` over `nested` field metadata is not supported
+* `filter` both over the top-level document metadata and `nested` is supported and acts as a pre-filter
 
-A sample query can look like below:
+::::{note}
+To ensure correct results: each individual filter must be either over
+the top-level metadata or `nested` metadata. However, a single knn query
+supports multiple filters, where some filters can be over the top-level
+metadata and some over nested.
+::::
+
+
+Below is a sample query with filter over nested metadata.
+For scoring parents' documents,  this query only considers vectors that
+have "paragraph.language" set to "EN".
 
 ```json
 {
@@ -215,12 +224,46 @@ A sample query can look like below:
       "path" : "paragraph",
         "query" : {
           "knn": {
-            "query_vector": [
-                0.45,
-                45
-            ],
+            "query_vector": [0.45, 0.50],
             "field": "paragraph.vector",
-            "num_candidates": 2
+            "filter": {
+              "match": {
+                "paragraph.language": "EN"
+              }
+            }
+        }
+      }
+    }
+  }
+}
+```
+
+Below is a sample query with two filters: one over nested metadata
+and another over the top level metadata. For scoring parents' documents,
+this query only considers vectors whose parent's title contain "essay"
+word and have "paragraph.language" set to "EN".
+
+```json
+{
+  "query" : {
+    "nested" : {
+      "path" : "paragraph",
+      "query" : {
+        "knn": {
+          "query_vector": [0.45, 0.50],
+          "field": "paragraph.vector",
+          "filter": [
+            {
+              "match": {
+                "paragraph.language": "EN"
+              }
+            },
+            {
+              "match": {
+                "title": "essay"
+              }
+            }
+          ]
         }
       }
     }

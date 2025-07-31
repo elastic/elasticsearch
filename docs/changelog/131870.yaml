@@ -1,5 +1,0 @@
-pr: 131870
-summary: Remove unnecessary calls to fold()
-area: ES|QL
-type: enhancement
-issues: []

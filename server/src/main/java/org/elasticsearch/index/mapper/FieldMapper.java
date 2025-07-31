@@ -625,8 +625,7 @@ public abstract class FieldMapper extends Mapper {
              * track source in some way, whether that be via the "store" param or using doc values.
              */
             private boolean isSyntheticSourceCompatible(KeywordFieldMapper.Builder keywordBuilder) {
-                return keywordBuilder.hasNormalizer() == false &&
-                        (keywordBuilder.hasDocValues() || keywordBuilder.isStored());
+                return keywordBuilder.hasNormalizer() == false && (keywordBuilder.hasDocValues() || keywordBuilder.isStored());
             }
 
             /**
@@ -642,8 +641,8 @@ public abstract class FieldMapper extends Mapper {
              * {@link KeywordFieldMapper} instead.
              */
             private boolean isSyntheticSourceCompatible(KeywordFieldMapper keyworddMapper) {
-                return keyworddMapper.hasNormalizer() == false &&
-                        (keyworddMapper.fieldType().hasDocValues() || keyworddMapper.fieldType().isStored());
+                return keyworddMapper.hasNormalizer() == false
+                    && (keyworddMapper.fieldType().hasDocValues() || keyworddMapper.fieldType().isStored());
             }
 
             public Builder add(FieldMapper.Builder builder) {

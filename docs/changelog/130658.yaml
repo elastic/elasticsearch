@@ -1,5 +1,5 @@
 pr: 130658
-summary: Implement support for weighted rrf
+summary: Add support for weighted RRF in retrievers
 area: Relevance
 type: enhancement
 issues: []

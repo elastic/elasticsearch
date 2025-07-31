@@ -320,41 +320,6 @@ public class SSLService {
     }
 
     /**
-     * Creates an {@link SSLEngine} based on the provided configuration. This SSLEngine can be used for a connection that requires
-     * hostname verification assuming the provided
-     * host and port are correct. The SSLEngine created by this method is most useful for clients with hostname verification enabled
-     *
-     * @param configuration the ssl configuration
-     * @param host          the host of the remote endpoint. If using hostname verification, this should match what is in the remote
-     *                      endpoint's certificate
-     * @param port          the port of the remote endpoint
-     * @return {@link SSLEngine}
-     * @see #getSSLConfiguration(String)
-     */
-    public SSLEngine createSSLEngine(SslConfiguration configuration, String host, int port) {
-        SSLContext sslContext = sslContext(configuration);
-        SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
-        String[] ciphers = supportedCiphers(sslEngine.getSupportedCipherSuites(), configuration.getCipherSuites(), false);
-        String[] supportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
-        SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
-        if (configuration.verificationMode().isHostnameVerificationEnabled() && host != null) {
-            // By default, an SSLEngine will not perform hostname verification. In order to perform hostname verification
-            // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
-            // man in the middle attacks for all of our connections.
-            parameters.setEndpointIdentificationAlgorithm("HTTPS");
-        }
-        // we use the cipher suite order so that we can prefer the ciphers we set first in the list
-        parameters.setUseCipherSuitesOrder(true);
-        configuration.clientAuth().configure(parameters);
-
-        // many SSLEngine options can be configured using either SSLParameters or direct methods on the engine itself, but there is one
-        // tricky aspect; if you set a value directly on the engine and then later set the SSLParameters the value set directly on the
-        // engine will be overwritten by the value in the SSLParameters
-        sslEngine.setSSLParameters(parameters);
-        return sslEngine;
-    }
-
-    /**
      * Returns whether the provided settings results in a valid configuration that can be used for server connections
      *
      * @param sslConfiguration the configuration to check
@@ -847,7 +812,25 @@ public class SSLService {
 
         @Override
         public SSLEngine engine(String host, int port) {
-            return SSLService.this.createSSLEngine(this.configuration(), host, port);
+            final SSLEngine sslEngine = this.context.createSSLEngine(host, port);
+            final String[] ciphers = supportedCiphers(sslEngine.getSupportedCipherSuites(), this.sslConfiguration.getCipherSuites(), false);
+            final String[] supportedProtocols = this.configuration().supportedProtocols().toArray(Strings.EMPTY_ARRAY);
+            final SSLParameters parameters = new SSLParameters(ciphers, supportedProtocols);
+            if (this.sslConfiguration.verificationMode().isHostnameVerificationEnabled() && host != null) {
+                // By default, an SSLEngine will not perform hostname verification. In order to perform hostname verification
+                // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
+                // man in the middle attacks for all of our connections.
+                parameters.setEndpointIdentificationAlgorithm("HTTPS");
+            }
+            // we use the cipher suite order so that we can prefer the ciphers we set first in the list
+            parameters.setUseCipherSuitesOrder(true);
+            this.sslConfiguration.clientAuth().configure(parameters);
+
+            // many SSLEngine options can be configured using either SSLParameters or direct methods on the engine itself, but there is one
+            // tricky aspect; if you set a value directly on the engine and then later set the SSLParameters the value set directly on the
+            // engine will be overwritten by the value in the SSLParameters
+            sslEngine.setSSLParameters(parameters);
+            return sslEngine;
         }
 
         synchronized void reload() {

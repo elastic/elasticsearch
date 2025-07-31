@@ -163,28 +163,16 @@ public class SSLServiceTests extends ESTestCase {
             .build();
 
         SslConfiguration configuration = SslSettingsLoader.load(customTruststoreSettings, null, env);
-        SSLEngine sslEngineWithTruststore = sslService.createSSLEngine(configuration, null, -1);
+        SslProfile profile = sslService.profile("transport.profiles.foo.xpack.security.ssl");
+        assertThat(profile.configuration(), equalTo(configuration));
+        assertThat(profile.configuration().getDependentFiles(), contains(testClientStore));
+        SSLEngine sslEngineWithTruststore = profile.engine(null, -1);
         assertThat(sslEngineWithTruststore, is(not(nullValue())));
 
-        SslConfiguration defaultConfig = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLEngine sslEngine = sslService.createSSLEngine(defaultConfig, null, -1);
+        SslProfile defaultProfile = sslService.profile("xpack.security.transport.ssl");
+        SSLEngine sslEngine = defaultProfile.engine(null, -1);
         assertThat(sslEngineWithTruststore, is(not(sameInstance(sslEngine))));
-
-        final SslConfiguration profileConfiguration = sslService.getSSLConfiguration("transport.profiles.foo.xpack.security.ssl");
-        assertThat(profileConfiguration, notNullValue());
-        assertThat(profileConfiguration.getDependentFiles(), contains(testClientStore));
-
-        final SslProfile defaultSslProfile = sslService.profile(
-            randomFrom("xpack.security.transport.ssl", "xpack.security.transport.ssl.")
-        );
-        assertThat(defaultSslProfile, notNullValue());
-        assertThat(defaultSslProfile.configuration().trustConfig().getDependentFiles(), containsInAnyOrder(testnodeStore));
-
-        final SslProfile fooSslProfile = sslService.profile(
-            randomFrom("transport.profiles.foo.xpack.security.ssl", "transport.profiles.foo.xpack.security.ssl.")
-        );
-        assertThat(fooSslProfile, notNullValue());
-        assertThat(fooSslProfile.configuration().trustConfig().getDependentFiles(), containsInAnyOrder(testClientStore));
+        assertThat(defaultProfile.configuration().getDependentFiles(), contains(testnodeStore));
     }
 
     public void testThatSslContextCachingWorks() throws Exception {
@@ -230,10 +218,7 @@ public class SSLServiceTests extends ESTestCase {
             .build();
 
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        SslConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        sslService.createSSLEngine(configuration, null, -1);
-
-        final SslProfile profile = sslService.profile("xpack.security.transport.ssl.");
+        final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
         profile.engine(null, -1);
     }
 
@@ -250,8 +235,8 @@ public class SSLServiceTests extends ESTestCase {
                 .setSecureSettings(secureSettings)
                 .build();
             final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-            SslConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-            sslService.createSSLEngine(configuration, null, -1);
+            SslProfile profile = sslService.profile("xpack.security.transport.ssl");
+            profile.engine(null, -1);
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e, throwableWithMessage(startsWith("failed to load SSL configuration [xpack.security.transport.ssl] - ")));
@@ -268,10 +253,7 @@ public class SSLServiceTests extends ESTestCase {
             .put("xpack.security.transport.ssl.key", testnodeKey)
             .setSecureSettings(secureSettings)
             .build();
-        SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        SslConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
-        assertThat(Arrays.asList(engine.getEnabledProtocols()), not(hasItem("SSLv3")));
+        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
 
         final SslProfile profile = sslService.profile("xpack.security.transport.ssl.");
         final String[] profileProtocols = profile.engine(null, -1).getEnabledProtocols();
@@ -281,11 +263,9 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testThatCreateClientSSLEngineWithoutAnySettingsWorks() throws Exception {
         SSLService sslService = new SSLService(env);
-        SslConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLEngine sslEngine = sslService.createSSLEngine(configuration, null, -1);
-        assertThat(sslEngine, notNullValue());
-
-        assertThat(sslService.profile("xpack.security.transport.ssl.").engine(null, -1), notNullValue());
+        final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
+        final SSLEngine engine = profile.engine(null, -1);
+        assertThat(engine, notNullValue());
     }
 
     public void testThatCreateSSLEngineWithOnlyTruststoreWorks() throws Exception {
@@ -297,8 +277,8 @@ public class SSLServiceTests extends ESTestCase {
             .setSecureSettings(secureSettings)
             .build();
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        SslConfiguration configuration = sslService.getSSLConfiguration("xpack.security.http.ssl");
-        SSLEngine sslEngine = sslService.createSSLEngine(configuration, null, -1);
+        SslProfile profile = sslService.profile("xpack.security.http.ssl");
+        SSLEngine sslEngine = profile.engine(null, -1);
         assertThat(sslEngine, notNullValue());
 
         assertThat(sslService.profile("xpack.security.http.ssl.").engine(null, -1), notNullValue());
@@ -496,16 +476,10 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
 
-        final SslConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
+        final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
+        var engine = profile.engine(null, -1);
         assertThat(engine, is(notNullValue()));
-        String[] enabledCiphers = engine.getEnabledCipherSuites();
-        assertThat(Arrays.asList(enabledCiphers), not(contains("foo", "bar")));
-
-        final SslProfile profile = sslService.profile("xpack.security.transport.ssl.");
-        engine = profile.engine(null, -1);
-        assertThat(engine, is(notNullValue()));
-        enabledCiphers = engine.getEnabledCipherSuites();
+        var enabledCiphers = engine.getEnabledCipherSuites();
         assertThat(Arrays.asList(enabledCiphers), not(contains("foo", "bar")));
     }
 
@@ -544,13 +518,8 @@ public class SSLServiceTests extends ESTestCase {
 
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
 
-        final SslConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
-        assertThat(engine, is(notNullValue()));
-        assertTrue(engine.getSSLParameters().getUseCipherSuitesOrder());
-
-        final SslProfile profile = sslService.profile("xpack.security.transport.ssl.");
-        engine = profile.engine(null, -1);
+        final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
+        SSLEngine engine = profile.engine(null, -1);
         assertThat(engine, is(notNullValue()));
         assertTrue(engine.getSSLParameters().getUseCipherSuitesOrder());
     }
@@ -598,9 +567,10 @@ public class SSLServiceTests extends ESTestCase {
             .put("xpack.security.transport.ssl.key", testnodeKey)
             .setSecureSettings(secureSettings)
             .build();
-        SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        SslConfiguration configuration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLEngine engine = sslService.createSSLEngine(configuration, null, -1);
+        final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
+        final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
+        final SSLEngine engine = profile.engine(null, -1);
+        final SslConfiguration configuration = profile.configuration();
         final String[] ciphers = sslService.supportedCiphers(engine.getSupportedCipherSuites(), configuration.getCipherSuites(), false);
         final String[] getSupportedProtocols = configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
         assertThat(engine.getEnabledCipherSuites(), is(ciphers));

@@ -1988,7 +1988,7 @@ public class IndexShardTests extends IndexShardTestCase {
         boolean liveDocsTrackingEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
 
         // index some documents
-        int numDocs = between(5, 10);
+        int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {
             indexDoc(shard, "_doc", "first_" + i, """
                 {

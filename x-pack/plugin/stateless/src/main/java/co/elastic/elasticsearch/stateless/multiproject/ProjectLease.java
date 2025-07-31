@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.multiproject;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -74,6 +75,10 @@ public record ProjectLease(int formatVersion, long leaseVersion, byte[] clusterU
             return "unassigned";
         }
         return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(uuidBytes);
+    }
+
+    public static String leaseBlobName(ProjectId projectId) {
+        return "project-" + projectId + "_lease";
     }
 
     @Override

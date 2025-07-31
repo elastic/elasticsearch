@@ -100,8 +100,8 @@ public abstract class TransportBroadcastReplicationAction<
                 assert totalShardCopyCount == 0 && successShardCopyCount == 0 && allFailures.isEmpty() : "shouldn't call this twice";
 
                 final ClusterState clusterState = clusterService.state();
-                final ProjectMetadata project = projectResolver.getProjectMetadata(clusterState);
                 final ProjectState projectState = projectResolver.getProjectState(clusterState);
+                final ProjectMetadata project = projectState.metadata();
                 final List<ShardId> shards = shards(request, projectState);
                 final Map<String, IndexMetadata> indexMetadataByName = project.indices();
 

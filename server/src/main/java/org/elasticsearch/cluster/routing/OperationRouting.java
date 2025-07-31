@@ -116,7 +116,7 @@ public class OperationRouting {
     }
 
     public Iterator<IndexShardRoutingTable> allWritableShards(ProjectState projectState, String index) {
-        return allShardsReadyForWrites(projectState, index);
+        return allWriteAddressableShards(projectState, index);
     }
 
     public static ShardIterator getShards(RoutingTable routingTable, ShardId shardId) {
@@ -163,7 +163,7 @@ public class OperationRouting {
 
     private static void collectTargetShardsNoRouting(ProjectState projectState, String[] concreteIndices, Set<IndexShardRoutingTable> set) {
         for (String index : concreteIndices) {
-            Iterator<IndexShardRoutingTable> iterator = allShardsReadyForSearch(projectState, index);
+            Iterator<IndexShardRoutingTable> iterator = allSearchAddressableShards(projectState, index);
             while (iterator.hasNext()) {
                 set.add(iterator.next());
             }
@@ -171,21 +171,24 @@ public class OperationRouting {
     }
 
     /**
-     * Returns an iterator of shards of the index that are ready to execute search requests.
-     * A shard may not be ready to execute these operations during processes like resharding.
+     * Returns an iterator of shards that can possibly serve searches. A shard may not be addressable during processes like resharding.
+     * This logic is not related to shard state or a recovery process. A shard returned here may f.e. be unassigned.
      */
-    private static Iterator<IndexShardRoutingTable> allShardsReadyForSearch(ProjectState projectState, String index) {
+    private static Iterator<IndexShardRoutingTable> allSearchAddressableShards(ProjectState projectState, String index) {
         return allShardsExceptSplitTargetsInStateBefore(projectState, index, IndexReshardingState.Split.TargetShardState.SPLIT);
     }
 
     /**
-     * Returns an iterator of shards of the index that are ready to execute write requests.
-     * A shard may not be ready to execute these operations during processes like resharding.
+     * Returns an iterator of shards that can possibly serve writes. A shard may not be addressable during processes like resharding.
+     * This logic is not related to shard state or a recovery process. A shard returned here may f.e. be unassigned.
      */
-    private static Iterator<IndexShardRoutingTable> allShardsReadyForWrites(ProjectState projectState, String index) {
+    private static Iterator<IndexShardRoutingTable> allWriteAddressableShards(ProjectState projectState, String index) {
         return allShardsExceptSplitTargetsInStateBefore(projectState, index, IndexReshardingState.Split.TargetShardState.HANDOFF);
     }
 
+    /**
+     * Filters shards based on their state in resharding metadata. If resharing metadata is not present returns all shards.
+     */
     private static Iterator<IndexShardRoutingTable> allShardsExceptSplitTargetsInStateBefore(
         ProjectState projectState,
         String index,

@@ -77,20 +77,22 @@ public class Approximate {
     }
 
     /**
-     * Commands that map one row to one row. These commands can be swapped with {@code SAMPLE}.
+     * These commands can be swapped with {@code SAMPLE} and preserve all rows.
      */
-    private static final Set<Class<? extends LogicalPlan>> ONE_TO_ONE_COMMANDS = Set.of(
+    private static final Set<Class<? extends LogicalPlan>> SWAPPABLE_COMMANDS = Set.of(
         Dissect.class,
         Drop.class,
         Eval.class,
+        Filter.class,
         Grok.class,
         Keep.class,
         OrderBy.class,
-        Rename.class
+        Rename.class,
+        Sample.class
     );
 
     /**
-     * Commands that map one row to one or zero rows. These commands can be swapped with {@code SAMPLE}.
+     * These commands can be swapped with {@code SAMPLE} and may drop rows.
      */
     private static final Set<Class<? extends LogicalPlan>> FILTER_COMMANDS = Set.of(Filter.class, Sample.class);
 
@@ -100,7 +102,7 @@ public class Approximate {
     private static final Set<Class<? extends LogicalPlan>> INCOMPATIBLE_COMMANDS = Set.of(Fork.class, Join.class);
 
     // TODO: find a good default value, or alternative ways of setting it
-    private static final int SAMPLE_ROW_COUNT = 1000;
+    private static final int SAMPLE_ROW_COUNT = 10000;
 
     private static final Logger logger = LogManager.getLogger(Approximate.class);
 
@@ -151,7 +153,7 @@ public class Approximate {
             } else if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate) {
                     encounteredStats.set(true);
-                } else if (ONE_TO_ONE_COMMANDS.contains(plan.getClass()) == false && FILTER_COMMANDS.contains(plan.getClass()) == false) {
+                } else if (SWAPPABLE_COMMANDS.contains(plan.getClass()) == false && FILTER_COMMANDS.contains(plan.getClass()) == false) {
                     throw new InvalidArgumentException(
                         "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] before [STATS] command cannot be approximated"
                     );

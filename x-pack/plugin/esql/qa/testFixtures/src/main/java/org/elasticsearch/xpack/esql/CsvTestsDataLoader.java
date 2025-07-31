@@ -180,6 +180,7 @@ public class CsvTestsDataLoader {
         "exp_histo_sample.csv"
     ).withSetting("exp_histo_sample-settings.json");
     private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index");
+    private static final TestDataset MANY_NUMBERS = new TestDataset("many_numbers");
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -251,6 +252,7 @@ public class CsvTestsDataLoader {
         Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
         Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
         Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX)
+        Map.entry(MANY_NUMBERS.indexName, MANY_NUMBERS)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

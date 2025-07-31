@@ -70,7 +70,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     @Before
     public void setup() throws IOException {
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping());
+            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping(), false);
         }
     }
 
@@ -209,7 +209,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(client(), true, supportsSourceFieldMapping()).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

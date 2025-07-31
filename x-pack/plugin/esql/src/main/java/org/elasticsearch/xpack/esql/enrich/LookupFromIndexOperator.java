@@ -151,12 +151,11 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
             MatchConfig matchField = matchFields.get(i);
             int inputChannel = matchField.channel;
             final Block inputBlock = inputPage.getBlock(inputChannel);
-            if (i == 0) {
-                // we only add to the totalRows once, so we can use the first block
-                totalRows += inputBlock.getTotalValueCount();
-            }
             inputBlockArray[i] = inputBlock;
         }
+        // we only add to the totalRows once, so we can use the first block
+        totalRows += inputPage.getBlock(0).getTotalValueCount();
+
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
             lookupIndex,

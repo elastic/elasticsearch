@@ -271,20 +271,19 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     private void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
-        boolean started = false;
-        final List<Releasable> releasables = new ArrayList<>(6);
-        try {
-            for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
-                Block inputBlock = request.inputPage.getBlock(j);
-                if (inputBlock.areAllValuesNull()) {
-                    List<Page> nullResponse = mergePages
-                        ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
-                        : List.of();
-                    listener.onResponse(nullResponse);
-                    return;
-                }
+        for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
+            Block inputBlock = request.inputPage.getBlock(j);
+            if (inputBlock.areAllValuesNull()) {
+                List<Page> nullResponse = mergePages
+                    ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
+                    : List.of();
+                listener.onResponse(nullResponse);
+                return;
             }
-
+        }
+        final List<Releasable> releasables = new ArrayList<>(6);
+        boolean started = false;
+        try {
             var projectState = projectResolver.getProjectState(clusterService.state());
             AliasFilter aliasFilter = indicesService.buildAliasFilter(
                 projectState,
@@ -533,11 +532,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         final String sessionId;
         final ShardId shardId;
         final String indexPattern;
-        /**
-         * For mixed clusters with nodes &lt;8.14, this will be null.
-         */
-        @Nullable
-        final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;
         final Source source;
@@ -549,7 +543,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             String sessionId,
             ShardId shardId,
             String indexPattern,
-            DataType inputDataType,
             Page inputPage,
             Page toRelease,
             List<NamedExpression> extractFields,
@@ -558,7 +551,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             this.sessionId = sessionId;
             this.shardId = shardId;
             this.indexPattern = indexPattern;
-            this.inputDataType = inputDataType;
             this.inputPage = inputPage;
             this.toRelease = toRelease;
             this.extractFields = extractFields;
@@ -618,8 +610,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 + sessionId
                 + " ,shard="
                 + shardId
-                + " ,input_type="
-                + inputDataType
                 + " ,extract_fields="
                 + extractFields
                 + " ,positions="

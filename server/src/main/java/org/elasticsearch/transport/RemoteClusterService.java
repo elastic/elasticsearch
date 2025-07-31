@@ -398,7 +398,8 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     @Override
-    protected void updateRemoteCluster(String clusterAlias, Settings settings) {
+    protected void updateRemoteCluster(LinkedClusterConnectionConfig config) {
+        String clusterAlias = config.getClusterAlias();
         CountDownLatch latch = new CountDownLatch(1);
         updateRemoteCluster(clusterAlias, settings, ActionListener.runAfter(new ActionListener<>() {
             @Override

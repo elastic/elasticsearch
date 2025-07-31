@@ -13,11 +13,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 
 import java.util.List;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public interface LinkedClusterConnectionConfigListener {
 
-    void listen(BiConsumer<String, LinkedClusterConnectionConfig> consumer);
+    void listen(Consumer<LinkedClusterConnectionConfig> consumer);
 
     class ClusterSettingsListener implements LinkedClusterConnectionConfigListener {
         private final ClusterSettings clusterSettings;
@@ -27,7 +27,7 @@ public interface LinkedClusterConnectionConfigListener {
         }
 
         @Override
-        public void listen(BiConsumer<String, LinkedClusterConnectionConfig> consumer) {
+        public void listen(Consumer<LinkedClusterConnectionConfig> consumer) {
             List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
                 RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
                 RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
@@ -41,7 +41,7 @@ public interface LinkedClusterConnectionConfigListener {
             );
             clusterSettings.addAffixGroupUpdateConsumer(
                 remoteClusterSettings,
-                (alias, settings) -> consumer.accept(alias, new LinkedClusterConnectionConfig(alias, settings))
+                (alias, settings) -> consumer.accept(new LinkedClusterConnectionConfig(alias, settings))
             );
         }
     }

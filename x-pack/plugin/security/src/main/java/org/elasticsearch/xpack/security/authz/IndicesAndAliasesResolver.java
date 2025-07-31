@@ -555,11 +555,11 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, LinkedClusterConnectionConfig config) {
+        protected void updateRemoteCluster(LinkedClusterConnectionConfig config) {
             if (RemoteConnectionStrategy.isConnectionEnabled(config)) {
-                clusters.add(clusterAlias);
+                clusters.add(config.getClusterAlias());
             } else {
-                clusters.remove(clusterAlias);
+                clusters.remove(config.getClusterAlias());
             }
         }
 

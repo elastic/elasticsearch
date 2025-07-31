@@ -208,17 +208,17 @@ public abstract class RemoteClusterAware {
         return perClusterIndices;
     }
 
-    void validateAndUpdateRemoteCluster(String clusterAlias, LinkedClusterConnectionConfig config) {
-        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
+    void validateAndUpdateRemoteCluster(LinkedClusterConnectionConfig config) {
+        if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(config.getClusterAlias())) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
-        updateRemoteCluster(clusterAlias, config);
+        updateRemoteCluster(config);
     }
 
     /**
      * Subclasses must implement this to receive information about updated cluster aliases.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, LinkedClusterConnectionConfig config);
+    protected abstract void updateRemoteCluster(LinkedClusterConnectionConfig config);
 
     // This will go away
     public void listenForUpdates(ClusterSettings clusterSettings) {
@@ -235,10 +235,7 @@ public abstract class RemoteClusterAware {
         );
         clusterSettings.addAffixGroupUpdateConsumer(
             remoteClusterSettings,
-            (clusterAlias, settings) -> validateAndUpdateRemoteCluster(
-                clusterAlias,
-                new LinkedClusterConnectionConfig(clusterAlias, settings)
-            )
+            (clusterAlias, settings) -> validateAndUpdateRemoteCluster(new LinkedClusterConnectionConfig(clusterAlias, settings))
         );
     }
 

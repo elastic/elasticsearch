@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -44,6 +45,10 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     private final Expression prompt;
     private final Attribute targetField;
     private List<Attribute> lazyOutput;
+
+    public Completion(Source source, LogicalPlan p, Expression prompt, Attribute targetField) {
+        this(source, p, Literal.keyword(Source.EMPTY, DEFAULT_OUTPUT_FIELD_NAME), prompt, targetField);
+    }
 
     public Completion(Source source, LogicalPlan child, Expression inferenceId, Expression prompt, Attribute targetField) {
         super(source, child, inferenceId);
@@ -78,6 +83,10 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
 
     @Override
     public Completion withInferenceId(Expression newInferenceId) {
+        if (inferenceId().equals(newInferenceId)) {
+            return this;
+        }
+
         return new Completion(source(), child(), newInferenceId, prompt, targetField);
     }
 

@@ -119,7 +119,8 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
 
         @Override
         public void close() {
-
+            promptBlock.allowPassingToDifferentDriver();
+            Releasables.close(promptBlock);
         }
     }
 }

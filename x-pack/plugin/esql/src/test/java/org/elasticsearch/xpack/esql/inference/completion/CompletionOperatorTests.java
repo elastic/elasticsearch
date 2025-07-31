@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,9 +28,16 @@ import static org.hamcrest.Matchers.hasSize;
 public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompletionResults> {
     private static final String SIMPLE_INFERENCE_ID = "test_completion";
 
+    private int inputChannel;
+
+    @Before
+    public void initCompletionChannels() {
+        inputChannel = between(0, inputsCount - 1);
+    }
+
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CompletionOperator.Factory(mockedSimpleInferenceRunner(), SIMPLE_INFERENCE_ID, evaluatorFactory(0));
+        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
     }
 
     @Override
@@ -54,7 +62,7 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
     }
 
     private void assertCompletionResults(Page inputPage, Page resultPage) {
-        BytesRefBlock inputBlock = resultPage.getBlock(0);
+        BytesRefBlock inputBlock = resultPage.getBlock(inputChannel);
         BytesRefBlock resultBlock = resultPage.getBlock(inputPage.getBlockCount());
 
         BytesRef scratch = new BytesRef();

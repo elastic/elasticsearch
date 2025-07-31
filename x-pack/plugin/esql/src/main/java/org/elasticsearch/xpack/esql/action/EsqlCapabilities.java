@@ -93,6 +93,16 @@ public class EsqlCapabilities {
         AGG_VALUES_SPATIAL,
 
         /**
+         * Accept unsigned longs on MAX and MIN aggregations.
+         */
+        AGG_MAX_MIN_UNSIGNED_LONG,
+
+        /**
+         * Accept unsigned longs on VALUES and SAMPLE aggregations.
+         */
+        AGG_VALUES_SAMPLE_UNSIGNED_LONG,
+
+        /**
          * Does ESQL support async queries.
          */
         ASYNC_QUERY,
@@ -916,6 +926,17 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_IMPLICIT_CASTING_IN_AGGS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Fixes bug when aggregate metric double is encoded as a single nul value but decoded as
+         * AggregateMetricDoubleBlock (expecting 4 values) in TopN.
+         */
+        AGGREGATE_METRIC_DOUBLE_SORTING_FIXED(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Stop erroring out when trying to apply MV_EXPAND on aggregate metric double.
+         */
+        AGGREGATE_METRIC_DOUBLE_MV_EXPAND(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * Support change point detection "CHANGE_POINT".
          */
         CHANGE_POINT,
@@ -931,7 +952,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V8(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V9(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -941,7 +962,7 @@ public class EsqlCapabilities {
         /**
          * Support for RERANK command
          */
-        RERANK(Build.current().isSnapshot()),
+        RERANK,
 
         /**
          * Support for COMPLETION command
@@ -1133,6 +1154,11 @@ public class EsqlCapabilities {
         COUNT_DISTINCT_OVER_TIME(Build.current().isSnapshot()),
 
         /**
+         * Extra field types in the k8s.csv dataset
+         */
+        K8S_DATASET_ADDITIONAL_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Resolve groupings before resolving references to groupings in the aggregations.
          */
         RESOLVE_GROUPINGS_BEFORE_RESOLVING_REFERENCES_TO_GROUPINGS_IN_AGGREGATIONS,
@@ -1282,9 +1308,34 @@ public class EsqlCapabilities {
         COSINE_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
 
         /**
+         * Fixed some profile serialization issues
+         */
+        FIXED_PROFILE_SERIALIZATION,
+
+        /**
+         * Dot product vector similarity function
+         */
+        DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * l1 norm vector similarity function
+         */
+        L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * l2 norm vector similarity function
+         */
+        L2_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Support for the options field of CATEGORIZE.
          */
-        CATEGORIZE_OPTIONS;
+        CATEGORIZE_OPTIONS,
+
+        /**
+         * Support correct counting of skipped shards.
+         */
+        CORRECT_SKIPPED_SHARDS_COUNT;
 
         private final boolean enabled;
 

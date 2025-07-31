@@ -116,9 +116,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         SearchExecutionContext context,
         AliasFilter aliasFilter,
         Block inputBlock,
-        @Nullable DataType inputDataType,
         Warnings warnings
     ) {
+        DataType inputDataType = request.inputDataType;
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(inputDataType, fieldType);
         return switch (request.matchType) {

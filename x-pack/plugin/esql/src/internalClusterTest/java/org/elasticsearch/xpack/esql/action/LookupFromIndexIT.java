@@ -128,6 +128,25 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         runLookup(List.of(DataType.KEYWORD), new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" } }));
     }
 
+    public void testJoinOnTwoKeysMultiResults() throws IOException {
+        runLookup(
+            List.of(DataType.KEYWORD, DataType.LONG),
+            new UsingSingleLookupTable(new Object[][] { new String[] { "aa", "bb", "bb", "dd" }, new Long[] { 12L, 1L, 1L, 42L } })
+        );
+    }
+
+    public void testJoinOnThreeKeysMultiResults() throws IOException {
+        runLookup(
+            List.of(DataType.KEYWORD, DataType.LONG, DataType.KEYWORD),
+            new UsingSingleLookupTable(
+                new Object[][] {
+                    new String[] { "aa", "bb", "bb", "dd" },
+                    new Long[] { 12L, 1L, 1L, 42L },
+                    new String[] { "one", "two", "two", "four" } }
+            )
+        );
+    }
+
     interface PopulateIndices {
         void populate(int docCount, List<String> expected) throws IOException;
     }
@@ -203,17 +222,17 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
         Settings.Builder lookupSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), "lookup")
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1);
-        {
-            String[] lookupMappers = new String[keyTypes.size() * 2 + 2];
-            int i = 0;
-            for (; i < keyTypes.size(); i++) {
-                lookupMappers[2 * i] = "key" + i;
-                lookupMappers[2 * i + 1] = "type=" + keyTypes.get(i).esType();
-            }
-            lookupMappers[2 * i] = "l";
-            lookupMappers[2 * i + 1] = "type=long";
-            client().admin().indices().prepareCreate("lookup").setSettings(lookupSettings).setMapping(lookupMappers).get();
+
+        String[] lookupMappers = new String[keyTypes.size() * 2 + 2];
+        int lookupMappersCounter = 0;
+        for (; lookupMappersCounter < keyTypes.size(); lookupMappersCounter++) {
+            lookupMappers[2 * lookupMappersCounter] = "key" + lookupMappersCounter;
+            lookupMappers[2 * lookupMappersCounter + 1] = "type=" + keyTypes.get(lookupMappersCounter).esType();
         }
+        lookupMappers[2 * lookupMappersCounter] = "l";
+        lookupMappers[2 * lookupMappersCounter + 1] = "type=long";
+        client().admin().indices().prepareCreate("lookup").setSettings(lookupSettings).setMapping(lookupMappers).get();
+
         client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
 
         int docCount = between(10, 1000);

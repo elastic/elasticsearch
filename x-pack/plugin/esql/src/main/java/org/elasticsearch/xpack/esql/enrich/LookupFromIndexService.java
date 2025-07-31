@@ -23,7 +23,6 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.ExpressionQueryList;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -100,18 +99,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         SearchExecutionContext context,
         AliasFilter aliasFilter,
         Block inputBlock,
-        @Nullable DataType inputDataType,
         Warnings warnings
     ) {
-        if (request.matchFields.size() == 1) {
-            return termQueryList(
-                context.getFieldType(request.matchFields.get(0).fieldName().string()),
-                context,
-                aliasFilter,
-                inputBlock,
-                inputDataType
-            ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
-        }
         List<QueryList> queryLists = new ArrayList<>();
         for (int i = 0; i < request.matchFields.size(); i++) {
             LookupFromIndexOperator.MatchConfig matchField = request.matchFields.get(i);
@@ -123,6 +112,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 matchField.type()
             ).onlySingleValues(warnings, "LOOKUP JOIN encountered multi-value");
             queryLists.add(q);
+        }
+        if (queryLists.size() == 1) {
+            return queryLists.getFirst();
         }
         return new ExpressionQueryList(queryLists);
     }

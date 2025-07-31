@@ -197,7 +197,6 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         SearchExecutionContext context,
         AliasFilter aliasFilter,
         Block inputBlock,
-        @Nullable DataType inputDataType,
         Warnings warnings
     );
 
@@ -339,14 +338,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 request.source.source().getColumnNumber(),
                 request.source.text()
             );
-            LookupEnrichQueryGenerator queryList = queryList(
-                request,
-                shardContext.executionContext,
-                aliasFilter,
-                inputBlock,
-                request.inputDataType,
-                warnings
-            );
+            LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, inputBlock, warnings);
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
                 EnrichQuerySourceOperator.DEFAULT_MAX_PAGE_SIZE,

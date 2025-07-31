@@ -15,6 +15,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.multiproject.test.MultipleProjectsClientYamlSuiteTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -27,6 +28,7 @@ import org.junit.rules.TestRule;
 import static org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT.assertDatabasesLoaded;
 import static org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT.putGeoipPipeline;
 
+@FixForMultiProject(description = "Potentially remove this test after https://elasticco.atlassian.net/browse/ES-12094 is implemented")
 public class IngestGeoIpClientMultiProjectYamlTestSuiteIT extends MultipleProjectsClientYamlSuiteTestCase {
 
     private static final boolean useFixture = Booleans.parseBoolean(System.getProperty("geoip_use_service", "false")) == false;

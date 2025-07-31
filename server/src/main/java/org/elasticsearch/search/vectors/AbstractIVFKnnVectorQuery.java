@@ -141,7 +141,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // TODO : are these magic numbers ?
         double cutoff_affinity = 0.01; // minimum affinity score for a segment to be considered
         double higher_affinity = 0.6; // min affinity for increasing nProbe
-        double lower_affinity = 0.59; // max affinity for decreasing nProbe
+        double lower_affinity = 0.6; // max affinity for decreasing nProbe
         int max_adjustment = 20;
 
         Map<LeafReaderContext, Integer> segmentNProbeMap = new HashMap<>();
@@ -261,9 +261,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             }
         }
 
-        // sort segments by affinity score in descending order
-        segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
-        return segmentAffinities.subList(0, (int) (segmentAffinities.size() * 0.95));
+        // TODO: sort segments by affinity score in descending order, and cut the long tail ?
+        //segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
+        //...subList(0, (int) (segmentAffinities.size() * 0.99));
+        return segmentAffinities;
     }
 
     private record SegmentAffinity(LeafReaderContext context, double affinityScore) {}

@@ -18,7 +18,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -40,7 +39,7 @@ import static org.elasticsearch.simdvec.ES91OSQVectorsScorer.BULK_SIZE;
  * Default implementation of {@link IVFVectorsReader}. It scores the posting lists centroids using
  * brute force and then scores the top ones using the posting list.
  */
-public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeapStats {
+public class DefaultIVFVectorsReader extends IVFVectorsReader {
     private static final float FOUR_BIT_SCALE = 1f / ((1 << 4) - 1);
 
     public DefaultIVFVectorsReader(SegmentReadState state, FlatVectorsReader rawVectorsReader) throws IOException {
@@ -48,7 +47,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     }
 
     @Override
-    CentroidQueryScorer getCentroidScorer(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
+    CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
         throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
@@ -65,90 +64,68 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             quantized[i] = (byte) scratch[i];
         }
         final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
-        return new CentroidQueryScorer() {
-            int currentCentroid = -1;
-            long postingListOffset;
-            private final float[] centroidCorrectiveValues = new float[3];
-            private final long quantizeCentroidsLength = (long) numCentroids * (fieldInfo.getVectorDimension() + 3 * Float.BYTES
-                + Short.BYTES);
+        NeighborQueue queue = new NeighborQueue(fieldEntry.numCentroids(), true);
+        centroids.seek(0L);
+        final float[] centroidCorrectiveValues = new float[3];
+        for (int i = 0; i < numCentroids; i++) {
+            final float qcDist = scorer.int4DotProduct(quantized);
+            centroids.readFloats(centroidCorrectiveValues, 0, 3);
+            final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
+            float score = int4QuantizedScore(
+                qcDist,
+                queryParams,
+                fieldInfo.getVectorDimension(),
+                centroidCorrectiveValues,
+                quantizedCentroidComponentSum,
+                globalCentroidDp,
+                fieldInfo.getVectorSimilarityFunction()
+            );
+            queue.add(i, score);
+        }
+        final long offset = centroids.getFilePointer();
+        return new CentroidIterator() {
+            @Override
+            public boolean hasNext() {
+                return queue.size() > 0;
+            }
 
             @Override
-            public int size() {
-                return numCentroids;
-            }
-
-            @Override
-            public long postingListOffset(int centroidOrdinal) throws IOException {
-                if (centroidOrdinal != currentCentroid) {
-                    centroids.seek(quantizeCentroidsLength + (long) Long.BYTES * centroidOrdinal);
-                    postingListOffset = centroids.readLong();
-                    currentCentroid = centroidOrdinal;
-                }
-                return postingListOffset;
-            }
-
-            public void bulkScore(NeighborQueue queue) throws IOException {
-                // TODO: bulk score centroids like we do with posting lists
-                centroids.seek(0L);
-                for (int i = 0; i < numCentroids; i++) {
-                    queue.add(i, score());
-                }
-            }
-
-            private float score() throws IOException {
-                final float qcDist = scorer.int4DotProduct(quantized);
-                centroids.readFloats(centroidCorrectiveValues, 0, 3);
-                final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
-                return int4QuantizedScore(
-                    qcDist,
-                    queryParams,
-                    fieldInfo.getVectorDimension(),
-                    centroidCorrectiveValues,
-                    quantizedCentroidComponentSum,
-                    globalCentroidDp,
-                    fieldInfo.getVectorSimilarityFunction()
-                );
-            }
-
-            // TODO can we do this in off-heap blocks?
-            private float int4QuantizedScore(
-                float qcDist,
-                OptimizedScalarQuantizer.QuantizationResult queryCorrections,
-                int dims,
-                float[] targetCorrections,
-                int targetComponentSum,
-                float centroidDp,
-                VectorSimilarityFunction similarityFunction
-            ) {
-                float ax = targetCorrections[0];
-                // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-                float lx = (targetCorrections[1] - ax) * FOUR_BIT_SCALE;
-                float ay = queryCorrections.lowerInterval();
-                float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
-                float y1 = queryCorrections.quantizedComponentSum();
-                float score = ax * ay * dims + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
-                if (similarityFunction == EUCLIDEAN) {
-                    score = queryCorrections.additionalCorrection() + targetCorrections[2] - 2 * score;
-                    return Math.max(1 / (1f + score), 0);
-                } else {
-                    // For cosine and max inner product, we need to apply the additional correction, which is
-                    // assumed to be the non-centered dot-product between the vector and the centroid
-                    score += queryCorrections.additionalCorrection() + targetCorrections[2] - centroidDp;
-                    if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                        return VectorUtil.scaleMaxInnerProductScore(score);
-                    }
-                    return Math.max((1f + score) / 2f, 0);
-                }
+            public long nextPostingListOffset() throws IOException {
+                int centroidOrdinal = queue.pop();
+                centroids.seek(offset + (long) Long.BYTES * centroidOrdinal);
+                return centroids.readLong();
             }
         };
     }
 
-    @Override
-    NeighborQueue scorePostingLists(FieldInfo fieldInfo, KnnCollector knnCollector, CentroidQueryScorer centroidQueryScorer, int nProbe)
-        throws IOException {
-        NeighborQueue neighborQueue = new NeighborQueue(centroidQueryScorer.size(), true);
-        centroidQueryScorer.bulkScore(neighborQueue);
-        return neighborQueue;
+    // TODO can we do this in off-heap blocks?
+    private float int4QuantizedScore(
+        float qcDist,
+        OptimizedScalarQuantizer.QuantizationResult queryCorrections,
+        int dims,
+        float[] targetCorrections,
+        int targetComponentSum,
+        float centroidDp,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        float ax = targetCorrections[0];
+        float lx = (targetCorrections[1] - ax) * FOUR_BIT_SCALE;
+        float ay = queryCorrections.lowerInterval();
+        float ly = (queryCorrections.upperInterval() - ay) * FOUR_BIT_SCALE;
+        float y1 = queryCorrections.quantizedComponentSum();
+        float score = ax * ay * dims + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
+        if (similarityFunction == EUCLIDEAN) {
+            score = queryCorrections.additionalCorrection() + targetCorrections[2] - 2 * score;
+            return Math.max(1 / (1f + score), 0);
+        } else {
+            // For cosine and max inner product, we need to apply the additional correction, which is
+            // assumed to be the non-centered dot-product between the vector and the centroid
+            score += queryCorrections.additionalCorrection() + targetCorrections[2] - centroidDp;
+            if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
+                return VectorUtil.scaleMaxInnerProductScore(score);
+            }
+            return Math.max((1f + score) / 2f, 0);
+        }
     }
 
     @Override

@@ -27,11 +27,14 @@ import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FlushInfo;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.MergeInfo;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.store.FsDirectoryFactory;
 
 import java.io.IOException;
+import java.util.Set;
 
 /**
  * Copied from Lucene99FlatVectorsFormat in Lucene 10.1
@@ -66,17 +69,24 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
 
     static boolean shouldUseDirectIO(SegmentReadState state) {
         assert ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO;
-        return FsDirectoryFactory.isHybridFs(state.directory)
-            && FilterDirectory.unwrap(state.directory) instanceof DirectIOIndexInputSupplier;
+        return FsDirectoryFactory.isHybridFs(state.directory);
     }
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         if (shouldUseDirectIO(state) && state.context.context() == IOContext.Context.DEFAULT) {
+            // only override the context for the random-access use case
+            SegmentReadState directIOState = new SegmentReadState(
+                state.directory,
+                state.segmentInfo,
+                state.fieldInfos,
+                new DirectIOContext(state.context.hints()),
+                state.segmentSuffix
+            );
             // Use mmap for merges and direct I/O for searches.
             // TODO: Open the mmap file with sequential access instead of random (current behavior).
             return new MergeReaderWrapper(
-                new DirectIOLucene99FlatVectorsReader(state, vectorsScorer),
+                new Lucene99FlatVectorsReader(directIOState, vectorsScorer),
                 new Lucene99FlatVectorsReader(state, vectorsScorer)
             );
         } else {
@@ -86,6 +96,41 @@ public class DirectIOLucene99FlatVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public String toString() {
-        return "ES818FlatVectorsFormat(" + "vectorsScorer=" + vectorsScorer + ')';
+        return "Lucene99FlatVectorsFormat(" + "vectorsScorer=" + vectorsScorer + ')';
+    }
+
+    static class DirectIOContext implements IOContext {
+
+        final Set<FileOpenHint> hints;
+
+        DirectIOContext(Set<FileOpenHint> hints) {
+            // always add DirectIOHint to the hints given
+            this.hints = Sets.union(hints, Set.of(DirectIOHint.INSTANCE));
+        }
+
+        @Override
+        public Context context() {
+            return Context.DEFAULT;
+        }
+
+        @Override
+        public MergeInfo mergeInfo() {
+            return null;
+        }
+
+        @Override
+        public FlushInfo flushInfo() {
+            return null;
+        }
+
+        @Override
+        public Set<FileOpenHint> hints() {
+            return hints;
+        }
+
+        @Override
+        public IOContext withHints(FileOpenHint... hints) {
+            return new DirectIOContext(Set.of(hints));
+        }
     }
 }

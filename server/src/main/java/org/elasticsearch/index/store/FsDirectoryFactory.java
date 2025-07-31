@@ -22,22 +22,26 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.store.SimpleFSLockFactory;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.vectors.es818.DirectIOIndexInputSupplier;
+import org.elasticsearch.index.StandardIOBehaviorHint;
+import org.elasticsearch.index.codec.vectors.es818.DirectIOHint;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiPredicate;
@@ -78,20 +82,12 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // Use Lucene defaults
                 final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
                 if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
-                    Directory dir = new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions));
-                    if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
-                        dir = disableRandomAdvice(dir);
-                    }
-                    return dir;
+                    return new HybridDirectory(lockFactory, setMMapFunctions(mMapDirectory, preLoadExtensions));
                 } else {
                     return primaryDirectory;
                 }
             case MMAPFS:
-                Directory dir = setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
-                if (MADV_RANDOM_FEATURE_FLAG.isEnabled() == false) {
-                    dir = disableRandomAdvice(dir);
-                }
-                return dir;
+                return setMMapFunctions(new MMapDirectory(location, lockFactory), preLoadExtensions);
             case SIMPLEFS:
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
@@ -100,10 +96,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
     }
 
+    private static Optional<ReadAdvice> overrideReadAdvice(String name, IOContext context) {
+        if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
+            return Optional.of(ReadAdvice.NORMAL);
+        }
+        return Optional.empty();
+    }
+
     /** Sets the preload, if any, on the given directory based on the extensions. Returns the same directory instance. */
     // visibility and extensibility for testing
-    public MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
+    public MMapDirectory setMMapFunctions(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
         mMapDirectory.setPreload(getPreloadFunc(preLoadExtensions));
+        mMapDirectory.setReadAdviceOverride(FsDirectoryFactory::overrideReadAdvice);
         return mMapDirectory;
     }
 
@@ -120,23 +124,6 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
     }
 
     /**
-     * Return a {@link FilterDirectory} around the provided {@link Directory} that forcefully disables {@link IOContext#readAdvice random
-     * access}.
-     */
-    static Directory disableRandomAdvice(Directory dir) {
-        return new FilterDirectory(dir) {
-            @Override
-            public IndexInput openInput(String name, IOContext context) throws IOException {
-                if (context.readAdvice() == ReadAdvice.RANDOM) {
-                    context = context.withReadAdvice(ReadAdvice.NORMAL);
-                }
-                assert context.readAdvice() != ReadAdvice.RANDOM;
-                return super.openInput(name, context);
-            }
-        };
-    }
-
-    /**
      * Returns true iff the directory is a hybrid fs directory
      */
     public static boolean isHybridFs(Directory directory) {
@@ -144,7 +131,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return unwrap instanceof HybridDirectory;
     }
 
-    static final class HybridDirectory extends NIOFSDirectory implements DirectIOIndexInputSupplier {
+    static final class HybridDirectory extends NIOFSDirectory {
         private final MMapDirectory delegate;
         private final DirectIODirectory directIODelegate;
 
@@ -171,32 +158,39 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            if (useDelegate(name, context)) {
-                // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+            Throwable directIOException = null;
+            if (directIODelegate != null && context.hints().contains(DirectIOHint.INSTANCE)) {
                 ensureOpen();
                 ensureCanRead(name);
-                // we switch the context here since mmap checks for the READONCE context by identity
-                context = context == Store.READONCE_CHECKSUM ? IOContext.READONCE : context;
-                // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
-                // we might run into trouble with files that are pendingDelete in one directory but still
-                // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
-                // and intersect for perf reasons.
-                return delegate.openInput(name, context);
-            } else {
-                return super.openInput(name, context);
+                try {
+                    Log.debug("Opening {} with direct IO", name);
+                    return directIODelegate.openInput(name, context);
+                } catch (FileSystemException e) {
+                    Log.debug(() -> Strings.format("Could not open %s with direct IO", name), e);
+                    directIOException = e;
+                    // and fallthrough to normal opening below
+                }
             }
-        }
 
-        @Override
-        public IndexInput openInputDirect(String name, IOContext context) throws IOException {
-            if (directIODelegate == null) {
-                return openInput(name, context);
+            try {
+                if (useDelegate(name, context)) {
+                    // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
+                    ensureOpen();
+                    ensureCanRead(name);
+                    // we only use the mmap to open inputs. Everything else is managed by the NIOFSDirectory otherwise
+                    // we might run into trouble with files that are pendingDelete in one directory but still
+                    // listed in listAll() from the other. We on the other hand don't want to list files from both dirs
+                    // and intersect for perf reasons.
+                    return delegate.openInput(name, context);
+                } else {
+                    return super.openInput(name, context);
+                }
+            } catch (Throwable t) {
+                if (directIOException != null) {
+                    t.addSuppressed(directIOException);
+                }
+                throw t;
             }
-            // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
-            ensureOpen();
-            ensureCanRead(name);
-            Log.debug("Opening {} with direct IO", name);
-            return directIODelegate.openInput(name, context);
         }
 
         @Override
@@ -215,7 +209,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         }
 
         static boolean useDelegate(String name, IOContext ioContext) {
-            if (ioContext == Store.READONCE_CHECKSUM) {
+            if (ioContext.hints().contains(Store.FileFooterOnly.INSTANCE)) {
                 // If we're just reading the footer for the checksum then mmap() isn't really necessary, and it's desperately inefficient
                 // if pre-loading is enabled on this file.
                 return false;

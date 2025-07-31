@@ -28,7 +28,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -39,6 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.lang.String.format;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.IVFVectorsFormat.MIN_VECTORS_PER_CLUSTER;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -85,6 +86,25 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
     }
 
     @Override
+    protected void assertOffHeapByteSize(LeafReader r, String fieldName) throws IOException {
+        var fieldInfo = r.getFieldInfos().fieldInfo(fieldName);
+
+        if (r instanceof CodecReader codecReader) {
+            KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+            if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                knnVectorsReader = fieldsReader.getFieldReader(fieldName);
+            }
+            var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+            long totalByteSize = offHeap.values().stream().mapToLong(Long::longValue).sum();
+            // IVF doesn't report stats at the moment
+            assertThat(offHeap, anEmptyMap());
+            assertThat(totalByteSize, equalTo(0L));
+        } else {
+            throw new AssertionError("unexpected:" + r.getClass());
+        }
+    }
+
+    @Override
     public void testAdvance() throws Exception {
         // TODO re-enable with hierarchical IVF, clustering as it is is flaky
     }
@@ -123,7 +143,7 @@ public class IVFVectorsFormatTests extends BaseKnnVectorsFormatTestCase {
                         knnVectorsReader = fieldsReader.getFieldReader("f");
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
-                    var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertEquals(0, offHeap.size());
                 }
             }

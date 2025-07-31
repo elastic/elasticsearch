@@ -29,7 +29,6 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -195,7 +194,7 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
                         knnVectorsReader = fieldsReader.getFieldReader("f");
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
-                    var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertEquals(3, offHeap.size());
                     assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
                     assertEquals(1L, (long) offHeap.get("vex"));

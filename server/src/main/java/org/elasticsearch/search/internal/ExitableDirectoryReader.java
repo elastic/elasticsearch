@@ -10,6 +10,7 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
+import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -586,8 +587,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (scorer == null) {
                 return null;
             }
+            DocIdSetIterator scorerIterator = scorer.iterator();
             return new VectorScorer() {
-                private final DocIdSetIterator iterator = new ExitableDocSetIterator(scorer.iterator(), queryCancellation);
+                private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
 
                 @Override
                 public float score() throws IOException {
@@ -637,8 +639,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             if (scorer == null) {
                 return null;
             }
+            DocIdSetIterator scorerIterator = scorer.iterator();
             return new VectorScorer() {
-                private final DocIdSetIterator iterator = new ExitableDocSetIterator(scorer.iterator(), queryCancellation);
+                private final DocIdSetIterator iterator = exitableIterator(scorerIterator, queryCancellation);
 
                 @Override
                 public float score() throws IOException {
@@ -660,6 +663,17 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public FloatVectorValues copy() throws IOException {
             return in.copy();
+        }
+    }
+
+    /** Wraps the iterator in an exitable iterator, specializing for KnnVectorValues.DocIndexIterator. */
+    static DocIdSetIterator exitableIterator(DocIdSetIterator iterator, QueryCancellation queryCancellation) {
+        if (iterator instanceof KnnVectorValues.DocIndexIterator docIndexIterator) {
+            return createExitableIterator(docIndexIterator, queryCancellation);
+        } else if (iterator instanceof IndexedDISI indexedDISI) {
+            return createExitableIterator(IndexedDISI.asDocIndexIterator(indexedDISI), queryCancellation);
+        } else {
+            return new ExitableDocSetIterator(iterator, queryCancellation);
         }
     }
 

@@ -596,6 +596,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
      * But the union operation overhead that comes with combining the range with
      * the top level query tends to slow us down more than the standard aggregator.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/128471")
     public void testRuntimeFieldTopLevelQueryNotOptimized() throws IOException {
         long totalDocs = (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 4;
         SearchLookup lookup = new SearchLookup(s -> null, (ft, l, ftd) -> null, (ctx, doc) -> null);

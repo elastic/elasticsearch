@@ -181,6 +181,8 @@ public class IndexVersions {
     public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_BBQ_HNSW = def(9_032_0_00, Version.LUCENE_10_2_2);
     public static final IndexVersion MATCH_ONLY_TEXT_STORED_AS_BYTES = def(9_033_0_00, Version.LUCENE_10_2_2);
 
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_3_0 = def(9_050_00_0, Version.LUCENE_10_3_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

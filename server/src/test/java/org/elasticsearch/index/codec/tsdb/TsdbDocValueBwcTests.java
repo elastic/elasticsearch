@@ -33,7 +33,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.codec.Elasticsearch816Codec;
-import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
@@ -64,7 +64,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 return docValuesFormat;
             }
         };
-        var newCodec = new Elasticsearch900Lucene101Codec() {
+        var newCodec = new Elasticsearch92Lucene103Codec() {
 
             final DocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat();
 

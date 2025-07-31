@@ -18,14 +18,12 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapStats;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
-class MergeReaderWrapper extends FlatVectorsReader implements OffHeapStats {
+class MergeReaderWrapper extends FlatVectorsReader {
 
     private final FlatVectorsReader mainReader;
     private final FlatVectorsReader mergeReader;
@@ -34,11 +32,6 @@ class MergeReaderWrapper extends FlatVectorsReader implements OffHeapStats {
         super(mainReader.getFlatVectorScorer());
         this.mainReader = mainReader;
         this.mergeReader = mergeReader;
-    }
-
-    // For testing
-    FlatVectorsReader getMainReader() {
-        return mainReader;
     }
 
     @Override
@@ -67,6 +60,16 @@ class MergeReaderWrapper extends FlatVectorsReader implements OffHeapStats {
     }
 
     @Override
+    public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        mainReader.search(field, target, knnCollector, acceptDocs);
+    }
+
+    @Override
+    public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
+        mainReader.search(field, target, knnCollector, acceptDocs);
+    }
+
+    @Override
     public FlatVectorsReader getMergeInstance() {
         return mergeReader;
     }
@@ -82,22 +85,14 @@ class MergeReaderWrapper extends FlatVectorsReader implements OffHeapStats {
     }
 
     @Override
-    public void search(String field, float[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
-        mainReader.search(field, target, knnCollector, acceptDocs);
-    }
-
-    @Override
-    public void search(String field, byte[] target, KnnCollector knnCollector, Bits acceptDocs) throws IOException {
-        mainReader.search(field, target, knnCollector, acceptDocs);
+    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
+        // TODO: https://github.com/elastic/elasticsearch/issues/128672
+        // return mainReader.getOffHeapByteSize(fieldInfo);
+        return Map.of(); // no off-heap when using direct IO
     }
 
     @Override
     public void close() throws IOException {
         IOUtils.close(mainReader, mergeReader);
-    }
-
-    @Override
-    public Map<String, Long> getOffHeapByteSize(FieldInfo fieldInfo) {
-        return OffHeapByteSizeUtils.getOffHeapByteSize(mainReader, fieldInfo);
     }
 }

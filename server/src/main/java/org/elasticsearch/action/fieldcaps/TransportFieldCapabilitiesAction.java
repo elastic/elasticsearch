@@ -372,7 +372,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         );
     }
 
-    private static String[] checkBlocksAndFilterIndices(ProjectState projectState, String[] concreteIndices) {
+    static String[] checkBlocksAndFilterIndices(ProjectState projectState, String[] concreteIndices) {
         var blocks = projectState.blocks();
         var projectId = projectState.projectId();
         if (blocks.global(projectId).isEmpty() && blocks.indices(projectId).isEmpty()) {

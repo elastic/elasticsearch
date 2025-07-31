@@ -13,12 +13,23 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DummyQueryBuilder;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
@@ -29,10 +40,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction.checkBlocksAndFilterIndices;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportFieldCapabilitiesActionTests extends ESTestCase {
@@ -102,6 +121,65 @@ public class TransportFieldCapabilitiesActionTests extends ESTestCase {
             assertEquals("This query isn't serializable before transport version " + transportVersion, ex.getCause().getMessage());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
+        }
+    }
+
+    public void testCheckBlocksAndFilterIndices() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        String[] concreteIndices = { "index1", "index2", "index3" };
+
+        // No blocks
+        {
+            final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+                .build();
+            final ProjectState projectState = clusterState.projectState(projectId);
+            String[] result = checkBlocksAndFilterIndices(projectState, concreteIndices);
+            assertArrayEquals(concreteIndices, result);
+        }
+
+        // Global block
+        {
+            final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+                .blocks(
+                    ClusterBlocks.builder()
+                        .addGlobalBlock(
+                            new ClusterBlock(
+                                0,
+                                "id",
+                                false,
+                                false,
+                                false,
+                                RestStatus.SERVICE_UNAVAILABLE,
+                                EnumSet.of(ClusterBlockLevel.READ)
+                            )
+                        )
+                )
+                .build();
+            final ProjectState projectState = clusterState.projectState(projectId);
+            expectThrows(ClusterBlockException.class, () -> checkBlocksAndFilterIndices(projectState, concreteIndices));
+        }
+
+        // Index-level READ block
+        {
+            final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+                .blocks(ClusterBlocks.builder().addIndexBlock(projectId, "index1", IndexMetadata.INDEX_READ_BLOCK))
+                .build();
+            final ProjectState projectState = clusterState.projectState(projectId);
+            expectThrows(ClusterBlockException.class, () -> checkBlocksAndFilterIndices(projectState, concreteIndices));
+        }
+
+        // Index-level INDEX_REFRESH_BLOCK
+        {
+            final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+                .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+                .blocks(ClusterBlocks.builder().addIndexBlock(projectId, "index2", IndexMetadata.INDEX_REFRESH_BLOCK))
+                .build();
+            final ProjectState projectState = clusterState.projectState(projectId);
+            String[] result = checkBlocksAndFilterIndices(projectState, concreteIndices);
+            assertArrayEquals(new String[] { "index1", "index3" }, result);
         }
     }
 }

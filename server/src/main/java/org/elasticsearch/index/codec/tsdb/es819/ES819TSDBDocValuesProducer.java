@@ -1830,6 +1830,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
                     for (int i = offset; i < docs.count(); i++) {
+                        set = false;
                         if (disi.advanceExact(docs.get(i))) {
                             set();
                             if (count == 1) {
@@ -1849,6 +1850,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public void loadDoc(BlockLoader.LongBuilder builder, int docId) throws IOException {
+                    set = false;
                     if (disi.advanceExact(docId)) {
                         set();
                         if (count == 1) {
@@ -1868,6 +1870,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
                     for (int i = offset; i < docs.count(); i++) {
+                        set = false;
                         if (disi.advanceExact(docs.get(i))) {
                             set();
                             if (count == 1) {
@@ -1889,6 +1892,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                 @Override
                 public void loadDoc(BlockLoader.IntBuilder builder, int docId) throws IOException {
+                    set = false;
                     if (disi.advanceExact(docId)) {
                         set();
                         if (count == 1) {
@@ -1915,6 +1919,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     BlockDocValuesReader.ToDouble toDouble
                 ) throws IOException {
                     for (int i = offset; i < docs.count(); i++) {
+                        set = false;
                         if (disi.advanceExact(docs.get(i))) {
                             set();
                             if (count == 1) {
@@ -1935,6 +1940,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public void loadDoc(BlockLoader.DoubleBuilder builder, int docId, BlockDocValuesReader.ToDouble toDouble)
                     throws IOException {
+                    set = false;
                     if (disi.advanceExact(docId)) {
                         set();
                         if (count == 1) {

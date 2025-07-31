@@ -11,7 +11,7 @@ applies_to:
 A retriever is a specification to describe top documents returned from a search. A retriever replaces other elements of the [search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) that also return top documents such as [`query`](/reference/query-languages/querydsl.md) and [`knn`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn). A retriever may have child retrievers where a retriever with two or more children is considered a compound retriever. This allows for complex behavior to be depicted in a tree-like structure, called the retriever tree, which clarifies the order of operations that occur during a search.
 
 ::::{tip}
-Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) for a high level overview of the retrievers abstraction. Refer to [Retrievers examples](retrievers/retrievers-examples.md) for additional examples.
+Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) for a high level overview of the retrievers abstraction. Refer to [Retrievers examples](docs-content://solutions/search/retrievers-examples.md) for additional examples.
 
 ::::
 
@@ -99,156 +99,6 @@ When using the `linear` retriever, fields can be boosted using the `^` notation:
 GET books/_search
 {
   "retriever": {
-    "knn": { <1>
-      "field": "vector", <2>
-      "query_vector": [10, 22, 77], <3>
-      "k": 10, <4>
-      "num_candidates": 10 <5>
-    }
-  }
-}
-```
-
-1. Configuration for k-nearest neighbor (knn) search, which is based on vector similarity.
-2. Specifies the field name that contains the vectors.
-3. The query vector against which document vectors are compared in the `knn` search.
-4. The number of nearest neighbors to return as top hits. This value must be fewer than or equal to `num_candidates`.
-5. The size of the initial candidate set from which the final `k` nearest neighbors are selected.
-
-
-
-
-## Linear Retriever [linear-retriever]
-
-A retriever that normalizes and linearly combines the scores of other retrievers.
-
-
-#### Parameters [linear-retriever-parameters]
-
-`retrievers`
-:   (Required, array of objects)
-
-    A list of the sub-retrievers' configuration, that we will take into account and whose result sets we will merge through a weighted sum. Each configuration can have a different weight and normalization depending on the specified retriever.
-
-`normalizer`
-:   (Optional, String)
-
-    Specifies a normalizer to be applied to all sub-retrievers. This provides a simple way to configure normalization for all retrievers at once.
-
-    The `normalizer` can be specified at the top level, at the per-retriever level, or both, with the following rules:
-
-    * If only the top-level `normalizer` is specified, it applies to all sub-retrievers.
-    * If both a top-level and a per-retriever `normalizer` are specified, the per-retriever normalizer must be identical to the top-level one. If they differ, the request will fail.
-    * If only per-retriever normalizers are specified, they can be different for each sub-retriever.
-    * If no normalizer is specified at any level, no normalization is applied.
-
-    Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
-
-Each entry in the `retrievers` array specifies the following parameters:
-
-`retriever`
-:   (Required, a `retriever` object)
-
-    Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size` results, which will later be merged based on the specified `weight` and `normalizer`.
-
-`weight`
-:   (Optional, float)
-
-    The weight that each score of this retriever’s top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
-
-`normalizer`
-:   (Optional, String)
-
-    Specifies how we will normalize this specific retriever’s scores, before applying the specified `weight`. If a top-level `normalizer` is also specified, this normalizer must be the same. Available values are: `minmax`, `l2_norm`, and `none`. Defaults to `none`.
-
-    * `none`
-    * `minmax` : A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
-
-        ```
-        score = (score - min) / (max - min)
-        ```
-
-    * `l2_norm` : An `L2ScoreNormalizer` that normalizes scores using the L2 norm of the score values.
-
-See also [this hybrid search example](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-retriever) using a linear retriever on how to independently configure and apply normalizers to retrievers.
-
-`rank_window_size`
-:   (Optional, integer)
-
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
-
-
-`filter`
-:   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
-
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
-
-
-
-## RRF Retriever [rrf-retriever]
-
-An [RRF](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) retriever returns top documents based on the RRF formula, equally weighting two or more child retrievers. Reciprocal rank fusion (RRF) is a method for combining multiple result sets with different relevance indicators into a single result set.
-
-
-#### Parameters [rrf-retriever-parameters]
-
-`retrievers`
-:   (Required, array of retriever objects)
-
-    A list of child retrievers to specify which sets of returned top documents will have the RRF formula applied to them. Each child retriever carries an equal weight as part of the RRF formula. Two or more child retrievers are required.
-
-
-`rank_constant`
-:   (Optional, integer)
-
-    This value determines how much influence documents in individual result sets per query have over the final ranked result set. A higher value indicates that lower ranked documents have more influence. This value must be greater than or equal to `1`. Defaults to `60`.
-
-
-`rank_window_size`
-:   (Optional, integer)
-
-    This value determines the size of the individual result sets per query. A higher value will improve result relevance at the cost of performance. The final ranked result set is pruned down to the search request’s [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-size-param). `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`. Defaults to the `size` parameter.
-
-
-`filter`
-:   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
-
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
-
-
-
-### Example: Hybrid search [rrf-retriever-example-hybrid]
-
-A simple hybrid search example (lexical search + dense vector search) combining a `standard` retriever with a `knn` retriever using RRF:
-
-```console
-GET /restaurants/_search
-{
-  "retriever": {
-    "rrf": { <1>
-      "retrievers": [ <2>
-        {
-          "standard": { <3>
-            "query": {
-              "multi_match": {
-                "query": "Austria",
-                "fields": [
-                  "city",
-                  "region"
-                ]
-              }
-            }
-          }
-        },
-        {
-          "knn": { <4>
-            "field": "vector",
-            "query_vector": [10, 22, 77],
-            "k": 10,
-            "num_candidates": 10
-          }
-        }
-=======
     "linear": {
       "query": "elasticsearch",
       "fields": [
@@ -388,5 +238,5 @@ Note, however, that wildcard field patterns will only resolve to fields that eit
 
 ### Examples
 
-- [RRF with the multi-field query format](retrievers/retrievers-examples.md#retrievers-examples-rrf-multi-field-query-format)
-- [Linear retriever with the multi-field query format](retrievers/retrievers-examples.md#retrievers-examples-linear-multi-field-query-format)
+- [RRF with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-rrf-multi-field-query-format)
+- [Linear retriever with the multi-field query format](docs-content://solutions/search/retrievers-examples.md#retrievers-examples-linear-multi-field-query-format)

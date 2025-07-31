@@ -311,7 +311,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
             IndexRoutingTable databasesIndexRT = projectState.routingTable().index(databasesIndex);
             if (databasesIndexRT == null || databasesIndexRT.allPrimaryShardsActive() == false) {
                 logger.trace(
-                    "Not checking databases because geoip databases index does not have all active primary shards for" + " project [{}]",
+                    "Not checking databases because geoip databases index does not have all active primary shards for project [{}]",
                     projectId
                 );
                 return;

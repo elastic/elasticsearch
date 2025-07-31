@@ -4117,7 +4117,7 @@ public class AnalyzerTests extends ESTestCase {
             """, "Found 1 problem\n" + "line 2:49: Unknown column [x]", "mapping-default.json");
     }
 
-    public void testTBucketWithIntervalInStringInBothAggregationAndGrouping() {
+    public void testTBucketWithDatePeriodInBothAggregationAndGrouping() {
         LogicalPlan plan = analyze("""
             FROM sample_data
             | STATS min = MIN(@timestamp), max = MAX(@timestamp) BY bucket = TBUCKET(1 week)

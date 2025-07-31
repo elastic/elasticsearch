@@ -20,6 +20,18 @@
       "params" : [
         {
           "name" : "buckets",
+          "type" : "date_period",
+          "optional" : false,
+          "description" : "Desired bucket size."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "buckets",
           "type" : "time_duration",
           "optional" : false,
           "description" : "Desired bucket size."
@@ -27,6 +39,18 @@
       ],
       "variadic" : false,
       "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "buckets",
+          "type" : "time_duration",
+          "optional" : false,
+          "description" : "Desired bucket size."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
     }
   ],
   "examples" : [

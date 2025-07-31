@@ -5,5 +5,7 @@
 | buckets | result |
 | --- | --- |
 | date_period | date |
+| date_period | date_nanos |
 | time_duration | date |
+| time_duration | date_nanos |
 

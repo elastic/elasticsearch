@@ -455,8 +455,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 return;
             }
 
+            if (modelSettings == null) {
+                throw new IllegalArgumentException(
+                    "Model settings must be set to validate index options for inference ID [" + inferenceId + "]"
+                );
+            }
+
             if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
-                if (modelSettings != null && modelSettings.taskType() != SPARSE_EMBEDDING) {
+                if (modelSettings.taskType() != SPARSE_EMBEDDING) {
                     throw new IllegalArgumentException(
                         "Invalid task type for index options, required ["
                             + SPARSE_EMBEDDING
@@ -466,12 +472,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     );
                 }
                 return;
-            }
-
-            if (modelSettings == null) {
-                throw new IllegalArgumentException(
-                    "Model settings must be set to validate index options for inference ID [" + inferenceId + "]"
-                );
             }
 
             if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {

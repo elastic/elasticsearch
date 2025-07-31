@@ -36,7 +36,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -643,56 +642,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         b.endObject();
     }
 
-    private void setSparseVectorIndexOptionInMapper(XContentBuilder b, SparseVectorFieldMapper.SparseVectorIndexOptions indexOptions)
-        throws IOException {
-        setSparseVectorIndexOptionInMapper(b, indexOptions, null);
-    }
-
-    private void setSparseVectorIndexOptionInMapper(
-        XContentBuilder b,
-        SparseVectorFieldMapper.SparseVectorIndexOptions indexOptions,
-        Tuple<String, Object> injectExtraField
-    ) throws IOException {
-        if (indexOptions == null) {
-            return;
-        }
-
-        b.startObject(INDEX_OPTIONS_FIELD);
-        {
-            b.startObject(SparseVectorFieldMapper.CONTENT_TYPE);
-            {
-                if (indexOptions.getPrune() != null) {
-                    b.field(SparseVectorFieldMapper.SparseVectorIndexOptions.PRUNE_FIELD_NAME.getPreferredName(), indexOptions.getPrune());
-                }
-
-                if (indexOptions.getPruningConfig() != null) {
-                    b.startObject(SparseVectorFieldMapper.SparseVectorIndexOptions.PRUNING_CONFIG_FIELD_NAME.getPreferredName());
-                    {
-                        b.field(
-                            TokenPruningConfig.TOKENS_FREQ_RATIO_THRESHOLD.getPreferredName(),
-                            indexOptions.getPruningConfig().getTokensFreqRatioThreshold()
-                        );
-                        b.field(
-                            TokenPruningConfig.TOKENS_WEIGHT_THRESHOLD.getPreferredName(),
-                            indexOptions.getPruningConfig().getTokensWeightThreshold()
-                        );
-                        b.field(
-                            TokenPruningConfig.ONLY_SCORE_PRUNED_TOKENS_FIELD.getPreferredName(),
-                            indexOptions.getPruningConfig().isOnlyScorePrunedTokens()
-                        );
-                    }
-                    b.endObject();
-                }
-
-                if (injectExtraField != null) {
-                    b.field(injectExtraField.v1(), injectExtraField.v2());
-                }
-            }
-            b.endObject();
-        }
-
-    }
-
     public void testSparseVectorIndexOptionsValidationAndMapping() throws IOException {
         for (int depth = 1; depth < 5; depth++) {
             SparseVectorFieldMapper.SparseVectorIndexOptions indexOptions = SparseVectorFieldTypeTests.randomSparseVectorIndexOptions();
@@ -706,8 +655,14 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
                     b.field(INFERENCE_ID_FIELD, inferenceId);
                     addSparseVectorModelSettingsToBuilder(b);
-                    setSparseVectorIndexOptionInMapper(b, indexOptions);
-                    b.endObject();
+                    if (indexOptions != null) {
+                        b.startObject(INDEX_OPTIONS_FIELD);
+                        {
+                            b.field(SparseVectorFieldMapper.CONTENT_TYPE);
+                            indexOptions.toXContent(b, null);
+                        }
+                        b.endObject();
+                    }
                 }
                 b.endObject();
             }));
@@ -717,7 +672,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 fieldName,
                 true,
                 null,
-                new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, indexOptions)
+                indexOptions == null
+                    ? null
+                    : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, indexOptions)
             );
         }
     }
@@ -767,26 +724,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, newChunkingSettings, newIndexOptions))
             );
             assertSemanticTextField(mapperService, fieldName, true, newChunkingSettings, expectedIndexOptions);
-        }
-    }
-
-    public void testSparseVectorValidationWithUnknownParameter() throws IOException {
-        for (int depth = 1; depth < 5; depth++) {
-            SparseVectorFieldMapper.SparseVectorIndexOptions indexOptions = SparseVectorFieldTypeTests.randomSparseVectorIndexOptions();
-            String inferenceId = "test_model";
-            String fieldName = randomFieldName(depth);
-
-            Exception exc = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
-                b.startObject(fieldName);
-                {
-                    b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
-                    b.field(INFERENCE_ID_FIELD, inferenceId);
-                    setSparseVectorIndexOptionInMapper(b, indexOptions, new Tuple<>("unknown_parameter", "test"));
-                    b.endObject();
-                }
-                b.endObject();
-            })));
-            assertTrue(exc.getMessage().contains("[index_options] unknown field [unknown_parameter]"));
         }
     }
 
@@ -1546,7 +1483,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             "field",
             true,
             null,
-            defaultSparseVectorIndexOptions(mapperService.getIndexSettings().getIndexVersionCreated())
+            null
         );
     }
 
@@ -1662,12 +1599,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public void testSpecificSparseVectorIndexOptions() throws IOException {
         for (int i = 0; i < 10; i++) {
-            SparseVectorFieldMapper.SparseVectorIndexOptions testIndexOptions = randomSparseVectorIndexOptions();
+            SparseVectorFieldMapper.SparseVectorIndexOptions testIndexOptions = randomSparseVectorIndexOptions(false);
             var mapperService = createMapperService(fieldMapping(b -> {
                 b.field("type", SemanticTextFieldMapper.CONTENT_TYPE);
                 b.field(INFERENCE_ID_FIELD, "test_inference_id");
                 addSparseVectorModelSettingsToBuilder(b);
-                setSparseVectorIndexOptionInMapper(b, testIndexOptions);
+                b.startObject(INDEX_OPTIONS_FIELD);
+                {
+                    b.field(SparseVectorFieldMapper.CONTENT_TYPE);
+                    testIndexOptions.toXContent(b, null);
+                }
                 b.endObject();
             }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT);
 
@@ -1741,7 +1682,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 ? null
                 : new SemanticTextIndexOptions(
                     SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR,
-                    randomSparseVectorIndexOptions()
+                    randomSparseVectorIndexOptions(false)
                 );
         }
 

@@ -1047,13 +1047,13 @@ setup:
   - match: { status: 400 }
 
 ---
-"Specifying sparse vector index options requires sparse vector model":
+"Specifying sparse vector index options should fail using dense index options":
   - requires:
       cluster_features: "semantic_text.sparse_vector_index_options"
       reason: Index options for sparse vector introduced in 9.2.0
 
   - do:
-      catch: /Model settings must be set to validate index options/
+      catch: /Invalid task type for index options/
       indices.create:
         index: my-custom-semantic-index
         body:
@@ -1066,12 +1066,39 @@ setup:
             properties:
               semantic_field:
                 type: semantic_text
-                inference_id: nonexistent-inference-id
+                inference_id: sparse-inference-id
                 index_options:
                   dense_vector:
                     type: bbq_hnsw
                     m: 16
                     ef_construction: 100
+
+  - match: { status: 400 }
+
+---
+"Specifying sparse vector index options requires sparse vector model":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      catch: /Model settings must be set to validate index options/
+      indices.create:
+        index: should-be-invalid-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: nonexistent-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: false
 
   - match: { status: 400 }
 
@@ -1086,6 +1113,7 @@ setup:
         index: test-index-options
         body:
           settings:
+            number_of_shards: 1
             index:
               mapping:
                 semantic_text:
@@ -1099,16 +1127,94 @@ setup:
                   sparse_vector:
                     prune: true
                     pruning_config:
-                      tokens_freq_ratio_threshold: 18.0
-                      tokens_weight_threshold: 0.6
+                      tokens_freq_ratio_threshold: 1.0
+                      tokens_weight_threshold: 1.0
 
   - do:
       indices.get_mapping:
         index: test-index-options
 
   - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.6 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 1.0 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 1.0 }
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_1
+        refresh: true
+        body:
+          semantic_field: "cheese is comet"
+          _inference_fields.semantic_field:
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                semantic_field:
+                  - start_offset: 0
+                    end_offset: 67
+                    embeddings:
+                      feature_0: 2.671405
+                      feature_1: 0.11809908
+                      feature_2: 0.26088917
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_2
+        refresh: true
+        body:
+          semantic_field: "planet is astronomy moon"
+          _inference_fields.semantic_field:
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                semantic_field:
+                  - start_offset: 0
+                    end_offset: 67
+                    embeddings:
+                      feature_0: 2.3438394
+                      feature_1: 0.54600334
+                      feature_2: 0.36015007
+                      feature_3: 0.20022368
+
+  - do:
+      index:
+        index: test-index-options
+        id: doc_3
+        refresh: true
+        body:
+          semantic_field: "is globe ocean underground"
+          _inference_fields.semantic_field:
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                semantic_field:
+                  - start_offset: 0
+                    end_offset: 67
+                    embeddings:
+                      feature_0: 0.6891394
+                      feature_1: 0.484035
+                      feature_2: 0.080102935
+                      feature_3: 0.053516876
+
+  - do:
+      search:
+        index: test-index-options
+        body:
+          query:
+            semantic:
+              field: "semantic_field"
+              query: "test query"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_3" }
 
   - do:
       indices.put_mapping:
@@ -1120,18 +1226,30 @@ setup:
               inference_id: sparse-inference-id
               index_options:
                 sparse_vector:
-                  prune: true
-                  pruning_config:
-                    tokens_freq_ratio_threshold: 12.0
-                    tokens_weight_threshold: 0.1
+                  prune: false
 
   - do:
       indices.get_mapping:
         index: test-index-options
 
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 12.0 }
-  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.1 }
+  - match: { "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.prune": false }
+  - not_exists: "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold"
+  - not_exists: "test-index-options.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold"
+
+  - do:
+      search:
+        index: test-index-options
+        body:
+          query:
+            semantic:
+              field: "semantic_field"
+              query: "test query"
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
+  - match: { hits.hits.2._id: "doc_3" }
+
 
 ---
 "Displaying default sparse vector index_options with and without include_defaults":
@@ -1189,7 +1307,7 @@ setup:
                   sparse_vector:
                     prune: true
                     pruning_config:
-                      tokens_freq_ratio_threshold: 18.0
+                      tokens_freq_ratio_threshold: 5.0
                       tokens_weight_threshold: 0.4
 
   - do:
@@ -1197,7 +1315,7 @@ setup:
         index: test-index-options-sparse2
 
   - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.prune": true }
-  - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
+  - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 5.0 }
   - match: { "test-index-options-sparse2.mappings.properties.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }
 
   - do:
@@ -1207,5 +1325,5 @@ setup:
         include_defaults: true
 
   - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.prune": true }
-  - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 18.0 }
+  - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_freq_ratio_threshold": 5.0 }
   - match: { "test-index-options-sparse2.mappings.semantic_field.mapping.semantic_field.index_options.sparse_vector.pruning_config.tokens_weight_threshold": 0.4 }

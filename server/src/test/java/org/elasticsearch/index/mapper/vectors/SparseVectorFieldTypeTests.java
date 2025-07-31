@@ -42,22 +42,26 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
     }
 
     public static SparseVectorFieldMapper.SparseVectorIndexOptions randomSparseVectorIndexOptions() {
-        return randomFrom(
-            new SparseVectorFieldMapper.SparseVectorIndexOptions(null, null),
-            new SparseVectorFieldMapper.SparseVectorIndexOptions(false, null),
-            new SparseVectorFieldMapper.SparseVectorIndexOptions(true, null),
-            new SparseVectorFieldMapper.SparseVectorIndexOptions(
-                true,
-                new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
-            ),
-            new SparseVectorFieldMapper.SparseVectorIndexOptions(
-                true,
-                new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
-            ),
-            new SparseVectorFieldMapper.SparseVectorIndexOptions(
-                true,
-                new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
-            )
+        return randomSparseVectorIndexOptions(true);
+    }
+
+    public static SparseVectorFieldMapper.SparseVectorIndexOptions randomSparseVectorIndexOptions(boolean includeNull) {
+        if (includeNull && randomBoolean()) {
+            return null;
+        }
+
+        Boolean prune = randomBoolean() ? null : randomBoolean();
+        if (prune == null) {
+            new SparseVectorFieldMapper.SparseVectorIndexOptions(null, null);
+        }
+
+        if (prune == Boolean.FALSE) {
+            new SparseVectorFieldMapper.SparseVectorIndexOptions(false, null);
+        }
+
+        return new SparseVectorFieldMapper.SparseVectorIndexOptions(
+            true,
+            new TokenPruningConfig(randomFloatBetween(1.0f, 100.0f, true), randomFloatBetween(0.0f, 1.0f, true), randomBoolean())
         );
     }
 }

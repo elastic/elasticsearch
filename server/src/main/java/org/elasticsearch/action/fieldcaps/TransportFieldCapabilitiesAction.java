@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -171,7 +172,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
             .groupIndices(request.indicesOptions(), request.indices());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        final String[] concreteIndices;
+        String[] concreteIndices;
         if (localIndices == null) {
             // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
             concreteIndices = Strings.EMPTY_ARRAY;
@@ -184,7 +185,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             return;
         }
 
-        checkIndexBlocks(projectState, concreteIndices);
+        concreteIndices = checkBlocksAndFilterIndices(projectState, concreteIndices);
         final FailureCollector indexFailures = new FailureCollector();
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = new HashMap<>();
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.
@@ -371,17 +372,22 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         );
     }
 
-    private static void checkIndexBlocks(ProjectState projectState, String[] concreteIndices) {
+    private static String[] checkBlocksAndFilterIndices(ProjectState projectState, String[] concreteIndices) {
         var blocks = projectState.blocks();
         var projectId = projectState.projectId();
         if (blocks.global(projectId).isEmpty() && blocks.indices(projectId).isEmpty()) {
             // short circuit optimization because block check below is relatively expensive for many indices
-            return;
+            return concreteIndices;
         }
         blocks.globalBlockedRaiseException(projectId, ClusterBlockLevel.READ);
+        List<String> filteredIndices = new ArrayList<>(concreteIndices.length);
         for (String index : concreteIndices) {
-            blocks.indexBlockedRaiseException(projectState.projectId(), ClusterBlockLevel.READ, index);
+            blocks.indexBlockedRaiseException(projectId, ClusterBlockLevel.READ, index);
+            if (blocks.hasIndexBlock(projectId, index, IndexMetadata.INDEX_REFRESH_BLOCK) == false) {
+                filteredIndices.add(index);
+            }
         }
+        return filteredIndices.toArray(new String[0]);
     }
 
     private static void mergeIndexResponses(

@@ -244,7 +244,7 @@ public class StatelessClusterConsistencyServiceIT extends AbstractStatelessInteg
     }
 
     public void testConsistencyServiceConsidersProjectDeletions() throws Exception {
-        var masterNode = startMasterOnlyNode();
+        var masterNode = startMasterAndIndexNode();
         var indexNode = startIndexNode();
         ensureStableCluster(2);
         var projectId = randomUniqueProjectId();

@@ -161,6 +161,8 @@ public class InboundDecoderTests extends ESTestCase {
                 assertEquals(2, fragments.size());
             } else {
                 assertEquals(3, fragments.size());
+                final Object body = fragments.get(1);
+                assertThat(body, instanceOf(ReleasableBytesReference.class));
             }
             assertEquals(InboundDecoder.END_CONTENT, fragments.get(fragments.size() - 1));
             assertEquals(totalBytes.length() - bytesConsumed, bytesConsumed2);

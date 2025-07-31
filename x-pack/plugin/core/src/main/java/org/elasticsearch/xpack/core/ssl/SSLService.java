@@ -375,11 +375,11 @@ public class SSLService {
     /**
      * Returns the {@link SSLContext} for the configuration. Mainly used for testing
      */
-    public SSLContext sslContext(SslConfiguration configuration) {
+    SSLContext sslContext(SslConfiguration configuration) {
         return sslContextHolder(configuration).sslContext();
     }
 
-    public void reloadSSLContext(SslConfiguration configuration) {
+    void reloadSSLContext(SslConfiguration configuration) {
         sslContextHolder(configuration).reload();
     }
 

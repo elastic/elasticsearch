@@ -228,8 +228,8 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private MockWebServer initWebServer(SSLService sslService) throws IOException {
-        final SslConfiguration httpSslConfig = sslService.getSSLConfiguration(HTTP_SERVER_SSL);
-        final MockWebServer webServer = new MockWebServer(sslService.sslContext(httpSslConfig), false);
+        final SslProfile httpSslProfile = sslService.profile(HTTP_SERVER_SSL);
+        final MockWebServer webServer = new MockWebServer(httpSslProfile.sslContext(), false);
 
         webServer.enqueue(new MockResponse().setBody("{}").setResponseCode(200));
         webServer.start();

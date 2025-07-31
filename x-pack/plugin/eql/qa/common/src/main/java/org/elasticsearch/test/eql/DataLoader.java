@@ -98,8 +98,11 @@ public class DataLoader {
         });
     }
 
-    private static void loadDatasetIntoEsWithIndexCreator(RestClient client, CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p, IndexCreator indexCreator)
-        throws IOException {
+    private static void loadDatasetIntoEsWithIndexCreator(
+        RestClient client,
+        CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
+        IndexCreator indexCreator
+    ) throws IOException {
 
         //
         // Main Index

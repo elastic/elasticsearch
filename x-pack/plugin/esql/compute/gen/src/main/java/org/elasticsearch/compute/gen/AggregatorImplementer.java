@@ -37,6 +37,7 @@ import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
 import static org.elasticsearch.compute.gen.Methods.requireAnyType;
 import static org.elasticsearch.compute.gen.Methods.requireArgs;
+import static org.elasticsearch.compute.gen.Methods.requireArgsStartsWith;
 import static org.elasticsearch.compute.gen.Methods.requireName;
 import static org.elasticsearch.compute.gen.Methods.requirePrimitiveOrImplements;
 import static org.elasticsearch.compute.gen.Methods.requireStaticMethod;
@@ -87,8 +88,7 @@ public class AggregatorImplementer {
         Elements elements,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
-        List<TypeMirror> warnExceptions,
-        boolean includeTimestampVector
+        List<TypeMirror> warnExceptions
     ) {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
@@ -105,8 +105,18 @@ public class AggregatorImplementer {
             declarationType,
             aggState.declaredType().isPrimitive() ? requireType(aggState.declaredType()) : requireVoidType(),
             requireName("combine"),
-            combineArgs(aggState, includeTimestampVector)
+            requireArgsStartsWith(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"))
         );
+        switch (combine.getParameters().size()) {
+            case 2 -> includeTimestampVector = false;
+            case 3 -> {
+                if (false == TypeName.get(combine.getParameters().get(1).asType()).equals(TypeName.LONG)) {
+                    throw new IllegalArgumentException("combine/3's second parameter must be long but was: " + combine);
+                }
+                includeTimestampVector = true;
+            }
+            default -> throw new IllegalArgumentException("combine must have 2 or 3 parameters but was: " + combine);
+        }
         // TODO support multiple parameters
         this.aggParam = AggregationParameter.create(combine.getParameters().getLast().asType());
 
@@ -121,19 +131,6 @@ public class AggregatorImplementer {
             (declarationType.getSimpleName() + "AggregatorFunction").replace("AggregatorAggregator", "Aggregator")
         );
         this.intermediateState = Arrays.stream(interStateAnno).map(IntermediateStateDesc::newIntermediateStateDesc).toList();
-        this.includeTimestampVector = includeTimestampVector;
-    }
-
-    private static Methods.ArgumentMatcher combineArgs(AggregationState aggState, boolean includeTimestampVector) {
-        if (includeTimestampVector) {
-            return requireArgs(
-                requireType(aggState.declaredType()),
-                requireType(TypeName.LONG), // @timestamp
-                requireAnyType("<aggregation input column type>")
-            );
-        } else {
-            return requireArgs(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"));
-        }
     }
 
     ClassName implementation() {

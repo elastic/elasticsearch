@@ -91,8 +91,7 @@ public class AggregatorProcessor implements Processor {
                     env.getElementUtils(),
                     aggClass,
                     intermediateState,
-                    warnExceptionsTypes,
-                    aggClass.getAnnotation(Aggregator.class).includeTimestamps()
+                    warnExceptionsTypes
                 );
                 write(aggClass, "aggregator", implementer.sourceFile(), env);
             }
@@ -106,8 +105,7 @@ public class AggregatorProcessor implements Processor {
                     env.getElementUtils(),
                     aggClass,
                     intermediateState,
-                    warnExceptionsTypes,
-                    aggClass.getAnnotation(GroupingAggregator.class).timeseries()
+                    warnExceptionsTypes
                 );
                 write(aggClass, "grouping aggregator", groupingAggregatorImplementer.sourceFile(), env);
             }

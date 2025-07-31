@@ -533,6 +533,9 @@ tests:
 - class: org.elasticsearch.common.logging.JULBridgeTests
   method: testThrowable
   issue: https://github.com/elastic/elasticsearch/issues/132280
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/10_basic/Create hidden data stream with match all template}
+  issue: https://github.com/elastic/elasticsearch/issues/132298
 
 # Examples:
 #

@@ -16,6 +16,10 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLSocketFactory;
 
+/**
+ * An <em>SSL Profile</em> is a runtime implementation of a {@link SslConfiguration}.
+ * It provides access to various SSL related objects that are automatically configured according to the associated {@link SslConfiguration}.
+ */
 public interface SslProfile {
     SslConfiguration configuration();
 

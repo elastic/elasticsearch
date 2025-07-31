@@ -6,26 +6,22 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.apache.http.HttpHost;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
-import org.apache.http.nio.reactor.IOSession;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.util.Maps;
@@ -43,8 +39,6 @@ import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.NoSuchAlgorithmException;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -68,16 +62,13 @@ import java.util.stream.Collectors;
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLParameters;
-import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUSTER_SERVER_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
@@ -217,6 +208,12 @@ public class SSLService {
         settingList.add(DIAGNOSE_TRUST_EXCEPTIONS_SETTING);
     }
 
+    /**
+     * Return an encapsulated object for the named profile.
+     * A profile is named according to the settings prefix under which it is defined (e.g. {@code xpack.http.ssl} or
+     * {@code xpack.security.transport.ssl}
+     * @throws IllegalArgumentException if the named profile does not exist
+     */
     public SslProfile profile(String profileName) {
         final SslConfiguration configuration = getSSLConfiguration(profileName);
         if (configuration == null) {

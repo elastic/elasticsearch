@@ -74,11 +74,6 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
      */
     @Override
     protected void performAsync(Page input, ActionListener<OngoingInferenceResult> listener) {
-        listener = listener.delegateResponse((l, e) -> {
-            releasePageOnAnyThread(input);
-            l.onFailure(e);
-        });
-
         try {
             BulkInferenceRequestIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);

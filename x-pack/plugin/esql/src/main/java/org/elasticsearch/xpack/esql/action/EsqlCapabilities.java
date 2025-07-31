@@ -962,7 +962,7 @@ public class EsqlCapabilities {
         /**
          * Support for RERANK command
          */
-        RERANK(Build.current().isSnapshot()),
+        RERANK,
 
         /**
          * Support for COMPLETION command
@@ -1321,6 +1321,11 @@ public class EsqlCapabilities {
          * l1 norm vector similarity function
          */
         L1_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * l2 norm vector similarity function
+         */
+        L2_NORM_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),
 
         /**
          * Support for the options field of CATEGORIZE.

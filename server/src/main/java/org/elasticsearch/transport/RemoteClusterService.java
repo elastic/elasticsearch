@@ -17,6 +17,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -29,7 +30,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -40,7 +40,6 @@ import org.elasticsearch.transport.RemoteClusterCredentialsManager.UpdateRemoteC
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -174,17 +173,6 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     /**
-     * Returns <code>true</code> if at least one remote cluster is configured
-     */
-    public boolean isCrossClusterSearchEnabled() {
-        return remoteClusters.isEmpty() == false;
-    }
-
-    boolean isRemoteNodeConnected(final String remoteCluster, final DiscoveryNode node) {
-        return remoteClusters.get(remoteCluster).isNodeConnected(node);
-    }
-
-    /**
      * Group indices by cluster alias mapped to OriginalIndices for that cluster.
      * @param remoteClusterNames Set of configured remote cluster names.
      * @param indicesOptions IndicesOptions to clarify how the index expressions should be parsed/applied
@@ -247,30 +235,22 @@ public final class RemoteClusterService extends RemoteClusterAware
     }
 
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices, boolean returnLocalAll) {
-        return groupIndices(getRemoteClusterNames(), indicesOptions, indices, returnLocalAll);
+        return groupIndices(getRegisteredRemoteClusterNames(), indicesOptions, indices, returnLocalAll);
     }
 
     public Map<String, OriginalIndices> groupIndices(IndicesOptions indicesOptions, String[] indices) {
-        return groupIndices(getRemoteClusterNames(), indicesOptions, indices, true);
+        return groupIndices(getRegisteredRemoteClusterNames(), indicesOptions, indices, true);
     }
 
     @Override
     public Set<String> getConfiguredClusters() {
-        return getRemoteClusterNames();
-    }
-
-    /**
-     * Returns <code>true</code> iff the given cluster is configured as a remote cluster. Otherwise <code>false</code>
-     */
-    boolean isRemoteClusterRegistered(String clusterName) {
-        return remoteClusters.containsKey(clusterName);
+        return getRegisteredRemoteClusterNames();
     }
 
     /**
      * Returns the registered remote cluster names.
      */
     public Set<String> getRegisteredRemoteClusterNames() {
-        // remoteClusters is unmodifiable so its key set will be unmodifiable too
         return remoteClusters.keySet();
     }
 
@@ -353,10 +333,6 @@ public final class RemoteClusterService extends RemoteClusterAware
             throw new NoSuchRemoteClusterException(cluster);
         }
         return connection;
-    }
-
-    Set<String> getRemoteClusterNames() {
-        return this.remoteClusters.keySet();
     }
 
     @Override
@@ -573,36 +549,26 @@ public final class RemoteClusterService extends RemoteClusterAware
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
             );
         }
+        final var connectionsMap = new HashMap<String, RemoteClusterConnection>();
         for (String cluster : clusters) {
-            if (this.remoteClusters.containsKey(cluster) == false) {
+            final var connection = this.remoteClusters.get(cluster);
+            if (connection == null) {
                 listener.onFailure(new NoSuchRemoteClusterException(cluster));
                 return;
             }
+            connectionsMap.put(cluster, connection);
         }
 
         final Map<String, Function<String, DiscoveryNode>> clusterMap = new HashMap<>();
-        CountDown countDown = new CountDown(clusters.size());
-        Function<String, DiscoveryNode> nullFunction = s -> null;
-        for (final String cluster : clusters) {
-            RemoteClusterConnection connection = this.remoteClusters.get(cluster);
-            connection.collectNodes(new ActionListener<Function<String, DiscoveryNode>>() {
-                @Override
-                public void onResponse(Function<String, DiscoveryNode> nodeLookup) {
-                    synchronized (clusterMap) {
-                        clusterMap.put(cluster, nodeLookup);
-                    }
-                    if (countDown.countDown()) {
-                        listener.onResponse((clusterAlias, nodeId) -> clusterMap.getOrDefault(clusterAlias, nullFunction).apply(nodeId));
-                    }
+        final var finalListener = listener.<Void>safeMap(
+            ignored -> (clusterAlias, nodeId) -> clusterMap.getOrDefault(clusterAlias, s -> null).apply(nodeId)
+        );
+        try (var refs = new RefCountingListener(finalListener)) {
+            connectionsMap.forEach((cluster, connection) -> connection.collectNodes(refs.acquire(nodeLookup -> {
+                synchronized (clusterMap) {
+                    clusterMap.put(cluster, nodeLookup);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (countDown.fastForward()) { // we need to check if it's true since we could have multiple failures
-                        listener.onFailure(e);
-                    }
-                }
-            });
+            })));
         }
     }
 
@@ -648,7 +614,7 @@ public final class RemoteClusterService extends RemoteClusterAware
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
             );
         }
-        if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
+        if (transportService.getRemoteClusterService().getRegisteredRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
         return new RemoteClusterAwareClient(transportService, clusterAlias, responseExecutor, switch (disconnectedStrategy) {
@@ -656,10 +622,6 @@ public final class RemoteClusterService extends RemoteClusterAware
             case FAIL_IF_DISCONNECTED -> false;
             case RECONNECT_UNLESS_SKIP_UNAVAILABLE -> transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false;
         });
-    }
-
-    Collection<RemoteClusterConnection> getConnections() {
-        return remoteClusters.values();
     }
 
     static void registerRemoteClusterHandshakeRequestHandler(TransportService transportService) {

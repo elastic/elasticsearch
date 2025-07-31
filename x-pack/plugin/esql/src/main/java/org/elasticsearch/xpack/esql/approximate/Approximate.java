@@ -199,6 +199,7 @@ public class Approximate {
         return listener.delegateFailureAndWrap((countListener, countResult) -> {
             logger.debug("sourceCountPlan result: {} rows", rowCount(countResult));
             double sampleProbability = sampleProbability(countResult);
+            countResult.pages().getFirst().close();
             if (hasFilters) {
                 runner.run(countPlan(sampleProbability), countListener(runner, sampleProbability, listener));
             } else {
@@ -250,6 +251,7 @@ public class Approximate {
             long rowCount = rowCount(countResult);
             logger.debug("countPlan result (p={}): {} rows", probability, rowCount);
             double newProbability = probability * SAMPLE_ROW_COUNT / Math.max(1, rowCount);
+            countResult.pages().getFirst().close();
             if (rowCount <= SAMPLE_ROW_COUNT / 2 && newProbability < 1.0) {
                 runner.run(countPlan(newProbability), countListener(runner, newProbability, listener));
             } else {

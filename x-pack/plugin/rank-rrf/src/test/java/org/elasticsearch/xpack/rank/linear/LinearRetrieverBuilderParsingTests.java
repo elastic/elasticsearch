@@ -62,12 +62,32 @@ public class LinearRetrieverBuilderParsingTests extends AbstractXContentTestCase
         List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = new ArrayList<>();
         float[] weights = new float[num];
         ScoreNormalizer[] normalizers = new ScoreNormalizer[num];
-        for (int i = 0; i < num; i++) {
-            innerRetrievers.add(
-                new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null)
-            );
-            weights[i] = randomFloat();
-            normalizers[i] = randomScoreNormalizer();
+        // Create normalizer combinations that follow the API design rules
+        if (normalizer != null) {
+            // When top-level normalizer is specified, per-retriever normalizers must either:
+            // 1. Be null/default (will be propagated), or
+            // 2. Exactly match the top-level normalizer
+            boolean useMatchingNormalizers = randomBoolean();
+            for (int i = 0; i < num; i++) {
+                innerRetrievers.add(
+                    new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null)
+                );
+                weights[i] = randomFloat();
+                if (useMatchingNormalizers) {
+                    normalizers[i] = normalizer; // Exactly match top-level
+                } else {
+                    normalizers[i] = randomBoolean() ? null : IdentityScoreNormalizer.INSTANCE; // Will be propagated
+                }
+            }
+        } else {
+            // No top-level normalizer: per-retriever normalizers can be anything
+            for (int i = 0; i < num; i++) {
+                innerRetrievers.add(
+                    new CompoundRetrieverBuilder.RetrieverSource(TestRetrieverBuilder.createRandomTestRetrieverBuilder(), null)
+                );
+                weights[i] = randomFloat();
+                normalizers[i] = randomScoreNormalizer();
+            }
         }
 
         return new LinearRetrieverBuilder(innerRetrievers, fields, query, normalizer, rankWindowSize, weights, normalizers);

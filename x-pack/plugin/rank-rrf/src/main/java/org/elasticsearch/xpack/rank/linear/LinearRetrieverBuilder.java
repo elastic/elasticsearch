@@ -43,6 +43,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.rank.RankRRFFeatures.LINEAR_RETRIEVER_SUPPORTED;
+import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_NORMALIZER;
 import static org.elasticsearch.xpack.rank.linear.LinearRetrieverComponent.DEFAULT_WEIGHT;
 
 /**
@@ -118,8 +119,39 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     private static ScoreNormalizer[] getDefaultNormalizers(List<RetrieverSource> innerRetrievers) {
         int size = innerRetrievers != null ? innerRetrievers.size() : 0;
         ScoreNormalizer[] normalizers = new ScoreNormalizer[size];
-        Arrays.fill(normalizers, IdentityScoreNormalizer.INSTANCE);
+        Arrays.fill(normalizers, DEFAULT_NORMALIZER);
         return normalizers;
+    }
+
+    private void normalizeNormalizerArray(ScoreNormalizer topLevelNormalizer, ScoreNormalizer[] normalizers) {
+        for (int i = 0; i < normalizers.length; i++) {
+            ScoreNormalizer current = normalizers[i];
+
+            if (topLevelNormalizer != null) {
+                // Validate explicit per-retriever normalizers match top-level
+                if (current != null && !current.equals(DEFAULT_NORMALIZER) && !current.equals(topLevelNormalizer)) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            "[%s] All per-retriever normalizers must match the top-level normalizer: "
+                                + "expected [%s], found [%s] in retriever [%d]",
+                            NAME,
+                            topLevelNormalizer.getName(),
+                            current.getName(),
+                            i
+                        )
+                    );
+                }
+                // Propagate top-level normalizer to unspecified positions
+                if (current == null || current.equals(DEFAULT_NORMALIZER)) {
+                    normalizers[i] = topLevelNormalizer;
+                }
+            } else {
+                // No top-level normalizer: ensure null values become DEFAULT_NORMALIZER
+                if (current == null) {
+                    normalizers[i] = DEFAULT_NORMALIZER;
+                }
+            }
+        }
     }
 
     public static LinearRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
@@ -157,17 +189,35 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         // Use a mutable list for innerRetrievers so that we can use addChild
         super(innerRetrievers == null ? new ArrayList<>() : new ArrayList<>(innerRetrievers), rankWindowSize);
         if (weights.length != this.innerRetrievers.size()) {
-            throw new IllegalArgumentException("The number of weights must match the number of inner retrievers");
+            throw new IllegalArgumentException(
+                "["
+                    + NAME
+                    + "] the number of weights must be equal to the number of retrievers, but found ["
+                    + weights.length
+                    + "] weights and ["
+                    + this.innerRetrievers.size()
+                    + "] retrievers"
+            );
         }
         if (normalizers.length != this.innerRetrievers.size()) {
-            throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
+            throw new IllegalArgumentException(
+                "["
+                    + NAME
+                    + "] the number of normalizers must be equal to the number of retrievers, but found ["
+                    + normalizers.length
+                    + "] normalizers and ["
+                    + this.innerRetrievers.size()
+                    + "] retrievers"
+            );
         }
-
-        this.fields = fields == null ? null : List.copyOf(fields);
-        this.query = query;
-        this.normalizer = normalizer;
         this.weights = weights;
         this.normalizers = normalizers;
+        this.fields = fields;
+        this.query = query;
+        this.normalizer = normalizer;
+
+        normalizeNormalizerArray(normalizer, normalizers);
+
     }
 
     public LinearRetrieverBuilder(
@@ -368,6 +418,34 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
         }
+        if (rewritten instanceof LinearRetrieverBuilder == false) {
+            return rewritten;
+        }
+        LinearRetrieverBuilder linearRewritten = (LinearRetrieverBuilder) rewritten;
+
+        if (normalizer != null) {
+            ScoreNormalizer[] newNormalizers = new ScoreNormalizer[linearRewritten.normalizers.length];
+            Arrays.fill(newNormalizers, normalizer);
+            rewritten = new LinearRetrieverBuilder(
+                linearRewritten.innerRetrievers,
+                linearRewritten.fields,
+                linearRewritten.query,
+                normalizer,
+                linearRewritten.rankWindowSize,
+                linearRewritten.weights,
+                newNormalizers
+            );
+        } else {
+            rewritten = new LinearRetrieverBuilder(
+                linearRewritten.innerRetrievers,
+                linearRewritten.fields,
+                linearRewritten.query,
+                linearRewritten.normalizer,
+                linearRewritten.rankWindowSize,
+                linearRewritten.weights,
+                linearRewritten.normalizers
+            );
+        }
 
         return rewritten;
     }
@@ -393,7 +471,9 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.startObject();
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
-                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
+                if (normalizers[index] != null && normalizers[index].equals(DEFAULT_NORMALIZER) == false) {
+                    builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
+                }
                 builder.endObject();
                 index++;
             }
@@ -410,7 +490,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         if (query != null) {
             builder.field(QUERY_FIELD.getPreferredName(), query);
         }
-        if (normalizer != null) {
+        if (normalizer != null && normalizer.equals(DEFAULT_NORMALIZER) == false) {
             builder.field(NORMALIZER_FIELD.getPreferredName(), normalizer.getName());
         }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -326,4 +327,63 @@ public class LinearRetrieverBuilderTests extends ESTestCase {
             return Objects.hash(retriever, weight, normalizer);
         }
     }
+
+    public void testTopLevelNormalizerWithRetrieversArray() {
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(new MatchQueryBuilder("title", "elasticsearch"));
+        KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
+            "title_vector",
+            new float[] { 0.1f, 0.2f, 0.3f },
+            null,
+            10,
+            100,
+            null,
+            null
+        );
+
+        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
+            List.of(
+                CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever),
+                CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever)
+            ),
+            null, // fields
+            null, // query
+            MinMaxScoreNormalizer.INSTANCE, // top-level normalizer
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[] { 1.0f, 2.0f },
+            new ScoreNormalizer[] { null, null }
+        );
+
+        assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[0]);
+        assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[1]);
+    }
+
+    public void testTopLevelNormalizerWithPerRetrieverOverrides() {
+        StandardRetrieverBuilder standardRetriever = new StandardRetrieverBuilder(new MatchQueryBuilder("title", "elasticsearch"));
+        KnnRetrieverBuilder knnRetriever = new KnnRetrieverBuilder(
+            "title_vector",
+            new float[] { 0.1f, 0.2f, 0.3f },
+            null,
+            10,
+            100,
+            null,
+            null
+        );
+
+        LinearRetrieverBuilder retriever = new LinearRetrieverBuilder(
+            List.of(
+                CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever),
+                CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever)
+            ),
+            null, // fields
+            null, // query
+            MinMaxScoreNormalizer.INSTANCE, // top-level normalizer
+            DEFAULT_RANK_WINDOW_SIZE,
+            new float[] { 1.0f, 2.0f },
+            new ScoreNormalizer[] { L2ScoreNormalizer.INSTANCE, null }
+        );
+
+        assertEquals(L2ScoreNormalizer.INSTANCE, retriever.getNormalizers()[0]);
+        assertEquals(MinMaxScoreNormalizer.INSTANCE, retriever.getNormalizers()[1]);
+    }
+
 }

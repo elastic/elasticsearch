@@ -31,9 +31,12 @@ Combining `query` and `retrievers` is not supported.
 `normalizer` {applies_to}`stack: ga 9.1`
 :   (Optional, String)
 
-    The normalizer to use when using the [multi-field query format](../retrievers.md#multi-field-query-format).
+    The normalizer to use for score normalization. This serves as the default normalizer for all sub-retrievers.
     See [normalizers](#linear-retriever-normalizers) for supported values.
-    Required when `query` is specified.
+    
+    When using the [multi-field query format](../retrievers.md#multi-field-query-format), this field is required when `query` is specified.
+    
+    When using the `retrievers` array format, this field serves as the default normalizer for all sub-retrievers. Individual sub-retrievers can override this default by specifying their own `normalizer` field.
 
     ::::{warning}
     Avoid using `none` as that will disable normalization and may bias the result set towards lexical matches.
@@ -91,3 +94,47 @@ The `linear` retriever supports the following normalizers:
     score = (score - min) / (max - min)
     ```
 * `l2_norm`: Normalizes scores using the L2 norm of the score values {applies_to}`stack: ga 9.1`
+
+## Examples [linear-retriever-examples]
+
+### Top-level normalizer example
+
+This example shows how to use a top-level normalizer that applies to all sub-retrievers:
+
+```console
+GET my_index/_search
+{
+  "retriever": {
+    "linear": {
+      "retrievers": [
+        {
+          "retriever": {
+            "standard": {
+              "query": {
+                "match": {
+                  "title": "elasticsearch"
+                }
+              }
+            }
+          },
+          "weight": 1.0
+        },
+        {
+          "retriever": {
+            "knn": {
+              "field": "title_vector",
+              "query_vector": [0.1, 0.2, 0.3],
+              "k": 10,
+              "num_candidates": 100
+            }
+          },
+          "weight": 2.0
+        }
+      ],
+      "normalizer": "minmax"
+    }
+  }
+}
+```
+
+In this example, the `minmax` normalizer is applied to both the standard retriever and the kNN retriever. The top-level normalizer serves as a default that can be overridden by individual sub-retrievers. When using the multi-field query format, the top-level normalizer is applied to all generated inner retrievers.

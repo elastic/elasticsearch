@@ -212,12 +212,17 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         }
         this.weights = weights;
         this.normalizers = normalizers;
-        this.fields = fields;
-        this.query = query;
-        this.normalizer = normalizer;
-
-        normalizeNormalizerArray(normalizer, normalizers);
-
+        // Apply top-level normalizer priority system:
+        // 1. Retriever-specific override (if specified)
+        // 2. Top-level normalizer (if specified)
+        // 3. Default (IdentityScoreNormalizer.INSTANCE)
+        ScoreNormalizer effectiveNormalizer = normalizer != null ? normalizer : DEFAULT_NORMALIZER;
+        for (int i = 0; i < normalizers.length; i++) {
+            if (normalizers[i] == null || normalizers[i].equals(DEFAULT_NORMALIZER)) {
+                normalizers[i] = effectiveNormalizer;
+            }
+            // If per-retriever normalizer is explicitly specified, keep it (allow override)
+        }
     }
 
     public LinearRetrieverBuilder(
@@ -271,19 +276,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 ),
                 validationException
             );
-        } else if (innerRetrievers.isEmpty() == false && normalizer != null) {
-            validationException = addValidationError(
-                String.format(
-                    Locale.ROOT,
-                    "[%s] [%s] cannot be provided when [%s] is specified",
-                    getName(),
-                    NORMALIZER_FIELD.getPreferredName(),
-                    RETRIEVERS_FIELD.getPreferredName()
-                ),
-                validationException
-            );
         }
-
         return validationException;
     }
 

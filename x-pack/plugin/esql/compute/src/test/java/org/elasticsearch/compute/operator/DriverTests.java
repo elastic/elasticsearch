@@ -47,9 +47,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongSupplier;
 
-import static net.bytebuddy.matcher.ElementMatchers.is;
-import static org.hamcrest.Matchers.any;
-import static org.hamcrest.Matchers.comparesEqualTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -236,8 +233,16 @@ public class DriverTests extends ESTestCase {
 
             DriverStatus newStatus = driver.status();
             assertThat(newStatus, not(sameInstance(initialStatus)));
-            assertThat(newStatus.completedOperators() != initialStatus.completedOperators() || newStatus.completedOperators().hashCode() == completedOperatorsHash, equalTo(true));
-            assertThat(newStatus.activeOperators() != initialStatus.activeOperators() || newStatus.activeOperators().hashCode() == activeOperatorsHash, equalTo(true));
+            assertThat(
+                newStatus.completedOperators() != initialStatus.completedOperators()
+                    || newStatus.completedOperators().hashCode() == completedOperatorsHash,
+                equalTo(true)
+            );
+            assertThat(
+                newStatus.activeOperators() != initialStatus.activeOperators()
+                    || newStatus.activeOperators().hashCode() == activeOperatorsHash,
+                equalTo(true)
+            );
             assertThat(newStatus.sleeps() != initialStatus.sleeps() || newStatus.sleeps().hashCode() == sleepsHash, equalTo(true));
         }
     }

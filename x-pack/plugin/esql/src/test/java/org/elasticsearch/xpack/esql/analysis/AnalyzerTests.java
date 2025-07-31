@@ -3547,8 +3547,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveRerankInferenceId() {
-        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         {
             LogicalPlan plan = analyze("""
                 FROM books METADATA _score
@@ -3592,8 +3590,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveRerankFields() {
-        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         {
             // Single field.
             LogicalPlan plan = analyze("""
@@ -3672,8 +3668,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveRerankScoreField() {
-        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
-
         {
             // When the metadata field is required in FROM, it is reused.
             LogicalPlan plan = analyze("""

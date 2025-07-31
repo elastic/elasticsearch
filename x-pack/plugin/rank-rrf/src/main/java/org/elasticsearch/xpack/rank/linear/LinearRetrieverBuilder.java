@@ -129,7 +129,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
 
             if (topLevelNormalizer != null) {
                 // Validate explicit per-retriever normalizers match top-level
-                if (current != null && !current.equals(DEFAULT_NORMALIZER) && !current.equals(topLevelNormalizer)) {
+                if (current != null && current.equals(DEFAULT_NORMALIZER) == false && current.equals(topLevelNormalizer) == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             "[%s] All per-retriever normalizers must match the top-level normalizer: "
@@ -189,39 +189,23 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         // Use a mutable list for innerRetrievers so that we can use addChild
         super(innerRetrievers == null ? new ArrayList<>() : new ArrayList<>(innerRetrievers), rankWindowSize);
         if (weights.length != this.innerRetrievers.size()) {
-            throw new IllegalArgumentException(
-                "["
-                    + NAME
-                    + "] the number of weights must be equal to the number of retrievers, but found ["
-                    + weights.length
-                    + "] weights and ["
-                    + this.innerRetrievers.size()
-                    + "] retrievers"
-            );
+            throw new IllegalArgumentException("The number of weights must match the number of inner retrievers");
         }
         if (normalizers.length != this.innerRetrievers.size()) {
-            throw new IllegalArgumentException(
-                "["
-                    + NAME
-                    + "] the number of normalizers must be equal to the number of retrievers, but found ["
-                    + normalizers.length
-                    + "] normalizers and ["
-                    + this.innerRetrievers.size()
-                    + "] retrievers"
-            );
+            throw new IllegalArgumentException("The number of normalizers must match the number of inner retrievers");
         }
+
+        this.fields = fields == null ? null : List.copyOf(fields);
+        this.query = query;
+        this.normalizer = normalizer;
         this.weights = weights;
         this.normalizers = normalizers;
-        // Apply top-level normalizer priority system:
-        // 1. Retriever-specific override (if specified)
-        // 2. Top-level normalizer (if specified)
-        // 3. Default (IdentityScoreNormalizer.INSTANCE)
+
         ScoreNormalizer effectiveNormalizer = normalizer != null ? normalizer : DEFAULT_NORMALIZER;
         for (int i = 0; i < normalizers.length; i++) {
             if (normalizers[i] == null || normalizers[i].equals(DEFAULT_NORMALIZER)) {
                 normalizers[i] = effectiveNormalizer;
             }
-            // If per-retriever normalizer is explicitly specified, keep it (allow override)
         }
     }
 
@@ -410,34 +394,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 // Inner retriever list can be empty when using an index wildcard pattern that doesn't match any indices
                 rewritten = new StandardRetrieverBuilder(new MatchNoneQueryBuilder());
             }
-        }
-        if (rewritten instanceof LinearRetrieverBuilder == false) {
-            return rewritten;
-        }
-        LinearRetrieverBuilder linearRewritten = (LinearRetrieverBuilder) rewritten;
-
-        if (normalizer != null) {
-            ScoreNormalizer[] newNormalizers = new ScoreNormalizer[linearRewritten.normalizers.length];
-            Arrays.fill(newNormalizers, normalizer);
-            rewritten = new LinearRetrieverBuilder(
-                linearRewritten.innerRetrievers,
-                linearRewritten.fields,
-                linearRewritten.query,
-                normalizer,
-                linearRewritten.rankWindowSize,
-                linearRewritten.weights,
-                newNormalizers
-            );
-        } else {
-            rewritten = new LinearRetrieverBuilder(
-                linearRewritten.innerRetrievers,
-                linearRewritten.fields,
-                linearRewritten.query,
-                linearRewritten.normalizer,
-                linearRewritten.rankWindowSize,
-                linearRewritten.weights,
-                linearRewritten.normalizers
-            );
         }
 
         return rewritten;

@@ -7,6 +7,10 @@ mapped_pages:
 # Elasticsearch known issues [elasticsearch-known-issues]
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
 
+## 9.1.0 [elasticsearch-9.1.0-known-issues]
+* An error in the configuration of vector indices with type `bbq_hnsw` may lead to significant search performance degradation on 9.1.0. To mitigate this, set the `-Dvector.rescoring.directio=false` JVM option on all search nodes, then restart the nodes.
+  This option can be removed in 9.1.1.
+
 ## 9.0.3 [elasticsearch-9.0.3-known-issues]
 * A bug in the merge scheduler in Elasticsearch 9.0.3 may prevent shards from closing when there isn’t enough disk space to complete a merge. As a result, operations such as closing or relocating an index may hang until sufficient disk space becomes available.
 To mitigate this issue, the disk space checker is disabled by default in 9.0.3 by setting `indices.merge.disk.check_interval` to `0` seconds. Manually enabling this setting is not recommended.

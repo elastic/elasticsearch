@@ -2884,6 +2884,16 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public void suspendThrottling() {
+        throttle.suspendThrottle();
+    }
+
+    @Override
+    public void resumeThrottling() {
+        throttle.resumeThrottle();
+    }
+
+    @Override
     public boolean isThrottled() {
         return throttle.isThrottled();
     }

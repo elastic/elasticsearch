@@ -530,6 +530,10 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/132226
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testNullsOrderWithMissingOrderSupportQueryingNewNode
+  issue: https://github.com/elastic/elasticsearch/issues/132249
+
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

@@ -102,10 +102,33 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
         }
     }
 
+    /**
+     * If documents were dropped or failed in ingest, this method wraps the action listener that will be notified when the
+     * updated bulk operation is completed. The wrapped listener combines the dropped and failed document results from the ingest
+     * service with the results returned from running the remaining write operations.
+     * <br>
+     * Use this method when you want the ingest time to be taken from the actual {@link BulkResponse} such as if you are wrapping
+     * a response multiple times and wish to preserve an already calculated ingest time.
+     *
+     * @param actionListener the listener to wrap
+     * @return a wrapped listener that merges ingest and bulk results, or the original listener if no items were dropped/failed
+     */
     ActionListener<BulkResponse> wrapActionListenerIfNeeded(ActionListener<BulkResponse> actionListener) {
         return doWrapActionListenerIfNeeded(BulkResponse::getIngestTookInMillis, actionListener);
     }
 
+    /**
+     * If documents were dropped or failed in ingest, this method wraps the action listener that will be notified when the
+     * updated bulk operation is completed. The wrapped listener combines the dropped and failed document results from the ingest
+     * service with the results returned from running the remaining write operations.
+     * <br>
+     * This variant is used when the ingest time is already known and should be explicitly set in the final response,
+     * rather than extracted from the {@link BulkResponse}.
+     *
+     * @param ingestTookInMillis the ingest time in milliseconds to use in the final response
+     * @param actionListener the listener to wrap
+     * @return a wrapped listener that merges ingest and bulk results, or the original listener if no items were dropped/failed
+     */
     ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
         return doWrapActionListenerIfNeeded(ignoredResponse -> ingestTookInMillis, actionListener);
     }

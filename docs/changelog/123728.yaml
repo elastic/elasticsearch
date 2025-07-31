@@ -1,5 +1,0 @@
-pr: 123728
-summary: Allow skip shards with `_tier` and `_index` in ES|QL
-area: ES|QL
-type: enhancement
-issues: []

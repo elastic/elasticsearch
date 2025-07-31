@@ -223,23 +223,43 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         return Comparator.comparing(AssignmentPlan::computeQuality).compare(this, o);
     }
 
+    /**
+     * Checks whether all deployments in the current {@link AssignmentPlan} have at least as many
+     * allocations as currently assigned.
+     */
     public boolean satisfiesCurrentAssignments() {
         return deployments().stream().allMatch(this::isSatisfyingCurrentAssignmentsForModel);
     }
 
+    /**
+     * Checks whether the current assignments for a given {@link Deployment} meet its allocation requirements.
+     *
+     * It ensures that the total number of allocations assigned to the deployment across all nodes is
+     * at least equal to the deployment's current assigned allocations.
+     */
     private boolean isSatisfyingCurrentAssignmentsForModel(Deployment m) {
         if (m.currentAllocationsByNodeId().isEmpty()) {
             return true;
         }
         Map<Node, Integer> nodeAssignments = assignments.get(m);
-        int currentAllocations = nodeAssignments.values().stream().mapToInt(Integer::intValue).sum();
-        return currentAllocations >= m.getCurrentAssignedAllocations();
+        int inPlanAssignedAllocations = nodeAssignments.values().stream().mapToInt(Integer::intValue).sum();
+        return inPlanAssignedAllocations >= m.getCurrentAssignedAllocations();
     }
 
-    public boolean satisfiesAllocations(Deployment m) {
-        return remainingModelAllocations.getOrDefault(m, 0) == 0;
+    /**
+     * Checks if the current assignments satisfy the deployment's allocation requirements.
+     * @param deployment the deployment to check
+     * @return true if the current assignments satisfy the deployment's allocation requirements, false otherwise
+     */
+    public boolean satisfiesAllocations(Deployment deployment) {
+        return remainingModelAllocations.getOrDefault(deployment, 0) == 0;
     }
 
+    /**
+     * Checks if the current assignments satisfy all deployments' allocation requirements. This means that
+     * each deployment has no remaining allocations left to assign.
+     * @return true if the current assignments satisfy the deployments' allocation requirements, false otherwise
+     */
     public boolean satisfiesAllModels() {
         return deployments().stream().allMatch(this::satisfiesAllocations);
     }
@@ -424,8 +444,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             if (allocations <= 0) {
                 return this;
             }
-            if (/*isAlreadyAssigned(deployment, node) == false
-                &&*/ requiredMemory > remainingNodeMemory.get(node)) {
+            if (requiredMemory > remainingNodeMemory.get(node)) {
                 throw new IllegalArgumentException(
                     "not enough memory on node ["
                         + node.id()
@@ -450,7 +469,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 );
             }
 
-            assignments.get(deployment).compute(node, (n, remAllocations) -> remAllocations + allocations);
+            assignments.get(deployment).compute(node, (n, assignedAllocations) -> assignedAllocations + allocations);
             accountMemory(deployment, node, requiredMemory);
 
             if (deployment.priority == Priority.NORMAL) {
@@ -461,23 +480,10 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         private int getAssignedAllocations(Deployment deployment, Node node) {
-            int currentAllocations = getCurrentAllocations(deployment, node);
-            int assignmentAllocations = assignments.get(deployment).get(node);
-            return currentAllocations + assignmentAllocations;
-        }
-
-        private static int getCurrentAllocations(Deployment m, Node n) {
-            return m.currentAllocationsByNodeId.containsKey(n.id()) ? m.currentAllocationsByNodeId.get(n.id()) : 0;
-        }
-
-        public void accountMemory(Deployment m, Node n) {
-            // TODO (#101612) remove or refactor unused method
-            long requiredMemory = getDeploymentMemoryRequirement(m, n, getCurrentAllocations(m, n));
-            accountMemory(m, n, requiredMemory);
+            return assignments.get(deployment).get(node);
         }
 
         public void accountMemory(Deployment m, Node n, long requiredMemory) {
-            // TODO (#101612) computation of required memory should be done internally
             remainingNodeMemory.computeIfPresent(n, (k, v) -> v - requiredMemory);
             if (remainingNodeMemory.containsKey(n) && remainingNodeMemory.get(n) < 0) {
                 throw new IllegalArgumentException("not enough memory on node [" + n.id() + "] to assign model [" + m.deploymentId() + "]");

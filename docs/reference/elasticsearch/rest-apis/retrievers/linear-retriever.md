@@ -100,29 +100,27 @@ This example of a hybrid search weights KNN results five times more heavily than
 GET my_index/_search
 {
   "retriever": {
-      "linear": {
-          "retrievers": [
-              {
-                  "retriever": {
-                      "knn": {
-                         ...
-                       }
-                   },
-                  "weight": 5  # KNN query weighted 5x
-              },
-                 {
-                  "retriever": {
-                      "standard": {
-                         ...
-                       }
-                   },
-                  "weight": 1.5  # BM25 query weighted 1.5x
-              },
-
-
-          ]
-       }
+    "linear": {
+      "retrievers": [
+        {
+          "retriever": {
+            "knn": {
+              ...
+            }
+          },
+          "weight": 5 # KNN query weighted 5x
+        },
+        {
+          "retriever": {
+            "standard": {
+              ...
+            }
+          },
+          "weight": 1.5 # BM25 query weighted 1.5x
+        }
+      ]
     }
+  }
 }
 ```
 

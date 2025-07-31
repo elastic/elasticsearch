@@ -482,15 +482,13 @@ public class OperationRoutingTests extends ESTestCase {
         final ProjectId projectId = randomProjectIdOrDefault();
         final String indexName = "test";
         final int shardCount = 1;
-        final int multiple = randomIntBetween(2, 5);
-        final int newShardCount = multiple;
-        final int numberOfReplicas = 1;
+        final int newShardCount = randomIntBetween(2, 5);
 
         var indexMetadata = IndexMetadata.builder(indexName)
-            .settings(indexSettings(IndexVersion.current(), newShardCount, numberOfReplicas))
+            .settings(indexSettings(IndexVersion.current(), newShardCount, 1))
             .numberOfShards(newShardCount)
-            .numberOfReplicas(numberOfReplicas)
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(shardCount, multiple))
+            .numberOfReplicas(1)
+            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(shardCount, newShardCount))
             .build();
 
         ClusterState.Builder initialStateBuilder = ClusterState.builder(new ClusterName("test"));
@@ -528,7 +526,7 @@ public class OperationRoutingTests extends ESTestCase {
 
         final Index index = clusterService.state().metadata().getProject(projectId).index(indexName).getIndex();
 
-        var shardChangingSplitTargetState = randomIntBetween(1, multiple - 1);
+        var shardChangingSplitTargetState = randomIntBetween(1, newShardCount - 1);
 
         var currentIndexMetadata = clusterService.state().projectState(projectId).metadata().index(indexName);
         var updatedReshardingMetadataOneShardInHandoff = IndexMetadata.builder(currentIndexMetadata)

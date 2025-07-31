@@ -801,13 +801,12 @@ public class IndexRoutingTests extends ESTestCase {
                 .build()
         );
 
-        // Since we increased number of shard by two this is the adjustment logic.
+        // Rerouting is in effect due to presence of resharding metadata.
+        // We won't see shard 4 and above (there is a corresponding logic in index operation routing).
         Function<Integer, Integer> adjustForResharding = i -> i < preReshardShards
             ? i
             : IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2).getSplit().sourceShard(i);
 
-        // Rerouting is in effect due to resharding metadata having a shard in CLONE state.
-        // We won't see shard 4 and above.
         for (var shardAndRouting : shardToRouting.entrySet()) {
             var collectedShards = new ArrayList<Integer>();
             initialReshardingRouting.collectSearchShards(shardAndRouting.getValue(), collectedShards::add);
@@ -833,12 +832,12 @@ public class IndexRoutingTests extends ESTestCase {
                 .build()
         );
 
+        // Rerouting is in effect due to presence of resharding metadata.
+        // We won't see shard 4 and above (there is a corresponding logic in index operation routing).
         for (var shardAndRouting : shardToRouting.entrySet()) {
             var collectedShards = new ArrayList<Integer>();
             reshardingRoutingWithShardInHandoff.collectSearchShards(shardAndRouting.getValue(), collectedShards::add);
             assertEquals(2, collectedShards.size());
-            // Rerouting is in effect due to resharding metadata having a shard in CLONE state.
-            // We won't see shard 4 and above.
 
             var expected = new ArrayList<Integer>();
             expected.add(adjustForResharding.apply(shardAndRouting.getKey()));

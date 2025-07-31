@@ -479,6 +479,12 @@ tests:
 - class: org.elasticsearch.compute.lucene.read.SortedSetOrdinalsBuilderTests
   method: testReader
   issue: https://github.com/elastic/elasticsearch/issues/131573
+- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
+  method: testLoadLongShuffledManySegments
+  issue: https://github.com/elastic/elasticsearch/issues/132258
+- class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
+  method: testLoadLongManySegments
+  issue: https://github.com/elastic/elasticsearch/issues/132258
 - class: org.elasticsearch.search.SearchWithIndexBlocksIT
   method: testSearchShardsOnIndicesWithIndexRefreshBlocks
   issue: https://github.com/elastic/elasticsearch/issues/131662

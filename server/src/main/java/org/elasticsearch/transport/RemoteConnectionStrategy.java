@@ -192,7 +192,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     public static boolean isConnectionEnabled(LinkedClusterConnectionConfig config) {
         ConnectionStrategy mode = config.getConnectionMode();
         if (mode.equals(ConnectionStrategy.SNIFF)) {
-            List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            List<String> seeds = config.getSeeds();
             return seeds.isEmpty() == false;
         } else {
             String address = config.getProxyAddress();

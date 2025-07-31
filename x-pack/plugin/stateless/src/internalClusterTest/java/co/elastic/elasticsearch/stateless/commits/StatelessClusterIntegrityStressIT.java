@@ -137,7 +137,8 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
             + "org.elasticsearch.blobcache.shared.SharedBlobCacheService:warn," // disable logs of "No free regions ..."
             + "co.elastic.elasticsearch.stateless.commits.StatelessCommitService:debug,"
             + "co.elastic.elasticsearch.stateless.commits.HollowShardsService:debug,"
-            + "co.elastic.elasticsearch.stateless.recovery:debug,"
+            + "co.elastic.elasticsearch.stateless.commits.HollowShardsService:debug,"
+            + "co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction:debug,"
             + "org.elasticsearch.indices.recovery:debug",
         reason = "ensure shard file deletion on DEBUG level"
     )
@@ -172,6 +173,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
         private final ExecutorService serverExecutor;
         private final StatelessMockRepositoryStrategy statelessMockRepositoryStrategy;
         private final AtomicBoolean metUnexpectedError = new AtomicBoolean(false);
+        private final AtomicBoolean stopActions = new AtomicBoolean(false);
         private final Semaphore clusterPermit = new Semaphore(1);
         private final int targetUploads;
         private final AtomicInteger targetUploadsCounter;
@@ -308,29 +310,33 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                 );
             }
 
-            metUnexpectedError.set(true);
+            stopActions.set(true);
             logger.info("--> terminating thread pool");
-            final boolean terminated = ThreadPool.terminate(threadPool, 40, TimeUnit.SECONDS);
-            logger.info("--> thread pool terminated [{}]", terminated);
+            threadPool.shutdown();
+            if (threadPool.awaitTermination(60, TimeUnit.SECONDS)) {
+                logger.info("--> thread pool terminated successfully");
+                ensureStableCluster(nodes.size(), masterNodeName());
+                ensureGreen(); // All indices should be in good shape
 
-            ensureStableCluster(nodes.size(), masterNodeName());
-            ensureGreen(); // All indices should be in good shape
-
-            // All acknowledged data are available
-            logger.info("--> refresh before checking indices data");
-            refresh();
-            for (TrackedIndex trackedIndex : indices.values()) {
-                logger.info("--> checking data for index [{}]", trackedIndex.index.getName());
-                final Set<String> docIds = Set.copyOf(trackedIndex.docIds); // copy it once in case it changes during search
-                assertResponse(
-                    prepareSearch(trackedIndex.index.getName()).setQuery(QueryBuilders.idsQuery().addIds(docIds.toArray(String[]::new)))
-                        .setSize(0)
-                        .setTrackTotalHits(true),
-                    searchResponse -> {
-                        assertNoFailures(searchResponse);
-                        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo((long) docIds.size()));
-                    }
-                );
+                // All acknowledged data are available
+                logger.info("--> refresh before checking indices data");
+                refresh();
+                for (TrackedIndex trackedIndex : indices.values()) {
+                    logger.info("--> checking data for index [{}]", trackedIndex.index.getName());
+                    final Set<String> docIds = Set.copyOf(trackedIndex.docIds); // copy it once in case it changes during search
+                    assertResponse(
+                        prepareSearch(trackedIndex.index.getName()).setQuery(QueryBuilders.idsQuery().addIds(docIds.toArray(String[]::new)))
+                            .setSize(0)
+                            .setTrackTotalHits(true),
+                        searchResponse -> {
+                            assertNoFailures(searchResponse);
+                            assertThat(searchResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo((long) docIds.size()));
+                        }
+                    );
+                }
+            } else {
+                ThreadPool.terminate(threadPool, 1, TimeUnit.MILLISECONDS);
+                throw new AssertionError("timed out waiting for actions to stop");
             }
             logger.info("--> end of test");
         }
@@ -429,7 +435,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
         }
 
         private void enqueueAction(Executor executor, CheckedRunnable<Exception> action) {
-            if (metUnexpectedError.get()) {
+            if (metUnexpectedError.get() || stopActions.get()) {
                 return;
             }
             threadPool.scheduleUnlessShuttingDown(TimeValue.timeValueMillis(between(1, 500)), executor, new AbstractRunnable() {
@@ -440,7 +446,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
 
                 @Override
                 protected void doRun() throws Exception {
-                    if (metUnexpectedError.get()) {
+                    if (metUnexpectedError.get() || stopActions.get()) {
                         return;
                     }
                     try {
@@ -460,26 +466,21 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
 
                 @Override
                 public void onAfter() {
-                    if (metUnexpectedError.get()) {
-                        return;
-                    }
                     enqueueAction(executor, action);
                 }
 
                 private void failTest(Throwable throwable) {
                     if (metUnexpectedError.compareAndSet(false, true)) {
-                        final AssertionError assertionError;
-                        if (throwable instanceof AssertionError == false) {
-                            assertionError = new AssertionError("unexpected", throwable);
-                        } else {
-                            assertionError = (AssertionError) throwable;
-                        }
-                        logger.error("--> test failed unexpectedly", assertionError);
                         stopLatch.countDown();
-                        throw assertionError;
-                    } else {
-                        logger.info("--> ignore exception since test is stopping", throwable);
                     }
+                    final AssertionError assertionError;
+                    if (throwable instanceof AssertionError == false) {
+                        assertionError = new AssertionError("unexpected", throwable);
+                    } else {
+                        assertionError = (AssertionError) throwable;
+                    }
+                    logger.error("--> test failed unexpectedly", assertionError);
+                    throw assertionError;
                 }
             });
         }
@@ -655,8 +656,12 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                         .primaryShard()
                         .currentNodeId();
                     final DiscoveryNode currentNode = state.getNodes().get(currentNodeId);
-
-                    logger.info("--> relocating indexing shard [{}] away from [{}]", trackedIndex.index.getName(), currentNode.getName());
+                    logger.info(
+                        "--> relocating indexing shard [{}][{}] away from [{}]",
+                        trackedIndex.index.getName(),
+                        shardId,
+                        currentNode.getName()
+                    );
                     assertBusy(() -> {
                         try {
                             assertAcked(
@@ -738,8 +743,7 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                 if (between(1, 1000) > nodeMovementChance) {
                     return;
                 }
-                // See also https://github.com/elastic/elasticsearch/issues/115056
-                final boolean restartIndexingNode = true || randomBoolean();
+                final boolean restartIndexingNode = randomBoolean();
                 Supplier<NamedReleasable> permitSupplier = restartIndexingNode
                     ? this::acquirePermitForIndexingNode
                     : this::acquirePermitForSearchNode;

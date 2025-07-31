@@ -57,7 +57,6 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
@@ -109,7 +108,7 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
                 state.segmentSuffix
             );
         } catch (Throwable t) {
-            IOUtils.closeWhileSuppressingExceptions(t, this);
+            IOUtils.closeWhileHandlingException(this);
             throw t;
         }
     }
@@ -302,8 +301,8 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
                 segmentWriteState.directory.deleteFile(tempVectorData.getName());
             }, docsWithField.cardinality(), randomVectorScorerSupplier);
         } catch (Throwable t) {
-            IOUtils.closeWhileSuppressingExceptions(t, vectorDataInput, tempVectorData);
-            IOUtils.deleteFilesSuppressingExceptions(t, segmentWriteState.directory, tempVectorData.getName());
+            IOUtils.closeWhileHandlingException(vectorDataInput, tempVectorData);
+            IOUtils.deleteFilesIgnoringExceptions(segmentWriteState.directory, tempVectorData.getName());
             throw t;
         }
     }
@@ -320,7 +319,7 @@ public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
         // write docIDs
         int count = docsWithField.cardinality();
         meta.writeInt(count);
-        OrdToDocDISIReaderConfiguration.writeStoredMeta(DIRECT_MONOTONIC_BLOCK_SHIFT, meta, vectorData, count, maxDoc, docsWithField);
+        OrdToDocDISIReaderConfiguration.writeStoredMeta(16, meta, vectorData, count, maxDoc, docsWithField);
     }
 
     /**

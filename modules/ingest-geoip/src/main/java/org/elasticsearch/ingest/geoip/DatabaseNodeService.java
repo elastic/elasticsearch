@@ -341,10 +341,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
 
         // process the geoip task state for the enterprise geoip downloader
         {
-            @NotMultiProjectCapable(description = "Enterprise GeoIP not supported in serverless")
-            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(
-                projectState.cluster().metadata().getProject(ProjectId.DEFAULT)
-            );
+            EnterpriseGeoIpTaskState taskState = getEnterpriseGeoIpTaskState(projectState.metadata());
             if (taskState == null) {
                 // Note: an empty state will purge stale entries in databases map
                 taskState = EnterpriseGeoIpTaskState.EMPTY;

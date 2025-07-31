@@ -53,11 +53,6 @@ import java.util.Map;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readSimilarityFunction;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader.readVectorEncoding;
 
-/**
- * Reads vectors from the index segments.
- *
- * @lucene.experimental
- */
 public final class ES91BFloat16FlatVectorsReader extends FlatVectorsReader {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ES91BFloat16FlatVectorsFormat.class);

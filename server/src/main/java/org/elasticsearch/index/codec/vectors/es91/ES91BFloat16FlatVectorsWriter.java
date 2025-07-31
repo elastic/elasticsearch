@@ -59,11 +59,6 @@ import java.util.List;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
-/**
- * Writes vector values to index segments.
- *
- * @lucene.experimental
- */
 public final class ES91BFloat16FlatVectorsWriter extends FlatVectorsWriter {
 
     private static final long SHALLOW_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ES91BFloat16FlatVectorsWriter.class);

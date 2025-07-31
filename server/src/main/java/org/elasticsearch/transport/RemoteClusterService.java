@@ -370,11 +370,11 @@ public final class RemoteClusterService extends RemoteClusterAware
         // value was updated. Therefore, only consider added or removed aliases
         final int totalConnectionsToRebuild = result.addedClusterAliases().size() + result.removedClusterAliases().size();
         if (totalConnectionsToRebuild == 0) {
-            logger.debug("project ID [{}] no connection rebuilding required after credentials update", projectId);
+            logger.debug("project [{}] no connection rebuilding required after credentials update", projectId);
             listener.onResponse(null);
             return;
         }
-        logger.info("project ID [{}] rebuilding [{}] connections after credentials update", projectId, totalConnectionsToRebuild);
+        logger.info("project [{}] rebuilding [{}] connections after credentials update", projectId, totalConnectionsToRebuild);
         try (var connectionRefs = new RefCountingRunnable(() -> listener.onResponse(null))) {
             for (var clusterAlias : result.addedClusterAliases()) {
                 maybeRebuildConnectionOnCredentialsChange(projectId, clusterAlias, settings, connectionRefs);

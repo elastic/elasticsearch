@@ -69,7 +69,7 @@ abstract class AbstractPreserveAllocations {
     AssignmentPlan mergePreservedAllocations(AssignmentPlan assignmentPlan) {
         // As the model/node objects the assignment plan are the modified ones,
         // they will not match the models/nodes members we have in this class.
-        // Therefore, we build a lookup table based on the ids, so we can merge the plan
+        // Therefore, we build a lookup table based on the ids so we can merge the plan
         // with its preserved allocations.
         final Map<Tuple<String, String>, Integer> plannedAssignmentsByModelNodeIdPair = new HashMap<>();
         for (Deployment m : assignmentPlan.models()) {
@@ -81,6 +81,7 @@ abstract class AbstractPreserveAllocations {
 
         AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, deployments);
         for (Node n : nodes) {
+            // TODO (#101612) Should the first loop happen in the builder constructor?
             for (Deployment deploymentAllocationsToPreserve : deployments) {
 
                 // if the model m is already allocated on the node n and I want to preserve this allocation

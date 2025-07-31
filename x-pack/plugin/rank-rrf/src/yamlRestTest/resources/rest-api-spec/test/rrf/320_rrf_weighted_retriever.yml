@@ -135,5 +135,5 @@ setup:
                           description: "pizza"
                   weight: 0.7
   - match: { error.type: "x_content_parse_exception" }
-  - contains: { error.reason: "failed to parse field" }
+  - contains: { error.caused_by.reason: "[weight] must be non-negative, found [-0.5]" }
   

@@ -626,6 +626,30 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.store.CompositeRolesStoreTests
   method: testCacheCleanupOnProjectDeletion
   issue: https://github.com/elastic/elasticsearch/issues/132218
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=bbq_hnsw}
+  issue: https://github.com/elastic/elasticsearch/issues/132219
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=hnsw updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132220
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132221
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: testDenseVectorMappingUpdate {initialType=flat updateType=bbq_disk}
+  issue: https://github.com/elastic/elasticsearch/issues/132222
+- class: org.elasticsearch.test.rest.yaml.MDPYamlTestSuiteIT
+  method: test {yaml=mdp/10_basic/Index using shared data path}
+  issue: https://github.com/elastic/elasticsearch/issues/132223
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusStandardReindexedIntoLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/132225
+- class: org.elasticsearch.xpack.logsdb.qa.StoredSourceLogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/132226
+- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
+  method: "testDenseVectorMappingUpdate {initialType=int4_hnsw updateType=bbq_disk #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/132228
 
 # Examples:
 #

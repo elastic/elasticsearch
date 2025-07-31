@@ -243,7 +243,7 @@ public abstract class RemoteClusterAware {
      * Registers this instance to listen to updates on linked cluster configuration.
      */
     public void listenForUpdates(LinkedClusterConnectionConfigListener listener) {
-        listener.listen(this::validateAndUpdateRemoteCluster);
+        listener.listenForConnectionConfigChanges(this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

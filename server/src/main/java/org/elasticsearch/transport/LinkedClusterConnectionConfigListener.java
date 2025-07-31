@@ -17,7 +17,7 @@ import java.util.function.Consumer;
 
 public interface LinkedClusterConnectionConfigListener {
 
-    void listen(Consumer<LinkedClusterConnectionConfig> consumer);
+    void listenForConnectionConfigChanges(Consumer<LinkedClusterConnectionConfig> consumer);
 
     class ClusterSettingsListener implements LinkedClusterConnectionConfigListener {
         private final ClusterSettings clusterSettings;
@@ -27,7 +27,7 @@ public interface LinkedClusterConnectionConfigListener {
         }
 
         @Override
-        public void listen(Consumer<LinkedClusterConnectionConfig> consumer) {
+        public void listenForConnectionConfigChanges(Consumer<LinkedClusterConnectionConfig> consumer) {
             List<Setting.AffixSetting<?>> remoteClusterSettings = List.of(
                 RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
                 RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,

@@ -497,7 +497,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     // connect before returning.
                     new Thread(() -> {
                         try {
-                            service.validateAndUpdateRemoteCluster("cluster_1", cluster1Settings);
+                            service.validateAndUpdateRemoteCluster(
+                                "cluster_1",
+                                new LinkedClusterConnectionConfig("cluster_1", cluster1Settings)
+                            );
                             clusterAdded.onResponse(null);
                         } catch (Exception e) {
                             clusterAdded.onFailure(e);
@@ -510,16 +513,22 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         "cluster_2",
                         Collections.singletonList(cluster2Seed.getAddress().toString())
                     );
-                    service.validateAndUpdateRemoteCluster("cluster_2", cluster2Settings);
+                    service.validateAndUpdateRemoteCluster("cluster_2", new LinkedClusterConnectionConfig("cluster_2", cluster2Settings));
                     assertTrue(hasRegisteredClusters(service));
                     assertTrue(isRemoteClusterRegistered(service, "cluster_1"));
                     assertTrue(isRemoteClusterRegistered(service, "cluster_2"));
                     Settings cluster2SettingsDisabled = createSettings("cluster_2", Collections.emptyList());
-                    service.validateAndUpdateRemoteCluster("cluster_2", cluster2SettingsDisabled);
+                    service.validateAndUpdateRemoteCluster(
+                        "cluster_2",
+                        new LinkedClusterConnectionConfig("cluster_2", cluster2SettingsDisabled)
+                    );
                     assertFalse(isRemoteClusterRegistered(service, "cluster_2"));
                     IllegalArgumentException iae = expectThrows(
                         IllegalArgumentException.class,
-                        () -> service.validateAndUpdateRemoteCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Settings.EMPTY)
+                        () -> service.validateAndUpdateRemoteCluster(
+                            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+                            new LinkedClusterConnectionConfig(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Settings.EMPTY)
+                        )
                     );
                     assertEquals("remote clusters must not have the empty string as its key", iae.getMessage());
                 }
@@ -566,7 +575,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertTrue(hasRegisteredClusters(service));
                     service.validateAndUpdateRemoteCluster(
                         "cluster_1",
-                        createSettings("cluster_1", Collections.singletonList(seedNode.getAddress().toString()))
+                        new LinkedClusterConnectionConfig(
+                            "cluster_1",
+                            createSettings("cluster_1", Collections.singletonList(seedNode.getAddress().toString()))
+                        )
                     );
                     assertTrue(hasRegisteredClusters(service));
                     assertTrue(isRemoteClusterRegistered(service, "cluster_1"));
@@ -677,7 +689,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         settingsChange.put("cluster.remote.cluster_1.transport.compress", enabledChange);
                     }
                     settingsChange.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
-                    service.validateAndUpdateRemoteCluster("cluster_1", settingsChange.build());
+                    service.validateAndUpdateRemoteCluster(
+                        "cluster_1",
+                        new LinkedClusterConnectionConfig("cluster_1", settingsChange.build())
+                    );
                     assertBusy(remoteClusterConnection::isClosed);
 
                     remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");

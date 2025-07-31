@@ -31,6 +31,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.transport.LinkedClusterConnectionConfig;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
@@ -545,6 +546,8 @@ class IndicesAndAliasesResolver {
 
         private final CopyOnWriteArraySet<String> clusters;
 
+        // This would also need to change: either the LinkedClusterConnectionConfigListener can return a list of cluster aliases,
+        // or we use a different class that returns this info
         private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
             super(settings);
             clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
@@ -552,8 +555,8 @@ class IndicesAndAliasesResolver {
         }
 
         @Override
-        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
-            if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings)) {
+        protected void updateRemoteCluster(String clusterAlias, LinkedClusterConnectionConfig config) {
+            if (RemoteConnectionStrategy.isConnectionEnabled(config)) {
                 clusters.add(clusterAlias);
             } else {
                 clusters.remove(clusterAlias);

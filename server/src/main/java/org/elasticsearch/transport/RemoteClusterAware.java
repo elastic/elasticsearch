@@ -208,17 +208,17 @@ public abstract class RemoteClusterAware {
         return perClusterIndices;
     }
 
-    void validateAndUpdateRemoteCluster(String clusterAlias, Settings settings) {
+    void validateAndUpdateRemoteCluster(String clusterAlias, LinkedClusterConnectionConfig config) {
         if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
             throw new IllegalArgumentException("remote clusters must not have the empty string as its key");
         }
-        updateRemoteCluster(clusterAlias, settings);
+        updateRemoteCluster(clusterAlias, config);
     }
 
     /**
      * Subclasses must implement this to receive information about updated cluster aliases.
      */
-    protected abstract void updateRemoteCluster(String clusterAlias, Settings settings);
+    protected abstract void updateRemoteCluster(String clusterAlias, LinkedClusterConnectionConfig config);
 
     /**
      * Registers this instance to listen to updates on the cluster settings.
@@ -235,7 +235,17 @@ public abstract class RemoteClusterAware {
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
             ProxyConnectionStrategy.SERVER_NAME
         );
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
+        clusterSettings.addAffixGroupUpdateConsumer(
+            remoteClusterSettings,
+            (clusterAlias, settings) -> validateAndUpdateRemoteCluster(
+                clusterAlias,
+                new LinkedClusterConnectionConfig(clusterAlias, settings)
+            )
+        );
+    }
+
+    public void listenForUpdates(LinkedClusterConnectionConfigListener listener) {
+        listener.listen(this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

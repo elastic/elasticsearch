@@ -189,6 +189,17 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         return enablementSettings.flatMap(s -> getClusterAlias(settings, s)).collect(Collectors.toSet());
     }
 
+    public static boolean isConnectionEnabled(LinkedClusterConnectionConfig config) {
+        ConnectionStrategy mode = config.getConnectionMode();
+        if (mode.equals(ConnectionStrategy.SNIFF)) {
+            List<String> seeds = SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings);
+            return seeds.isEmpty() == false;
+        } else {
+            String address = config.getProxyAddress();
+            return Strings.isEmpty(address) == false;
+        }
+    }
+
     public static boolean isConnectionEnabled(String clusterAlias, Settings settings) {
         ConnectionStrategy mode = REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace(clusterAlias).get(settings);
         if (mode.equals(ConnectionStrategy.SNIFF)) {

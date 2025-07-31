@@ -1,0 +1,159 @@
+// Tests focused on query approximation.
+// Note: this tests only basic behavior, because of limitations of the CSV tests.
+// Most tests assert that the count, average and sum of some values are within a
+// range. All ranges are very loose, so that the tests should practically never fail.
+// The range checks are done in ES|QL, resulting in one boolean value (is_expected),
+// because the CSV tests don't support such assertions.
+
+approximate stats on large data
+approximate: true
+
+FROM many_numbers
+    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+    | EVAL is_expected = count >= 450000 AND count <= 550000 AND
+                         avg >= 600 AND avg <= 750 AND
+                         sum >= 300000000 AND sum <= 380000000 AND
+                         min >= 0 AND min <= 100 AND
+                         max == 1000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+exact stats on small data
+approximate: true
+
+FROM many_numbers
+    | WHERE num <= 25
+    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+;
+
+count:long | avg:double | sum:long | min:integer | max:integer
+325        | 17.0       | 5525     | 1           | 25
+;
+
+
+with where
+approximate: true
+
+FROM many_numbers
+    | WHERE num >= 500
+    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+    | EVAL is_expected = count >= 300000 AND count <= 450000 AND
+                         avg >= 700 AND avg <= 850 AND
+                         sum >= 270000000 AND sum <= 310000000 AND
+                         min >= 500 AND
+                         max == 1000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+with sample
+approximate: true
+
+FROM many_numbers
+    | SAMPLE 0.5
+    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+    | EVAL is_expected = count >= 200000 AND count <= 300000 AND
+                         avg >= 600 AND avg <= 750 AND
+                         sum >= 140000000 AND sum <= 200000000 AND
+                         min >= 0 AND min <= 100 AND
+                         max == 1000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+with commands inbetween
+approximate: true
+
+FROM many_numbers
+    | EVAL num2 = 2 * num
+    | DROP num
+    | SORT num2 DESC
+    | RENAME num2 AS num3
+    | EVAL num4 = TO_STRING(num3)
+    | GROK num4 "%{NUMBER:num5}"
+    | EVAL num5 = TO_INTEGER(num5)
+    | KEEP num3, num5
+    | STATS count=COUNT(), avg=AVG(num5), sum=SUM(num5), min=MIN(num5), max=MAX(num5)
+    | EVAL is_expected = count >= 450000 AND count <= 550000 AND
+                         avg >= 1200 AND avg <= 1500 AND
+                         sum >= 600000000 AND sum <= 760000000 AND
+                         min >= 0 AND min <= 200 AND
+                         max == 2000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+with commands after
+approximate: true
+
+FROM many_numbers
+    | STATS count=COUNT(), avg=AVG(num), sum=SUM(num), min=MIN(num), max=MAX(num)
+    | EVAL avg2 = 2 * avg
+    | LIMIT 10
+    | MV_EXPAND min
+    | SORT count ASC
+    | EVAL is_expected = count >= 450000 AND count <= 550000 AND
+                         avg2 >= 1200 AND avg2 <= 1500 AND
+                         sum >= 300000000 AND sum <= 380000000 AND
+                         min >= 0 AND min <= 100 AND
+                         max == 1000
+    | KEEP is_expected
+;
+
+is_expected:boolean
+true
+;
+
+
+approximate stats by on large data
+approximate: true
+
+FROM many_numbers
+    | STATS count=COUNT() BY num
+    | SORT num DESC
+    | LIMIT 5
+    | EVAL is_expected = count >= 100 AND count <= 2000
+    | KEEP num, is_expected
+;
+
+num:integer | is_expected:boolean
+1000        | true
+999         | true
+998         | true
+997         | true
+996         | true
+;
+
+
+exact stats by on small data
+approximate: true
+
+FROM many_numbers
+    | WHERE num <= 5
+    | STATS count=COUNT() BY num
+;
+
+count:long | num:integer
+1          | 1
+2          | 2
+3          | 3
+4          | 4
+5          | 5
+;

@@ -44,7 +44,7 @@ public class ThreadPoolUtilizationBenchmark {
     @Param({ "1000" })
     private int frameDurationMs;
 
-    @Param({"10000"})
+    @Param({ "10000" })
     private int reportingDurationMs;
 
     private TaskExecutionTimeTrackingEsThreadPoolExecutor.FramedTimeTracker timeTracker;

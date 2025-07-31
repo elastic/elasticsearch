@@ -275,15 +275,11 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             this.reportingInterval = reportingInterval;
             this.frameDuration = frameDuration;
             this.timeNow = timeNow;
-            this.frameWindowRef = new AtomicReference<>(FrameWindow.empty((int) (reportingInterval/frameDuration)));
+            this.frameWindowRef = new AtomicReference<>(FrameWindow.empty((int) (reportingInterval / frameDuration)));
         }
 
         FramedTimeTracker(Duration reportingInterval, Duration frameInterval) {
-            this(
-                reportingInterval.toNanos(),
-                frameInterval.toNanos(),
-                System::nanoTime
-            );
+            this(reportingInterval.toNanos(), frameInterval.toNanos(), System::nanoTime);
         }
 
         public long reportingInterval() {
@@ -410,7 +406,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 // initialize new frames in the beginning of array
                 // a new frame always starts with last known ongoing tasks
                 final var ongoingTasks = frames[0].ongoingTasks.sum();
-                for (var i=0; i<newFramesNum; i++) {
+                for (var i = 0; i < newFramesNum; i++) {
                     final var frame = new Frame();
                     frame.ongoingTasks.add(ongoingTasks);
                     newFrames[i] = frame;

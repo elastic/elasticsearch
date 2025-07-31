@@ -433,7 +433,8 @@ public class CrossClusterLookupJoinIT extends AbstractCrossClusterTestCase {
         populateEmptyIndices(LOCAL_CLUSTER, "values_lookup");
         populateEmptyIndices(REMOTE_CLUSTER_1, "values_lookup");
 
-        setSkipUnavailable(REMOTE_CLUSTER_1, false);
+        // Should work the same with both settings
+        setSkipUnavailable(REMOTE_CLUSTER_1, randomBoolean());
 
         Exception ex;
         for (String index : List.of("values_lookup", "values_lookup_map", "values_lookup_map_lookup")) {

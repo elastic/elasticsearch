@@ -301,25 +301,6 @@ public class SSLService {
     }
 
     /**
-     * Create a new {@link SSLSocketFactory} based on the provided configuration.
-     * The socket factory will also properly configure the ciphers and protocols on each socket that is created
-     *
-     * @param configuration The SSL configuration to use. Typically obtained from {@link #getSSLConfiguration(String)}
-     * @return Never {@code null}.
-     */
-    public SSLSocketFactory sslSocketFactory(SslConfiguration configuration) {
-        final SSLContextHolder contextHolder = sslContextHolder(configuration);
-        SSLSocketFactory socketFactory = contextHolder.sslContext().getSocketFactory();
-        final SecuritySSLSocketFactory securitySSLSocketFactory = new SecuritySSLSocketFactory(
-            () -> contextHolder.sslContext().getSocketFactory(),
-            configuration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
-            supportedCiphers(socketFactory.getSupportedCipherSuites(), configuration.getCipherSuites(), false)
-        );
-        contextHolder.addReloadListener(securitySSLSocketFactory::reload);
-        return securitySSLSocketFactory;
-    }
-
-    /**
      * Returns whether the provided settings results in a valid configuration that can be used for server connections
      *
      * @param sslConfiguration the configuration to check
@@ -788,7 +769,14 @@ public class SSLService {
 
         @Override
         public SSLSocketFactory socketFactory() {
-            return SSLService.this.sslSocketFactory(this.sslConfiguration);
+            SSLSocketFactory socketFactory = context.getSocketFactory();
+            final SecuritySSLSocketFactory securitySSLSocketFactory = new SecuritySSLSocketFactory(
+                () -> context.getSocketFactory(),
+                sslConfiguration.supportedProtocols().toArray(Strings.EMPTY_ARRAY),
+                supportedCiphers(socketFactory.getSupportedCipherSuites(), sslConfiguration.getCipherSuites(), false)
+            );
+            this.addReloadListener(securitySSLSocketFactory::reload);
+            return securitySSLSocketFactory;
         }
 
         @Override

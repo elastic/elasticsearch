@@ -21,6 +21,12 @@ public interface SslProfile {
 
     SSLContext sslContext();
 
+    /**
+     * Create a new {@link SSLSocketFactory} based on the provided configuration.
+     * The socket factory will also properly configure the ciphers and protocols on each socket that is created
+     *
+     * @return Never {@code null}.
+     */
     SSLSocketFactory socketFactory();
 
     HostnameVerifier hostnameVerifier();

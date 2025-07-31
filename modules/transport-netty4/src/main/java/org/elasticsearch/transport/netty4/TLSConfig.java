@@ -9,8 +9,6 @@
 
 package org.elasticsearch.transport.netty4;
 
-import org.elasticsearch.common.ssl.SslConfiguration;
-
 import javax.net.ssl.SSLEngine;
 
 public record TLSConfig(EngineProvider engineProvider) {

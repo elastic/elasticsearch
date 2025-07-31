@@ -78,7 +78,6 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -536,19 +535,15 @@ public class SSLServiceTests extends ESTestCase {
 
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
 
-        SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        final SslProfile profile = sslService.profile("xpack.security.transport.ssl");
 
-        final SSLSocketFactory configFactory = sslService.sslSocketFactory(config);
-        final String[] ciphers = sslService.supportedCiphers(configFactory.getSupportedCipherSuites(), config.getCipherSuites(), false);
-        assertThat(configFactory.getDefaultCipherSuites(), is(ciphers));
-
-        SslProfile profile = sslService.profile("xpack.security.transport.ssl");
-        final SSLSocketFactory profileFactory = profile.socketFactory();
-        assertThat(profileFactory.getSupportedCipherSuites(), is(configFactory.getSupportedCipherSuites()));
-        assertThat(profileFactory.getDefaultCipherSuites(), is(configFactory.getDefaultCipherSuites()));
+        final SSLSocketFactory factory = profile.socketFactory();
+        final SslConfiguration config = profile.configuration();
+        final String[] ciphers = sslService.supportedCiphers(factory.getSupportedCipherSuites(), config.getCipherSuites(), false);
+        assertThat(factory.getDefaultCipherSuites(), is(ciphers));
 
         final String[] getSupportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
-        try (SSLSocket socket = (SSLSocket) randomFrom(configFactory, profileFactory).createSocket()) {
+        try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
             assertThat(socket.getEnabledCipherSuites(), is(ciphers));
             // the order we set the protocols in is not going to be what is returned as internally the JDK may sort the versions
             assertThat(socket.getEnabledProtocols(), arrayContainingInAnyOrder(getSupportedProtocols));

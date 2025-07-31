@@ -19,7 +19,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
@@ -113,8 +112,8 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             null
         ).putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt")).build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        final SslConfiguration clientSslConfig = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
-        final SSLSocketFactory clientSocketFactory = sslService.sslSocketFactory(clientSslConfig);
+        final SslProfile clientSslProfile = sslService.profile(HTTP_CLIENT_SSL);
+        final SSLSocketFactory clientSocketFactory = clientSslProfile.socketFactory();
 
         // Apache clients implement their own hostname checking, but we don't want that.
         // We use a raw socket so we get the builtin JDK checking (which is what we use for transport protocol SSL checks)

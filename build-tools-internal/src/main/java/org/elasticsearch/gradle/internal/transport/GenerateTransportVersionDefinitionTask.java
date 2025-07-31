@@ -11,7 +11,7 @@ package org.elasticsearch.gradle.internal.transport;
 
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.MajorMinor;
-import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionDefinition;
+import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionLatest;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.ListProperty;
@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdIncrement.PATCH;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.IdIncrement.SERVER;
@@ -50,7 +51,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
     public abstract DirectoryProperty getTransportResourcesDirectory(); // The plugin should always set this, not optional
 
     // assumption: this task is always run on main, so we can determine the name by diffing with main and looking for new files added in the
-    // definition directory
+    // definition directory. (not true: once we generate the file, this will no longer hold true if we then need to update it)
     /**
      * Used to set the name of the TransportVersionSet for which a data file will be generated.
      */
@@ -78,28 +79,31 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         getLogger().lifecycle("Versions: " + getMinorVersions().get());
         Path resourcesDir = Objects.requireNonNull(getTransportResourcesDirectory().getAsFile().get()).toPath();
         String name = getTransportVersionName().isPresent() ? getTransportVersionName().get() : findLocalTransportVersionName();
-        Set<String> targetMinorVersions = new HashSet<>(
-            getMinorVersions().isPresent() ? getMinorVersions().get() : findTargetMinorVersions()
+        Set<MajorMinor> targetMinorVersions = new HashSet<>(
+            getMinorVersions().isPresent()
+                ? getMinorVersions().get().stream().map(MajorMinor::of).collect(Collectors.toSet())
+                : findTargetMinorVersions()
         );
 
         List<Integer> ids = new ArrayList<>();
-        for (String minorVersion : getKnownMinorVersions(resourcesDir)) {
-            TransportVersionDefinition latest = TransportVersionUtils.getLatestFile(resourcesDir, minorVersion);
-            TransportVersionDefinition newLatest = null;
+        for (MajorMinor minorVersion : getKnownMinorVersions(resourcesDir)) {
+            TransportVersionLatest latest = TransportVersionUtils.readLatestFile(resourcesDir, minorVersion);
+            TransportVersionLatest newLatest = null;
+
 
             if (name.equals(latest.name())) {
                 if (targetMinorVersions.contains(minorVersion) == false) {
-                    // regenerate
+                    // Regenerate to make this operation idempotent. Need to undo prior updates to the latest files if the list of minor versions has changed.
                 }
             } else {
                 if (targetMinorVersions.contains(minorVersion)) {
                     // increment
+                    ids.add(incrementTVId(latest.id(), minorVersion));
                 }
             }
 
             if (newLatest != null) {
-                assert newLatest.ids().size() == 1;
-                TransportVersionUtils.updateLatestFile(resourcesDir, minorVersion, newLatest.name(), newLatest.ids().getFirst());
+                TransportVersionUtils.updateLatestFile(resourcesDir, minorVersion.toString(), newLatest.name(), newLatest.id());
             }
         }
 
@@ -187,7 +191,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return null;
     }
 
-    private List<String> getKnownMinorVersions(Path resourcesDir) {
+    private List<MajorMinor> getKnownMinorVersions(Path resourcesDir) {
         // list files under latest
         return List.of();
     }
@@ -198,7 +202,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends DefaultTask
         return "";
     }
 
-    private List<String> findTargetMinorVersions() {
+    private List<MajorMinor> findTargetMinorVersions() {
         // look for env var indicating github PR link from CI
         // use github api to find current labels, filter down to version labels
         // map version labels to branches

@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
-
 import org.elasticsearch.gradle.Version;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -20,10 +19,12 @@ import org.gradle.api.file.Directory;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -39,45 +40,90 @@ class TransportVersionUtils {
     static final String LATEST_DIR = "latest";
     static final String DEFINED_DIR = "defined";
 
-    record TransportVersionDefinition(String name, List<Integer> ids) {}
+    private static final String CSV_SUFFIX = ".csv";
+
+    record TransportVersionDefinition(String name, List<Integer> ids) {
+        String path(Path resourcesDir) {
+            return resourcesDir.resolve(DEFINED_DIR).resolve(name + CSV_SUFFIX).toString();
+        }
+    }
+
+    record TransportVersionLatest(MajorMinor version, String name, int id) {
+        String path(Path resourcesDir) {
+            return resourcesDir.resolve(LATEST_DIR).resolve(version.toString() + CSV_SUFFIX).toString();
+        }
+    }
 
     record TransportVersionReference(String name, String location) {
         @Override
-        public String toString() {
+        public @NotNull String toString() {
             return name + " " + location;
         }
     }
 
-    static int getLatestId(Path dataDir, String majorMinor) throws IOException {
-        return getLatestFile(dataDir, majorMinor).ids().getFirst();
+    static int getLatestId(Path resourcesDir, String majorMinor) throws IOException {
+        return readLatestFile(resourcesDir, MajorMinor.of(majorMinor)).id();
     }
 
-    static TransportVersionDefinition getLatestFile(Path resourcesDir, String minorVersion) throws IOException {
-        return readDefinitionFile(resourcesDir.resolve(LATEST_DIR).resolve(minorVersion + ".csv"), true);
+    static TransportVersionLatest readLatestFile(Path resourcesDir, MajorMinor version) throws IOException {
+        Path filePath = resourcesDir.resolve(LATEST_DIR).resolve(version.toString() + CSV_SUFFIX);
+        String[] parts = Files.readString(filePath, StandardCharsets.UTF_8).split(",");
+        assert parts.length == 2;
+        return new TransportVersionLatest(
+            version,
+            parts[0],
+            Integer.parseInt(parts[1])
+        );
     }
 
-    static TransportVersionDefinition getDefinedFile(Path dataDir, String name) throws IOException {
+    static TransportVersionDefinition readDefinitionFile(Path resourcesDir, String name) {
         validateNameFormat(name);
-        var filePath = dataDir.resolve(DEFINED_DIR).resolve(name);
+        var filePath = resourcesDir.resolve(DEFINED_DIR).resolve(name + CSV_SUFFIX);
         if (Files.isRegularFile(filePath) == false) {
+            System.out.println("Potato file was not found at " + filePath);
             return null;
         }
-        return readDefinitionFile(filePath, false);
+        try {
+            String[] parts = Files.readString(filePath, StandardCharsets.UTF_8).split(",");
+            List<Integer> ids = Arrays.stream(parts).map(rawId -> Integer.parseInt(rawId.strip())).toList();
+
+            if (ids.isEmpty()) {
+                throw new IllegalStateException("Invalid transport version data file [" + filePath + "], no ids");
+            }
+            if (Comparators.isInOrder(ids, Comparator.reverseOrder()) == false) {
+                throw new IllegalStateException("Invalid transport version data file [" + filePath + "], ids are not in sorted");
+            }
+            return new TransportVersionDefinition(name, ids);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Unable to read definition file", e);
+        }
     }
 
-    static void writeDefinitionFile(Path dataDir, String name, List<Integer> ids) throws IOException {
+
+    static Stream<TransportVersionDefinition> readAllDefinitionFiles(Path resourcesDir) throws IOException {
+        var definitionsStream = Files.list(resourcesDir.resolve(DEFINED_DIR));
+        return definitionsStream.map(path -> {
+            String fileName = path.getFileName().toString();
+            assert fileName.endsWith(CSV_SUFFIX);
+            String name = fileName.substring(0, fileName.length() - 4);
+            System.out.println("Potato path.getparent" + path.getParent());
+            return readDefinitionFile(resourcesDir, name);
+        });
+    }
+
+    static void writeDefinitionFile(Path resourcesDir, String name, List<Integer> ids) throws IOException {
         validateNameFormat(name);
         assert ids != null && ids.isEmpty() == false : "Ids must be non-empty";
         Files.writeString(
-            dataDir.resolve(DEFINED_DIR).resolve(name + ".csv"),
+            resourcesDir.resolve(DEFINED_DIR).resolve(name + CSV_SUFFIX),
             ids.stream().map(String::valueOf).collect(Collectors.joining(",")) + "\n",
             StandardCharsets.UTF_8
         );
     }
 
-    static void updateLatestFile(Path dataDir, String majorMinor, String name, int id) throws IOException {
+    static void updateLatestFile(Path resourcesDir, String majorMinor, String name, int id) throws IOException {
         validateNameFormat(name);
-        var path = dataDir.resolve(LATEST_DIR).resolve(majorMinor + ".csv");
+        var path = resourcesDir.resolve(LATEST_DIR).resolve(majorMinor + CSV_SUFFIX);
         assert Files.isRegularFile(path) : "\"Latest\" file was not found at" + path + ", but is required: ";
         Files.writeString(path, name + "," + id + "\n", StandardCharsets.UTF_8);
     }
@@ -86,27 +132,6 @@ class TransportVersionUtils {
         if (Pattern.compile("^\\w+$").matcher(name).matches() == false) {
             throw new GradleException("The TransportVersion name must only contain underscores and alphanumeric characters.");
         }
-    }
-
-    static TransportVersionDefinition readDefinitionFile(Path file, boolean nameInFile) throws IOException {
-        assert file.endsWith(".csv");
-        String rawName = file.getFileName().toString();
-
-        String[] parts = Files.readString(file, StandardCharsets.UTF_8).split(",");
-        String name = nameInFile ? parts[0] : rawName.substring(0, rawName.length() - 4);
-        List<Integer> ids = new ArrayList<>();
-        for (int i = nameInFile ? 1 : 0; i < parts.length; ++i) {
-            try {
-                ids.add(Integer.parseInt(parts[i]));
-            } catch (NumberFormatException nfe) {
-                throw new IllegalStateException("Invalid transport version file format [" + file + "], id could not be parsed", nfe);
-            }
-        }
-
-        if (Comparators.isInOrder(ids, Comparator.reverseOrder()) == false) {
-            throw new IOException("Invalid transport version data file [" + file + "], ids are not in sorted");
-        }
-        return new TransportVersionDefinition(name, ids);
     }
 
     static List<TransportVersionReference> readReferencesFile(Path file) throws IOException {
@@ -200,7 +225,7 @@ class TransportVersionUtils {
         }
         try (var pathStream = Files.list(Objects.requireNonNull(dataDir.resolve(LATEST_DIR)))) {
             var highestMinorOfPrevMajor = pathStream.flatMap(path -> {
-                var fileMajorMinor = path.getFileName().toString().replace(".csv", "");
+                var fileMajorMinor = path.getFileName().toString().replace(CSV_SUFFIX, "");
                 var fileVersion = MajorMinor.of(fileMajorMinor);
                 return fileVersion.major == version.major - 1 ? Stream.of(fileVersion.minor) : Stream.empty();
             }).sorted().toList().getLast();

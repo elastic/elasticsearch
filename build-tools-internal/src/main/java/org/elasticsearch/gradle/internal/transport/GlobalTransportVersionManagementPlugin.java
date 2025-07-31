@@ -42,7 +42,7 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
             .register("validateTransportVersionDefinitions", ValidateTransportVersionDefinitionsTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
-                t.getDefinitionsDirectory().set(TransportVersionUtils.getTransportDefinitionsDirectory(project));
+                t.getTransportResourcesDirectory().set(TransportVersionUtils.getTransportResourcesDirectory(project));
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));

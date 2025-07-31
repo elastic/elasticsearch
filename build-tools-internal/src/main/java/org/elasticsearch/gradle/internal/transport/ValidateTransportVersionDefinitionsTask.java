@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.transport;
 
 import com.google.common.collect.Comparators;
-
 import org.elasticsearch.gradle.internal.transport.TransportVersionUtils.TransportVersionReference;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -23,15 +22,14 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.DEFINED_DIR;
-import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readDefinitionFile;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readAllDefinitionFiles;
 import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.readReferencesFile;
+import static org.elasticsearch.gradle.internal.transport.TransportVersionUtils.validateNameFormat;
 
 /**
  * Validates that each defined transport version definition file is referenced by at least one project.
@@ -41,7 +39,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
     @InputDirectory
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract DirectoryProperty getDefinitionsDirectory();
+    public abstract DirectoryProperty getTransportResourcesDirectory();
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -49,8 +47,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
     @TaskAction
     public void validateTransportVersions() throws IOException {
-        Path dataDir = getDefinitionsDirectory().getAsFile().get().toPath();
-        Path definitionsDir = dataDir.resolve(DEFINED_DIR);
+        Path resourcesDir = getTransportResourcesDirectory().getAsFile().get().toPath();
 
         Set<String> allTvNames = new HashSet<>();
         for (var tvReferencesFile : getReferencesFiles()) {
@@ -59,28 +56,39 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
         // TODO validate that all files:
         // - have only have a single ID per release version
-        // - have TVs in order
-        // - have the correct name
+        // - [x] have TVs in order
+        // - [x] have a name in the correct format
         // - have the correct data format
-        // - Don't have duplicate IDs across any files
+        // - [x] Don't have duplicate IDs across any files
         // - no duplicate names? Should be impossible due to filename conflicts
 
-        try (var definitionsStream = Files.list(definitionsDir)) {
-            for (var definitionFile : definitionsStream.toList()) {
-                // Validate that all definitions are referenced in the code.
-                var tv = readDefinitionFile(definitionFile, false);
-                if (allTvNames.contains(tv.name()) == false) {
-                    throw new IllegalStateException(
-                        "Transport version definition " + tv.name() + " in file " + definitionFile + "is not referenced in the code."
-                    );
+        HashSet<Integer> seenIds = new HashSet<>();
+        try (var allDefinitions = readAllDefinitionFiles(resourcesDir)) {
+            allDefinitions.forEach(definition -> {
+                // Validate that all definitions are referenced in the codebase:
+                if (allTvNames.contains(definition.name()) == false) {
+                    throw new IllegalStateException("Transport version definition file "
+                        + definition.path(resourcesDir) + " is not referenced in the codebase.");
                 }
 
                 // Validate that all Ids are in decending order:
-                if (Comparators.isInOrder(tv.ids(), Comparator.reverseOrder()) == false) {
-                    throw new IllegalStateException("Transport version definition file " + definitionFile + " does not have ordered ids");
+                if (Comparators.isInOrder(definition.ids(), Comparator.reverseOrder()) == false) {
+                    throw new IllegalStateException("Transport version definition file "
+                        + definition.path(resourcesDir) + " does not have ordered ids");
                 }
 
-            }
+                // Validate that the name is in the correct format:
+                validateNameFormat(definition.name());
+
+                // Validate that there are no duplicate ids across any files:
+                for (var id : definition.ids()) {
+                    if (seenIds.contains(id)) {
+                        throw new IllegalStateException("Transport version definition file "
+                            + definition.path(resourcesDir) + " contains an id also present in another file");
+                    }
+                    seenIds.add(id);
+                }
+            });
         }
     }
 

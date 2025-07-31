@@ -29,9 +29,9 @@ import static java.util.Objects.requireNonNull;
 
 public class TestPolicyManager extends PolicyManager {
 
-    boolean isActive = false;
-    boolean isTriviallyAllowingTestCode = true;
-    String[] entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
+    boolean isActive;
+    boolean isTriviallyAllowingTestCode;
+    String[] entitledTestPackages;
 
     /**
      * We don't have modules in tests, so we can't use the inherited map of entitlements per module.
@@ -53,13 +53,7 @@ public class TestPolicyManager extends PolicyManager {
         super(serverPolicy, apmAgentEntitlements, pluginPolicies, scopeResolver, name -> classpath, pathLookup);
         this.classpath = classpath;
         this.testOnlyClasspath = testOnlyClasspath;
-    }
-
-    public final void resetAfterTest() {
-        isActive = false;
-        isTriviallyAllowingTestCode = true;
-        entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
-        clearModuleEntitlementsCache();
+        resetAfterTest();
     }
 
     public void setActive(boolean newValue) {
@@ -83,6 +77,13 @@ public class TestPolicyManager extends PolicyManager {
         String[] packages = ArrayUtils.concat(TEST_FRAMEWORK_PACKAGE_PREFIXES, entitledTestPackages);
         Arrays.sort(packages);
         this.entitledTestPackages = packages;
+    }
+
+    public final void resetAfterTest() {
+        isActive = false;
+        isTriviallyAllowingTestCode = true;
+        entitledTestPackages = TEST_FRAMEWORK_PACKAGE_PREFIXES;
+        clearModuleEntitlementsCache();
     }
 
     /**

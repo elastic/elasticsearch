@@ -238,8 +238,9 @@ public class MockNode extends Node {
     }
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
-    // handle for node paths specific entitlement grants
-    private final Closeable entitlementGrant;
+
+    // handle for temporarily entitled node paths for this node; these will be removed on close.
+    private final Closeable entitledNodePaths;
 
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
         this(settings, classpathPlugins, true, () -> {});
@@ -249,9 +250,9 @@ public class MockNode extends Node {
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings,
-        final Closeable entitlementGrant
+        final Closeable entitledNodePaths
     ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings, entitlementGrant);
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     public MockNode(
@@ -259,16 +260,16 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final Path configPath,
         final boolean forbidPrivateIndexSettings,
-        final Closeable entitlementGrant
+        final Closeable entitledNodePaths
     ) {
-        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings, entitlementGrant);
+        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     private MockNode(
         final Environment environment,
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings,
-        final Closeable entitlementGrant
+        final Closeable entitledNodePaths
     ) {
         super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
 
@@ -279,7 +280,7 @@ public class MockNode extends Node {
         }, forbidPrivateIndexSettings));
 
         this.classpathPlugins = classpathPlugins;
-        this.entitlementGrant = entitlementGrant;
+        this.entitledNodePaths = entitledNodePaths;
     }
 
     private static Environment prepareEnvironment(final Settings settings, final Path configPath) {
@@ -296,7 +297,7 @@ public class MockNode extends Node {
         try {
             return super.awaitClose(timeout, timeUnit);
         } finally {
-            IOUtils.closeWhileHandlingException(entitlementGrant);
+            IOUtils.closeWhileHandlingException(entitledNodePaths);
         }
     }
 

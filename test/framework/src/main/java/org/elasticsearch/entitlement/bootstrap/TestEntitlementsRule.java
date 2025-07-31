@@ -252,6 +252,12 @@ public class TestEntitlementsRule implements TestRule {
         return Booleans.parseBoolean(System.getProperty("es.entitlement.enableForTests", "false"));
     }
 
+    private static void loadAgent(PolicyManager policyManager, PathLookup pathLookup) {
+        logger.debug("Loading entitlement agent");
+        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
+        EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
+    }
+
     private static TestPolicyManager createPolicyManager(PathLookup pathLookup) throws IOException {
         var pluginsTestBuildInfo = TestBuildInfoParser.parseAllPluginTestBuildInfo();
         var serverTestBuildInfo = TestBuildInfoParser.parseServerTestBuildInfo();
@@ -305,12 +311,6 @@ public class TestEntitlementsRule implements TestRule {
             classPathEntries,
             testOnlyClassPath
         );
-    }
-
-    private static void loadAgent(PolicyManager policyManager, PathLookup pathLookup) {
-        logger.debug("Loading entitlement agent");
-        EntitlementInitialization.initializeArgs = new EntitlementInitialization.InitializeArgs(pathLookup, Set.of(), policyManager);
-        EntitlementBootstrap.loadAgent(EntitlementBootstrap.findAgentJar(), EntitlementInitialization.class.getName());
     }
 
     private static Map<String, Policy> parsePluginsPolicies(List<TestPluginData> pluginsData) {

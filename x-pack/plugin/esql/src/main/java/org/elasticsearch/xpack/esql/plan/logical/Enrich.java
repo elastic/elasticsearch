@@ -305,26 +305,26 @@ public class Enrich extends UnaryPlan
      * We might consider implementing the actual remote enrich on the coordinating cluster, however, this requires
      * retaining the originating cluster and restructing pages for routing, which might be complicated.
      */
-    private static void checkForPlansForbiddenBeforeRemoteEnrich(Enrich enrich, Failures failures) {
-        if (enrich.mode != Mode.REMOTE) {
+    private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
+        if (this.mode != Mode.REMOTE) {
             return;
         }
 
         Set<Source> badCommands = new HashSet<>();
 
-        enrich.forEachUp(LogicalPlan.class, u -> {
+        this.forEachUp(LogicalPlan.class, u -> {
             if (u instanceof ExecutesOn ex && ex.executesOn() == ExecuteLocation.COORDINATOR) {
                 badCommands.add(u.source());
             }
         });
 
         badCommands.forEach(
-            f -> failures.add(fail(enrich, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source()))
+            f -> failures.add(fail(this, "ENRICH with remote policy can't be executed after [" + f.text() + "]" + f.source()))
         );
     }
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        checkForPlansForbiddenBeforeRemoteEnrich(this, failures);
+        checkForPlansForbiddenBeforeRemoteEnrich(failures);
     }
 }

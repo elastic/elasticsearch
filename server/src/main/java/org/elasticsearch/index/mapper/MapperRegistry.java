@@ -31,12 +31,29 @@ public final class MapperRegistry {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers6x;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers5x;
     private final Function<String, FieldPredicate> fieldFilter;
+    private final RootObjectMapperNamespaceValidator namespaceValidator;
 
+    // MP TODO: remove this? Or keep?
     public MapperRegistry(
         Map<String, Mapper.TypeParser> mapperParsers,
         Map<String, RuntimeField.Parser> runtimeFieldParsers,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
         Function<String, FieldPredicate> fieldFilter
+    ) {
+        // MP TODO: remove this no-op RootObjectMapperNamespaceValidator once we know how all this is going to work
+        this(mapperParsers, runtimeFieldParsers, metadataMapperParsers, fieldFilter, new RootObjectMapperNamespaceValidator() {
+            @Override
+            public void validateNamespace(ObjectMapper.Subobjects subobjects, Mapper mapper) {}
+        });
+    }
+
+    // MP TODO: need to move/create tests to use this
+    public MapperRegistry(
+        Map<String, Mapper.TypeParser> mapperParsers,
+        Map<String, RuntimeField.Parser> runtimeFieldParsers,
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
+        Function<String, FieldPredicate> fieldFilter,
+        RootObjectMapperNamespaceValidator namespaceValidator
     ) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.runtimeFieldParsers = runtimeFieldParsers;
@@ -50,6 +67,7 @@ public final class MapperRegistry {
         metadata5x.put(LegacyTypeFieldMapper.NAME, LegacyTypeFieldMapper.PARSER);
         this.metadataMapperParsers5x = metadata5x;
         this.fieldFilter = fieldFilter;
+        this.namespaceValidator = namespaceValidator;
     }
 
     /**
@@ -70,6 +88,10 @@ public final class MapperRegistry {
 
     public Map<String, RuntimeField.Parser> getRuntimeFieldParsers() {
         return runtimeFieldParsers;
+    }
+
+    public RootObjectMapperNamespaceValidator getNamespaceValidator() {
+        return namespaceValidator;
     }
 
     /**

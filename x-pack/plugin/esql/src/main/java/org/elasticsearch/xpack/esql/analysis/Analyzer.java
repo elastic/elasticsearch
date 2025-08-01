@@ -821,7 +821,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             for (Alias field : rerank.rerankFields()) {
                 Alias resolved = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
 
-                if (resolved.resolved() != false) {
+                if (resolved.resolved()) {
                     if (castRerankFieldsAsString
                         && rerank.isValidRerankField(resolved)
                         && DataType.isString(resolved.dataType()) == false) {

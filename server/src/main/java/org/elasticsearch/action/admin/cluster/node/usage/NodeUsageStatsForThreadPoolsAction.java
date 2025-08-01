@@ -73,7 +73,6 @@ public class NodeUsageStatsForThreadPoolsAction {
         public Map<String, NodeUsageStatsForThreadPools> getAllNodeUsageStatsForThreadPools() {
             Map<String, NodeUsageStatsForThreadPools> allNodeUsageStatsForThreadPools = new HashMap<>();
             for (NodeUsageStatsForThreadPoolsAction.NodeResponse nodeResponse : getNodes()) {
-                // NOMERGE: Is the nodeID in NodeUsageStatsForThreadPools redundant? What is it useful for? If not, remove?
                 allNodeUsageStatsForThreadPools.put(
                     nodeResponse.getNodeUsageStatsForThreadPools().nodeId(),
                     nodeResponse.getNodeUsageStatsForThreadPools()

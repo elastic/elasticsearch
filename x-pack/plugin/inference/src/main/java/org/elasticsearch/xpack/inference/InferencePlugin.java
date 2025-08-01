@@ -592,10 +592,11 @@ public class InferencePlugin extends Plugin
     @Override
     public void onNodeStarted() {
         var registry = inferenceServiceRegistry.get();
-
         if (registry != null) {
             registry.onNodeStarted();
         }
+
+        SemanticQueryBuilder.setModelRegistrySupplier(getModelRegistry());
     }
 
     @Override

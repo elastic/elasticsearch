@@ -36,12 +36,14 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -66,6 +68,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         PARSER.declareString(constructorArg(), QUERY_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), LENIENT_FIELD);
         declareStandardFields(PARSER);
+    }
+
+    private static Supplier<ModelRegistry> MODEL_REGISTRY_SUPPLIER = () -> null;
+
+    public static void setModelRegistrySupplier(Supplier<ModelRegistry> supplier) {
+        MODEL_REGISTRY_SUPPLIER = supplier;
     }
 
     private final String fieldName;

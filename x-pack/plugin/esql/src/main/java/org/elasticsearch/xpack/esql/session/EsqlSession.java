@@ -226,6 +226,12 @@ public class EsqlSession {
                         ThreadPool.Names.SYSTEM_READ
                     );
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(analyzedPlan, logicalPlanPreOptimizer, l))
+                        .<LogicalPlan>andThen((l, p) -> {
+                            if (request.approximate()) {
+                                new Approximate(p);  // to verify whether the pre-optimized plan is suitable for approximation
+                            }
+                            l.onResponse(p);
+                        })
                         .<LogicalPlan>andThen((l, p) -> preMapper.preMapper(optimizedPlan(p, logicalPlanOptimizer), l))
                         .<Result>andThen(
                             (l, p) -> executeOptimizedPlan(

@@ -264,7 +264,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      */
     public static void validateRepositoryExists(final ProjectMetadata projectMetadata, final String repository) {
         if (RepositoriesMetadata.get(projectMetadata).repository(repository) == null) {
-            throw new IllegalArgumentException("no such repository [" + repository + "] in project [" + projectMetadata.id() + "]");
+            throw new IllegalArgumentException("no such repository [" + repository + "]");
         }
     }
 

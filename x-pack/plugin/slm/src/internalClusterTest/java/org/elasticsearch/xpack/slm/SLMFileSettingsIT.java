@@ -285,10 +285,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
                 if (reservedState != null && reservedState.errorMetadata() != null) {
                     assertEquals(ReservedStateErrorMetadata.ErrorKind.VALIDATION, reservedState.errorMetadata().errorKind());
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
-                    assertThat(
-                        reservedState.errorMetadata().errors().get(0),
-                        containsString("no such repository [other-repo] in project [default]")
-                    );
+                    assertThat(reservedState.errorMetadata().errors().get(0), containsString("no such repository [other-repo]"));
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
@@ -332,7 +329,7 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
         // This will fail because repo-new isn't there, not because we can't write test-snapshots-err, meaning we were allowed to
         // make the request
         assertEquals(
-            "no such repository [repo-new] in project [default]",
+            "no such repository [repo-new]",
             expectThrows(
                 IllegalArgumentException.class,
                 () -> client().execute(PutSnapshotLifecycleAction.INSTANCE, sampleRestRequest("test-snapshots-err")).actionGet()

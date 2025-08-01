@@ -726,11 +726,11 @@ public class GroupingAggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(INT_VECTOR, "selected")
-            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "evaluatorContext");
+            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
 
         if (aggState.declaredType().isPrimitive()) {
-            builder.addStatement("blocks[offset] = state.toValuesBlock(selected, evaluatorContext.driverContext())");
-        } else if (timseries) {
+            builder.addStatement("blocks[offset] = state.toValuesBlock(selected, ctx.driverContext())");
+        } else {
             requireStaticMethod(
                 declarationType,
                 requireType(BLOCK),
@@ -741,15 +741,7 @@ public class GroupingAggregatorImplementer {
                     requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT)
                 )
             );
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, evaluatorContext)", declarationType);
-        } else {
-            requireStaticMethod(
-                declarationType,
-                requireType(BLOCK),
-                requireName("evaluateFinal"),
-                requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(DRIVER_CONTEXT))
-            );
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, evaluatorContext.driverContext())", declarationType);
+            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, ctx)", declarationType);
         }
         return builder.build();
     }

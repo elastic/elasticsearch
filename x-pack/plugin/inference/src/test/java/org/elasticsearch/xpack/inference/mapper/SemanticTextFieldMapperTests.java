@@ -130,9 +130,20 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         this.useLegacyFormat = useLegacyFormat;
     }
 
+    ModelRegistry globalModelRegistry;
+
     @Before
     private void startThreadPool() {
         threadPool = createThreadPool();
+        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        var modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool));
+        globalModelRegistry = spy(modelRegistry);
+        globalModelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
+            @Override
+            public boolean localNodeMaster() {
+                return false;
+            }
+        });
     }
 
     @After
@@ -143,21 +154,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return List.of(new Object[] { true }, new Object[] { false });
-    }
-
-    ModelRegistry globalModelRegistry;
-
-    @Before
-    public void beforeTest() {
-        var clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        var modelRegistry = new ModelRegistry(clusterService, new NoOpClient(threadPool));
-        globalModelRegistry = spy(modelRegistry);
-        globalModelRegistry.clusterChanged(new ClusterChangedEvent("init", clusterService.state(), clusterService.state()) {
-            @Override
-            public boolean localNodeMaster() {
-                return false;
-            }
-        });
     }
 
     @Override

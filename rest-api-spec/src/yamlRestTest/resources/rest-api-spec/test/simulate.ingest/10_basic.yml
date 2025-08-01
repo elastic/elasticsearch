@@ -612,9 +612,9 @@ setup:
 
 ---
 "Test bad pipeline substitution":
-
   - skip:
       features: [headers, allowed_warnings]
+      cluster_features: [ "gte_v9.1.99" ]
 
   - do:
       headers:

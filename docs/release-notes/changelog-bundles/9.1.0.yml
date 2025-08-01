@@ -1,6 +1,6 @@
 version: 9.1.0
-released: false
-generated: 2025-07-26T00:06:59.671585841Z
+released: true
+generated: 2025-07-29T11:34:08.731686399Z
 changelogs:
   - pr: 105773
     summary: Inject an unfollow action before executing a downsample action in ILM

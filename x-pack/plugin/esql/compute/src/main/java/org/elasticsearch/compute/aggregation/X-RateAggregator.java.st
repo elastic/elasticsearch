@@ -29,8 +29,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
-import java.util.Arrays;
-
 /**
  * A rate grouping aggregation definition for $type$.
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
@@ -63,15 +61,6 @@ public class Rate$Type$Aggregator {
         int otherPosition
     ) {
         current.combine(groupId, timestamps, values, sampleCount, reset, otherPosition);
-    }
-
-    public static void combineStates(
-        $Type$RateGroupingState current,
-        int currentGroupId, // make the stylecheck happy
-        $Type$RateGroupingState otherState,
-        int otherGroupId
-    ) {
-        current.combineState(currentGroupId, otherState, otherGroupId);
     }
 
     public static Block evaluateFinal($Type$RateGroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
@@ -219,25 +208,6 @@ public class Rate$Type$Aggregator {
                 dst.values[k] = values.get$Type$(firstIndex + j);
                 ++k;
                 ++j;
-            }
-        }
-
-        void combineState(int groupId, $Type$RateGroupingState otherState, int otherGroupId) {
-            var other = otherGroupId < otherState.states.size() ? otherState.states.get(otherGroupId) : null;
-            if (other == null) {
-                return;
-            }
-            ensureCapacity(groupId);
-            var curr = states.get(groupId);
-            if (curr == null) {
-                var len = other.entries();
-                adjustBreaker($Type$RateState.bytesUsed(len));
-                curr = new $Type$RateState(Arrays.copyOf(other.timestamps, len), Arrays.copyOf(other.values, len));
-                curr.reset = other.reset;
-                curr.sampleCount = other.sampleCount;
-                states.set(groupId, curr);
-            } else {
-                states.set(groupId, mergeState(curr, other));
             }
         }
 

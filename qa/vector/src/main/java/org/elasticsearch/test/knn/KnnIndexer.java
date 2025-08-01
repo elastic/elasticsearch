@@ -31,6 +31,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.FSDirectory;
@@ -61,7 +62,7 @@ class KnnIndexer {
     static final String ID_FIELD = "id";
     static final String VECTOR_FIELD = "vector";
 
-    private final Path docsPath;
+    private final List<Path> docsPath;
     private final Path indexPath;
     private final VectorEncoding vectorEncoding;
     private int dim;
@@ -69,16 +70,18 @@ class KnnIndexer {
     private final Codec codec;
     private final int numDocs;
     private final int numIndexThreads;
+    private final MergePolicy mergePolicy;
 
     KnnIndexer(
-        Path docsPath,
+        List<Path> docsPath,
         Path indexPath,
         Codec codec,
         int numIndexThreads,
         VectorEncoding vectorEncoding,
         int dim,
         VectorSimilarityFunction similarityFunction,
-        int numDocs
+        int numDocs,
+        MergePolicy mergePolicy
     ) {
         this.docsPath = docsPath;
         this.indexPath = indexPath;
@@ -88,6 +91,7 @@ class KnnIndexer {
         this.dim = dim;
         this.similarityFunction = similarityFunction;
         this.numDocs = numDocs;
+        this.mergePolicy = mergePolicy;
     }
 
     void numSegments(KnnIndexTester.Results result) {
@@ -103,7 +107,9 @@ class KnnIndexer {
         iwc.setCodec(codec);
         iwc.setRAMBufferSizeMB(WRITER_BUFFER_MB);
         iwc.setUseCompoundFile(false);
-
+        if (mergePolicy != null) {
+            iwc.setMergePolicy(mergePolicy);
+        }
         iwc.setMaxFullFlushMergeWaitMillis(0);
 
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
@@ -127,57 +133,70 @@ class KnnIndexer {
         }
 
         long start = System.nanoTime();
-        try (
-            FSDirectory dir = FSDirectory.open(indexPath);
-            IndexWriter iw = new IndexWriter(dir, iwc);
-            FileChannel in = FileChannel.open(docsPath)
-        ) {
-            long docsPathSizeInBytes = in.size();
-            int offsetByteSize = 0;
-            if (dim == -1) {
-                offsetByteSize = 4;
-                ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
-                int bytesRead = Channels.readFromFileChannel(in, 0, preamble);
-                if (bytesRead < 4) {
-                    throw new IllegalArgumentException(
-                        "docsPath \"" + docsPath + "\" does not contain a valid dims?  size=" + docsPathSizeInBytes
+        AtomicInteger numDocsIndexed = new AtomicInteger();
+        try (FSDirectory dir = FSDirectory.open(indexPath); IndexWriter iw = new IndexWriter(dir, iwc);) {
+            for (Path docsPath : this.docsPath) {
+                int dim = this.dim;
+                try (FileChannel in = FileChannel.open(docsPath)) {
+                    long docsPathSizeInBytes = in.size();
+                    int offsetByteSize = 0;
+                    if (dim == -1) {
+                        offsetByteSize = 4;
+                        ByteBuffer preamble = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN);
+                        int bytesRead = Channels.readFromFileChannel(in, 0, preamble);
+                        if (bytesRead < 4) {
+                            throw new IllegalArgumentException(
+                                "docsPath \"" + docsPath + "\" does not contain a valid dims?  size=" + docsPathSizeInBytes
+                            );
+                        }
+                        dim = preamble.getInt(0);
+                        if (dim <= 0) {
+                            throw new IllegalArgumentException("docsPath \"" + docsPath + "\" has invalid dimension: " + dim);
+                        }
+                    }
+                    FieldType fieldType = switch (vectorEncoding) {
+                        case BYTE -> KnnByteVectorField.createFieldType(dim, similarityFunction);
+                        case FLOAT32 -> KnnFloatVectorField.createFieldType(dim, similarityFunction);
+                    };
+                    if (docsPathSizeInBytes % (((long) dim * vectorEncoding.byteSize + offsetByteSize)) != 0) {
+                        throw new IllegalArgumentException(
+                            "docsPath \"" + docsPath + "\" does not contain a whole number of vectors?  size=" + docsPathSizeInBytes
+                        );
+                    }
+                    int numDocs = (int) (docsPathSizeInBytes / ((long) dim * vectorEncoding.byteSize + offsetByteSize));
+                    numDocs = Math.min(this.numDocs - numDocsIndexed.get(), numDocs);
+                    if (numDocs <= 0) {
+                        break;
+                    }
+                    logger.info(
+                        "path={}, docsPathSizeInBytes={}, numDocs={}, dim={}, vectorEncoding={}, byteSize={}",
+                        docsPath,
+                        docsPathSizeInBytes,
+                        numDocs,
+                        dim,
+                        vectorEncoding,
+                        vectorEncoding.byteSize
                     );
-                }
-                dim = preamble.getInt(0);
-                if (dim <= 0) {
-                    throw new IllegalArgumentException("docsPath \"" + docsPath + "\" has invalid dimension: " + dim);
-                }
-            }
-            FieldType fieldType = switch (vectorEncoding) {
-                case BYTE -> KnnByteVectorField.createFieldType(dim, similarityFunction);
-                case FLOAT32 -> KnnFloatVectorField.createFieldType(dim, similarityFunction);
-            };
-            if (docsPathSizeInBytes % (((long) dim * vectorEncoding.byteSize + offsetByteSize)) != 0) {
-                throw new IllegalArgumentException(
-                    "docsPath \"" + docsPath + "\" does not contain a whole number of vectors?  size=" + docsPathSizeInBytes
-                );
-            }
-            logger.info(
-                "docsPathSizeInBytes={}, dim={}, vectorEncoding={}, byteSize={}",
-                docsPathSizeInBytes,
-                dim,
-                vectorEncoding,
-                vectorEncoding.byteSize
-            );
+                    // adjust numDocs to account for the number of documents already indexed
+                    // numDocsIndexed tracks the total docs read in order and is used for docIds
+                    // numDocs is the total number of docs to index from this file
+                    numDocs += numDocsIndexed.get();
 
-            VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
-            try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
-                AtomicInteger numDocsIndexed = new AtomicInteger();
-                List<Future<?>> threads = new ArrayList<>();
-                for (int i = 0; i < numIndexThreads; i++) {
-                    Thread t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
-                    t.setDaemon(true);
-                    threads.add(exec.submit(t));
-                }
-                for (Future<?> t : threads) {
-                    t.get();
+                    VectorReader inReader = VectorReader.create(in, dim, vectorEncoding, offsetByteSize);
+                    try (ExecutorService exec = Executors.newFixedThreadPool(numIndexThreads, r -> new Thread(r, "KnnIndexer-Thread"))) {
+                        List<Future<?>> threads = new ArrayList<>();
+                        for (int i = 0; i < numIndexThreads; i++) {
+                            Thread t = new IndexerThread(iw, inReader, dim, vectorEncoding, fieldType, numDocsIndexed, numDocs);
+                            t.setDaemon(true);
+                            threads.add(exec.submit(t));
+                        }
+                        for (Future<?> t : threads) {
+                            t.get();
+                        }
+                    }
                 }
             }
+            logger.info("KnnIndexer: indexed {} documents of desired {} numDocs", numDocsIndexed, numDocs);
             logger.debug("all indexing threads finished, now IndexWriter.commit()");
             iw.commit();
             ConcurrentMergeScheduler cms = (ConcurrentMergeScheduler) iwc.getMergeScheduler();

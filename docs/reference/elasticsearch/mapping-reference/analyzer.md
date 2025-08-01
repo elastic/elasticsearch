@@ -1,13 +1,15 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/analyzer.html
+applies_to:
+   stack: all
+   serverless: all
 ---
 
 # analyzer [analyzer]
 
 ::::{important}
 Only [`text`](/reference/elasticsearch/mapping-reference/text.md) fields support the `analyzer` mapping parameter.
-
 ::::
 
 
@@ -17,7 +19,6 @@ Unless overridden with the [`search_analyzer`](/reference/elasticsearch/mapping-
 
 ::::{tip}
 We recommend testing analyzers before using them in production. See [Test an analyzer](docs-content://manage-data/data-store/text-analysis/test-an-analyzer.md).
-
 ::::
 
 

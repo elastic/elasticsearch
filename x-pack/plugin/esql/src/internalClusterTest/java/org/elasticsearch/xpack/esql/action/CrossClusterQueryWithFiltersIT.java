@@ -62,8 +62,10 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
     protected void assertClusterMetadataSuccess(EsqlExecutionInfo.Cluster clusterMetatata, int shards, long took, String indexExpression) {
         assertClusterMetadata(clusterMetatata, took, indexExpression, Status.SUCCESSFUL);
         assertThat(clusterMetatata.getTotalShards(), equalTo(shards));
-        assertThat(clusterMetatata.getSuccessfulShards(), equalTo(shards));
-        assertThat(clusterMetatata.getSkippedShards(), equalTo(0));
+        // We should have at least one successful shard for data
+        assertThat(clusterMetatata.getSuccessfulShards(), greaterThanOrEqualTo(1));
+        // Some shards may be skipped, but total sum of the shards should match up
+        assertThat(clusterMetatata.getSkippedShards() + clusterMetatata.getSuccessfulShards(), equalTo(shards));
     }
 
     protected void assertClusterMetadataNoShards(EsqlExecutionInfo.Cluster clusterMetatata, long took, String indexExpression) {
@@ -81,7 +83,7 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
     ) {
         assertClusterMetadata(clusterMetatata, took, indexExpression, Status.SUCCESSFUL);
         assertThat(clusterMetatata.getTotalShards(), equalTo(shards));
-        assertThat(clusterMetatata.getSuccessfulShards(), equalTo(shards));
+        assertThat(clusterMetatata.getSuccessfulShards(), equalTo(0));
         assertThat(clusterMetatata.getSkippedShards(), equalTo(shards));
     }
 
@@ -313,13 +315,13 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
             new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
         )) {
             count++;
-            // Local index missing
+            // Remote index missing
             VerificationException e = expectThrows(
                 VerificationException.class,
                 () -> runQuery("from cluster-a:missing", randomBoolean(), filter).close()
             );
             assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
-            // Local index missing + wildcards
+            // Remote index missing + wildcards
             // FIXME: planner does not catch this now, it should be VerificationException but for now it's runtime RemoteException
             var ie = expectThrows(
                 RemoteException.class,
@@ -349,6 +351,66 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
                 List<List<Object>> values = getValuesList(resp);
                 assertThat(values, hasSize(count > 2 ? 0 : docsTest1));
             }
+        }
+    }
+
+    public void testFilterWithMissingRemoteIndexSkipUnavailable() {
+        int docsTest1 = 50;
+        int docsTest2 = 30;
+        int localShards = randomIntBetween(1, 5);
+        int remoteShards = randomIntBetween(1, 5);
+        populateDateIndex(LOCAL_CLUSTER, LOCAL_INDEX, localShards, docsTest1, "2024-11-26");
+        populateDateIndex(REMOTE_CLUSTER_1, REMOTE_INDEX, remoteShards, docsTest2, "2023-11-26");
+        setSkipUnavailable(REMOTE_CLUSTER_1, true);
+
+        int count = 0;
+        for (var filter : List.of(
+            new RangeQueryBuilder("@timestamp").from("2023-01-01").to("now"),
+            new RangeQueryBuilder("@timestamp").from("2024-01-01").to("now"),
+            new RangeQueryBuilder("@timestamp").from("2025-01-01").to("now")
+        )) {
+            count++;
+            try (EsqlQueryResponse resp = runQuery("from cluster-a:missing,logs-1", randomBoolean(), filter)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(count > 2 ? 0 : docsTest1));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                long overallTookMillis = executionInfo.overallTook().millis();
+                assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertClusterMetadataSkipped(remoteCluster, overallTookMillis, "missing");
+                assertThat(remoteCluster.getFailures(), hasSize(1));
+                var fail = remoteCluster.getFailures().get(0);
+                assertThat(fail.getCause().getMessage(), containsString("Unknown index [cluster-a:missing]"));
+            }
+
+            try (EsqlQueryResponse resp = runQuery("from cluster-a:missing,cluster-a:logs-*", randomBoolean(), filter)) {
+                List<List<Object>> values = getValuesList(resp);
+                assertThat(values, hasSize(0));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                long overallTookMillis = executionInfo.overallTook().millis();
+                assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertClusterMetadataSkipped(remoteCluster, overallTookMillis, "missing,logs-*");
+                assertThat(remoteCluster.getFailures(), hasSize(1));
+                var fail = remoteCluster.getFailures().get(0);
+                assertThat(fail.getCause().getMessage(), containsString("no such index [missing]"));
+            }
+            // TODO: for now, these fail, but in the future may be skipped instead
+            // Remote index missing
+            VerificationException e = expectThrows(
+                VerificationException.class,
+                () -> runQuery("from cluster-a:missing", randomBoolean(), filter).close()
+            );
+            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing]"));
+            // Wildcard index missing
+            e = expectThrows(VerificationException.class, () -> runQuery("from cluster-a:missing*", randomBoolean(), filter).close());
+            assertThat(e.getDetailedMessage(), containsString("Unknown index [cluster-a:missing*]"));
         }
     }
 

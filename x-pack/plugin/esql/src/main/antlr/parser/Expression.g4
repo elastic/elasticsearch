@@ -21,6 +21,7 @@ regexBooleanExpression
     : valueExpression (NOT)? LIKE string                               #likeExpression
     | valueExpression (NOT)? RLIKE string                              #rlikeExpression
     | valueExpression (NOT)? LIKE LP string  (COMMA string )* RP       #likeListExpression
+    | valueExpression (NOT)? RLIKE LP string  (COMMA string )* RP      #rlikeListExpression
     ;
 
 matchBooleanExpression
@@ -56,7 +57,7 @@ functionName
     ;
 
 mapExpression
-    : LEFT_BRACES entryExpression (COMMA entryExpression)* RIGHT_BRACES
+    : LEFT_BRACES (entryExpression (COMMA entryExpression)*)? RIGHT_BRACES
     ;
 
 entryExpression

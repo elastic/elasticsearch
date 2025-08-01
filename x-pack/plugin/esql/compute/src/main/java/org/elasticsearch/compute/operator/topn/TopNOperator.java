@@ -308,6 +308,9 @@ public class TopNOperator implements Operator, Accountable {
 
     private Iterator<Page> output;
 
+    private long receiveNanos;
+    private long emitNanos;
+
     /**
      * Count of pages that have been received by this operator.
      */
@@ -387,6 +390,7 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public void addInput(Page page) {
+        long start = System.nanoTime();
         /*
          * Since row tracks memory we have to be careful to close any unused rows,
          * including any rows that fail while constructing because they allocate
@@ -422,13 +426,16 @@ public class TopNOperator implements Operator, Accountable {
             page.releaseBlocks();
             pagesReceived++;
             rowsReceived += page.getPositionCount();
+            receiveNanos += System.nanoTime() - start;
         }
     }
 
     @Override
     public void finish() {
         if (output == null) {
+            long start = System.nanoTime();
             output = toPages();
+            emitNanos += System.nanoTime() - start;
         }
     }
 
@@ -469,51 +476,50 @@ public class TopNOperator implements Operator, Accountable {
                     p = 0;
                 }
 
-                Row row = list.get(i);
-                BytesRef keys = row.keys.bytesRefView();
-                for (SortOrder so : sortOrders) {
-                    if (keys.bytes[keys.offset] == so.nul()) {
+                try (Row row = list.get(i)) {
+                    BytesRef keys = row.keys.bytesRefView();
+                    for (SortOrder so : sortOrders) {
+                        if (keys.bytes[keys.offset] == so.nul()) {
+                            keys.offset++;
+                            keys.length--;
+                            continue;
+                        }
                         keys.offset++;
                         keys.length--;
-                        continue;
+                        builders[so.channel].decodeKey(keys);
                     }
-                    keys.offset++;
-                    keys.length--;
-                    builders[so.channel].decodeKey(keys);
-                }
-                if (keys.length != 0) {
-                    throw new IllegalArgumentException("didn't read all keys");
-                }
-
-                BytesRef values = row.values.bytesRefView();
-                for (ResultBuilder builder : builders) {
-                    builder.setNextRefCounted(row.shardRefCounter);
-                    builder.decodeValue(values);
-                }
-                if (values.length != 0) {
-                    throw new IllegalArgumentException("didn't read all values");
-                }
-
-                list.set(i, null);
-
-                p++;
-                if (p == size) {
-                    Block[] blocks = new Block[builders.length];
-                    try {
-                        for (int b = 0; b < blocks.length; b++) {
-                            blocks[b] = builders[b].build();
-                        }
-                    } finally {
-                        if (blocks[blocks.length - 1] == null) {
-                            Releasables.closeExpectNoException(blocks);
-                        }
+                    if (keys.length != 0) {
+                        throw new IllegalArgumentException("didn't read all keys");
                     }
-                    result.add(new Page(blocks));
-                    Releasables.closeExpectNoException(builders);
-                    builders = null;
+
+                    BytesRef values = row.values.bytesRefView();
+                    for (ResultBuilder builder : builders) {
+                        builder.setNextRefCounted(row.shardRefCounter);
+                        builder.decodeValue(values);
+                    }
+                    if (values.length != 0) {
+                        throw new IllegalArgumentException("didn't read all values");
+                    }
+
+                    list.set(i, null);
+
+                    p++;
+                    if (p == size) {
+                        Block[] blocks = new Block[builders.length];
+                        try {
+                            for (int b = 0; b < blocks.length; b++) {
+                                blocks[b] = builders[b].build();
+                            }
+                        } finally {
+                            if (blocks[blocks.length - 1] == null) {
+                                Releasables.closeExpectNoException(blocks);
+                            }
+                        }
+                        result.add(new Page(blocks));
+                        Releasables.closeExpectNoException(builders);
+                        builders = null;
+                    }
                 }
-                // It's important to close the row only after we build the new block, so we don't pre-release any shard counter.
-                row.close();
             }
             assert builders == null;
             success = true;
@@ -589,7 +595,16 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Status status() {
-        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed(), pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+        return new TopNOperatorStatus(
+            receiveNanos,
+            emitNanos,
+            inputQueue.size(),
+            ramBytesUsed(),
+            pagesReceived,
+            pagesEmitted,
+            rowsReceived,
+            rowsEmitted
+        );
     }
 
     @Override

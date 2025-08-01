@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbe
 import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
@@ -37,8 +36,8 @@ import static org.elasticsearch.core.Strings.format;
 public class MistralActionCreator implements MistralActionVisitor {
 
     public static final String COMPLETION_ERROR_PREFIX = "Mistral completions";
-    static final String USER_ROLE = "user";
-    static final ResponseHandler COMPLETION_HANDLER = new MistralCompletionResponseHandler(
+    public static final String USER_ROLE = "user";
+    public static final ResponseHandler COMPLETION_HANDLER = new MistralCompletionResponseHandler(
         "mistral completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
@@ -51,7 +50,7 @@ public class MistralActionCreator implements MistralActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(MistralEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings) {
+    public ExecutableAction create(MistralEmbeddingsModel embeddingsModel) {
         var requestManager = new MistralEmbeddingsRequestManager(
             embeddingsModel,
             serviceComponents.truncator(),

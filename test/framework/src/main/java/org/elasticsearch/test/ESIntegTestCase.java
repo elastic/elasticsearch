@@ -114,6 +114,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -977,7 +978,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
      */
     public void awaitMasterNotFound() {
-        var viaNode = internalCluster().getRandomNodeName();
+        awaitMasterNotFound(internalCluster().getRandomNodeName());
+    }
+
+    /**
+     * Waits for the given node to not see a master node in the cluster state.
+     * Note that this does not guarantee that all other nodes in the cluster are on the same cluster state version already.
+     */
+    public void awaitMasterNotFound(String viaNode) {
         // We use a temporary state listener instead of `awaitClusterState` here because the `ClusterStateObserver` doesn't run the
         // predicate if the cluster state version didn't change. When a master node leaves the cluster (i.e. what this method is used for),
         // the cluster state version is not incremented.
@@ -1210,6 +1218,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
     }
 
+    protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
+        ClusterServiceUtils.awaitClusterState(logger, statePredicate, internalCluster().getInstance(ClusterService.class, viaNode));
+    }
+
     public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate) throws Exception {
         awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
     }
@@ -1380,9 +1392,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final var masterName = internalCluster().getMasterName();
         for (Client client : cluster().getClients()) {
             localStates.add(
-                SubscribableListener.newForked(
-                    l -> client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().setLocal(true).execute(l)
-                )
+                SubscribableListener.newForked(l -> client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).all().execute(l))
             );
         }
         try (RefCountingListener refCountingListener = new RefCountingListener(future)) {
@@ -2779,7 +2789,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return Booleans.parseBoolean(System.getProperty(FIPS_SYSPROP, "false"));
     }
 
     protected void restartNodesOnBrokenClusterState(ClusterState.Builder clusterStateBuilder) throws Exception {

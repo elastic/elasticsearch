@@ -758,18 +758,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
 
-        if (queryText instanceof Literal queryTextLiteral && DataType.isString(queryText.dataType())) {
-            if (queryTextLiteral.value() == null) {
-                throw new ParsingException(source(ctx.queryText), "Query cannot be null or undefined in RERANK", ctx.queryText.getText());
-            }
-        } else {
-            throw new ParsingException(
-                source(ctx.queryText),
-                "Query must be a valid string in RERANK, found [{}]",
-                ctx.queryText.getText()
-            );
-        }
-
         return p -> {
             checkForRemoteClusters(p, source, "RERANK");
             return applyRerankOptions(new Rerank(source, p, queryText, rerankFields, scoreAttribute), ctx.commandNamedParameters());

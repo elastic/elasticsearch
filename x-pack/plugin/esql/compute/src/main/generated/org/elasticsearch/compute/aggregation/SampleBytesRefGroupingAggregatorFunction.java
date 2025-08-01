@@ -275,8 +275,8 @@ public final class SampleBytesRefGroupingAggregatorFunction implements GroupingA
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SampleBytesRefAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SampleBytesRefAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

@@ -270,8 +270,8 @@ public final class SampleBooleanGroupingAggregatorFunction implements GroupingAg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SampleBooleanAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SampleBooleanAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

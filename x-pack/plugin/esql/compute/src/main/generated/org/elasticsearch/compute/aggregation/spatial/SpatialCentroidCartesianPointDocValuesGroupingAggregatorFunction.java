@@ -335,8 +335,8 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SpatialCentroidCartesianPointDocValuesAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialCentroidCartesianPointDocValuesAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

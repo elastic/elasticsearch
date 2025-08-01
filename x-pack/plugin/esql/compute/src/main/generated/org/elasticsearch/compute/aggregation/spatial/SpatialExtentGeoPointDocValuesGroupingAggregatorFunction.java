@@ -350,8 +350,8 @@ public final class SpatialExtentGeoPointDocValuesGroupingAggregatorFunction impl
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SpatialExtentGeoPointDocValuesAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialExtentGeoPointDocValuesAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

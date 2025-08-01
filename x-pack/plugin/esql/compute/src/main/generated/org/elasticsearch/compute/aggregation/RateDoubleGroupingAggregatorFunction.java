@@ -330,8 +330,8 @@ public final class RateDoubleGroupingAggregatorFunction implements GroupingAggre
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = RateDoubleAggregator.evaluateFinal(state, selected, evaluatorContext);
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = RateDoubleAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

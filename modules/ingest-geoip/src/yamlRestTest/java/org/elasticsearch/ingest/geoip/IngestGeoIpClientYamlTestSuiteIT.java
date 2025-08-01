@@ -74,32 +74,15 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
 
     @Before
     public void waitForDatabases() throws Exception {
-        putGeoipPipeline();
-        assertBusy(() -> {
-            Request request = new Request("GET", "/_ingest/geoip/stats");
-            Map<String, Object> response = entityAsMap(client().performRequest(request));
-
-            Map<?, ?> downloadStats = (Map<?, ?>) response.get("stats");
-            assertThat(downloadStats.get("databases_count"), equalTo(4));
-
-            Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
-            assertThat(nodes.size(), equalTo(1));
-            Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
-            List<?> databases = ((List<?>) node.get("databases"));
-            assertThat(databases, notNullValue());
-            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).toList();
-            assertThat(
-                databaseNames,
-                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
-            );
-        });
+        putGeoipPipeline("pipeline-with-geoip");
+        assertDatabasesLoaded();
     }
 
     /**
      * This creates a pipeline with a geoip processor so that the GeoipDownloader will download its databases.
      * @throws IOException
      */
-    private void putGeoipPipeline() throws IOException {
+    static void putGeoipPipeline(String pipelineName) throws Exception {
         final BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -123,9 +106,30 @@ public class IngestGeoIpClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             builder.endObject();
             bytes = BytesReference.bytes(builder);
         }
-        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/pipeline-with-geoip");
+        Request putPipelineRequest = new Request("PUT", "/_ingest/pipeline/" + pipelineName);
         putPipelineRequest.setEntity(new ByteArrayEntity(bytes.array(), ContentType.APPLICATION_JSON));
         client().performRequest(putPipelineRequest);
     }
 
+    static void assertDatabasesLoaded() throws Exception {
+        // assert that the databases are downloaded and loaded
+        assertBusy(() -> {
+            Request request = new Request("GET", "/_ingest/geoip/stats");
+            Map<String, Object> response = entityAsMap(client().performRequest(request));
+
+            Map<?, ?> downloadStats = (Map<?, ?>) response.get("stats");
+            assertThat(downloadStats.get("databases_count"), equalTo(4));
+
+            Map<?, ?> nodes = (Map<?, ?>) response.get("nodes");
+            assertThat(nodes.size(), equalTo(1));
+            Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
+            List<?> databases = ((List<?>) node.get("databases"));
+            assertThat(databases, notNullValue());
+            List<String> databaseNames = databases.stream().map(o -> (String) ((Map<?, ?>) o).get("name")).toList();
+            assertThat(
+                databaseNames,
+                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
+        });
+    }
 }

@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.stringLiteralValueOf;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.markClusterWithFinalStateAndNoShards;
 
 /**
@@ -101,7 +102,9 @@ public class EnrichPolicyResolver {
     }
 
     public record UnresolvedPolicy(String name, Enrich.Mode mode) {
-
+        public static UnresolvedPolicy from(Enrich e) {
+            return new UnresolvedPolicy(stringLiteralValueOf(e.policyName(), "Enrich policy must be a constant string"), e.mode());
+        }
     }
 
     /**

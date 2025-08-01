@@ -270,8 +270,8 @@ public final class SampleDoubleGroupingAggregatorFunction implements GroupingAgg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SampleDoubleAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SampleDoubleAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

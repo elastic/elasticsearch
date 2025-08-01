@@ -66,8 +66,8 @@ class ValuesBooleanAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(driverContext.blockFactory(), selected);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.toBlock(ctx.blockFactory(), selected);
     }
 
     public static class SingleState implements AggregatorState {

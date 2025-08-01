@@ -399,7 +399,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
                 throw new UncheckedIOException("latest transport version file not found at [" + latestLocation + "]", ioe);
             }
 
-            String manifestLocation = "/transport/constant/manifest.txt";
+            String manifestLocation = "/transport/defined/manifest.txt";
             List<String> versionFileNames = null;
             if (latestId > -1) {
                 try (InputStream inputStream = TransportVersion.class.getResourceAsStream(manifestLocation)) {
@@ -414,7 +414,7 @@ public record TransportVersion(String name, int id, TransportVersion nextPatchVe
 
             if (versionFileNames != null) {
                 for (String name : versionFileNames) {
-                    String versionLocation = "/transport/constant/" + name;
+                    String versionLocation = "/transport/defined/" + name;
                     try (InputStream inputStream = TransportVersion.class.getResourceAsStream(versionLocation)) {
                         if (inputStream == null) {
                             throw new IllegalStateException("transport version file not found at [" + versionLocation + "]");

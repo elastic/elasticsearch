@@ -293,8 +293,8 @@ public final class MinBytesRefGroupingAggregatorFunction implements GroupingAggr
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = MinBytesRefAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = MinBytesRefAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

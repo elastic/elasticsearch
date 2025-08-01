@@ -76,7 +76,7 @@ public class MistralService extends SenderService {
     public static final String NAME = "mistral";
 
     private static final String SERVICE_NAME = "Mistral";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.COMPLETION,
         TaskType.CHAT_COMPLETION
@@ -181,7 +181,7 @@ public class MistralService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     @Override
@@ -357,8 +357,8 @@ public class MistralService extends SenderService {
 
                 configurationMap.put(
                     MODEL_FIELD,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
-                        "Refer to the Mistral models documentation for the list of available text embedding models."
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
+                        "Refer to the Mistral models documentation for the list of available inference models."
                     )
                         .setLabel("Model")
                         .setRequired(true)
@@ -370,7 +370,7 @@ public class MistralService extends SenderService {
 
                 configurationMap.put(
                     MAX_INPUT_TOKENS,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "Allows you to specify the maximum number of tokens per input."
                     )
                         .setLabel("Maximum Input Tokens")
@@ -381,12 +381,12 @@ public class MistralService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(SUPPORTED_TASK_TYPES));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

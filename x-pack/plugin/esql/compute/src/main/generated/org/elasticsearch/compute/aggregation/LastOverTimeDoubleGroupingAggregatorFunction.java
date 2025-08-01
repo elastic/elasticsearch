@@ -297,8 +297,8 @@ public final class LastOverTimeDoubleGroupingAggregatorFunction implements Group
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = LastOverTimeDoubleAggregator.evaluateFinal(state, selected, evaluatorContext);
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = LastOverTimeDoubleAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

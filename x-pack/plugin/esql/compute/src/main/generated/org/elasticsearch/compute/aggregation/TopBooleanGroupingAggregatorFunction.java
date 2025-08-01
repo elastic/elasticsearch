@@ -269,8 +269,8 @@ public final class TopBooleanGroupingAggregatorFunction implements GroupingAggre
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = TopBooleanAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = TopBooleanAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

@@ -78,10 +78,16 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
 
     private void assertExpectedScore(BytesRefBlock inputBlock, DoubleBlock scoreBlock) {
         assertThat(scoreBlock.getPositionCount(), equalTo(inputBlock.getPositionCount()));
+        BlockStringReader inputBlockReader = new InferenceOperatorTestCase.BlockStringReader();
+
         for (int pos = 0; pos < inputBlock.getPositionCount(); pos++) {
-            double score = scoreBlock.getDouble(scoreBlock.getFirstValueIndex(pos));
-            double expectedScore = score(pos);
-            assertThat(score, equalTo(expectedScore));
+            if (inputBlock.isNull(pos)) {
+                assertThat(scoreBlock.isNull(pos), equalTo(true));
+            } else {
+                double score = scoreBlock.getDouble(scoreBlock.getFirstValueIndex(pos));
+                double expectedScore = score(inputBlockReader.readString(inputBlock, pos));
+                assertThat(score, equalTo(expectedScore));
+            }
         }
     }
 
@@ -101,13 +107,14 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
     protected RankedDocsResults mockInferenceResult(InferenceAction.Request request) {
         List<RankedDocsResults.RankedDoc> rankedDocs = new ArrayList<>();
         for (int rank = 0; rank < request.getInput().size(); rank++) {
-            rankedDocs.add(new RankedDocsResults.RankedDoc(rank, score(rank), request.getInput().get(rank)));
+            String inputText = request.getInput().get(rank);
+            rankedDocs.add(new RankedDocsResults.RankedDoc(rank, score(inputText), inputText));
         }
 
         return new RankedDocsResults(rankedDocs);
     }
 
-    private float score(int rank) {
-        return 1f / (rank % 20);
+    private float score(String inputText) {
+        return (float) inputText.hashCode() / 100;
     }
 }

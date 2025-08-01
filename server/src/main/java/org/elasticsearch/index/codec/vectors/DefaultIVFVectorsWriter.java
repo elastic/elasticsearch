@@ -26,8 +26,8 @@ import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -315,8 +315,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         LongValues offsets,
         IndexOutput centroidOutput
     ) throws IOException {
-        DiskBBQBulkWriter.FourBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.FourBitDiskBBQBulkWriter(
-            ES91Int4VectorsScorer.BULK_SIZE,
+        DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter(
+            ES92Int7VectorsScorer.BULK_SIZE,
             centroidOutput
         );
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -365,8 +365,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         IndexOutput centroidOutput
     ) throws IOException {
         centroidOutput.writeVInt(0);
-        DiskBBQBulkWriter.FourBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.FourBitDiskBBQBulkWriter(
-            ES91Int4VectorsScorer.BULK_SIZE,
+        DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.SevenBitDiskBBQBulkWriter(
+            ES92Int7VectorsScorer.BULK_SIZE,
             centroidOutput
         );
         final OptimizedScalarQuantizer osq = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
@@ -405,9 +405,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // this are small numbers so we run it wih all the centroids.
         final KMeansResult kMeansResult = new HierarchicalKMeans(
             fieldInfo.getVectorDimension(),
-            6,
-            floatVectorValues.size(),
-            floatVectorValues.size(),
+            HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
+            HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
+            HierarchicalKMeans.MAXK,
             -1 // disable SOAR assignments
         ).cluster(floatVectorValues, centroidsPerParentCluster);
         final int[] centroidVectorCount = new int[kMeansResult.centroids().length];
@@ -571,7 +571,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             // Its possible that the vectors are on-heap and we cannot mutate them as we may quantize twice
             // due to overspill, so we copy the vector to a scratch array
             System.arraycopy(vector, 0, floatVectorScratch, 0, vector.length);
-            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 4, centroid);
+            corrections = quantizer.scalarQuantize(floatVectorScratch, quantizedVectorScratch, (byte) 7, centroid);
             for (int i = 0; i < quantizedVectorScratch.length; i++) {
                 quantizedVector[i] = (byte) quantizedVectorScratch[i];
             }

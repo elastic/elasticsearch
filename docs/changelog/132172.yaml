@@ -1,5 +1,0 @@
-pr: 132172
-summary: "[8.19.1] Fix default missing index sort value of `data_nanos` pre 7.14"
-area: Search
-type: bug
-issues: []

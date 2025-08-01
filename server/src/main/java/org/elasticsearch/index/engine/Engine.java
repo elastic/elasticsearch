@@ -32,7 +32,9 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -281,6 +283,7 @@ public abstract class Engine implements Closeable {
         int totalFields = 0;
         long usages = 0;
         long totalPostingBytes = 0;
+        long liveDocsBytes = 0;
         for (LeafReaderContext leaf : leaves) {
             numSegments++;
             var fieldInfos = leaf.reader().getFieldInfos();
@@ -292,19 +295,44 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
-            if (TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled()) {
+            boolean trackPostingsMemoryEnabled = TrackingPostingsInMemoryBytesCodec.TRACK_POSTINGS_IN_MEMORY_BYTES.isEnabled();
+            boolean trackLiveDocsMemoryEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
+            if (trackLiveDocsMemoryEnabled || trackPostingsMemoryEnabled) {
                 SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
                 if (segmentReader != null) {
-                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
-                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
-                    );
-                    if (postingBytes != null) {
-                        totalPostingBytes += Long.parseLong(postingBytes);
+                    if (trackPostingsMemoryEnabled) {
+                        String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                            TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                        );
+                        if (postingBytes != null) {
+                            totalPostingBytes += Long.parseLong(postingBytes);
+                        }
+                    }
+                    if (trackLiveDocsMemoryEnabled) {
+                        var liveDocs = segmentReader.getLiveDocs();
+                        if (liveDocs != null) {
+                            assert validateLiveDocsClass(liveDocs);
+                            // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
+                            // This almost does what FixedBitSet#ramBytesUsed() does, liveDocs.length() returns the length of the bits long
+                            // array
+                            liveDocsBytes += RamUsageEstimator.alignObjectSize(
+                                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (liveDocs.length() / 8L)
+                            );
+                        }
                     }
                 }
             }
         }
-        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes);
+        return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, liveDocsBytes);
+    }
+
+    private static boolean validateLiveDocsClass(Bits liveDocs) {
+        // These classes are package protected in Lucene and therefor we compare fully qualified classnames as strings here:
+        String fullClassName = liveDocs.getClass().getName();
+        assert fullClassName.equals("org.apache.lucene.util.FixedBits")
+            || fullClassName.equals("org.apache.lucene.tests.codecs.asserting.AssertingLiveDocsFormat$AssertingBits")
+            : "unexpected class [" + fullClassName + "]";
+        return true;
     }
 
     /**

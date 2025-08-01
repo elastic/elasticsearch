@@ -31,7 +31,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         var jdkVersion = Runtime.version().feature();
         var arch = System.getProperty("os.arch");
         var osName = System.getProperty("os.name");
-        return (jdkVersion >= 21
+        return (jdkVersion >= 22
             && (arch.equals("aarch64") && (osName.startsWith("Mac") || osName.equals("Linux"))
                 || arch.equals("amd64") && osName.equals("Linux")));
     }

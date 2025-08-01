@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataTests;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -44,6 +46,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -85,8 +90,12 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -515,8 +524,7 @@ public class ClusterStateTests extends ESTestCase {
                             "event_ingested_range": { "shards": [] }
                           }
                         },
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
+                        "index-graveyard": { "tombstones": [] }
                       },
                       {
                         "id": "3LftaL7hgfXAsF60Gm6jcD",
@@ -573,15 +581,13 @@ public class ClusterStateTests extends ESTestCase {
                             "event_ingested_range": { "shards": [] }
                           }
                         },
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
+                        "index-graveyard": { "tombstones": [] }
                       },
                       {
                         "id": "WHyuJ0uqBYOPgHX9kYUXlZ",
                         "templates": {},
                         "indices": {},
-                        "index-graveyard": { "tombstones": [] },
-                        "reserved_state": {}
+                        "index-graveyard": { "tombstones": [] }
                       }
                     ],
                     "reserved_state": {}
@@ -2240,5 +2246,63 @@ public class ClusterStateTests extends ESTestCase {
         }
 
         return Math.toIntExact(chunkCount);
+    }
+
+    public void testSerialization() throws IOException {
+        ClusterState clusterState = buildClusterState();
+        BytesStreamOutput out = new BytesStreamOutput();
+        clusterState.writeTo(out);
+
+        // check it deserializes ok
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        ClusterState deserialisedClusterState = ClusterState.readFrom(new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry), null);
+
+        // check it matches the original object
+        Metadata deserializedMetadata = deserialisedClusterState.metadata();
+        assertThat(deserializedMetadata.projects(), aMapWithSize(1));
+        assertThat(deserializedMetadata.projects(), hasKey(ProjectId.DEFAULT));
+
+        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).templates(), hasKey("template"));
+        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).indices(), hasKey("index"));
+    }
+
+    public void testCombinedReservedMetadataSerialization() throws IOException {
+        ClusterState clusterState = ClusterState.builder(buildClusterState())
+            .putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder()
+                    .putReservedStateMetadata(ProjectId.DEFAULT, ReservedStateMetadata.builder("file_settings").putHandler(
+                        new ReservedStateHandlerMetadata("settings", Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey()))
+                    ).build())
+                    .build()
+            )
+            .build();
+
+        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.setTransportVersion(oldVersion);
+        clusterState.writeTo(out);
+
+        // check it deserializes ok
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
+        NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry);
+        in.setTransportVersion(oldVersion);
+        ClusterState deserialisedClusterState = ClusterState.readFrom(in, null);
+
+        // check it matches the original object
+        Metadata deserializedMetadata = deserialisedClusterState.metadata();
+        assertThat(deserializedMetadata.projects(), aMapWithSize(1));
+        assertThat(deserializedMetadata.projects(), hasKey(ProjectId.DEFAULT));
+
+        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).templates(), hasKey("template"));
+        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).indices(), hasKey("index"));
+
+        assertThat(deserializedMetadata.reservedStateMetadata(), hasKey("file_settings"));
+        ReservedStateMetadata fileSettings = deserializedMetadata.reservedStateMetadata().get("file_settings");
+        assertThat(fileSettings.handlers(), aMapWithSize(1));
+        assertThat(fileSettings.handlers(), hasKey("settings"));
+        ReservedStateHandlerMetadata settingsHandlerMetadata = fileSettings.handlers().get("settings");
+        assertThat(settingsHandlerMetadata.keys(), equalTo(Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey())));
     }
 }

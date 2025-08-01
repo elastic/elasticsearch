@@ -2745,8 +2745,7 @@ public class ProjectMetadataTests extends ESTestCase {
                           }
                         },
                         "data_stream_aliases": {}
-                      },
-                      "reserved_state": {}
+                      }
                     }
                     """,
                 IndexVersion.current(),

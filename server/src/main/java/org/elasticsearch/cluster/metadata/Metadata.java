@@ -824,13 +824,19 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             );
         }
 
+        // make order deterministic
+        Iterator<ReservedStateMetadata> reservedStateMetadataIterator = reservedStateMetadata.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(Map.Entry::getValue)
+            .iterator();
+
         return Iterators.concat(
             start,
             clusterCoordination,
             persistentSettings,
             project.toXContentChunked(p),
             customs,
-            ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata.values().iterator()),
+            ChunkedToXContentHelper.object("reserved_state", reservedStateMetadataIterator),
             ChunkedToXContentHelper.endObject()
         );
     }

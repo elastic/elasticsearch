@@ -94,7 +94,7 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
         var errorMetadata = new ReservedStateErrorMetadata(errorState.version(), errorState.errorKind(), errorState.errors());
 
         if (errorState.projectId().isPresent()) {
-            ProjectStateRegistry projectStateRegistry = currentState.custom(ProjectStateRegistry.TYPE);
+            ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(currentState);
 
             ProjectId projectId = errorState.projectId().get();
             ReservedStateMetadata reservedMetadata = projectStateRegistry.reservedStateMetadata(projectId).get(errorState.namespace());

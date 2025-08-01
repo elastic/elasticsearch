@@ -45,7 +45,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("full", "cert", "default"));
         assertThat(profileConfigurations.get("full").configuration().verificationMode(), Matchers.equalTo(SslVerificationMode.FULL));
         assertThat(profileConfigurations.get("cert").configuration().verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
-        assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
+        assertThat(profileConfigurations.get("default").configuration(), Matchers.sameInstance(defaultConfig));
     }
 
     public void testGetInsecureTransportProfileConfigurations() {
@@ -61,7 +61,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
         assertThat(profileConfigurations.size(), Matchers.equalTo(2));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("none", "default"));
         assertThat(profileConfigurations.get("none").configuration().verificationMode(), Matchers.equalTo(SslVerificationMode.NONE));
-        assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
+        assertThat(profileConfigurations.get("default").configuration(), Matchers.sameInstance(defaultConfig));
     }
 
     public void testTransportAndRemoteClusterSslCanBeEnabledIndependently() {
@@ -134,7 +134,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
         assertThat(profileConfigurations.size(), Matchers.equalTo(1));
         assertThat(profileConfigurations.keySet(), contains("default"));
         assertThat(
-            profileConfigurations.get("default"),
+            profileConfigurations.get("default").configuration(),
             Matchers.sameInstance(sslService.getSSLConfiguration("xpack.security.transport.ssl"))
         );
     }
@@ -170,7 +170,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
             assertThat(profileConfigurations.keySet(), containsInAnyOrder("default", "client"));
         }
         assertThat(
-            profileConfigurations.get("default"),
+            profileConfigurations.get("default").configuration(),
             Matchers.sameInstance(sslService.getSSLConfiguration("xpack.security.transport.ssl"))
         );
         assertThat(profileConfigurations.get("client").configuration().clientAuth(), is(SslClientAuthenticationMode.NONE));

@@ -83,18 +83,12 @@ public class DesiredBalanceReconciler {
     private double undesiredAllocationsLogThreshold;
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
-    private final BalancingWeightsFactory balancingWeightsFactory;
 
-    public DesiredBalanceReconciler(
-        ClusterSettings clusterSettings,
-        ThreadPool threadPool,
-        BalancingWeightsFactory balancingWeightsFactory
-    ) {
+    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(
             threadPool.relativeTimeInMillisSupplier(),
             TimeValue.timeValueMinutes(5)
         );
-        this.balancingWeightsFactory = balancingWeightsFactory;
         clusterSettings.initializeAndWatch(UNDESIRED_ALLOCATIONS_LOG_INTERVAL_SETTING, this.undesiredAllocationLogInterval::setMinInterval);
         clusterSettings.initializeAndWatch(
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
@@ -613,7 +607,7 @@ public class DesiredBalanceReconciler {
             );
         }
 
-        private void maybeLogUndesiredAllocationsWarning(long totalAllocations, long undesiredAllocations, int nodeCount) {
+        private void maybeLogUndesiredAllocationsWarning(int totalAllocations, int undesiredAllocations, int nodeCount) {
             // more shards than cluster can relocate with one reroute
             final boolean nonEmptyRelocationBacklog = undesiredAllocations > 2L * nodeCount;
             final boolean warningThresholdReached = undesiredAllocations > undesiredAllocationsLogThreshold * totalAllocations;

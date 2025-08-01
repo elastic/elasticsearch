@@ -30,7 +30,6 @@ public class DesiredBalanceMetricsTests extends ESTestCase {
         metrics.updateMetrics(new AllocationStats(unassignedShards, totalAllocations, undesiredAllocations, Map.of()), Map.of(), Map.of());
         assertEquals(totalAllocations, metrics.totalAllocations());
         assertEquals(unassignedShards, metrics.unassignedShards());
-
         assertEquals(undesiredAllocations, metrics.undesiredAllocations());
         metrics.zeroAllMetrics();
         assertEquals(0, metrics.totalAllocations());

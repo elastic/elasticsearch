@@ -176,8 +176,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     clusterService,
                     (innerState, strategy) -> innerState,
                     TelemetryProvider.NOOP,
-                    EMPTY_NODE_ALLOCATION_STATS,
-                    new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
+                    EMPTY_NODE_ALLOCATION_STATS
                 ) {
                     @Override
                     public DesiredBalance getDesiredBalance() {

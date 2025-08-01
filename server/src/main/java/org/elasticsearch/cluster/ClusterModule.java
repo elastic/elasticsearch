@@ -496,8 +496,7 @@ public class ClusterModule extends AbstractModule {
                 clusterService,
                 reconciler,
                 telemetryProvider,
-                nodeAllocationStatsAndWeightsCalculator,
-                balancingWeightsFactory
+                nodeAllocationStatsAndWeightsCalculator
             )
         );
 

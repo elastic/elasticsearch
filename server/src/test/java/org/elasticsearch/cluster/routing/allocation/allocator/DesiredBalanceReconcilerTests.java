@@ -112,9 +112,6 @@ import static org.mockito.Mockito.when;
 
 public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
 
-    private static final GlobalBalancingWeightsFactory BALANCING_WEIGHTS_FACTORY = new GlobalBalancingWeightsFactory(
-        BalancerSettings.DEFAULT
-    );
     private static AtomicReference<DesiredBalanceMetrics.AllocationStats> ALLOCATION_STATS_PLACEHOLDER = new AtomicReference<>();
 
     public void testNoChangesOnEmptyDesiredBalance() {
@@ -1279,11 +1276,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
             new ThrottlingAllocationDecider(clusterSettings) };
 
-        var reconciler = new DesiredBalanceReconciler(
-            clusterSettings,
-            new DeterministicTaskQueue().getThreadPool(),
-            BALANCING_WEIGHTS_FACTORY
-        );
+        var reconciler = new DesiredBalanceReconciler(clusterSettings, new DeterministicTaskQueue().getThreadPool());
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
         for (int i = 0; i < numberOfNodes; i++) {
@@ -1369,7 +1362,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var timeInMillisSupplier = new AtomicLong();
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(timeInMillisSupplier::incrementAndGet);
 
-        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, BALANCING_WEIGHTS_FACTORY);
+        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool);
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeInMillisSupplier.addAndGet(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
@@ -1430,10 +1423,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
         allocationStatsAtomicReference.set(
-            new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, BALANCING_WEIGHTS_FACTORY).reconcile(
-                desiredBalance,
-                routingAllocation
-            )
+            new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool).reconcile(desiredBalance, routingAllocation)
         );
     }
 

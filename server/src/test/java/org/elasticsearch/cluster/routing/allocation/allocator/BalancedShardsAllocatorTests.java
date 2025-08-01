@@ -797,7 +797,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
      * A {@link BalancingWeightsFactory} that assumes the cluster is partitioned by the prefix
      * of the node and shard names before the `-`.
      */
-    static class PrefixBalancingWeightsFactory implements BalancingWeightsFactory {
+    class PrefixBalancingWeightsFactory implements BalancingWeightsFactory {
 
         private final Map<String, WeightFunction> prefixWeights;
 

@@ -27,8 +27,8 @@ public class BulkInferenceExecutionState {
     private final Map<Long, InferenceAction.Response> bufferedResponses;
     private final AtomicBoolean finished = new AtomicBoolean(false);
 
-    public BulkInferenceExecutionState(int bufferSize) {
-        this.bufferedResponses = new ConcurrentHashMap<>(bufferSize);
+    public BulkInferenceExecutionState() {
+        this.bufferedResponses = new ConcurrentHashMap<>();
     }
 
     /**
@@ -125,7 +125,7 @@ public class BulkInferenceExecutionState {
      * Indicates whether the entire bulk execution is marked as finished and all responses have been successfully persisted.
      */
     public boolean finished() {
-        return finished.get() && getMaxSeqNo() == getPersistedCheckpoint();
+        return hasFailure() || (finished.get() && getMaxSeqNo() == getPersistedCheckpoint());
     }
 
     /**

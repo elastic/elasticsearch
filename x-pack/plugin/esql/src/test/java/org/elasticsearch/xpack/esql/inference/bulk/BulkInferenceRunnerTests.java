@@ -8,16 +8,17 @@
 package org.elasticsearch.xpack.esql.inference.bulk;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -26,6 +27,8 @@ import org.mockito.stubbing.Answer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.allOf;
@@ -33,11 +36,12 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BulkInferenceExecutorTests extends ESTestCase {
+public class BulkInferenceRunnerTests extends ESTestCase {
     private ThreadPool threadPool;
 
     @Before
@@ -60,53 +64,53 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testSuccessfulExecution() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1000));
+    public void testSuccessfulBulkExecution() throws Exception {
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
         List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
 
-        InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
+        Client client = mockClient(invocation -> {
             runWithRandomDelay(() -> {
-                ActionListener<InferenceAction.Response> l = invocation.getArgument(1);
-                l.onResponse(responses.get(requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class))));
+                ActionListener<InferenceAction.Response> l = invocation.getArgument(2);
+                l.onResponse(responses.get(requests.indexOf(invocation.getArgument(1, InferenceAction.Request.class))));
             });
             return null;
         });
 
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, r -> fail("Unexpected exception"));
+        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
 
-        bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
 
         assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), equalTo(responses))));
     }
 
-    public void testSuccessfulExecutionOnEmptyRequest() throws Exception {
+    public void testSuccessfulBulkExecutionOnEmptyRequest() throws Exception {
         BulkInferenceRequestIterator requestIterator = mock(BulkInferenceRequestIterator.class);
         when(requestIterator.hasNext()).thenReturn(false);
 
         AtomicReference<List<InferenceAction.Response>> output = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, r -> fail("Unexpected exception"));
+        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(output::set, ESTestCase::fail);
 
-        bulkExecutor(mock(InferenceRunner.class)).execute(requestIterator, listener);
+        inferenceRunnerFactory(new NoOpClient(threadPool)).create(randomBulkExecutionConfig()).executeBulk(requestIterator, listener);
 
         assertBusy(() -> assertThat(output.get(), allOf(notNullValue(), empty())));
     }
 
-    public void testInferenceRunnerAlwaysFails() throws Exception {
+    public void testBulkExecutionWhenInferenceRunnerAlwaysFails() throws Exception {
         List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1000));
 
-        InferenceRunner inferenceRunner = mock(invocation -> {
+        Client client = mockClient(invocation -> {
             runWithRandomDelay(() -> {
-                ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);
+                ActionListener<InferenceAction.Response> listener = invocation.getArgument(2);
                 listener.onFailure(new RuntimeException("inference failure"));
             });
             return null;
         });
 
         AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expceted exception"), exception::set);
+        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
 
-        bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
 
         assertBusy(() -> {
             assertThat(exception.get(), notNullValue());
@@ -114,13 +118,13 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
     }
 
-    public void testInferenceRunnerSometimesFails() throws Exception {
-        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1000));
+    public void testBulkExecutionWhenInferenceRunnerSometimesFails() throws Exception {
+        List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
 
-        InferenceRunner inferenceRunner = mockInferenceRunner(invocation -> {
-            ActionListener<InferenceAction.Response> listener = invocation.getArgument(1);
+        Client client = mockClient(invocation -> {
+            ActionListener<InferenceAction.Response> listener = invocation.getArgument(2);
             runWithRandomDelay(() -> {
-                if ((requests.indexOf(invocation.getArgument(0, InferenceAction.Request.class)) % requests.size()) == 0) {
+                if ((requests.indexOf(invocation.getArgument(1, InferenceAction.Request.class)) % requests.size()) == 0) {
                     listener.onFailure(new RuntimeException("inference failure"));
                 } else {
                     listener.onResponse(mockInferenceResponse());
@@ -131,9 +135,9 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
 
         AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expceted exception"), exception::set);
+        ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> fail("Expected an exception"), exception::set);
 
-        bulkExecutor(inferenceRunner).execute(requestIterator(requests), listener);
+        inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
 
         assertBusy(() -> {
             assertThat(exception.get(), notNullValue());
@@ -141,8 +145,37 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         });
     }
 
-    private BulkInferenceExecutor bulkExecutor(InferenceRunner inferenceRunner) {
-        return new BulkInferenceExecutor(inferenceRunner, threadPool, randomBulkExecutionConfig());
+    public void testParallelBulkExecution() throws Exception {
+        int batches = between(50, 100);
+        CountDownLatch latch = new CountDownLatch(batches);
+
+        for (int i = 0; i < batches; i++) {
+            runWithRandomDelay(() -> {
+                List<InferenceAction.Request> requests = randomInferenceRequestList(between(1, 1_000));
+                List<InferenceAction.Response> responses = randomInferenceResponseList(requests.size());
+
+                Client client = mockClient(invocation -> {
+                    runWithRandomDelay(() -> {
+                        ActionListener<InferenceAction.Response> l = invocation.getArgument(2);
+                        l.onResponse(responses.get(requests.indexOf(invocation.getArgument(1, InferenceAction.Request.class))));
+                    });
+                    return null;
+                });
+
+                ActionListener<List<InferenceAction.Response>> listener = ActionListener.wrap(r -> {
+                    assertThat(r, equalTo(responses));
+                    latch.countDown();
+                }, ESTestCase::fail);
+
+                inferenceRunnerFactory(client).create(randomBulkExecutionConfig()).executeBulk(requestIterator(requests), listener);
+            });
+        }
+
+        latch.await(10, TimeUnit.SECONDS);
+    }
+
+    private BulkInferenceRunner.Factory inferenceRunnerFactory(Client client) {
+        return BulkInferenceRunner.factory(client);
     }
 
     private InferenceAction.Request mockInferenceRequest() {
@@ -155,8 +188,8 @@ public class BulkInferenceExecutorTests extends ESTestCase {
         return response;
     }
 
-    private BulkInferenceExecutionConfig randomBulkExecutionConfig() {
-        return new BulkInferenceExecutionConfig(between(1, 100), between(1, 100));
+    private BulkInferenceRunnerConfig randomBulkExecutionConfig() {
+        return new BulkInferenceRunnerConfig(between(1, 100), between(1, 100));
     }
 
     private BulkInferenceRequestIterator requestIterator(List<InferenceAction.Request> requests) {
@@ -171,7 +204,7 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     private List<InferenceAction.Request> randomInferenceRequestList(int size) {
         List<InferenceAction.Request> requests = new ArrayList<>(size);
         while (requests.size() < size) {
-            requests.add(this.mockInferenceRequest());
+            requests.add(mockInferenceRequest());
         }
         return requests;
 
@@ -180,26 +213,23 @@ public class BulkInferenceExecutorTests extends ESTestCase {
     private List<InferenceAction.Response> randomInferenceResponseList(int size) {
         List<InferenceAction.Response> response = new ArrayList<>(size);
         while (response.size() < size) {
-            response.add(mock(InferenceAction.Response.class));
+            response.add(mockInferenceResponse());
         }
         return response;
     }
 
-    private InferenceRunner mockInferenceRunner(Answer<Void> doInferenceAnswer) {
-        InferenceRunner inferenceRunner = mock(InferenceRunner.class);
-        doAnswer(doInferenceAnswer).when(inferenceRunner).doInference(any(), any());
-        return inferenceRunner;
+    private Client mockClient(Answer<Void> doInferenceAnswer) {
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(doInferenceAnswer).when(client).execute(eq(InferenceAction.INSTANCE), any(InferenceAction.Request.class), any());
+        return client;
     }
 
     private void runWithRandomDelay(Runnable runnable) {
         if (randomBoolean()) {
             runnable.run();
         } else {
-            threadPool.schedule(
-                runnable,
-                TimeValue.timeValueNanos(between(1, 1_000)),
-                threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
-            );
+            threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 100_000)), threadPool.generic());
         }
     }
 }

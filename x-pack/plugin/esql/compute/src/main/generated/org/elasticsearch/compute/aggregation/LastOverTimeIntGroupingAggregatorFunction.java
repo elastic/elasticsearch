@@ -296,8 +296,8 @@ public final class LastOverTimeIntGroupingAggregatorFunction implements Grouping
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = LastOverTimeIntAggregator.evaluateFinal(state, selected, evaluatorContext);
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = LastOverTimeIntAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

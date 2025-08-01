@@ -7,21 +7,19 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
-$if(int||double||float)$
 import org.elasticsearch.common.util.$Type$Array;
-$endif$
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-$if(int||double||float)$
 import org.elasticsearch.compute.data.$Type$Block;
-$endif$
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * A time-series aggregation function that collects the $Occurrence$ occurrence value of a time series in a specified interval.
@@ -59,8 +57,8 @@ public class $Occurrence$OverTime$Type$Aggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-        return state.evaluateFinal(selected, evalContext);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.evaluateFinal(selected, ctx);
     }
 
     public static final class GroupingState extends AbstractArrayState {

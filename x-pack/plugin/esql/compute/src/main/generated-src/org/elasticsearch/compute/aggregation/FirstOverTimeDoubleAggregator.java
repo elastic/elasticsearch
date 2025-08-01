@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
@@ -55,8 +57,8 @@ public class FirstOverTimeDoubleAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-        return state.evaluateFinal(selected, evalContext);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.evaluateFinal(selected, ctx);
     }
 
     public static final class GroupingState extends AbstractArrayState {

@@ -299,8 +299,8 @@ public final class StdDevDoubleGroupingAggregatorFunction implements GroupingAgg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = StdDevDoubleAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = StdDevDoubleAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

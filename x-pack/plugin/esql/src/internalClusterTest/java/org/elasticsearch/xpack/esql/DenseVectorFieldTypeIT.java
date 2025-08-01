@@ -218,10 +218,10 @@ public class DenseVectorFieldTypeIT extends AbstractEsqlIntegTestCase {
             settingsBuilder.put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SYNTHETIC);
         }
 
-        var CreateRequest = client.prepareCreate(indexName)
+        var createRequest = client.prepareCreate(indexName)
             .setSettings(Settings.builder().put("index.number_of_shards", 1))
             .setMapping(mapping)
             .setSettings(settingsBuilder.build());
-        assertAcked(CreateRequest);
+        assertAcked(createRequest);
     }
 }

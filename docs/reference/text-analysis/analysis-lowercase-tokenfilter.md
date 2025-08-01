@@ -33,7 +33,7 @@ The filter produces the following tokens:
 
 ## Add to an analyzer [analysis-lowercase-tokenfilter-analyzer-ex]
 
-The following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses the `lowercase` filter to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.html).
+The following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses the `lowercase` filter to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md).
 
 ```console
 PUT lowercase_example

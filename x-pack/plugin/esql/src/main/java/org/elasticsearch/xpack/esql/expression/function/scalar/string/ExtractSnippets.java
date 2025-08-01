@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,9 +16,8 @@ import org.elasticsearch.compute.lucene.LuceneQueryEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -25,28 +25,27 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Extract snippets function, that extracts the most relevant snippets from a given input string
  */
-public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgument {
+// TODO: Does this also need to implement TranslationAware?
+public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgument, RewriteableAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ExtractSnippets",
@@ -58,6 +57,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
 
     // TODO better names?
     private final Expression field, str, numSnippets, snippetLength;
+    private final QueryBuilder queryBuilder;
 
     @FunctionInfo(
         returnType = "keyword",
@@ -82,20 +82,33 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             description = "The length of snippets to return. Defaults to " + DEFAULT_SNIPPET_LENGTH
         ) Expression snippetLength
     ) {
+        this(source, field, str, numSnippets, snippetLength, new MatchQueryBuilder(field.sourceText(), str.sourceText()));
+    }
+
+    public ExtractSnippets(
+        Source source,
+        Expression field,
+        Expression str,
+        Expression numSnippets,
+        Expression snippetLength,
+        QueryBuilder queryBuilder
+    ) {
         super(source, List.of(field, str, numSnippets, snippetLength));
         this.field = field;
         this.str = str;
         this.numSnippets = numSnippets;
         this.snippetLength = snippetLength;
-    }
+        this.queryBuilder = queryBuilder;
+    };
 
-    private ExtractSnippets(StreamInput in) throws IOException {
+    public ExtractSnippets(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readOptionalNamedWriteable(Expression.class),
-            in.readOptionalNamedWriteable(Expression.class)
+            in.readOptionalNamedWriteable(Expression.class),
+            in.readOptionalNamedWriteable(QueryBuilder.class)
         );
     }
 
@@ -106,6 +119,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         out.writeNamedWriteable(str);
         out.writeOptionalNamedWriteable(numSnippets);
         out.writeOptionalNamedWriteable(snippetLength);
+        out.writeOptionalNamedWriteable(queryBuilder);
     }
 
     @Override
@@ -181,16 +195,22 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
                 str.sourceText(),
                 Integer.parseInt(numSnippets.sourceText()),
                 Integer.parseInt(snippetLength.sourceText()),
-                queryBuilder()
+                queryBuilder
             );
-            shardConfigs[i++] = new LuceneQueryEvaluator.ShardConfig(shardContext.toQuery(queryBuilder()), shardContext.searcher());
+            shardConfigs[i++] = new LuceneQueryEvaluator.ShardConfig(shardContext.toQuery(queryBuilder), shardContext.searcher());
         }
         return new HighlighterExpressionEvaluator.Factory(shardConfigs);
 
     }
 
-    private QueryBuilder queryBuilder() {
-        return new MatchQueryBuilder(field.sourceText(), str.sourceText());
+    @Override
+    public QueryBuilder queryBuilder() {
+        return queryBuilder;
+    }
+
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new ExtractSnippets(source(), field, str, numSnippets, snippetLength, queryBuilder);
     }
 
     Expression field() {
@@ -207,5 +227,23 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
 
     Expression snippetLength() {
         return snippetLength;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        // Match does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
+        // ignore options when comparing two Match functions
+        if (o == null || getClass() != o.getClass()) return false;
+        ExtractSnippets extractSnippets = (ExtractSnippets) o;
+        return Objects.equals(field(), extractSnippets.field())
+            && Objects.equals(str(), extractSnippets.str())
+            && Objects.equals(numSnippets(), extractSnippets.numSnippets())
+            && Objects.equals(snippetLength(), extractSnippets.snippetLength())
+            && Objects.equals(queryBuilder(), extractSnippets.queryBuilder());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(field(), str(), numSnippets(), snippetLength(), queryBuilder());
     }
 }

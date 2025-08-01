@@ -17,6 +17,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -68,7 +69,8 @@ public abstract class FullTextFunction extends Function
         TranslationAware,
         PostAnalysisPlanVerificationAware,
         EvaluatorMapper,
-        ExpressionScoreMapper {
+        ExpressionScoreMapper,
+        RewriteableAware {
 
     private final Expression query;
     private final QueryBuilder queryBuilder;
@@ -163,13 +165,12 @@ public abstract class FullTextFunction extends Function
         return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(pushdownPredicates, handler);
     }
 
+    @Override
     public QueryBuilder queryBuilder() {
         return queryBuilder;
     }
 
     protected abstract Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler);
-
-    public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 
     @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {

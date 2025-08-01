@@ -51,7 +51,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
 
     @Override
     protected void appendNoMatch(BytesRefVector.Builder builder) {
-        builder.appendBytesRef(null);
+        // NOTE: Carlos originally suggested that we add null here, but that doesn't work - errors on missing key
+        builder.appendBytesRef(new BytesRef());
     }
 
     @Override
@@ -62,7 +63,8 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
     public record Factory(ShardConfig[] shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            // TODO: Is it possible to add the highlight queyr here, rather than in ExtractSnippets?
+            // TODO: Is it possible to add the highlight query here, rather than in ExtractSnippets? Would require ShardConfig having access
+            // to context
             return new HighlighterExpressionEvaluator(context.blockFactory(), shardConfigs);
         }
     }

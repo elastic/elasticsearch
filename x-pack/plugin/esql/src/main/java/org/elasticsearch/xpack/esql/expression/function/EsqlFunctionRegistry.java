@@ -493,7 +493,7 @@ public class EsqlFunctionRegistry {
                 def(StGeohexToLong.class, StGeohexToLong::new, "st_geohex_to_long"),
                 def(StGeohexToString.class, StGeohexToString::new, "st_geohex_to_string"),
                 def(CosineSimilarity.class, CosineSimilarity::new, "v_cosine"),
-                def(ExtractSnippets.class, ExtractSnippets::new, "extract_snippets") } };
+                def(ExtractSnippets.class, quad(ExtractSnippets::new), "extract_snippets") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

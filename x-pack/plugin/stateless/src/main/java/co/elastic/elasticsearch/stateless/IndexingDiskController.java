@@ -341,23 +341,19 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
     }
 
     static ShardDiskUsage shardDiskUsage(IndexShard shard) {
-        var engine = shard.getEngineOrNull();
-        if (engine != null) {
-            var directory = IndexDirectory.unwrapDirectory(engine.config().getStore().directory());
-            assert directory != null : shard.shardId();
+        var directory = IndexDirectory.unwrapDirectory(shard.store().directory());
+        assert directory != null : shard.shardId();
 
-            long directorySizeInBytes = directory.estimateSizeInBytes();
-            long indexBufferRAMBytesUsed = shard.getIndexBufferRAMBytesUsed();
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "shard {} is using [{}] bytes on disk and [{}] bytes in heap",
-                    shard.shardId(),
-                    directorySizeInBytes,
-                    indexBufferRAMBytesUsed
-                );
-            }
-            return new ShardDiskUsage(shard, directorySizeInBytes, indexBufferRAMBytesUsed);
+        long directorySizeInBytes = directory.estimateSizeInBytes();
+        long indexBufferRAMBytesUsed = shard.getIndexBufferRAMBytesUsed();
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "shard {} is using [{}] bytes on disk and [{}] bytes in heap",
+                shard.shardId(),
+                directorySizeInBytes,
+                indexBufferRAMBytesUsed
+            );
         }
-        return new ShardDiskUsage(shard, 0L, 0L);
+        return new ShardDiskUsage(shard, directorySizeInBytes, indexBufferRAMBytesUsed);
     }
 }

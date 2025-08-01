@@ -123,37 +123,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         return normalizers;
     }
 
-    private void normalizeNormalizerArray(ScoreNormalizer topLevelNormalizer, ScoreNormalizer[] normalizers) {
-        for (int i = 0; i < normalizers.length; i++) {
-            ScoreNormalizer current = normalizers[i];
-
-            if (topLevelNormalizer != null) {
-                // Validate explicit per-retriever normalizers match top-level
-                if (current != null && current.equals(DEFAULT_NORMALIZER) == false && current.equals(topLevelNormalizer) == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            "[%s] All per-retriever normalizers must match the top-level normalizer: "
-                                + "expected [%s], found [%s] in retriever [%d]",
-                            NAME,
-                            topLevelNormalizer.getName(),
-                            current.getName(),
-                            i
-                        )
-                    );
-                }
-                // Propagate top-level normalizer to unspecified positions
-                if (current == null || current.equals(DEFAULT_NORMALIZER)) {
-                    normalizers[i] = topLevelNormalizer;
-                }
-            } else {
-                // No top-level normalizer: ensure null values become DEFAULT_NORMALIZER
-                if (current == null) {
-                    normalizers[i] = DEFAULT_NORMALIZER;
-                }
-            }
-        }
-    }
-
     public static LinearRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {
         if (context.clusterSupportsFeature(LINEAR_RETRIEVER_SUPPORTED) == false) {
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
@@ -199,12 +168,12 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
         this.query = query;
         this.normalizer = normalizer;
         this.weights = weights;
-        this.normalizers = normalizers;
-
-        ScoreNormalizer effectiveNormalizer = normalizer != null ? normalizer : DEFAULT_NORMALIZER;
+        this.normalizers = new ScoreNormalizer[normalizers.length];
         for (int i = 0; i < normalizers.length; i++) {
             if (normalizers[i] == null || normalizers[i].equals(DEFAULT_NORMALIZER)) {
-                normalizers[i] = effectiveNormalizer;
+                this.normalizers[i] = normalizer != null ? normalizer : DEFAULT_NORMALIZER;
+            } else {
+                this.normalizers[i] = normalizers[i];
             }
         }
     }
@@ -420,9 +389,7 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 builder.startObject();
                 builder.field(LinearRetrieverComponent.RETRIEVER_FIELD.getPreferredName(), entry.retriever());
                 builder.field(LinearRetrieverComponent.WEIGHT_FIELD.getPreferredName(), weights[index]);
-                if (normalizers[index] != null && normalizers[index].equals(DEFAULT_NORMALIZER) == false) {
-                    builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
-                }
+                builder.field(LinearRetrieverComponent.NORMALIZER_FIELD.getPreferredName(), normalizers[index].getName());
                 builder.endObject();
                 index++;
             }

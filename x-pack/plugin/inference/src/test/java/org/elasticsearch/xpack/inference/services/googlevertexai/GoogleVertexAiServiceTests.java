@@ -1055,7 +1055,12 @@ public class GoogleVertexAiServiceTests extends InferenceServiceTestCase {
 
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
         assertThat(
-            rerankingInferenceService.rerankerWindowSize("any"),
+            rerankingInferenceService.rerankerWindowSize("semantic-ranker-default-003"),
+            CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
+        );
+        assertThat(rerankingInferenceService.rerankerWindowSize("semantic-ranker-default-004"), CoreMatchers.is(500));
+        assertThat(
+            rerankingInferenceService.rerankerWindowSize("any other"),
             CoreMatchers.is(RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE)
         );
     }

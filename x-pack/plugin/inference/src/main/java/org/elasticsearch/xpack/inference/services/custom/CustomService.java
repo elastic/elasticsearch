@@ -369,6 +369,9 @@ public class CustomService extends SenderService implements RerankingInferenceSe
 
     @Override
     public int rerankerWindowSize(String modelId) {
+        // The model's max input length is not known at this point,
+        // return a small default that will work with the smallest models
+        // TODO add a way to configure this setting
         return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 

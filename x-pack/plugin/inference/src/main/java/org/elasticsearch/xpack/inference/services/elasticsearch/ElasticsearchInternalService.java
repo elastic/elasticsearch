@@ -1063,7 +1063,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        // TODO rerank chunking should use the same value
+        // The Elastic reranker has a window size of 512 tokens.
+        // Return 250 words as a default that comfortably fits in the window.
+        // TODO custom rerank models may have larger windows, make this configurable
         return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 

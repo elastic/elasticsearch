@@ -92,6 +92,17 @@ public class VoyageAIService extends SenderService implements RerankingInference
         72
     );
 
+    private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
+        "rerank-lite-1",
+        2500 // The smallest model has a 4K context length https://docs.voyageai.com/docs/reranker
+    );
+
+    /**
+     * Apart from rerank-lite-1 all other models have a context length of at least 8k.
+     * This value is based on 1 token == 0.75 words and allowing for some overhead
+     */
+    private static final int DEFAULT_RERANKER_INPUT_SIZE_WORDS = 5000;
+
     public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
         InputType.INGEST,
         InputType.SEARCH,
@@ -372,8 +383,8 @@ public class VoyageAIService extends SenderService implements RerankingInference
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        https:// docs.voyageai.com/reference/reranker-api
-        return RerankingInferenceService.LARGE_WINDOW_SIZE;
+        Integer inputSize = RERANKERS_INPUT_SIZE.get(modelId);
+        return inputSize != null ? inputSize : DEFAULT_RERANKER_INPUT_SIZE_WORDS;
     }
 
     public static class Configuration {

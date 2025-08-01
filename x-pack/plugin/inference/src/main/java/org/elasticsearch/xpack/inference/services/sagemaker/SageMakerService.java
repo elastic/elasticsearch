@@ -332,6 +332,8 @@ public class SageMakerService implements InferenceService, RerankingInferenceSer
 
     @Override
     public int rerankerWindowSize(String modelId) {
+        // Assume a small window size as the true value is not known.
+        // TODO make the rerank window size configurable
         return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 }

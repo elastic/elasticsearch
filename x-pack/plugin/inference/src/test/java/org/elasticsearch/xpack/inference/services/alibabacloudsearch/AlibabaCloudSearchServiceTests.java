@@ -724,6 +724,6 @@ public class AlibabaCloudSearchServiceTests extends InferenceServiceTestCase {
 
     @Override
     protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
-        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(RerankingInferenceService.LARGE_WINDOW_SIZE));
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(5000));
     }
 }

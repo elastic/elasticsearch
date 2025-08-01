@@ -393,7 +393,10 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        return RerankingInferenceService.LARGE_WINDOW_SIZE;
+        // Alibaba's mGTE models support long context windows of up to 8192 tokens.
+        // Using 1 token = 0.75 words, this translates to approximately 6144 words.
+        // https://huggingface.co/Alibaba-NLP/gte-multilingual-reranker-base
+        return 5000;
     }
 
     public static class Configuration {

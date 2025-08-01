@@ -386,7 +386,16 @@ public class GoogleVertexAiService extends SenderService implements RerankingInf
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
+        // The -003 version rerankers have a content window of 512 tokens,
+        // the later -004 models support 1024 tokens.
+        // https://cloud.google.com/generative-ai-app-builder/docs/ranking
+        // TODO make the rerank window size configurable
+
+        if (modelId != null && modelId.endsWith("-004")) {
+            return 500;
+        } else {
+            return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
+        }
     }
 
     public static class Configuration {

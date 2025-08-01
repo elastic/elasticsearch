@@ -12,10 +12,9 @@ package org.elasticsearch.inference;
 public interface RerankingInferenceService {
 
     /**
-     * The default window size for small reranking models.
+     * The default window size for small reranking models (512 input tokens).
      */
     int CONSERVATIVE_DEFAULT_WINDOW_SIZE = 250;
-    int LARGE_WINDOW_SIZE = 500;
 
     /**
      * The reranking model's max window or an approximation of

@@ -403,7 +403,9 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
 
     @Override
     public int rerankerWindowSize(String modelId) {
-        return RerankingInferenceService.LARGE_WINDOW_SIZE;
+        // Window size is model dependent and the values are not known for Azure AI Studio models.
+        // TODO make the rerank window size configurable
+        return RerankingInferenceService.CONSERVATIVE_DEFAULT_WINDOW_SIZE;
     }
 
     public static class Configuration {

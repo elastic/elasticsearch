@@ -197,7 +197,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             BlockLoader.LongBuilder blockBuilder = (BlockLoader.LongBuilder) builder;
-            blockAware.loadDoc(blockBuilder, docId);
+            if (blockAware.advanceExact(docId)) {
+                blockBuilder.appendLong(blockAware.longValue());
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override
@@ -286,7 +290,20 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             BlockLoader.LongBuilder longBuilder = (BlockLoader.LongBuilder) builder;
-            blockAware.loadDoc(longBuilder, docId);
+            if (false == blockAware.advanceExact(docId)) {
+                builder.appendNull();
+                return;
+            }
+            int count = blockAware.docValueCount();
+            if (count == 1) {
+                longBuilder.appendLong(blockAware.nextValue());
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                longBuilder.appendLong(blockAware.nextValue());
+            }
+            builder.endPositionEntry();
         }
 
         @Override
@@ -408,7 +425,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             IntBuilder blockBuilder = (IntBuilder) builder;
-            blockAware.loadDoc(blockBuilder, docId);
+            if (blockAware.advanceExact(docId)) {
+                blockBuilder.appendInt(Math.toIntExact(blockAware.longValue()));
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override
@@ -497,7 +518,20 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             IntBuilder blockBuilder = (IntBuilder) builder;
-            blockAware.loadDoc(blockBuilder, docId);
+            if (false == blockAware.advanceExact(docId)) {
+                builder.appendNull();
+                return;
+            }
+            int count = blockAware.docValueCount();
+            if (count == 1) {
+                blockBuilder.appendInt(Math.toIntExact(blockAware.nextValue()));
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                blockBuilder.appendInt(Math.toIntExact(blockAware.nextValue()));
+            }
+            builder.endPositionEntry();
         }
 
         @Override
@@ -637,7 +671,11 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             DoubleBuilder blockBuilder = (DoubleBuilder) builder;
-            blockAware.loadDoc(blockBuilder, docId, toDouble);
+            if (blockAware.advanceExact(docId)) {
+                blockBuilder.appendDouble(toDouble.convert(blockAware.longValue()));
+            } else {
+                blockBuilder.appendNull();
+            }
         }
 
         @Override
@@ -729,7 +767,20 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
             DoubleBuilder blockBuilder = (DoubleBuilder) builder;
-            blockAware.loadDoc(blockBuilder, docId, toDouble);
+            if (false == blockAware.advanceExact(docId)) {
+                builder.appendNull();
+                return;
+            }
+            int count = blockAware.docValueCount();
+            if (count == 1) {
+                blockBuilder.appendDouble(toDouble.convert(blockAware.nextValue()));
+                return;
+            }
+            builder.beginPositionEntry();
+            for (int v = 0; v < count; v++) {
+                blockBuilder.appendDouble(toDouble.convert(blockAware.nextValue()));
+            }
+            builder.endPositionEntry();
         }
 
         @Override

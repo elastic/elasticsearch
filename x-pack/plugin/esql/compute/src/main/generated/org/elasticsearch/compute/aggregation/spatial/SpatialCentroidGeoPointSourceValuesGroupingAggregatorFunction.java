@@ -344,8 +344,8 @@ public final class SpatialCentroidGeoPointSourceValuesGroupingAggregatorFunction
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SpatialCentroidGeoPointSourceValuesAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialCentroidGeoPointSourceValuesAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

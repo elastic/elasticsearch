@@ -211,7 +211,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION_8_19 = def(8_841_0_60);
     public static final TransportVersion ESQL_DOCUMENTS_FOUND_AND_VALUES_LOADED_8_19 = def(8_841_0_61);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN_8_19 = def(8_841_0_62);
-    public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_8_19 = def(8_841_0_63);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_8_19 = def(8_841_0_64);
     public static final TransportVersion INITIAL_ELASTICSEARCH_8_19_1 = def(8_841_0_65);
     public static final TransportVersion V_9_0_0 = def(9_000_0_09);
@@ -331,14 +330,12 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = def(9_110_0_00);
     public static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = def(9_111_0_00);
     public static final TransportVersion MAPPINGS_IN_DATA_STREAMS = def(9_112_0_00);
-    public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES_9_1 = def(9_112_0_01);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE_9_1 = def(9_112_0_02);
     public static final TransportVersion ESQL_SAMPLE_OPERATOR_STATUS_9_1 = def(9_112_0_03);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_1_1 = def(9_112_0_04);
     public static final TransportVersion PROJECT_STATE_REGISTRY_RECORDS_DELETIONS = def(9_113_0_00);
     public static final TransportVersion ESQL_SERIALIZE_TIMESERIES_FIELD_TYPE = def(9_114_0_00);
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_COMPLETION_ADDED = def(9_115_0_00);
-    public static final TransportVersion ESQL_SPLIT_ON_BIG_VALUES = def(9_116_0_00);
     public static final TransportVersion ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS = def(9_117_0_00);
     public static final TransportVersion ML_INFERENCE_CUSTOM_SERVICE_EMBEDDING_TYPE = def(9_118_0_00);
     public static final TransportVersion ESQL_FIXED_INDEX_LIKE = def(9_119_0_00);
@@ -356,7 +353,9 @@ public class TransportVersions {
     public static final TransportVersion PIPELINE_TRACKING_INFO = def(9_131_0_00);
     public static final TransportVersion COMPONENT_TEMPLATE_TRACKING_INFO = def(9_132_0_00);
     public static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = def(9_133_0_00);
-    public static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = def(9_134_0_00);
+    public static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = def(9_134_0_00);
+    public static final TransportVersion TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION = def(9_135_0_00);
+    public static final TransportVersion PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY = def(9_136_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

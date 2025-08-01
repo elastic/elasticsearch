@@ -17,12 +17,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-public class GetRerankerAction extends ActionType<GetRerankerAction.Response> {
+public class GetRerankerWindowSizeAction extends ActionType<GetRerankerWindowSizeAction.Response> {
 
-    public static final GetRerankerAction INSTANCE = new GetRerankerAction();
-    public static final String NAME = "cluster:internal/xpack/inference/rerank/get";
+    public static final GetRerankerWindowSizeAction INSTANCE = new GetRerankerWindowSizeAction();
+    public static final String NAME = "cluster:internal/xpack/inference/rerankwindowsize/get";
 
-    public GetRerankerAction() {
+    public GetRerankerWindowSizeAction() {
         super(NAME);
     }
 

@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.action.GetRerankerAction;
+import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
@@ -39,15 +39,17 @@ public class RerankWindowSizeIT extends ESIntegTestCase {
     }
 
     public void testRerankWindowSizeAction() {
-        var response = client().execute(GetRerankerAction.INSTANCE, new GetRerankerAction.Request("rerank-endpoint")).actionGet();
+        var response = client().execute(GetRerankerWindowSizeAction.INSTANCE, new GetRerankerWindowSizeAction.Request("rerank-endpoint"))
+            .actionGet();
         assertEquals(333, response.getWindowSize());
     }
 
     public void testActionNotAReranker() {
         var e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> client().execute(GetRerankerAction.INSTANCE, new GetRerankerAction.Request("sparse-endpoint")).actionGet()
+            () -> client().execute(GetRerankerWindowSizeAction.INSTANCE, new GetRerankerWindowSizeAction.Request("sparse-endpoint"))
+                .actionGet()
         );
-        assertThat(e.getMessage(), containsString("Inference endpoint [sparse-endpoint] is not a reranker"));
+        assertThat(e.getMessage(), containsString("Inference endpoint [sparse-endpoint] does not have the rerank task type"));
     }
 }

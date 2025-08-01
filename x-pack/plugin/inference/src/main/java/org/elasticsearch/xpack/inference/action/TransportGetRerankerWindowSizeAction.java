@@ -22,42 +22,50 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.GetRerankerAction;
-import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.core.inference.action.GetRerankerWindowSizeAction;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
-import java.util.concurrent.Executor;
-
-public class TransportGetRerankerAction extends HandledTransportAction<GetRerankerAction.Request, GetRerankerAction.Response> {
+public class TransportGetRerankerWindowSizeAction extends HandledTransportAction<
+    GetRerankerWindowSizeAction.Request,
+    GetRerankerWindowSizeAction.Response> {
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
-    private final Executor executor;
 
     @Inject
-    public TransportGetRerankerAction(
+    public TransportGetRerankerWindowSizeAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry
     ) {
-        super(GetRerankerAction.NAME, transportService, actionFilters, GetRerankerAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(
+            GetRerankerWindowSizeAction.NAME,
+            transportService,
+            actionFilters,
+            GetRerankerWindowSizeAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
-        this.executor = threadPool.executor(InferencePlugin.UTILITY_THREAD_POOL_NAME);
     }
 
     @Override
-    protected void doExecute(Task task, GetRerankerAction.Request request, ActionListener<GetRerankerAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        GetRerankerWindowSizeAction.Request request,
+        ActionListener<GetRerankerWindowSizeAction.Response> listener
+    ) {
 
         SubscribableListener.<UnparsedModel>newForked(l -> modelRegistry.getModel(request.getInferenceEntityId(), l)).<
-            GetRerankerAction.Response>andThen((l, unparsedModel) -> {
+            GetRerankerWindowSizeAction.Response>andThen((l, unparsedModel) -> {
                 if (unparsedModel.taskType() != TaskType.RERANK) {
                     throw new ElasticsearchStatusException(
-                        "Inference endpoint [{}] is not a reranker",
+                        "Inference endpoint [{}] does not have the {} task type",
                         RestStatus.BAD_REQUEST,
-                        request.getInferenceEntityId()
+                        request.getInferenceEntityId(),
+                        TaskType.RERANK
                     );
                 }
 
@@ -71,18 +79,22 @@ public class TransportGetRerankerAction extends HandledTransportAction<GetRerank
                     );
                 }
 
-                var model = service.get()
-                    .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
-
                 if (service.get() instanceof RerankingInferenceService rerankingInferenceService) {
+                    var model = service.get()
+                        .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+
                     l.onResponse(
-                        new GetRerankerAction.Response(rerankWindowSize(rerankingInferenceService, model.getServiceSettings().modelId()))
+                        new GetRerankerWindowSizeAction.Response(
+                            rerankWindowSize(rerankingInferenceService, model.getServiceSettings().modelId())
+                        )
                     );
                 } else {
                     throw new IllegalStateException(
                         "Inference endpoint ["
                             + request.getInferenceEntityId()
-                            + "] is a reranker but the service ["
+                            + "] has task type ["
+                            + TaskType.RERANK
+                            + "] but the service ["
                             + service.get().name()
                             + "] does not support reranking"
                     );
@@ -90,7 +102,7 @@ public class TransportGetRerankerAction extends HandledTransportAction<GetRerank
             }).addListener(listener);
     }
 
-    public int rerankWindowSize(RerankingInferenceService service, String modelId) {
+    private int rerankWindowSize(RerankingInferenceService service, String modelId) {
         return service.rerankerWindowSize(modelId);
     }
 }

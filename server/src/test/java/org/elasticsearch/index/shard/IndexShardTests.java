@@ -2011,7 +2011,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // More segments because delete operation is stored in the new segment for replication purposes.
         assertThat(stats.numSegments(), equalTo(2));
         // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 120L : 0L));
+        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 40L : 0L));
 
         // delete another doc:
         deleteDoc(shard, "first_1");
@@ -2023,7 +2023,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // More segments because delete operation is stored in the new segment for replication purposes.
         assertThat(stats.numSegments(), equalTo(3));
         // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 144L : 0L));
+        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 56L : 0L));
 
         closeShards(shard);
     }

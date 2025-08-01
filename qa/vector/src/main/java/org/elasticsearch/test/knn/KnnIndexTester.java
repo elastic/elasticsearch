@@ -101,7 +101,7 @@ public class KnnIndexTester {
     static Codec createCodec(CmdLineArgs args) {
         final KnnVectorsFormat format;
         if (args.indexType() == IndexType.IVF) {
-            format = new IVFVectorsFormat(args.ivfClusterSize());
+            format = new IVFVectorsFormat(args.ivfClusterSize(), IVFVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER);
         } else {
             if (args.quantizeBits() == 1) {
                 if (args.indexType() == IndexType.FLAT) {
@@ -205,6 +205,7 @@ public class KnnIndexTester {
                     cmdLineArgs.filterSelectivity()
                 );
             }
+            logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
             Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
@@ -382,7 +383,7 @@ public class KnnIndexTester {
 
     static class Results {
         final String indexType, indexName;
-        final int numDocs;
+        int numDocs;
         final float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;

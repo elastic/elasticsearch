@@ -19,10 +19,10 @@ import java.util.Arrays;
  */
 public class HierarchicalKMeans {
 
-    static final int MAXK = 128;
-    static final int MAX_ITERATIONS_DEFAULT = 6;
-    static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
-    static final float DEFAULT_SOAR_LAMBDA = 1.0f;
+    public static final int MAXK = 128;
+    public static final int MAX_ITERATIONS_DEFAULT = 6;
+    public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
+    public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
 
     final int dimension;
     final int maxIterations;
@@ -34,7 +34,7 @@ public class HierarchicalKMeans {
         this(dimension, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
     }
 
-    HierarchicalKMeans(int dimension, int maxIterations, int samplesPerCluster, int clustersPerNeighborhood, float soarLambda) {
+    public HierarchicalKMeans(int dimension, int maxIterations, int samplesPerCluster, int clustersPerNeighborhood, float soarLambda) {
         this.dimension = dimension;
         this.maxIterations = maxIterations;
         this.samplesPerCluster = samplesPerCluster;
@@ -79,7 +79,7 @@ public class HierarchicalKMeans {
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations);
-            kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, DEFAULT_SOAR_LAMBDA);
+            kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
         }
 
         return kMeansIntermediate;

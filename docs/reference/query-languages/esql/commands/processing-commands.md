@@ -56,6 +56,9 @@ mapped_pages:
 :::{include} ../_snippets/commands/layout/rename.md
 :::
 
+:::{include} ../_snippets/commands/layout/rerank.md
+:::
+
 :::{include} ../_snippets/commands/layout/sample.md
 :::
 

@@ -81,6 +81,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListener, Closeable, Accountable {
 
+    private static final Logger logger = LogManager.getLogger(DocumentSubsetBitsetCache.class);
+
     /**
      * The TTL defaults to 2 hours. We default to a large cache size ({@link #CACHE_SIZE_SETTING}), and aggressively
      * expire unused entries so that the cache does not hold on to memory unnecessarily.
@@ -101,8 +103,6 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     );
 
     private static final BitSet NULL_MARKER = new FixedBitSet(0);
-
-    private static final Logger logger = LogManager.getLogger(DocumentSubsetBitsetCache.class);
 
     /**
      * When a {@link BitSet} is evicted from {@link #bitsetCache}, we need to also remove it from {@link #keysByIndex}.

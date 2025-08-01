@@ -78,7 +78,10 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Rese
         );
         ProjectMetadata updatedProjectMetadata = updatedClusterState.getMetadata().getProject(projectId);
         return ClusterState.builder(currentState)
-            .putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder(updatedProjectStateRegistry).putReservedStateMetadata(projectId, result.v2()).build())
+            .putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder(updatedProjectStateRegistry).putReservedStateMetadata(projectId, result.v2()).build()
+            )
             .putProjectMetadata(ProjectMetadata.builder(updatedProjectMetadata))
             .build();
     }

@@ -1320,7 +1320,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         out.writeLong(version);
         out.writeString(stateUUID);
         if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
-            Map<String, ReservedStateMetadata> singleProjectReservedState = ProjectStateRegistry.get(this).reservedStateMetadata(Metadata.DEFAULT_PROJECT_ID);
+            Map<String, ReservedStateMetadata> singleProjectReservedState = ProjectStateRegistry.get(this)
+                .reservedStateMetadata(Metadata.DEFAULT_PROJECT_ID);
             metadata.writeTo(out, singleProjectReservedState);
         } else {
             metadata.writeTo(out);
@@ -1384,12 +1385,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             final Diff<Metadata> metadata;
             ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(after);
             if (projectStateRegistry.size() == 1 && projectStateRegistry.hasProject(Metadata.DEFAULT_PROJECT_ID)) {
-                Map<String, ReservedStateMetadata> reservedStateMetadataBefore = ProjectStateRegistry.get(before).reservedStateMetadata(DEFAULT_PROJECT_ID);
-                Map<String, ReservedStateMetadata> reservedStateMetadataAfter = projectStateRegistry.reservedStateMetadata(DEFAULT_PROJECT_ID);
-                DiffableUtils.MapDiff<
-                    String,
-                    ReservedStateMetadata,
-                    Map<String, ReservedStateMetadata>> diff = DiffableUtils.diff(
+                Map<String, ReservedStateMetadata> reservedStateMetadataBefore = ProjectStateRegistry.get(before)
+                    .reservedStateMetadata(DEFAULT_PROJECT_ID);
+                Map<String, ReservedStateMetadata> reservedStateMetadataAfter = projectStateRegistry.reservedStateMetadata(
+                    DEFAULT_PROJECT_ID
+                );
+                DiffableUtils.MapDiff<String, ReservedStateMetadata, Map<String, ReservedStateMetadata>> diff = DiffableUtils.diff(
                     reservedStateMetadataBefore,
                     reservedStateMetadataAfter,
                     DiffableUtils.getStringKeySerializer()

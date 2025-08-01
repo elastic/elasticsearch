@@ -709,8 +709,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         return diff(previousState, DiffableUtils.emptyDiff());
     }
 
-    public Diff<Metadata> diff(Metadata previousState,
-                               MapDiff<String, ReservedStateMetadata, Map<String, ReservedStateMetadata>> singleProjectReservedStateMetadata) {
+    public Diff<Metadata> diff(
+        Metadata previousState,
+        MapDiff<String, ReservedStateMetadata, Map<String, ReservedStateMetadata>> singleProjectReservedStateMetadata
+    ) {
         return new MetadataDiff(previousState, this, singleProjectReservedStateMetadata);
     }
 
@@ -864,8 +866,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         // This is used only when the node has a single project and needs to send the diff to an old node (wire BWC).
         private final MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>> combinedTasksDiff;
 
-        MetadataDiff(Metadata before, Metadata after,
-                     MapDiff<String, ReservedStateMetadata, Map<String, ReservedStateMetadata>> singleProjectReservedState) {
+        MetadataDiff(
+            Metadata before,
+            Metadata after,
+            MapDiff<String, ReservedStateMetadata, Map<String, ReservedStateMetadata>> singleProjectReservedState
+        ) {
             this.empty = before == after;
             this.fromNodeBeforeMultiProjectsSupport = false; // diff on this node, always after multi-projects, even when disabled
             clusterUUID = after.clusterUUID;

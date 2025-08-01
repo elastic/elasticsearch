@@ -755,7 +755,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
 
         var updatedState = processJSON(action, prevState, settingsJSON);
 
-        ProjectStateRegistry withReservedState = ProjectStateRegistry.builder(updatedState.state()).putReservedStateMetadata(
+        ProjectStateRegistry withReservedState = ProjectStateRegistry.builder(updatedState.state())
+            .putReservedStateMetadata(
                 projectId,
                 ReservedStateMetadata.builder("test")
                     .putHandler(new ReservedStateHandlerMetadata(ReservedComposableIndexTemplateAction.NAME, updatedState.keys()))
@@ -923,7 +924,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             allOf(aMapWithSize(2), hasKey(reservedComposableIndexName(conflictingTemplateName)), hasKey(conflictingTemplateName))
         );
 
-        ProjectStateRegistry withReservedState = ProjectStateRegistry.builder(updatedState.state()).putReservedStateMetadata(
+        ProjectStateRegistry withReservedState = ProjectStateRegistry.builder(updatedState.state())
+            .putReservedStateMetadata(
                 projectId,
                 new ReservedStateMetadata.Builder("file_settings").putHandler(
                     new ReservedStateHandlerMetadata(ReservedComposableIndexTemplateAction.NAME, updatedState.keys())

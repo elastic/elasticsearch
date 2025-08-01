@@ -742,7 +742,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
 
         ClusterState.Builder builder = ClusterState.builder(new ClusterName("test"));
         if (projectId.isPresent()) {
-            builder.putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder().putReservedStateMetadata(projectId.get(), operatorMetadata).build());
+            builder.putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder().putReservedStateMetadata(projectId.get(), operatorMetadata).build()
+            );
         } else {
             builder.metadata(Metadata.builder().put(operatorMetadata));
         }
@@ -853,10 +856,12 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             .putHandler(hmOne)
             .build();
 
-
         builder = ClusterState.builder(new ClusterName("test"));
         if (projectId.isPresent()) {
-            builder.putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder().putReservedStateMetadata(projectId.get(), opMetadata).build());
+            builder.putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder().putReservedStateMetadata(projectId.get(), opMetadata).build()
+            );
         } else {
             builder.metadata(Metadata.builder().put(opMetadata));
         }
@@ -875,7 +880,10 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         Optional<ProjectId> projectId = randomBoolean() ? Optional.empty() : Optional.of(randomProjectIdOrDefault());
         ClusterState.Builder builder = ClusterState.builder(new ClusterName("test"));
         if (projectId.isPresent()) {
-            builder.putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder().putReservedStateMetadata(projectId.get(), operatorMetadata).build());
+            builder.putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder().putReservedStateMetadata(projectId.get(), operatorMetadata).build()
+            );
         } else {
             builder.metadata(Metadata.builder().put(operatorMetadata));
         }

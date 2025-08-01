@@ -2262,11 +2262,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), PROJECT_CUSTOM_VALUE_SERIALIZER);
             if (in.getTransportVersion().before(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
-                DiffableUtils.readImmutableOpenMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    RESERVED_DIFF_VALUE_READER
-                );
+                DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), RESERVED_DIFF_VALUE_READER);
             }
             if (in.getTransportVersion()
                 .between(TransportVersions.PROJECT_METADATA_SETTINGS, TransportVersions.CLUSTER_STATE_PROJECTS_SETTINGS)) {

@@ -69,8 +69,9 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             projectsEntries = in.readMap(ProjectId::readFrom, Entry::readFrom);
         } else {
             Map<ProjectId, Settings> settingsMap = in.readMap(ProjectId::readFrom, Settings::readSettingsFromStream);
-            projectsEntries = settingsMap.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
-                e -> new Entry(e.getValue(), ImmutableOpenMap.of())));
+            projectsEntries = settingsMap.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> new Entry(e.getValue(), ImmutableOpenMap.of())));
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_STATE_REGISTRY_RECORDS_DELETIONS)) {
             projectsMarkedForDeletion = in.readCollectionAsImmutableSet(ProjectId::readFrom);
@@ -115,7 +116,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     public Map<String, ReservedStateMetadata> reservedStateMetadata(ProjectId projectId) {
         return projectsEntries.getOrDefault(projectId, EMPTY_ENTRY).reservedStateMetadata;
     }
-  
+
     public Set<ProjectId> getProjectsMarkedForDeletion() {
         return projectsMarkedForDeletion;
     }
@@ -362,11 +363,14 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
         }
     }
 
-    private record Entry(Settings settings,
-                         ImmutableOpenMap<String, ReservedStateMetadata> reservedStateMetadata) implements Writeable, Diffable<Entry> {
-         Entry() {
+    private record Entry(Settings settings, ImmutableOpenMap<String, ReservedStateMetadata> reservedStateMetadata)
+        implements
+            Writeable,
+            Diffable<Entry> {
+
+        Entry() {
             this(Settings.EMPTY, ImmutableOpenMap.of());
-         }
+        }
 
         public static Entry readFrom(StreamInput in) throws IOException {
             Settings settings = Settings.readSettingsFromStream(in);
@@ -419,17 +423,16 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
                 return SimpleDiffable.empty();
             }
 
-            return new EntryDiff(settings.diff(previousState.settings), DiffableUtils.diff(
-                previousState.reservedStateMetadata,
-                reservedStateMetadata,
-                DiffableUtils.getStringKeySerializer()
-            ));
+            return new EntryDiff(
+                settings.diff(previousState.settings),
+                DiffableUtils.diff(previousState.reservedStateMetadata, reservedStateMetadata, DiffableUtils.getStringKeySerializer())
+            );
         }
 
-        private record EntryDiff(Diff<Settings> settingsDiff, DiffableUtils.MapDiff<
-            String,
-            ReservedStateMetadata,
-            ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata) implements Diff<Entry> {
+        private record EntryDiff(
+            Diff<Settings> settingsDiff,
+            DiffableUtils.MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata
+        ) implements Diff<Entry> {
 
             public static EntryDiff readFrom(StreamInput in) throws IOException {
                 Diff<Settings> settingsDiff = Settings.readSettingsDiffFromStream(in);

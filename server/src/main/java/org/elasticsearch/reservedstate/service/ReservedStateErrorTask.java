@@ -101,9 +101,10 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
             ReservedStateMetadata.Builder resBuilder = ReservedStateMetadata.builder(errorState.namespace(), reservedMetadata);
             resBuilder.errorMetadata(errorMetadata);
 
-            stateBuilder.putCustom(ProjectStateRegistry.TYPE, ProjectStateRegistry.builder(projectStateRegistry)
-                .putReservedStateMetadata(projectId, resBuilder.build())
-                .build());
+            stateBuilder.putCustom(
+                ProjectStateRegistry.TYPE,
+                ProjectStateRegistry.builder(projectStateRegistry).putReservedStateMetadata(projectId, resBuilder.build()).build()
+            );
         } else {
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
 

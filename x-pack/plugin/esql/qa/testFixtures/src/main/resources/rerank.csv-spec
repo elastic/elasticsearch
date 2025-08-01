@@ -68,7 +68,7 @@ required_capability: match_operator_colon
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | RERANK "war and peace" ON ratings WITH { "inference_id" : "test_reranker" }
-| EVAL _score=ROUND(_score, 2)
+| EVAL _score=ROUND(_score, 2), ratings = ROUND(ratings, 2)
 | SORT _score DESC, book_no ASC
 | KEEP book_no, title, ratings, _score
 ;
@@ -128,7 +128,7 @@ required_capability: match_operator_colon
 FROM books METADATA _score
 | WHERE title:"war and peace" AND author:"Tolstoy"
 | RERANK "war and peace" ON title, ratings WITH { "inference_id" : "test_reranker" }
-| EVAL _score=ROUND(_score, 2)
+| EVAL _score=ROUND(_score, 2), ratings = ROUND(ratings, 2)
 | SORT _score DESC, book_no ASC
 | KEEP book_no, title, ratings, _score
 ;

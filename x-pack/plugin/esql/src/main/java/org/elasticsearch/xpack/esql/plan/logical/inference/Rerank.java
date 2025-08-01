@@ -181,9 +181,16 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        if (queryText.resolved() && (DataType.isString(queryText.dataType()) == false || queryText.foldable() == false)) {
-            // Rerank only supports string as query
-            failures.add(fail(queryText, "query must be a valid string in RERANK, found [{}]", queryText.source().text()));
+        if (queryText.resolved()) {
+            if (DataType.isString(queryText.dataType()) == false) {
+                // Rerank only supports string as query
+                failures.add(fail(queryText, "query must be a valid string in RERANK, found [{}]", queryText.source().text()));
+            }
+
+            if (queryText.foldable() == false) {
+                // Rerank only supports string as query
+                failures.add(fail(queryText, "query must be a constant, found [{}]", queryText.source().text()));
+            }
         }
 
         // When using multiple fields the content is transformed into YAML before it is reranked

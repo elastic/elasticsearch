@@ -327,10 +327,15 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
         final IndexReader.CacheKey index;
         final Query query;
+        final int hashCode;
 
         private BitsetCacheKey(IndexReader.CacheKey index, Query query) {
             this.index = index;
             this.query = query;
+            // compute the hashCode eagerly, since it's used multiple times in the cache implementation anyway -- the query here will
+            // be a ConstantScoreQuery around a BooleanQuery, and BooleanQuery already *lazily* caches the hashCode, so this isn't
+            // altogether that much faster in reality, but it makes it more explicit here that we're doing this
+            this.hashCode = computeHashCode();
         }
 
         @Override
@@ -345,9 +350,15 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
             return Objects.equals(this.index, that.index) && Objects.equals(this.query, that.query);
         }
 
+        private int computeHashCode() {
+            int result = index.hashCode();
+            result = 31 * result + query.hashCode();
+            return result;
+        }
+
         @Override
         public int hashCode() {
-            return Objects.hash(index, query);
+            return hashCode;
         }
 
         @Override

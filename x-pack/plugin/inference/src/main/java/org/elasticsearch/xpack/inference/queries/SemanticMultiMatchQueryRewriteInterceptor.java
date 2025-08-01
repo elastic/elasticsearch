@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -110,15 +111,88 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             semanticQuery.queryName(originalQuery.queryName());
             return semanticQuery;
         } else {
-            // Multiple inference fields - create a boolean query with semantic subqueries
-            BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-            for (String fieldName : inferenceFields) {
-                SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
-                boolQuery.should(semanticQuery);
-            }
-            boolQuery.boost(originalQuery.boost());
-            boolQuery.queryName(originalQuery.queryName());
-            return boolQuery;
+            // Multiple inference fields - handle based on multi-match query type
+            return buildMultiFieldSemanticQuery(originalQuery, inferenceFields, queryValue);
+        }
+    }
+
+    private QueryBuilder buildMultiFieldSemanticQuery(
+        MultiMatchQueryBuilder originalQuery,
+        Set<String> inferenceFields,
+        String queryValue
+    ) {
+        switch (originalQuery.type()) {
+            case BEST_FIELDS:
+                // For best_fields, use dis_max to find the single best matching field
+                // This mimics the behavior of multi_match best_fields which wraps match queries in dis_max
+                DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
+                for (String fieldName : inferenceFields) {
+                    SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
+                    disMaxQuery.add(semanticQuery);
+                }
+                // Apply tie_breaker if specified
+                if (originalQuery.tieBreaker() != null) {
+                    disMaxQuery.tieBreaker(originalQuery.tieBreaker());
+                }
+                disMaxQuery.boost(originalQuery.boost());
+                disMaxQuery.queryName(originalQuery.queryName());
+                return disMaxQuery;
+                
+            case MOST_FIELDS:
+                // For most_fields, we want to score across all fields and sum the scores
+                // This can be reasonably approximated with semantic queries
+                BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+                for (String fieldName : inferenceFields) {
+                    SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
+                    boolQuery.should(semanticQuery);
+                }
+                boolQuery.minimumShouldMatch("1");
+                boolQuery.boost(originalQuery.boost());
+                boolQuery.queryName(originalQuery.queryName());
+                return boolQuery;
+                
+            case CROSS_FIELDS:
+                // Cross-fields requires term-level analysis across fields which doesn't translate
+                // meaningfully to semantic queries that work with dense vectors
+                throw new IllegalArgumentException(
+                    "multi_match query with type [cross_fields] is not supported for semantic_text fields. " +
+                    "Use [best_fields] or [most_fields] instead."
+                );
+                
+            case PHRASE:
+                // Phrase queries require positional information which semantic queries don't have
+                throw new IllegalArgumentException(
+                    "multi_match query with type [phrase] is not supported for semantic_text fields. " +
+                    "Use [best_fields] instead."
+                );
+                
+            case PHRASE_PREFIX:
+                // Phrase prefix queries require positional and prefix information
+                throw new IllegalArgumentException(
+                    "multi_match query with type [phrase_prefix] is not supported for semantic_text fields. " +
+                    "Use [best_fields] instead."
+                );
+                
+            case BOOL_PREFIX:
+                // Bool prefix requires term-level prefix analysis
+                throw new IllegalArgumentException(
+                    "multi_match query with type [bool_prefix] is not supported for semantic_text fields. " +
+                    "Use [best_fields] or [most_fields] instead."
+                );
+                
+            default:
+                // Fallback to best_fields behavior for unknown types
+                DisMaxQueryBuilder defaultDisMaxQuery = new DisMaxQueryBuilder();
+                for (String fieldName : inferenceFields) {
+                    SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
+                    defaultDisMaxQuery.add(semanticQuery);
+                }
+                if (originalQuery.tieBreaker() != null) {
+                    defaultDisMaxQuery.tieBreaker(originalQuery.tieBreaker());
+                }
+                defaultDisMaxQuery.boost(originalQuery.boost());
+                defaultDisMaxQuery.queryName(originalQuery.queryName());
+                return defaultDisMaxQuery;
         }
     }
 
@@ -217,7 +291,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         }
 
         public boolean hasNonInferenceFields() {
-            return !nonInferenceIndices.isEmpty();
+            return nonInferenceIndices.isEmpty() == false;
         }
 
         public Map<String, Set<String>> getInferenceFieldsByIndex() {

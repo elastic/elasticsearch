@@ -290,8 +290,13 @@ public class BlockTestUtils {
                     case BOOLEAN -> ((BooleanBlock) block).getBoolean(i++);
                     case AGGREGATE_METRIC_DOUBLE -> {
                         AggregateMetricDoubleBlock b = (AggregateMetricDoubleBlock) block;
-                        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral literal = new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
-                            b.minBlock().getDouble(i), b.maxBlock().getDouble(i), b.sumBlock().getDouble(i), b.countBlock().getInt(i));
+                        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral literal =
+                            new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                                b.minBlock().getDouble(i),
+                                b.maxBlock().getDouble(i),
+                                b.sumBlock().getDouble(i),
+                                b.countBlock().getInt(i)
+                            );
                         i += 1;
                         yield literal;
 

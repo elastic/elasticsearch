@@ -377,8 +377,7 @@ public class BlockAccountingTests extends ComputeTestCase {
         // 32 + 496 = 528
         // + 24 * (3 + 1) = 528 + 96 = 624
         long expectedEmptyUsed = Block.PAGE_MEM_OVERHEAD_PER_BLOCK * 4 + RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR)
-            + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class) * 3
-            + RamUsageEstimator.shallowSizeOfInstance(
+            + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class) * 3 + RamUsageEstimator.shallowSizeOfInstance(
                 IntVectorBlock.class
             );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
@@ -438,8 +437,8 @@ public class BlockAccountingTests extends ComputeTestCase {
 
         long expectedEmptyUsed = Block.PAGE_MEM_OVERHEAD_PER_BLOCK * 4 + RamUsageTester.ramUsed(empty, RAM_USAGE_ACCUMULATOR)
             + RamUsageEstimator.shallowSizeOfInstance(DoubleVectorBlock.class) * 3 + RamUsageEstimator.shallowSizeOfInstance(
-            IntVectorBlock.class
-        );
+                IntVectorBlock.class
+            );
         assertThat(empty.ramBytesUsed(), is(expectedEmptyUsed));
     }
 

@@ -27,10 +27,7 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN
-                || e == ElementType.NULL
-                || e == ElementType.DOC
-                || e == ElementType.COMPOSITE) {
+            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
@@ -108,7 +105,10 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
                 case FLOAT -> ((FloatBlockBuilder) builder).copyFrom((FloatBlock) block, i);
                 case INT -> ((IntBlockBuilder) builder).copyFrom((IntBlock) block, i);
                 case LONG -> ((LongBlockBuilder) builder).copyFrom((LongBlock) block, i);
-                case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).copyFrom((AggregateMetricDoubleBlock) block, i);
+                case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).copyFrom(
+                    (AggregateMetricDoubleBlock) block,
+                    i
+                );
                 default -> throw new IllegalArgumentException("unsupported type: " + elementType);
             }
 

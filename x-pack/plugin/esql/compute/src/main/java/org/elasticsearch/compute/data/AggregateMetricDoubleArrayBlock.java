@@ -254,9 +254,8 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafe
         // 152 == 584 + 40 == 624
         System.err.println("BLOCK BYTES USED " + countBlock.ramBytesUsed());
         return
-//            BASE_RAM_BYTES_USED +
-                minBlock.ramBytesUsed() + maxBlock.ramBytesUsed() + sumBlock.ramBytesUsed() + countBlock
-            .ramBytesUsed();
+        // BASE_RAM_BYTES_USED +
+        minBlock.ramBytesUsed() + maxBlock.ramBytesUsed() + sumBlock.ramBytesUsed() + countBlock.ramBytesUsed();
     }
 
     @Override

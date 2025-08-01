@@ -468,7 +468,11 @@ public class BlockFactory {
     }
 
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
-        double[] minValues, double[] maxValues, double[] sumValues, int[] countValues, int positions
+        double[] minValues,
+        double[] maxValues,
+        double[] sumValues,
+        int[] countValues,
+        int positions
     ) {
         // currently only in tests, might need to add to equality tests...
         DoubleBlock min = newDoubleArrayVector(minValues, positions).asBlock();

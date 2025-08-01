@@ -282,6 +282,12 @@ public class EsqlSession {
                     );
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
+                        .<LogicalPlan>andThen((l, p) -> {
+                            if (request.approximate()) {
+                                new Approximate(p);  // to verify whether the pre-optimized plan is suitable for approximation
+                            }
+                            l.onResponse(p);
+                        })
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
                                 new Versioned<>(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), minimumVersion),

@@ -116,9 +116,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
 
         @Override
         public boolean advanceToDoc(int docId) throws IOException {
-            // assert docId >= valueDocValues.docID();
             hasValue = valueDocValues.advanceExact(docId);
-            // assert docId >= offsetDocValues.docID();
             hasOffset = offsetDocValues.advanceExact(docId);
             if (hasValue || hasOffset) {
                 if (hasOffset) {

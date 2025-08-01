@@ -6,6 +6,7 @@
 // because the CSV tests don't support such assertions.
 
 approximate stats on large data
+required_capability: approximate
 approximate: true
 
 FROM many_numbers
@@ -24,6 +25,7 @@ true
 
 
 exact stats on small data
+required_capability: approximate
 approximate: true
 
 FROM many_numbers
@@ -37,6 +39,7 @@ count:long | avg:double | sum:long | min:integer | max:integer
 
 
 with where
+required_capability: approximate
 approximate: true
 
 FROM many_numbers
@@ -56,6 +59,7 @@ true
 
 
 with sample
+required_capability: approximate
 approximate: true
 
 FROM many_numbers
@@ -75,6 +79,7 @@ true
 
 
 with commands inbetween
+required_capability: approximate
 approximate: true
 
 FROM many_numbers
@@ -101,6 +106,7 @@ true
 
 
 with commands after
+required_capability: approximate
 approximate: true
 
 FROM many_numbers
@@ -123,6 +129,7 @@ true
 
 
 approximate stats by on large data
+required_capability: approximate
 approximate: true
 
 FROM many_numbers
@@ -143,6 +150,7 @@ num:integer | is_expected:boolean
 
 
 exact stats by on small data
+required_capability: approximate
 approximate: true
 
 FROM many_numbers

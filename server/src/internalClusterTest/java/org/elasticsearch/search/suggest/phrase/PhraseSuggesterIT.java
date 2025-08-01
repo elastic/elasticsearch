@@ -9,9 +9,8 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -24,7 +23,9 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF
 import static org.elasticsearch.search.suggest.SuggestBuilders.phraseSuggestion;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class PhraseSuggesterIT extends ESIntegTestCase {
 
@@ -48,17 +49,15 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
         // 4. NoisyChannelSpellChecker.end() throws IllegalArgumentException
         SearchRequestBuilder searchBuilder = createSuggesterSearch("text.ngrams");
 
-        // This should throw SearchPhaseExecutionException wrapping IllegalArgumentException
-        SearchPhaseExecutionException exception = expectThrows(SearchPhaseExecutionException.class, searchBuilder);
-        assertNotNull(exception.getCause());
-        assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
-        Throwable rootCause = ExceptionsHelper.unwrap(exception, IllegalArgumentException.class);
-
-        assertTrue(
-            "Expected IllegalArgumentException but got: " + rootCause.getClass().getSimpleName(),
-            rootCause instanceof IllegalArgumentException
-        );
-        assertEquals("At least one unigram is required but all tokens were ngrams", rootCause.getMessage());
+        assertResponse(searchBuilder, response -> {
+            assertThat(response.status(), equalTo(RestStatus.OK));
+            assertThat(response.getFailedShards(), greaterThan(0));
+            assertThat(response.getShardFailures().length, greaterThan(0));
+            for (ShardSearchFailure shardFailure : response.getShardFailures()) {
+                assertTrue(shardFailure.getCause() instanceof IllegalArgumentException);
+                assertEquals("At least one unigram is required but all tokens were ngrams", shardFailure.getCause().getMessage());
+            }
+        });
     }
 
     private static SearchRequestBuilder createSuggesterSearch(String fieldName) {

@@ -22,7 +22,6 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -93,10 +92,12 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         }
 
         MultiMatchQueryBuilder.Type type = multiMatchBuilder.type();
-        if (type == MultiMatchQueryBuilder.Type.CROSS_FIELDS ||
-            type == MultiMatchQueryBuilder.Type.PHRASE ||
-            type == MultiMatchQueryBuilder.Type.PHRASE_PREFIX) {
-            throw new IllegalArgumentException("Query type [" + type.parseField().getPreferredName() + "] is not supported with semantic_text fields");
+        if (type == MultiMatchQueryBuilder.Type.CROSS_FIELDS
+            || type == MultiMatchQueryBuilder.Type.PHRASE
+            || type == MultiMatchQueryBuilder.Type.PHRASE_PREFIX) {
+            throw new IllegalArgumentException(
+                "Query type [" + type.parseField().getPreferredName() + "] is not supported with semantic_text fields"
+            );
         }
 
         QueryBuilder rewrittenQuery;

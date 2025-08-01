@@ -468,6 +468,23 @@ tasks.named('stringTemplates').configure {
     it.inputFile = stateInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/DoubleState.java"
   }
+
+  File twoStateInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st")
+  [longProperties].forEach { v1 ->
+    [booleanProperties, intProperties, longProperties, floatProperties, doubleProperties].forEach { v2 ->
+      {
+        var properties = [:]
+        v1.forEach { k, v -> properties["v1_" + k] = v}
+        v2.forEach { k, v -> properties["v2_" + k] = v}
+        template {
+          it.properties = properties
+          it.inputFile = twoStateInputFile
+          it.outputFile = "org/elasticsearch/compute/aggregation/${v1.Type}${v2.Type}State.java"
+        }
+      }
+    }
+  }
+
   File fallibleStateInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-FallibleState.java.st")
   template {
     it.properties = booleanProperties

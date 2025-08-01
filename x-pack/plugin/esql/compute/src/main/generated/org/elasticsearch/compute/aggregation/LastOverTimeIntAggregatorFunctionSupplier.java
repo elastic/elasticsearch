@@ -20,7 +20,7 @@ public final class LastOverTimeIntAggregatorFunctionSupplier implements Aggregat
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+    return LastOverTimeIntAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -29,8 +29,9 @@ public final class LastOverTimeIntAggregatorFunctionSupplier implements Aggregat
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  public LastOverTimeIntAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return LastOverTimeIntAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

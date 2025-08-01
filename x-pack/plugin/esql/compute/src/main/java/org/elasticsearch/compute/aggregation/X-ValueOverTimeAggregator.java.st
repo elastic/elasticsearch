@@ -11,9 +11,11 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -25,10 +27,39 @@ import org.elasticsearch.core.Releasables;
  * A time-series aggregation function that collects the $Occurrence$ occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-ValueOverTimeAggregator.java.st` instead.
  */
+@Aggregator(
+    {
+        @IntermediateState(name = "timestamps", type = "LONG"),
+        @IntermediateState(name = "values", type = "$TYPE$"),
+        @IntermediateState(name = "seen", type = "BOOLEAN")
+    }
+)
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
+    {
+        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
+        @IntermediateState(name = "values", type = "$TYPE$_BLOCK"),
+        @IntermediateState(name = "seen", type = "BOOLEAN_BLOCK")
+    }
 )
 public class $Occurrence$OverTime$Type$Aggregator {
+    public static Long$Type$State initSingle(DriverContext driverContext) {
+        return new Long$Type$State(0, 0);
+    }
+
+    public static void combine(Long$Type$State current, long timestamp, $type$ value) {
+        if (timestamp > current.v1()) {
+            current.v1(timestamp);
+            current.v2(value);
+        }
+    }
+
+    public static void combineIntermediate(Long$Type$State current, long timestamp, $type$ value, boolean seen) {
+        combine(current, timestamp, value);
+    }
+
+    public static Block evaluateFinal(Long$Type$State current, DriverContext ctx) {
+        return ctx.blockFactory().newConstant$Type$BlockWith(current.v2(), 1);
+    }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
@@ -43,8 +74,9 @@ public class $Occurrence$OverTime$Type$Aggregator {
     public static void combineIntermediate(
         GroupingState current,
         int groupId,
-        LongBlock timestamps, // stylecheck
+        LongBlock timestamps,
         $Type$Block values,
+        BooleanBlock seen, // NOCOMMIT use me
         int otherPosition
     ) {
         int valueCount = values.getValueCount(otherPosition);

@@ -20,7 +20,7 @@ public final class FirstOverTimeDoubleAggregatorFunctionSupplier implements Aggr
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+    return FirstOverTimeDoubleAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -29,8 +29,9 @@ public final class FirstOverTimeDoubleAggregatorFunctionSupplier implements Aggr
   }
 
   @Override
-  public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  public FirstOverTimeDoubleAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return FirstOverTimeDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override

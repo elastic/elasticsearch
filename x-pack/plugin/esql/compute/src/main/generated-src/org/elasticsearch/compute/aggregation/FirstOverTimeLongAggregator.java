@@ -11,9 +11,11 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -25,10 +27,39 @@ import org.elasticsearch.core.Releasables;
  * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-ValueOverTimeAggregator.java.st` instead.
  */
+@Aggregator(
+    {
+        @IntermediateState(name = "timestamps", type = "LONG"),
+        @IntermediateState(name = "values", type = "LONG"),
+        @IntermediateState(name = "seen", type = "BOOLEAN")
+    }
+)
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
+    {
+        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
+        @IntermediateState(name = "values", type = "LONG_BLOCK"),
+        @IntermediateState(name = "seen", type = "BOOLEAN_BLOCK")
+    }
 )
 public class FirstOverTimeLongAggregator {
+    public static LongLongState initSingle(DriverContext driverContext) {
+        return new LongLongState(0, 0);
+    }
+
+    public static void combine(LongLongState current, long timestamp, long value) {
+        if (timestamp > current.v1()) {
+            current.v1(timestamp);
+            current.v2(value);
+        }
+    }
+
+    public static void combineIntermediate(LongLongState current, long timestamp, long value, boolean seen) {
+        combine(current, timestamp, value);
+    }
+
+    public static Block evaluateFinal(LongLongState current, DriverContext ctx) {
+        return ctx.blockFactory().newConstantLongBlockWith(current.v2(), 1);
+    }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
@@ -43,8 +74,9 @@ public class FirstOverTimeLongAggregator {
     public static void combineIntermediate(
         GroupingState current,
         int groupId,
-        LongBlock timestamps, // stylecheck
+        LongBlock timestamps,
         LongBlock values,
+        BooleanBlock seen, // NOCOMMIT use me
         int otherPosition
     ) {
         int valueCount = values.getValueCount(otherPosition);

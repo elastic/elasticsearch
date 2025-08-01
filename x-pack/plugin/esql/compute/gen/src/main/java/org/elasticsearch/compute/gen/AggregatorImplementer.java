@@ -473,7 +473,7 @@ public class AggregatorImplementer {
                 "$T.combine(state, timestamps.getLong(i), $L.get$L(i))",
                 declarationType,
                 blockVariable,
-                capitalize(combine.getParameters().get(1).asType().toString())
+                capitalize(combine.getParameters().get(2).asType().toString())
             );
         } else {
             builder.addStatement(

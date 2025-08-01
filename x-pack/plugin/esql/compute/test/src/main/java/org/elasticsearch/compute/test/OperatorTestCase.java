@@ -249,6 +249,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
+        System.err.println(input);
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
         try (var operator = simple().get(driverContext)) {

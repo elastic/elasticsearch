@@ -69,10 +69,16 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
-        List<Integer> channels = mode.isInputPartial() ? range(0, aggregatorIntermediateBlockCount()).boxed().toList() : List.of(0);
+        List<Integer> channels = mode.isInputPartial()
+            ? range(0, aggregatorIntermediateBlockCount()).boxed().toList()
+            : IntStream.range(0, inputCount()).boxed().toList();
         AggregatorFunctionSupplier supplier = aggregatorFunction();
         Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode, channels);
         return new AggregationOperator.AggregationOperatorFactory(List.of(factory), mode);
+    }
+
+    protected int inputCount() {
+        return 1;
     }
 
     @Override

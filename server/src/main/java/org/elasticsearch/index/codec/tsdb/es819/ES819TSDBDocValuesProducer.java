@@ -1423,9 +1423,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 public void loadBlock(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
                     for (int i = offset; i < docs.count(); i++) {
-                        doc = docs.get(i);
-                        builder.appendOrd(Math.toIntExact(longValue()));
+                        final int index = docs.get(i);
+                        final int blockIndex = index >>> ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                        final int blockInIndex = index & ES819TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                        if (blockIndex != currentBlockIndex) {
+                            assert blockIndex > currentBlockIndex : blockIndex + " < " + currentBlockIndex;
+                            // no need to seek if the loading block is the next block
+                            if (currentBlockIndex + 1 != blockIndex) {
+                                valuesData.seek(indexReader.get(blockIndex));
+                            }
+                            currentBlockIndex = blockIndex;
+                            decoder.decodeOrdinals(valuesData, currentBlock, bitsPerOrd);
+                        }
+                        builder.appendOrd(Math.toIntExact(currentBlock[blockInIndex]));
                     }
+                    doc = docs.get(docs.count() - 1);
                 }
 
                 @Override

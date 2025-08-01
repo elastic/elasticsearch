@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReader;
 import co.elastic.elasticsearch.stateless.cache.reader.SequentialRangeMissingHandler;
 import co.elastic.elasticsearch.stateless.commits.BlobFile;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.NewCommitNotification;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.FileCacheKey;
@@ -169,8 +170,36 @@ public class SearchCommitPrefetcher {
                 prefetchNonUploadedCommits,
                 notification
             );
+            StatelessCompoundCommit statelessCompoundCommit = notification.compoundCommit();
+            // if we skip prefetching we want to mark the term/generation we skipped so when prefetching resumes (say because there are
+            // searches in the system and the indices are not idle anymore) we can prefetch the latest commit only (without downloading what
+            // could be very large historical commits).
+            BlobLocation maxOffsetInCurrentTerm = statelessCompoundCommit.getMaxOffsetInCurrentGeneration();
+            maxPrefetchedOffset.accumulateAndGet(
+                // update the max prefetched marker at the end of the current generation
+                new BCCPreFetchedOffset(
+                    maxOffsetInCurrentTerm.getBatchedCompoundCommitTermAndGeneration(),
+                    maxOffsetInCurrentTerm.offset() + maxOffsetInCurrentTerm.fileLength()
+                ),
+                (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
+            );
             listener.onResponse(null);
             return;
+        }
+
+        if (maxPrefetchedOffset.get().equals(BCCPreFetchedOffset.ZERO)) {
+            // if this is the first commit notification we receive, we want to avoid downloading all historical data, and instead just
+            // prefetch the data added in the current term.
+            BlobLocation minOffsetInCurrentTerm = notification.compoundCommit().getMinOffsetInCurrentGeneration();
+            maxPrefetchedOffset.accumulateAndGet(
+                // set the max prefetched marker at the beginning of the current generation, so we download the current generation only,
+                // and completely
+                new BCCPreFetchedOffset(
+                    minOffsetInCurrentTerm.getBatchedCompoundCommitTermAndGeneration(),
+                    minOffsetInCurrentTerm.offset()
+                ),
+                (original, candidate) -> original.compareTo(candidate) < 0 ? candidate : original
+            );
         }
 
         // This gets executed in a transport thread and if the cache needs to evict regions it acquires a lock,
@@ -356,6 +385,11 @@ public class SearchCommitPrefetcher {
         return totalPrefetchedBytes.get();
     }
 
+    // visible for testing
+    public BCCPreFetchedOffset getMaxPrefetchedOffset() {
+        return maxPrefetchedOffset.get();
+    }
+
     static Map<BlobFile, ByteRange> getPendingRangesToPrefetch(
         BCCPreFetchedOffset currentMaxPrefetchedOffset,
         long maxBCCTermAndGenToPrefetch,
@@ -399,9 +433,9 @@ public class SearchCommitPrefetcher {
      * @param bccTermAndGen the primary term and generation of the BCC
      * @param offset the byte offset indicating how far into the blob has been pre-fetched
      */
-    record BCCPreFetchedOffset(PrimaryTermAndGeneration bccTermAndGen, long offset) implements Comparable<BCCPreFetchedOffset> {
+    public record BCCPreFetchedOffset(PrimaryTermAndGeneration bccTermAndGen, long offset) implements Comparable<BCCPreFetchedOffset> {
 
-        static final BCCPreFetchedOffset ZERO = new BCCPreFetchedOffset(PrimaryTermAndGeneration.ZERO, Long.MIN_VALUE);
+        public static final BCCPreFetchedOffset ZERO = new BCCPreFetchedOffset(PrimaryTermAndGeneration.ZERO, Long.MIN_VALUE);
 
         @Override
         public int compareTo(BCCPreFetchedOffset o) {

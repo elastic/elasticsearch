@@ -401,4 +401,42 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
             assertThat(copy.commitFiles(), equalTo(testInstance.commitFiles()));
         }
     }
+
+    public void testGetBoundaryOffsetInCurrentTermWithMixedFiles() {
+        PrimaryTermAndGeneration previosGeneration = new PrimaryTermAndGeneration(4L, 4L);
+        PrimaryTermAndGeneration currentGeneration = new PrimaryTermAndGeneration(5L, 5L);
+
+        BlobLocation previousMin = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "4", previosGeneration), 50L, 25L);
+        BlobLocation previousMax = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "4", previosGeneration), 400L, 25L);
+        BlobLocation currentMin = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "5", currentGeneration), 100L, 50L);
+        BlobLocation currentMax = new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "5", currentGeneration), 300L, 50L);
+
+        Map<String, BlobLocation> commitFiles = Map.of(
+            "previousMin",
+            previousMin,
+            "previousMax",
+            previousMax,
+            "currentMin",
+            currentMin,
+            "inBetween",
+            new BlobLocation(new BlobFile(StatelessCompoundCommit.PREFIX + "5", currentGeneration), 200L, 50L),
+            "currentMax",
+            currentMax
+        );
+
+        StatelessCompoundCommit commit = new StatelessCompoundCommit(
+            randomShardId(),
+            currentGeneration,
+            1L,
+            "node-1",
+            commitFiles,
+            700L,
+            Set.of("currentMin", "inBetween", "currentMax"),
+            50L,
+            InternalFilesReplicatedRanges.EMPTY
+        );
+
+        assertThat(commit.getMaxOffsetInCurrentGeneration(), equalTo(currentMax));
+        assertThat(commit.getMinOffsetInCurrentGeneration(), equalTo(currentMin));
+    }
 }

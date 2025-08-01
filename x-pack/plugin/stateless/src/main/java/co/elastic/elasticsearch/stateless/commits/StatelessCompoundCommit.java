@@ -50,6 +50,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -262,6 +263,43 @@ public record StatelessCompoundCommit(
             commitFilesSizeInBytes += commitFile.fileLength();
         }
         return commitFilesSizeInBytes;
+    }
+
+    /**
+     * Returns the blob location with the minimum offset within the current term and generation.
+     */
+    public BlobLocation getMinOffsetInCurrentGeneration() {
+        return getBoundaryOffsetInCurrentGeneration(Comparator.naturalOrder());
+    }
+
+    /**
+     * Returns the blob location with the minimum offset within the current term and generation.
+     */
+    public BlobLocation getMaxOffsetInCurrentGeneration() {
+        return getBoundaryOffsetInCurrentGeneration(Comparator.reverseOrder());
+    }
+
+    /**
+    * Returns the "first" blob location after comparing all the offsets in the current term and generation using the provided comparator.
+    *
+    * @param offsetComparator If {@link Comparator#naturalOrder()} (i.e. lower offset first) is used will find the minimum offset;
+     *                         otherwise, for reverse order (i.e, highest offset first), finds the maximum offset.
+    * @return The {@link BlobLocation} with offset at the boundary (lower or upper) of the commit.
+    */
+    private BlobLocation getBoundaryOffsetInCurrentGeneration(Comparator<Long> offsetComparator) {
+        BlobLocation commitBoundary = null;
+        for (String currentGenFile : internalFiles) {
+            BlobLocation location = commitFiles.get(currentGenFile);
+            if (commitBoundary == null) {
+                commitBoundary = location;
+            }
+
+            if (offsetComparator.compare(commitBoundary.offset(), location.offset()) > 0) {
+                commitBoundary = location;
+            }
+        }
+        assert commitBoundary != null : "commit must have at least the segments_N file in the current term and generation";
+        return commitBoundary;
     }
 
     /**

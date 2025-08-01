@@ -22,16 +22,18 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,7 +42,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class InferenceRunnerTests extends ESTestCase {
+public class InferenceResolverTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     @Before
@@ -63,12 +65,43 @@ public class InferenceRunnerTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testCollectInferenceIds() {
+        // Rerank inference plan
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH { \"inference_id\": \"rerank-inference-id\" }",
+            List.of("rerank-inference-id")
+        );
+
+        // Completion inference plan
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | COMPLETION \"italian food recipe\" WITH { \"inference_id\": \"completion-inference-id\" }",
+            List.of("completion-inference-id")
+        );
+
+        // Multiple inference plans
+        assertCollectInferenceIds("""
+            FROM books METADATA _score
+            | RERANK "italian food recipe" ON title WITH { "inference_id": "rerank-inference-id" }
+            | COMPLETION "italian food recipe" WITH { "inference_id": "completion-inference-id" }
+            """, List.of("rerank-inference-id", "completion-inference-id"));
+
+        // No inference operations
+        assertCollectInferenceIds("FROM books | WHERE title:\"test\"", List.of());
+    }
+
+    private void assertCollectInferenceIds(String query, List<String> expectedInferenceIds) {
+        Set<String> inferenceIds = new HashSet<>();
+        InferenceResolver inferenceResolver = inferenceResolver();
+        inferenceResolver.collectInferenceIds(new EsqlParser().createStatement(query, configuration(query)), inferenceIds::add);
+        assertThat(inferenceIds, containsInAnyOrder(expectedInferenceIds.toArray(new String[0])));
+    }
+
     public void testResolveInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
-        List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("rerank-plan"));
+        InferenceResolver inferenceResolver = inferenceResolver();
+        List<String> inferenceIds = List.of("rerank-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
             throw new RuntimeException(e);
         }));
 
@@ -81,15 +114,11 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveMultipleInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
-        List<InferencePlan<?>> inferencePlans = List.of(
-            mockInferencePlan("rerank-plan"),
-            mockInferencePlan("rerank-plan"),
-            mockInferencePlan("completion-plan")
-        );
+        InferenceResolver inferenceResolver = inferenceResolver();
+        List<String> inferenceIds = List.of("rerank-plan", "rerank-plan", "completion-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
             throw new RuntimeException(e);
         }));
 
@@ -109,12 +138,12 @@ public class InferenceRunnerTests extends ESTestCase {
     }
 
     public void testResolveMissingInferenceIds() throws Exception {
-        InferenceRunner inferenceRunner = new InferenceRunner(mockClient(), threadPool);
-        List<InferencePlan<?>> inferencePlans = List.of(mockInferencePlan("missing-plan"));
+        InferenceResolver inferenceResolver = inferenceResolver();
+        List<String> inferenceIds = List.of("missing-plan");
 
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceRunner.resolveInferenceIds(inferencePlans, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
+        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
             throw new RuntimeException(e);
         }));
 
@@ -175,13 +204,11 @@ public class InferenceRunnerTests extends ESTestCase {
         return null;
     }
 
-    private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {
-        return new ModelConfigurations(inferenceId, taskType, randomIdentifier(), mock(ServiceSettings.class));
+    private InferenceResolver inferenceResolver() {
+        return new InferenceResolver(mockClient());
     }
 
-    private static InferencePlan<?> mockInferencePlan(String inferenceId) {
-        InferencePlan<?> plan = mock(InferencePlan.class);
-        when(plan.inferenceId()).thenReturn(Literal.keyword(Source.EMPTY, inferenceId));
-        return plan;
+    private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {
+        return new ModelConfigurations(inferenceId, taskType, randomIdentifier(), mock(ServiceSettings.class));
     }
 }

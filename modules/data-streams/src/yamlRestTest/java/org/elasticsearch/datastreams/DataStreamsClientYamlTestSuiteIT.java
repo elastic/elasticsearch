@@ -49,6 +49,8 @@ public class DataStreamsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
             .setting("xpack.security.enabled", "true")
             .keystore("bootstrap.password", "x-pack-test-password")
             .user("x_pack_rest_user", "x-pack-test-password")
+            // disable ILM history, since it disturbs tests
+            .setting("indices.lifecycle.history_index_enabled", "false")
             .feature(FeatureFlag.LOGS_STREAM)
             .systemProperty("es.queryable_built_in_roles_enabled", "false");
         if (initTestSeed().nextBoolean()) {

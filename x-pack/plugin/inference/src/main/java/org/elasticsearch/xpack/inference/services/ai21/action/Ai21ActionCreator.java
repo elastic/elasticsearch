@@ -5,11 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.mistral.action;
+package org.elasticsearch.xpack.inference.services.ai21.action;
 
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -18,10 +17,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.mistral.MistralEmbeddingsRequestManager;
-import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
-import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.mistral.request.completion.MistralChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
@@ -30,45 +27,33 @@ import java.util.Objects;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * MistralActionCreator is responsible for creating executable actions for Mistral models.
- * It implements the MistralActionVisitor interface to provide specific implementations
- * for different types of Mistral models.
+ * Ai21ActionCreator is responsible for creating actions for AI21 services.
+ * It implements the Ai21ActionVisitor interface to handle completion requests.
  */
-public class MistralActionCreator implements MistralActionVisitor {
+public class Ai21ActionCreator implements Ai21ActionVisitor {
 
-    public static final String COMPLETION_ERROR_PREFIX = "Mistral completions";
+    public static final String COMPLETION_ERROR_PREFIX = "AI21 completions";
     public static final String USER_ROLE = "user";
     public static final ResponseHandler COMPLETION_HANDLER = new OpenAiChatCompletionResponseHandler(
-        "mistral completions",
+        "ai21 completions",
         OpenAiChatCompletionResponseEntity::fromResponse,
         ErrorResponse::fromResponse
     );
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
-    public MistralActionCreator(Sender sender, ServiceComponents serviceComponents) {
+    public Ai21ActionCreator(Sender sender, ServiceComponents serviceComponents) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
     @Override
-    public ExecutableAction create(MistralEmbeddingsModel embeddingsModel) {
-        var requestManager = new MistralEmbeddingsRequestManager(
-            embeddingsModel,
-            serviceComponents.truncator(),
-            serviceComponents.threadPool()
-        );
-        var errorMessage = buildErrorMessage(TaskType.TEXT_EMBEDDING, embeddingsModel.getInferenceEntityId());
-        return new SenderExecutableAction(sender, requestManager, errorMessage);
-    }
-
-    @Override
-    public ExecutableAction create(MistralChatCompletionModel chatCompletionModel) {
+    public ExecutableAction create(Ai21ChatCompletionModel chatCompletionModel) {
         var manager = new GenericRequestManager<>(
             serviceComponents.threadPool(),
             chatCompletionModel,
             COMPLETION_HANDLER,
-            inputs -> new MistralChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), chatCompletionModel),
+            inputs -> new Ai21ChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), chatCompletionModel),
             ChatCompletionInput.class
         );
 
@@ -77,13 +62,13 @@ public class MistralActionCreator implements MistralActionVisitor {
     }
 
     /**
-     * Builds an error message for Mistral actions.
+     * Builds an error message for AI21 actions.
      *
-     * @param requestType The type of request (e.g., TEXT_EMBEDDING, COMPLETION).
+     * @param requestType The type of request (e.g., COMPLETION).
      * @param inferenceId The ID of the inference entity.
      * @return A formatted error message.
      */
     public static String buildErrorMessage(TaskType requestType, String inferenceId) {
-        return format("Failed to send Mistral %s request from inference entity id [%s]", requestType.toString(), inferenceId);
+        return format("Failed to send AI21 %s request from inference entity id [%s]", requestType.toString(), inferenceId);
     }
 }

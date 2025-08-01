@@ -11,7 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -26,17 +27,17 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -99,7 +100,7 @@ public class Approximate {
     /**
      * Commands that cannot be used anywhere in an approximated query.
      */
-    private static final Set<Class<? extends LogicalPlan>> INCOMPATIBLE_COMMANDS = Set.of(Fork.class, Join.class);
+    private static final Set<Class<? extends LogicalPlan>> INCOMPATIBLE_COMMANDS = Set.of(Fork.class, InlineStats.class, LookupJoin.class);
 
     // TODO: find a good default value, or alternative ways of setting it
     private static final int SAMPLE_ROW_COUNT = 10000;
@@ -131,12 +132,14 @@ public class Approximate {
             throw new IllegalStateException("Expected pre-optimized plan");
         }
         if (logicalPlan.anyMatch(plan -> plan instanceof Aggregate) == false) {
-            throw new InvalidArgumentException("query without [STATS] command cannot be approximated");
+            throw new VerificationException(
+                List.of(Failure.fail(logicalPlan.collectLeaves().getFirst(), "query without [STATS] cannot be approximated"))
+            );
         }
         logicalPlan.forEachUp(plan -> {
             if (INCOMPATIBLE_COMMANDS.contains(plan.getClass())) {
-                throw new InvalidArgumentException(
-                    "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] command cannot be approximated"
+                throw new VerificationException(
+                    List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] cannot be approximated"))
                 );
             }
         });
@@ -144,18 +147,14 @@ public class Approximate {
         Holder<Boolean> encounteredStats = new Holder<>(false);
         Holder<Boolean> hasFilters = new Holder<>(false);
         logicalPlan.transformUp(plan -> {
-            if (INCOMPATIBLE_COMMANDS.contains(plan.getClass())) {
-                throw new InvalidArgumentException(
-                    "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] command cannot be approximated"
-                );
-            } else if (plan instanceof LeafPlan) {
+            if (plan instanceof LeafPlan) {
                 encounteredStats.set(false);
             } else if (encounteredStats.get() == false) {
                 if (plan instanceof Aggregate) {
                     encounteredStats.set(true);
                 } else if (SWAPPABLE_COMMANDS.contains(plan.getClass()) == false && FILTER_COMMANDS.contains(plan.getClass()) == false) {
-                    throw new InvalidArgumentException(
-                        "query with [" + plan.nodeName().toUpperCase(Locale.ROOT) + "] before [STATS] command cannot be approximated"
+                    throw new VerificationException(
+                        List.of(Failure.fail(plan, "query with [" + plan.sourceText() + "] before [STATS] cannot be approximated"))
                     );
                 } else if (FILTER_COMMANDS.contains(plan.getClass())) {
                     hasFilters.set(true);
@@ -178,7 +177,7 @@ public class Approximate {
                     Source.EMPTY,
                     plan,
                     List.of(),
-                    List.of(new Alias(Source.EMPTY, "approximate-count", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*"))))
+                    List.of(new Alias(Source.EMPTY, ".approximate-count", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*"))))
                 );
             } else {
                 plan = plan.children().getFirst();
@@ -227,7 +226,7 @@ public class Approximate {
                         Source.EMPTY,
                         sample,
                         List.of(),
-                        List.of(new Alias(Source.EMPTY, "approximate-count", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*"))))
+                        List.of(new Alias(Source.EMPTY, ".approximate-count", new Count(Source.EMPTY, Literal.keyword(Source.EMPTY, "*"))))
                     );
                 }
             } else {

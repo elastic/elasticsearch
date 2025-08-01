@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 
 import java.util.ArrayList;
@@ -28,6 +29,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -1125,6 +1128,74 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
         assignment = result.getDeploymentAssignment(modelId);
         assertThat(assignment.getReason().isPresent(), is(false));
+    }
+
+    public void testCopyAssignments() {
+        // Create test nodes
+        AssignmentPlan.Node node1 = new AssignmentPlan.Node("node-1", ByteSizeValue.ofGb(1).getBytes(), 4);
+        AssignmentPlan.Node node2 = new AssignmentPlan.Node("node-2", ByteSizeValue.ofGb(1).getBytes(), 8);
+        List<AssignmentPlan.Node> nodes = List.of(node1, node2);
+
+        // Create test deployments
+        AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment(
+            "deployment-1",
+            "model-1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            2,
+            1,
+            Map.of(),
+            0,
+            null,
+            Priority.NORMAL,
+            0,
+            0
+        );
+        AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment(
+            "deployment-2",
+            "model-2",
+            ByteSizeValue.ofMb(100).getBytes(),
+            1,
+            2,
+            Map.of(),
+            0,
+            null,
+            Priority.LOW,
+            0,
+            0
+        );
+        List<AssignmentPlan.Deployment> deployments = List.of(deployment1, deployment2);
+
+        // Create source plan and assign models to nodes
+        AssignmentPlan.Builder sourceBuilder = AssignmentPlan.builder(nodes, deployments);
+        sourceBuilder.assignModelToNode(deployment1, node1, 1);
+        sourceBuilder.assignModelToNode(deployment1, node2, 1);
+        sourceBuilder.assignModelToNode(deployment2, node2, 1);
+        AssignmentPlan source = sourceBuilder.build();
+
+        // Create destination plan
+        AssignmentPlan.Builder dest = AssignmentPlan.builder(nodes, deployments);
+
+        // Create map of node IDs to original nodes
+        Map<String, AssignmentPlan.Node> originalNodeById = nodes.stream()
+            .collect(Collectors.toMap(AssignmentPlan.Node::id, Function.identity()));
+
+        // Call copyAssignments
+        TrainedModelAssignmentRebalancer.copyAssignments(source, dest, originalNodeById);
+
+        // Build the destination plan
+        AssignmentPlan result = dest.build();
+
+        // Verify assignments
+        Optional<Map<AssignmentPlan.Node, Integer>> deployment1Assignments = result.assignments(deployment1);
+        assertThat(deployment1Assignments.isPresent(), is(true));
+        assertThat(deployment1Assignments.get().size(), equalTo(2));
+        assertThat(deployment1Assignments.get().get(node1), equalTo(1));
+        assertThat(deployment1Assignments.get().get(node2), equalTo(1));
+
+        Optional<Map<AssignmentPlan.Node, Integer>> deployment2Assignments = result.assignments(deployment2);
+        assertThat(deployment2Assignments.isPresent(), is(true));
+        assertThat(deployment2Assignments.get().size(), equalTo(1));
+        assertThat(deployment2Assignments.get().get(node2), equalTo(1));
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams lowPriorityParams(String deploymentId, long modelSize) {

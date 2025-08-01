@@ -42,7 +42,7 @@ public class QueryGenerator {
         return leafQueries.stream().map(q -> wrapInNestedQuery(path, q)).toList();
     }
 
-    private QueryBuilder wrapInNestedQuery(String path, QueryBuilder leafQuery) {
+    public QueryBuilder wrapInNestedQuery(String path, QueryBuilder leafQuery) {
         String[] parts = path.split("\\.");
         List<String> nestedPaths = getNestedPathPrefixes(parts);
         QueryBuilder query = leafQuery;

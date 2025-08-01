@@ -63,6 +63,7 @@ interface FieldSpecificMatcher {
                 put("shape", new ExactMatcher("shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("geo_point", new GeoPointMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("text", new TextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("match_only_text", new MatchOnlyTextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("ip", new IpMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("constant_keyword", new ConstantKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("wildcard", new WildcardMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
@@ -603,6 +604,72 @@ interface FieldSpecificMatcher {
         }
     }
 
+    class MatchOnlyTextMatcher implements FieldSpecificMatcher {
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
+        MatchOnlyTextMatcher (
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            this.actualMappings = actualMappings;
+            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
+            this.expectedSettings = expectedSettings;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            var expectedNormalized = normalize(expected);
+            var actualNormalized = normalize(actual);
+
+            // Match simply as match_only_text first.
+            if (actualNormalized.equals(expectedNormalized)) {
+                return MatchResult.match();
+            }
+//
+            var multiFields = (Map<String, Object>) getMappingParameter("fields", actualMapping, expectedMapping);
+            if (multiFields != null) {
+                var keywordMatcher = new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
+
+                var keywordFieldMapping = (Map<String, Object>) multiFields.get("subfield_keyword");
+                var keywordMatchResult = keywordMatcher.match(actual, expected, keywordFieldMapping, keywordFieldMapping);
+                if (keywordMatchResult.isMatch()) {
+                    return MatchResult.match();
+                }
+            }
+
+            return MatchResult.noMatch(
+                formatErrorMessage(
+                    actualMappings,
+                    actualSettings,
+                    expectedMappings,
+                    expectedSettings,
+                    "Values of type [match_only_text] don't match, " + prettyPrintCollections(actual, expected)
+                )
+            );
+        }
+
+        private Set<Object> normalize(List<Object> values) {
+            if (values == null) {
+                return Set.of();
+            }
+
+            return values.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        }
+    }
+
+
     class TextMatcher implements FieldSpecificMatcher {
         private final XContentBuilder actualMappings;
         private final Settings.Builder actualSettings;
@@ -643,7 +710,7 @@ interface FieldSpecificMatcher {
             if (multiFields != null) {
                 var keywordMatcher = new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
 
-                var keywordFieldMapping = (Map<String, Object>) multiFields.get("kwd");
+                var keywordFieldMapping = (Map<String, Object>) multiFields.get("subfield_keyword");
                 var keywordMatchResult = keywordMatcher.match(actual, expected, keywordFieldMapping, keywordFieldMapping);
                 if (keywordMatchResult.isMatch()) {
                     return MatchResult.match();

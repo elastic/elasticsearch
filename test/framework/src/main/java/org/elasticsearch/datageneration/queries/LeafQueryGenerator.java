@@ -38,7 +38,7 @@ public interface LeafQueryGenerator {
 
         return switch (fieldType) {
             case KEYWORD -> new KeywordQueryGenerator();
-            case TEXT -> new TextQueryGenerator();
+            case TEXT, MATCH_ONLY_TEXT -> new TextQueryGenerator();
             case WILDCARD -> new WildcardQueryGenerator();
             default -> noQueries;
         };
@@ -53,7 +53,10 @@ public interface LeafQueryGenerator {
                     return List.of();
                 }
             }
-            return List.of(QueryBuilders.termQuery(path, value));
+            return List.of(
+                QueryBuilders.termQuery(path, value),
+                QueryBuilders.matchQuery(path, value)
+            );
         }
     }
 

@@ -71,6 +71,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
         dataGenerationHelper.writeStandardMapping(builder);
+        int x = 5;
     }
 
     @Override
@@ -143,6 +144,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
     }
 
+    @SuppressWarnings("unchecked")
     public void testRandomQueries() throws IOException {
         int numberOfDocuments = ESTestCase.randomIntBetween(10, 50);
         final List<XContentBuilder> documents = generateDocuments(numberOfDocuments);

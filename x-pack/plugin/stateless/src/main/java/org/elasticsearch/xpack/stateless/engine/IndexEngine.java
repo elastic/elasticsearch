@@ -89,7 +89,6 @@ import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
-import static org.elasticsearch.index.engine.Engine.FlushResult.NO_FLUSH;
 
 /**
  * {@link Engine} implementation for index shards
@@ -377,7 +376,7 @@ public class IndexEngine extends InternalEngine {
      */
     protected void flushHollow(ActionListener<FlushResult> listener) {
         if (isLastCommitHollow()) {
-            listener.onResponse(NO_FLUSH);
+            listener.onResponse(FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
         } else {
             long maxSeqNo = getMaxSeqNo();
             assert hollowMaxSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO || hollowMaxSeqNo == maxSeqNo

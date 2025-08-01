@@ -539,6 +539,15 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
   method: testTooManyByAndOverFields
   issue: https://github.com/elastic/elasticsearch/issues/132310
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/132335
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedIntoStoredSourceChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/132336
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testTermsQuery
+  issue: https://github.com/elastic/elasticsearch/issues/132337
 
 # Examples:
 #

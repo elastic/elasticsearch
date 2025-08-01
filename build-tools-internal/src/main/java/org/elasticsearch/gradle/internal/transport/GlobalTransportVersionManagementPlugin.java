@@ -13,6 +13,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
@@ -42,7 +43,10 @@ public class GlobalTransportVersionManagementPlugin implements Plugin<Project> {
             .register("validateTransportVersionDefinitions", ValidateTransportVersionDefinitionsTask.class, t -> {
                 t.setGroup("Transport Versions");
                 t.setDescription("Validates that all defined TransportVersion constants are used in at least one project");
-                t.getDefinitionsDirectory().set(TransportVersionUtils.getDefinitionsDirectory(project));
+                Directory definitionsDir = TransportVersionUtils.getDefinitionsDirectory(project);
+                if (definitionsDir.getAsFile().exists()) {
+                    t.getDefinitionsDirectory().set(definitionsDir);
+                }
                 t.getReferencesFiles().setFrom(tvReferencesConfig);
             });
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(validateTask));

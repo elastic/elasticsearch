@@ -325,8 +325,8 @@ public final class SpatialExtentCartesianPointSourceValuesGroupingAggregatorFunc
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SpatialExtentCartesianPointSourceValuesAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialExtentCartesianPointSourceValuesAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

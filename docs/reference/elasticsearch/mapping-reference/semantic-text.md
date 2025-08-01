@@ -37,6 +37,14 @@ the embedding generation, indexing, and query to use.
 [quantized](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-quantization)
 to `bbq_hnsw` automatically.
 
+## Default and custom endpoints
+
+You can use either preconfigured endpoints in your `semantic_text` fields which
+are ideal for most use cases or create custom endpoints and reference them in
+the field mappings.
+
+### Using the default ELSER endpoint
+
 If you use the preconfigured `.elser-2-elasticsearch` endpoint, you can set up
 `semantic_text` with the following API request:
 
@@ -52,6 +60,8 @@ PUT my-index-000001
   }
 }
 ```
+
+### Using a custom endpoint
 
 To use a custom {{infer}} endpoint instead of the default
 `.elser-2-elasticsearch`, you
@@ -96,6 +106,35 @@ PUT my-index-000003
 }
 ```
 
+### Using ELSER on EIS
+
+```{applies_to}
+stack: preview 9.1
+serverless: preview
+```
+
+If you use the preconfigured `.elser-2-elastic` endpoint that utilizes the ELSER model as a service through the Elastic Inference Service ([ELSER on EIS](docs-content://explore-analyze/elastic-inference/eis.md#elser-on-eis)), you can
+set up `semantic_text` with the following API request:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "inference_field": {
+        "type": "semantic_text",
+        "inference_id": ".elser-2-elastic"
+      }
+    }
+  }
+}
+```
+
+::::{note}
+While we do encourage experimentation, we do not recommend implementing production use cases on top of this feature while it is in Technical Preview.
+
+::::
+
 ## Parameters for `semantic_text` fields [semantic-text-params]
 
 `inference_id`
@@ -117,9 +156,11 @@ to create the endpoint. If not specified, the {{infer}} endpoint defined by
 
 `index_options` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Specifies the index options to override default values
-for the field. Currently, `dense_vector` index options are supported.
-For text embeddings, `index_options` may match any allowed
-[dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
+for the field. Currently, `dense_vector` and `sparse_vector` index options are supported.
+For text embeddings, `index_options` may match any allowed.
+
+* [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
+* [sparse_vector index options](/reference/elasticsearch/mapping-reference/sparse-vector.md#sparse-vectors-params). {applies_to}`stack: ga 9.2`
 
 `chunking_settings` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Settings for chunking text into smaller passages.
@@ -371,7 +412,7 @@ stack: ga 9.0
 In case you want to customize data indexing, use the
 [`sparse_vector`](/reference/elasticsearch/mapping-reference/sparse-vector.md)
 or [`dense_vector`](/reference/elasticsearch/mapping-reference/dense-vector.md)
-field types and create an ingest pipeline with an 
+field types and create an ingest pipeline with an
 [{{infer}} processor](/reference/enrich-processor/inference-processor.md) to
 generate the embeddings.
 [This tutorial](docs-content://solutions/search/semantic-search/semantic-search-inference.md)

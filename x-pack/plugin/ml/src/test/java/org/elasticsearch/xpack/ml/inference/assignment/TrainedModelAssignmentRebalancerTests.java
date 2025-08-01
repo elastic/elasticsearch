@@ -1164,7 +1164,6 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
 
         // Create test deployments
         AssignmentPlan.Deployment deployment1 = new AssignmentPlan.Deployment(
-            "deployment-1",
             "model-1",
             ByteSizeValue.ofMb(100).getBytes(),
             2,
@@ -1177,7 +1176,7 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
             0
         );
         AssignmentPlan.Deployment deployment2 = new AssignmentPlan.Deployment(
-            "deployment-2",
+
             "model-2",
             ByteSizeValue.ofMb(100).getBytes(),
             1,

@@ -43,10 +43,11 @@ public class NodeUsageStatsForThreadPoolsCollector {
         ClusterState clusterState,
         ActionListener<Map<String, NodeUsageStatsForThreadPools>> listener
     ) {
+        var dataNodeIds = clusterState.nodes().getDataNodes().values().stream().map(node -> node.getId()).toArray(String[]::new);
         if (clusterState.getMinTransportVersion().onOrAfter(TransportVersions.TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION)) {
             client.execute(
                 TransportNodeUsageStatsForThreadPoolsAction.TYPE,
-                new NodeUsageStatsForThreadPoolsAction.Request(),
+                new NodeUsageStatsForThreadPoolsAction.Request(dataNodeIds),
                 listener.map(response -> response.getAllNodeUsageStatsForThreadPools())
             );
         } else {

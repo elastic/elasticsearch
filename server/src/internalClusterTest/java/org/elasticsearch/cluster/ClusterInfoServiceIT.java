@@ -388,7 +388,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         final Map<String, NodeUsageStatsForThreadPools> usageStatsForThreadPools = clusterInfo.getNodeUsageStatsForThreadPools();
         logger.info("---> Thread pool usage stats reported by data nodes to the master: " + usageStatsForThreadPools);
-        assertThat(usageStatsForThreadPools.size(), equalTo(2)); // master and data node
+        assertThat(usageStatsForThreadPools.size(), equalTo(1)); // only stats from data nodes should be collectedg
         var dataNodeId = getNodeId(dataNodeName);
         var nodeUsageStatsForThreadPool = usageStatsForThreadPools.get(dataNodeId);
         assertNotNull(nodeUsageStatsForThreadPool);

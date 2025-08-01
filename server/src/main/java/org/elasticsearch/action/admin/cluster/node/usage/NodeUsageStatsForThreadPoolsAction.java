@@ -33,9 +33,12 @@ public class NodeUsageStatsForThreadPoolsAction {
      * The sender request type that will be resolved to send individual {@link NodeRequest} requests to every node in the cluster.
      */
     public static class Request extends BaseNodesRequest {
-        public Request() {
-            // Send all nodes a request by specifying null.
-            super((String[]) null);
+        /**
+         * @param nodeIds The list of nodes to which to send individual requests and collect responses from. If the list is null, all nodes
+         *                in the cluster will be sent a request.
+         */
+        public Request(String[] nodeIds) {
+            super(nodeIds);
         }
     }
 

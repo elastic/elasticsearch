@@ -187,12 +187,12 @@ public class ZoneAwareAssignmentPlanner {
         List<AssignmentPlan.Deployment> planDeployments
     ) {
         final Map<String, AssignmentPlan.Deployment> originalDeploymentsById = deployments.stream()
-            .collect(Collectors.toMap(AssignmentPlan.Deployment::deploymentId, Function.identity()));
+            .collect(Collectors.toMap(AssignmentPlan.Deployment::id, Function.identity()));
         final Map<String, Node> originalNodeById = allNodes.stream().collect(Collectors.toMap(Node::id, Function.identity()));
         AssignmentPlan.Builder finalPlanBuilder = AssignmentPlan.builder(allNodes, deployments);
 
         for (AssignmentPlan.Deployment planDeployment : planDeployments) {
-            AssignmentPlan.Deployment originalDeployment = originalDeploymentsById.get(planDeployment.deploymentId());
+            AssignmentPlan.Deployment originalDeployment = originalDeploymentsById.get(planDeployment.id());
             Map<Node, Integer> nodeAssignments = plan.assignments(planDeployment).orElse(Map.of());
             for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());

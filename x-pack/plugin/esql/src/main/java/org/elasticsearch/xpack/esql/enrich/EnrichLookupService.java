@@ -25,6 +25,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -110,14 +111,14 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     @Override
-    protected QueryList queryList(
+    protected LookupEnrichQueryGenerator queryList(
         TransportRequest request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
         Block inputBlock,
-        @Nullable DataType inputDataType,
         Warnings warnings
     ) {
+        DataType inputDataType = request.inputDataType;
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(inputDataType, fieldType);
         return switch (request.matchType) {
@@ -190,6 +191,11 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
         private final String matchType;
         private final String matchField;
+        /**
+         * For mixed clusters with nodes &lt;8.14, this will be null.
+         */
+        @Nullable
+        final DataType inputDataType;
 
         TransportRequest(
             String sessionId,
@@ -202,9 +208,10 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             List<NamedExpression> extractFields,
             Source source
         ) {
-            super(sessionId, shardId, shardId.getIndexName(), inputDataType, inputPage, toRelease, extractFields, source);
+            super(sessionId, shardId, shardId.getIndexName(), inputPage, toRelease, extractFields, source);
             this.matchType = matchType;
             this.matchField = matchField;
+            this.inputDataType = inputDataType;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
@@ -261,7 +268,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
         @Override
         protected String extraDescription() {
-            return " ,match_type=" + matchType + " ,match_field=" + matchField;
+            return " ,input_type=" + inputDataType + " ,match_type=" + matchType + " ,match_field=" + matchField;
         }
     }
 

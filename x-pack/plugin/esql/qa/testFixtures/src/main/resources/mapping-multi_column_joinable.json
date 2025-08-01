@@ -1,0 +1,22 @@
+{
+  "properties": {
+    "id_int": {
+      "type": "integer"
+    },
+    "name_str": {
+      "type": "keyword"
+    },
+    "is_active_bool": {
+      "type": "boolean"
+    },
+    "ip_addr": {
+      "type": "ip"
+    },
+    "extra1": {
+      "type": "keyword"
+    },
+    "extra2": {
+      "type": "integer"
+    }
+  }
+}

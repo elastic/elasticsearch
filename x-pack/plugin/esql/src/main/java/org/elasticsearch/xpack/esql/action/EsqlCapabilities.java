@@ -1313,6 +1313,10 @@ public class EsqlCapabilities {
         FIXED_PROFILE_SERIALIZATION,
 
         /**
+         * Support for lookup join on multiple fields.
+         */
+        LOOKUP_JOIN_ON_MULTIPLE_FIELDS,
+        /**
          * Dot product vector similarity function
          */
         DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION(Build.current().isSnapshot()),

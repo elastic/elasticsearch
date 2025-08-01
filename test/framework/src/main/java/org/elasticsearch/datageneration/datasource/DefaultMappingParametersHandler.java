@@ -98,14 +98,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 }
             }
 
-            if (ESTestCase.randomDouble() <= 0.5) {
-                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 30));
+            if (ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
-            if (hasParent == false && ESTestCase.randomDouble() <= 0.5) {
-                mapping.put("fields", stringSubField(FieldType.KEYWORD, request));
+            if (hasParent == false && ESTestCase.randomDouble() <= 0.3) {
+                mapping.put("fields", stringSubField(request));
             }
 
             return mapping;
@@ -208,8 +208,8 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             mapping.put("store", ESTestCase.randomBoolean());
             mapping.put("index", ESTestCase.randomBoolean());
 
-            if (hasParent == false && ESTestCase.randomDouble() <= 0.5) {
-                mapping.put("fields", stringSubField(FieldType.TEXT, request));
+            if (hasParent == false && ESTestCase.randomDouble() <= 0.3) {
+                mapping.put("fields", stringSubField(request));
             }
 
             return mapping;
@@ -248,14 +248,14 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
-            if (ESTestCase.randomDouble() <= 0.3) {
-                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+            if (ESTestCase.randomDouble() <= 0.2) {
+                mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
-            if (hasParent == false && ESTestCase.randomDouble() <= 0.5) {
-                mapping.put("fields", stringSubField(FieldType.WILDCARD, request));
+            if (hasParent == false && ESTestCase.randomDouble() <= 0.3) {
+                mapping.put("fields", stringSubField(request));
             }
 
             return mapping;
@@ -268,15 +268,15 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     ) {
         return () -> {
             var mapping = new HashMap<String, Object>();
-            if (hasParent == false && ESTestCase.randomDouble() <= 0.5) {
-                mapping.put("fields", stringSubField(FieldType.MATCH_ONLY_TEXT, request));
+            if (hasParent == false && ESTestCase.randomDouble() <= 0.3) {
+                mapping.put("fields", stringSubField(request));
             }
             return mapping;
         };
     }
 
-    private Map<String, Object> stringSubField(FieldType parent, DataSourceRequest.LeafMappingParametersGenerator request) {
-
+    private Map<String, Object> stringSubField(DataSourceRequest.LeafMappingParametersGenerator request) {
+        FieldType parent = FieldType.tryParse(request.fieldType());
         List<FieldType> stringTypes = List.of(FieldType.TEXT, FieldType.MATCH_ONLY_TEXT, FieldType.KEYWORD, FieldType.WILDCARD);
         var childType = ESTestCase.randomValueOtherThan(parent, () -> ESTestCase.randomFrom(stringTypes));
         var child = switch (childType) {

@@ -485,9 +485,6 @@ tests:
 - class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
   method: testTimeoutSetting
   issue: https://github.com/elastic/elasticsearch/issues/131656
-- class: org.elasticsearch.xpack.stack.StackYamlIT
-  method: test {yaml=stack/10_basic/Test wrong data_stream type - logs from 9.2.0}
-  issue: https://github.com/elastic/elasticsearch/issues/131803
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
@@ -539,49 +536,15 @@ tests:
 - class: org.elasticsearch.common.logging.JULBridgeTests
   method: testThrowable
   issue: https://github.com/elastic/elasticsearch/issues/132280
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
-  method: testDenseVectorMappingUpdate {initialType=flat updateType=int4_hnsw}
-  issue: https://github.com/elastic/elasticsearch/issues/132149
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
-  method: testDenseVectorMappingUpdate {initialType=int4_flat updateType=hnsw}
-  issue: https://github.com/elastic/elasticsearch/issues/132150
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
-  method: testDenseVectorMappingUpdate {initialType=int8_flat updateType=bbq_flat}
-  issue: https://github.com/elastic/elasticsearch/issues/132151
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
-  method: "testDenseVectorMappingUpdate {initialType=bbq_hnsw updateType=bbq_disk #2}"
-  issue: https://github.com/elastic/elasticsearch/issues/132152
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
-  method: testDenseVectorMappingUpdate {initialType=hnsw updateType=int8_hnsw}
-  issue: https://github.com/elastic/elasticsearch/issues/132164
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldIndexTypeUpdateIT
-  method: testDenseVectorMappingUpdate {initialType=int4_hnsw updateType=bbq_disk}
-  issue: https://github.com/elastic/elasticsearch/issues/132165
-- class: org.elasticsearch.*YamlTestSuiteIT
-  methods:
-    - test {yaml=search.vectors/130_knn_query_nested_search/*}
-    - test {p0=search.vectors/130_knn_query_nested_search/*}
-  issue: https://github.com/elastic/elasticsearch/issues/131749
-- class: org.elasticsearch.*YamlTestSuiteIT
-  methods:
-    - test {yaml=search.vectors/100_knn_nested_search/*}
-    - test {p0=search.vectors/100_knn_nested_search/*}
-  issue: https://github.com/elastic/elasticsearch/issues/131749
-- class: org.elasticsearch.*YamlTestSuiteIT
-  methods:
-    - test {yaml=search.vectors/101_knn_nested_search_bits/*}
-    - test {p0=search.vectors/101_knn_nested_search_bits/*}
-- class: org.elasticsearch.*YamlTestSuiteIT
-  methods:
-    - test {yaml=search.vectors/135_knn_query_nested_search_ivf/*}
-    - test {p0=search.vectors/135_knn_query_nested_search_ivf/*}
-  issue: https://github.com/elastic/elasticsearch/issues/131749
-- class: org.elasticsearch.search.nested.VectorNestedIT
-  method: testNestedKNnnSearchWithMultipleSegments
-  issue: https://github.com/elastic/elasticsearch/issues/131749
-- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
-  method: testSemanticTextOperations*
-  issue: https://github.com/elastic/elasticsearch/issues/131749    
+- class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
+  method: test {p0=data_stream/10_basic/Create hidden data stream with match all template}
+  issue: https://github.com/elastic/elasticsearch/issues/132298
+- class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
+  method: testManyDistinctOverFields
+  issue: https://github.com/elastic/elasticsearch/issues/132308
+- class: org.elasticsearch.xpack.ml.integration.AutodetectMemoryLimitIT
+  method: testTooManyByAndOverFields
+  issue: https://github.com/elastic/elasticsearch/issues/132310
 
 # Examples:
 #
@@ -620,3 +583,29 @@ tests:
 #  - class: "org.elasticsearch.xpack.esql.**"
 #    method: "test {union_types.MultiIndexIpStringStatsInline *}"
 #    issue: "https://github.com/elastic/elasticsearch/..."
+
+- class: org.elasticsearch.*YamlTestSuiteIT
+  methods:
+    - test {yaml=search.vectors/130_knn_query_nested_search/*}
+    - test {p0=search.vectors/130_knn_query_nested_search/*}
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.*YamlTestSuiteIT
+  methods:
+    - test {yaml=search.vectors/100_knn_nested_search/*}
+    - test {p0=search.vectors/100_knn_nested_search/*}
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.*YamlTestSuiteIT
+  methods:
+    - test {yaml=search.vectors/101_knn_nested_search_bits/*}
+    - test {p0=search.vectors/101_knn_nested_search_bits/*}
+- class: org.elasticsearch.*YamlTestSuiteIT
+  methods:
+    - test {yaml=search.vectors/135_knn_query_nested_search_ivf/*}
+    - test {p0=search.vectors/135_knn_query_nested_search_ivf/*}
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.search.nested.VectorNestedIT
+  method: testNestedKNnnSearchWithMultipleSegments
+  issue: https://github.com/elastic/elasticsearch/issues/131749
+- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
+  method: testSemanticTextOperations*
+  issue: https://github.com/elastic/elasticsearch/issues/131749

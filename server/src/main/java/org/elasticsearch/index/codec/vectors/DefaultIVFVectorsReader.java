@@ -18,8 +18,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.NeighborQueue;
-import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
@@ -60,14 +60,14 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
             targetQueryCopy,
             scratch,
-            (byte) 4,
+            (byte) 7,
             fieldEntry.globalCentroid()
         );
         final byte[] quantized = new byte[targetQuery.length];
         for (int i = 0; i < quantized.length; i++) {
             quantized[i] = (byte) scratch[i];
         }
-        final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
+        final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
         centroids.seek(0L);
         int numParents = centroids.readVInt();
         if (numParents > 0) {
@@ -89,7 +89,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         FieldInfo fieldInfo,
         IndexInput centroids,
         int numCentroids,
-        ES91Int4VectorsScorer scorer,
+        ES92Int7VectorsScorer scorer,
         byte[] quantizeQuery,
         OptimizedScalarQuantizer.QuantizationResult queryParams,
         float globalCentroidDp
@@ -104,7 +104,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             queryParams,
             globalCentroidDp,
             fieldInfo.getVectorSimilarityFunction(),
-            new float[ES91Int4VectorsScorer.BULK_SIZE]
+            new float[ES92Int7VectorsScorer.BULK_SIZE]
         );
         long offset = centroids.getFilePointer();
         return new CentroidIterator() {
@@ -127,7 +127,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         IndexInput centroids,
         int numParents,
         int numCentroids,
-        ES91Int4VectorsScorer scorer,
+        ES92Int7VectorsScorer scorer,
         byte[] quantizeQuery,
         OptimizedScalarQuantizer.QuantizationResult queryParams,
         float globalCentroidDp
@@ -139,7 +139,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         final int bufferSize = (int) Math.max(numCentroids * CENTROID_SAMPLING_PERCENTAGE, 1);
         final NeighborQueue neighborQueue = new NeighborQueue(bufferSize, true);
         // score the parents
-        final float[] scores = new float[ES91Int4VectorsScorer.BULK_SIZE];
+        final float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];
         score(
             parentsQueue,
             numParents,
@@ -151,7 +151,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             fieldInfo.getVectorSimilarityFunction(),
             scores
         );
-        final long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Short.BYTES;
+        final long centroidQuantizeSize = fieldInfo.getVectorDimension() + 3 * Float.BYTES + Integer.BYTES;
         final long offset = centroids.getFilePointer();
         final long childrenOffset = offset + (long) Long.BYTES * numParents;
         // populate the children's queue by reading parents one by one
@@ -226,7 +226,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         long childrenOffset,
         long centroidQuantizeSize,
         FieldInfo fieldInfo,
-        ES91Int4VectorsScorer scorer,
+        ES92Int7VectorsScorer scorer,
         byte[] quantizeQuery,
         OptimizedScalarQuantizer.QuantizationResult queryParams,
         float globalCentroidDp,
@@ -253,16 +253,16 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
         NeighborQueue neighborQueue,
         int size,
         int scoresOffset,
-        ES91Int4VectorsScorer scorer,
+        ES92Int7VectorsScorer scorer,
         byte[] quantizeQuery,
         OptimizedScalarQuantizer.QuantizationResult queryCorrections,
         float centroidDp,
         VectorSimilarityFunction similarityFunction,
         float[] scores
     ) throws IOException {
-        int limit = size - ES91Int4VectorsScorer.BULK_SIZE + 1;
+        int limit = size - ES92Int7VectorsScorer.BULK_SIZE + 1;
         int i = 0;
-        for (; i < limit; i += ES91Int4VectorsScorer.BULK_SIZE) {
+        for (; i < limit; i += ES92Int7VectorsScorer.BULK_SIZE) {
             scorer.scoreBulk(
                 quantizeQuery,
                 queryCorrections.lowerInterval(),
@@ -273,7 +273,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
                 centroidDp,
                 scores
             );
-            for (int j = 0; j < ES91Int4VectorsScorer.BULK_SIZE; j++) {
+            for (int j = 0; j < ES92Int7VectorsScorer.BULK_SIZE; j++) {
                 neighborQueue.add(scoresOffset + i + j, scores[j]);
             }
         }

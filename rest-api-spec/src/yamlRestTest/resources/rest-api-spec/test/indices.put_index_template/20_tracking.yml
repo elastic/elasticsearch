@@ -71,7 +71,6 @@ setup:
 "Test update preserves created_date but updates modified_date":
   - do:
       indices.put_index_template:
-        human: true
         name: test_tracking
         body:
           index_patterns: ["test-*"]

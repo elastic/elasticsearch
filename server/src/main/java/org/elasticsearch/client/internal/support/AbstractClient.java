@@ -97,7 +97,7 @@ public abstract class AbstractClient implements Client {
     private final ThreadPool threadPool;
     private final ProjectResolver projectResolver;
     private final AdminClient admin;
-    private final ProjectClient defaultProjectClient;
+    private ProjectClient defaultProjectClient;
 
     @SuppressWarnings("this-escape")
     public AbstractClient(Settings settings, ThreadPool threadPool, ProjectResolver projectResolver) {
@@ -106,10 +106,6 @@ public abstract class AbstractClient implements Client {
         this.projectResolver = projectResolver;
         this.admin = new AdminClient(this);
         this.logger = LogManager.getLogger(this.getClass());
-        // We construct a dedicated project client for the default project if we're in single project mode, to avoid reconstructing it.
-        this.defaultProjectClient = projectResolver.supportsMultipleProjects() == false
-            ? new ProjectClientImpl(this, ProjectId.DEFAULT)
-            : null;
     }
 
     @Override
@@ -427,6 +423,9 @@ public abstract class AbstractClient implements Client {
         // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
         // take care of error handling.
         if (projectResolver.supportsMultipleProjects() == false && projectId.equals(projectResolver.getProjectId())) {
+            if (defaultProjectClient == null) {
+                defaultProjectClient = new ProjectClientImpl(this, ProjectId.DEFAULT);
+            }
             return defaultProjectClient;
         }
         return new ProjectClientImpl(this, projectId);

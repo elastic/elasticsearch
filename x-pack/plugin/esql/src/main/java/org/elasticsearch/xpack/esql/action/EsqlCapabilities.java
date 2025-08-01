@@ -1509,9 +1509,12 @@ public class EsqlCapabilities {
         /**
          * Pack dimension values in TS command
          */
-        PACK_DIMENSIONS_IN_TS
+        PACK_DIMENSIONS_IN_TS,
 
-        ;
+        /**
+         * Support query approximation.
+         */
+        APPROXIMATE;
 
         private final boolean enabled;
 

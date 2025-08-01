@@ -814,6 +814,17 @@ public class ClusterStateTests extends ESTestCase {
                           "project.setting": "42",
                           "project.setting2": "43"
                         },
+                        "reserved_state": {
+                          "file_settings": {
+                            "handlers": {
+                              "settings": {
+                                "keys": ["project.setting", "project.setting2"]
+                              }
+                            },
+                            "version": 42,
+                            "errors": null
+                          }
+                        },
                         "marked_for_deletion": true
                       }
                     ],
@@ -933,6 +944,11 @@ public class ClusterStateTests extends ESTestCase {
                         projectId1,
                         Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build()
                     )
+                    .putReservedStateMetadata(projectId1, ReservedStateMetadata.builder("file_settings")
+                        .putHandler(new ReservedStateHandlerMetadata("settings",
+                            Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey())))
+                        .version(42L)
+                        .build())
                     .markProjectForDeletion(projectId1)
                     .build()
             )

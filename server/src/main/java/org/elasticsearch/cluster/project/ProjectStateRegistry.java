@@ -29,8 +29,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -365,6 +367,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
     private record Entry(Settings settings, ImmutableOpenMap<String, ReservedStateMetadata> reservedStateMetadata)
         implements
+            ToXContentFragment,
             Writeable,
             Diffable<Entry> {
 
@@ -410,11 +413,18 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             }
         }
 
-        public void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject("settings");
             settings.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
             builder.endObject();
-            ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator());
+
+            builder.startObject("reserved_state");
+            for (ReservedStateMetadata reservedStateMetadata : reservedStateMetadata.values()) {
+                reservedStateMetadata.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
         }
 
         @Override

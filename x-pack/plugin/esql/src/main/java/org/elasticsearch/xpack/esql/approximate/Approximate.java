@@ -199,10 +199,10 @@ public class Approximate {
             logger.debug("sourceCountPlan result: {} rows", rowCount(countResult));
             double sampleProbability = sampleProbability(countResult);
             countResult.pages().getFirst().close();
-            if (hasFilters) {
-                runner.run(countPlan(sampleProbability), countListener(runner, sampleProbability, listener));
-            } else {
+            if (hasFilters == false || sampleProbability == 1.0) {
                 runner.run(approximatePlan(sampleProbability), listener);
+            } else {
+                runner.run(countPlan(sampleProbability), countListener(runner, sampleProbability, listener));
             }
         });
     }

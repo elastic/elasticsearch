@@ -324,6 +324,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     private static class BitsetCacheKey {
+
         final IndexReader.CacheKey index;
         final Query query;
 

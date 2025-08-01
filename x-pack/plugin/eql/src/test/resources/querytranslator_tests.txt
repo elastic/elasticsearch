@@ -132,43 +132,43 @@ process where process_name == "python.exe" or process_name == "SMSS.exe" or proc
 multipleOrAndEquals_As_InTranslation
 process where process_name == "python.exe" and process_name == "SMSS.exe" or process_name == "explorer.exe" or process_name == "test.exe"
 ;
-{"bool":{"should":[{"bool":{"must":[{"term":{"process_name":{"value":"python.exe"}}},{"term":{"process_name":{"value":"SMSS.exe"}}}],"boost":1}},{"terms":{"process_name":["explorer.exe","test.exe"],"boost":1}}],"boost":1}}
+{"bool":{"should":[{"bool":{"must":[{"term":{"process_name":{"value":"python.exe"}}},{"term":{"process_name":{"value":"SMSS.exe"}}}],"boost":1.0}},{"terms":{"process_name":["explorer.exe","test.exe"],"boost":1.0}}],"boost":1.0}}
 ;
 
 mutipleOrEquals_As_InTranslation2
 process where source_address == "123.12.1.1" or (opcode == 123 or opcode == 127)
 ;
-{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"terms":{"opcode":[123,127],"boost":1}}],"boost":1}}
+{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"terms":{"opcode":[123,127],"boost":1.0}}],"boost":1.0}}
 ;
 
 mutipleOrEquals_As_InTranslation3
 process where (source_address == "123.12.1.1" or source_address == "127.0.0.1") and (opcode == 123 or opcode == 127)
 ;
-{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"terms":{"opcode":[123,127],"boost":1}}],"boost":1}}
+{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"term":{"source_address":{"value":"127.0.0.1"}}}],"boost":1.0}},{"terms":{"opcode":[123,127],"boost":1.0}}
 ;
 
 mutipleOrEquals_As_InTranslation4
 process where (source_address == "123.12.1.1" or source_address == "127.0.0.1") and (opcode == 123 or opcode == 127)
 ;
-"must":[{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"term":{"source_address":{"value":"127.0.0.1"}}}],"boost":1}},{"terms":{"opcode":[123,127],"boost":1}},{"term":{"event.category":{"value":"process"}}}]
+"must":[{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"term":{"source_address":{"value":"127.0.0.1"}}}],"boost":1.0}},{"terms":{"opcode":[123,127],"boost":1.0}},{"term":{"event.category":{"value":"process"}}}]
 ;
 
 multipleOrIncompatibleTypes1
 process where process_name == "python.exe" or process_name == 2 or process_name == "3"
 ;
-{"bool":{"should":[{"term":{"process_name":{"value":"python.exe"}}},{"term":{"process_name":{"value":2}}},{"term":{"process_name":{"value":"3"}}}],"boost":1}}
+{"bool":{"should":[{"term":{"process_name":{"value":"python.exe"}}},{"term":{"process_name":{"value":2}}},{"term":{"process_name":{"value":"3"}}}],"boost":1.0}}
 ;
 
 multipleOrIncompatibleTypes2
 process where process_name == "1" or process_name == 2 or process_name == "3"
 ;
-{"bool":{"should":[{"term":{"process_name":{"value":"1"}}},{"term":{"process_name":{"value":2}}},{"term":{"process_name":{"value":"3"}}}],"boost":1}}
+{"bool":{"should":[{"term":{"process_name":{"value":"1"}}},{"term":{"process_name":{"value":2}}},{"term":{"process_name":{"value":"3"}}}],"boost":1.0}}
 ;
 
 multipleOrIncompatibleTypes3
 process where process_name == 1.2 or process_name == 2 or process_name == "3"
 ;
-{"bool":{"should":[{"term":{"process_name":{"value":1.2}}},{"term":{"process_name":{"value":2}}},{"term":{"process_name":{"value":"3"}}}],"boost":1}}
+{"bool":{"should":[{"term":{"process_name":{"value":1.2}}},{"term":{"process_name":{"value":2}}},{"term":{"process_name":{"value":"3"}}}],"boost":1.0}}
 ;
 
 // this query as an equivalent with
@@ -177,7 +177,7 @@ process where process_name == 1.2 or process_name == 2 or process_name == "3"
 multipleOrIncompatibleTypes4
 process where process_name == 1.2 or process_name == 2 or process_name == 3
 ;
-{"bool":{"should":[{"term":{"process_name":{"value":1.2}}},{"term":{"process_name":{"value":2}}},{"term":{"process_name":{"value":3}}}],"boost":1}}
+{"bool":{"should":[{"term":{"process_name":{"value":1.2}}},{"term":{"process_name":{"value":2}}},{"term":{"process_name":{"value":3}}}],"boost":1.0}}
 ;
 
 // this query as an equivalent with
@@ -186,25 +186,25 @@ process where process_name == 1.2 or process_name == 2 or process_name == 3
 multipleOrIncompatibleTypes5
 process where source_address == "123.12.1.1" or source_address == "123.12.1.2"
 ;
-{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"term":{"source_address":{"value":"123.12.1.2"}}}],"boost":1}}
+{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"term":{"source_address":{"value":"123.12.1.2"}}}],"boost":1.0}}
 ;
 
 multipleOrIncompatibleTypes6
 process where source_address == "123.12.1.1" or source_address == concat("123.12.","1.2")
 ;
-{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"term":{"source_address":{"value":"123.12.1.2"}}}],"boost":1}}
+{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"term":{"source_address":{"value":"123.12.1.2"}}}],"boost":1.0}}
 ;
 
 multipleOrIncompatibleTypes7
 process where source_address == "123.12.1.1" and (source_address == "123.12.1.2" or source_address >= "127.0.0.1")
 ;
-"must":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.2"}}},{"range":{"source_address":{"gte":"127.0.0.1","boost":1}}}],"boost":1}},{"term":{"event.category":{"value":"process"}}}]
+"must":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.2"}}},{"range":{"source_address":{"gte":"127.0.0.1","boost":1.0}}}],"boost":1.0}},{"term":{"event.category":{"value":"process"}}}]
 ;
 
 multipleOrIncompatibleTypes8
 process where source_address == "123.12.1.1" and (source_address == "123.12.1.2" or source_address == "127.0.0.1")
 ;
-"must":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.2"}}},{"term":{"source_address":{"value":"127.0.0.1"}}}],"boost":1}},{"term":{"event.category":{"value":"process"}}}]
+"must":[{"term":{"source_address":{"value":"123.12.1.1"}}},{"bool":{"should":[{"term":{"source_address":{"value":"123.12.1.2"}}},{"term":{"source_address":{"value":"127.0.0.1"}}}],"boost":1.0}},{"term":{"event.category":{"value":"process"}}}]
 ;
 
 inFilterWithScripting

@@ -248,6 +248,11 @@ public class SearchEngine extends Engine {
         return commitPrefetcher.getTotalPrefetchedBytes();
     }
 
+    // visible for testing
+    public SearchCommitPrefetcher.BCCPreFetchedOffset getMaxPrefetchedOffset() {
+        return commitPrefetcher.getMaxPrefetchedOffset();
+    }
+
     public Set<PrimaryTermAndGeneration> getAcquiredPrimaryTermAndGenerations() {
         // capture the term/gen used by opened Lucene generational files
         final var termAndGens = new HashSet<>(directory.getAcquiredGenerationalFileTermAndGenerations());

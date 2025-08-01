@@ -205,6 +205,7 @@ public class KnnIndexTester {
                     cmdLineArgs.filterSelectivity()
                 );
             }
+            logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + cmdLineArgs);
             Codec codec = createCodec(cmdLineArgs);
             Path indexPath = PathUtils.get(formatIndexPath(cmdLineArgs));
@@ -382,7 +383,7 @@ public class KnnIndexTester {
 
     static class Results {
         final String indexType, indexName;
-        final int numDocs;
+        int numDocs;
         final float filterSelectivity;
         long indexTimeMS;
         long forceMergeTimeMS;

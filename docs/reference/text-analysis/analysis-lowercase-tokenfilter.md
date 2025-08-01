@@ -33,7 +33,7 @@ The filter produces the following tokens:
 
 ## Add to an analyzer [analysis-lowercase-tokenfilter-analyzer-ex]
 
-The following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses the `lowercase` filter to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md).
+The following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses the `lowercase` filter to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.html).
 
 ```console
 PUT lowercase_example
@@ -58,15 +58,15 @@ PUT lowercase_example
 :   (Optional, string) Language-specific lowercase token filter to use. Valid values include:
 
 `greek`
-:   Uses Lucene’s [GreekLowerCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/el/GreekLowerCaseFilter.md)
+:   Uses Lucene’s [GreekLowerCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/el/GreekLowerCaseFilter.html)
 
 `irish`
-:   Uses Lucene’s [IrishLowerCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ga/IrishLowerCaseFilter.md)
+:   Uses Lucene’s [IrishLowerCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ga/IrishLowerCaseFilter.html)
 
 `turkish`
-:   Uses Lucene’s [TurkishLowerCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/tr/TurkishLowerCaseFilter.md)
+:   Uses Lucene’s [TurkishLowerCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/tr/TurkishLowerCaseFilter.html)
 
-If not specified, defaults to Lucene’s [LowerCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/LowerCaseFilter.md).
+If not specified, defaults to Lucene’s [LowerCaseFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/core/LowerCaseFilter.html).
 
 
 

@@ -25,7 +25,6 @@ import org.elasticsearch.common.ssl.DefaultJdkTrustConfig;
 import org.elasticsearch.common.ssl.EmptyKeyConfig;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;

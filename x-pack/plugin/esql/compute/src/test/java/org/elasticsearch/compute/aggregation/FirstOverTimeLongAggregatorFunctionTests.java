@@ -10,18 +10,17 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
-import java.util.Arrays;
 import java.util.List;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
@@ -44,19 +43,33 @@ public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunction
 
     @Override
     protected String expectedDescriptionOfAggregator() {
-        return "first over time of longs";
+        return "first_over_time of longs";
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
+    public void assertSimpleOutput(List<Page> input, Block result) {
         long v = (Long) BlockUtils.toJavaObject(result, 0);
-        Object[] values = input.stream()
-            .flatMapToLong(AggregatorFunctionTestCase::allLongs)
-            .boxed()
-            .collect(Collectors.toSet())
-            .toArray(Object[]::new);
-        if (false == set.containsAll(Arrays.asList(values))) {
-            assertThat(set, containsInAnyOrder(values));
+        boolean first = true;
+        long expectedTimestamp = 0;
+        long expected = 0;
+        for (Page page : input) {
+            LongVector values = page.<LongBlock>getBlock(0).asVector();
+            LongVector timestamps = page.<LongBlock>getBlock(1).asVector();
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                long timestamp = timestamps.getLong(p);
+                long value = values.getLong(p);
+                if (first) {
+                    first = false;
+                    expectedTimestamp = timestamp;
+                    expected = value;
+                } else if (timestamp < expectedTimestamp) {
+                    expectedTimestamp = timestamp;
+                    expected = value;
+                } else if (timestamp == expectedTimestamp && value < expected) {
+                    expected = value;
+                }
+            }
         }
+        assertThat(v, equalTo(expected));
     }
 }

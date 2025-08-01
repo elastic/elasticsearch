@@ -100,7 +100,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     protected String expectedToStringOfSimpleAggregator() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return type + "[channels=[0]]";
+        return type + "[channels=" + IntStream.range(0, inputCount()).boxed().toList() + "]";
     }
 
     @Override

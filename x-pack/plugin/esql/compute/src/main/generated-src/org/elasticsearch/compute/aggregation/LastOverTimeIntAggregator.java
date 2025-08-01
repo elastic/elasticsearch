@@ -31,15 +31,13 @@ import org.elasticsearch.core.Releasables;
     {
         @IntermediateState(name = "timestamps", type = "LONG"),
         @IntermediateState(name = "values", type = "INT"),
-        @IntermediateState(name = "seen", type = "BOOLEAN")
-    }
+        @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator(
     {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
         @IntermediateState(name = "values", type = "INT_BLOCK"),
-        @IntermediateState(name = "seen", type = "BOOLEAN_BLOCK")
-    }
+        @IntermediateState(name = "seen", type = "BOOLEAN_BLOCK") }
 )
 public class LastOverTimeIntAggregator {
     public static LongIntState initSingle(DriverContext driverContext) {
@@ -54,7 +52,10 @@ public class LastOverTimeIntAggregator {
     }
 
     public static void combineIntermediate(LongIntState current, long timestamp, int value, boolean seen) {
-        combine(current, timestamp, value);
+        if (seen) {
+            current.seen(true);
+            combine(current, timestamp, value);
+        }
     }
 
     public static Block evaluateFinal(LongIntState current, DriverContext ctx) {

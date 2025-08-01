@@ -91,8 +91,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -2255,7 +2253,10 @@ public class ClusterStateTests extends ESTestCase {
 
         // check it deserializes ok
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        ClusterState deserialisedClusterState = ClusterState.readFrom(new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry), null);
+        ClusterState deserialisedClusterState = ClusterState.readFrom(
+            new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry),
+            null
+        );
 
         // check it matches the original object
         Metadata deserializedMetadata = deserialisedClusterState.metadata();
@@ -2271,9 +2272,14 @@ public class ClusterStateTests extends ESTestCase {
             .putCustom(
                 ProjectStateRegistry.TYPE,
                 ProjectStateRegistry.builder()
-                    .putReservedStateMetadata(ProjectId.DEFAULT, ReservedStateMetadata.builder("file_settings").putHandler(
-                        new ReservedStateHandlerMetadata("settings", Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey()))
-                    ).build())
+                    .putReservedStateMetadata(
+                        ProjectId.DEFAULT,
+                        ReservedStateMetadata.builder("file_settings")
+                            .putHandler(
+                                new ReservedStateHandlerMetadata("settings", Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey()))
+                            )
+                            .build()
+                    )
                     .build()
             )
             .build();

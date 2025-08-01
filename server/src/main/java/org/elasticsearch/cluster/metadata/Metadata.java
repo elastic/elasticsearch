@@ -825,7 +825,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         // make order deterministic
-        Iterator<ReservedStateMetadata> reservedStateMetadataIterator = reservedStateMetadata.entrySet().stream()
+        Iterator<ReservedStateMetadata> reservedStateMetadataIterator = reservedStateMetadata.entrySet()
+            .stream()
             .sorted(Map.Entry.comparingByKey())
             .map(Map.Entry::getValue)
             .iterator();

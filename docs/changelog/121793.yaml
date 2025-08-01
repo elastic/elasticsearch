@@ -1,5 +1,0 @@
-pr: 121793
-summary: "ES|QL - Add scoring for full text functions disjunctions"
-area: ES|QL
-type: enhancement
-issues: []

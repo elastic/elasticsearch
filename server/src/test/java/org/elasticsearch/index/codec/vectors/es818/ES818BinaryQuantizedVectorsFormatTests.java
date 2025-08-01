@@ -373,6 +373,7 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
     }
 
     static void checkDirectIOSupported() {
+        assumeTrue("test requires direct IO", ES818BinaryQuantizedVectorsFormat.USE_DIRECT_IO);
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");

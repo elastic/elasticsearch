@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFol
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
-import static org.elasticsearch.xpack.esql.expression.function.FunctionUtils.intValueOf;
+import static org.elasticsearch.xpack.esql.expression.function.Foldables.intValueOf;
 
 public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

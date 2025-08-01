@@ -52,7 +52,7 @@ import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.literalValueOf;
+import static org.elasticsearch.xpack.esql.expression.function.Foldables.literalValueOf;
 
 /**
  * Class for sharing code across Mappers.

@@ -23,8 +23,8 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.evaluator.EvalMapper.toEvaluator;
+import static org.elasticsearch.xpack.esql.expression.function.Foldables.literalValueOf;
 
 public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals> {
 

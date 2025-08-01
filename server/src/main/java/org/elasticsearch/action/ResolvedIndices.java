@@ -61,10 +61,6 @@ public class ResolvedIndices {
         this(remoteClusterIndices, localIndices, localIndexMetadata, null);
     }
 
-    public String toString() {
-        return "ResolvedIndices{" + "local=" + localIndices + ", remote=" + remoteClusterIndices + '}';
-    }
-
     /**
      * Get the remote cluster indices, structured as a map where the key is the remote cluster alias.
      * <br/>

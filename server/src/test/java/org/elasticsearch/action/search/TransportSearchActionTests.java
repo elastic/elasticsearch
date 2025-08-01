@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
@@ -1704,8 +1703,7 @@ public class TransportSearchActionTests extends ESTestCase {
             final SearchShardIterator shardIterator = shardIterators.get(id);
             final SearchContextIdForNode context = contexts.get(shardId);
             if (context.getSearchContextId().getSearcherId() == null) {
-                // TODO fix this broken test
-                // assertThat(shardIterator.getTargetNodeIds(), hasSize(1));
+                assertThat(shardIterator.getTargetNodeIds(), hasSize(1));
             } else {
                 // TODO this branch seems never executed by this test. Needs investigation.
                 final List<String> targetNodes = clusterState.routingTable(project)

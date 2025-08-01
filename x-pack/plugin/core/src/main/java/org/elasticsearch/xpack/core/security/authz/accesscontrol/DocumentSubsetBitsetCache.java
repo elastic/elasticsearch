@@ -23,6 +23,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalNotification;
@@ -141,7 +142,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         this.bitsetCache = CacheBuilder.<BitsetCacheKey, BitSet>builder()
             .setExpireAfterAccess(ttl)
             .setMaximumWeight(maxWeightBytes)
-            .weigher((key, bitSet) -> bitSet == NULL_MARKER ? 0 : bitSet.ramBytesUsed())
+            .weigher((key, bitSet) -> BitsetCacheKey.SHALLOW_SIZE + (bitSet == NULL_MARKER ? 0 : bitSet.ramBytesUsed()))
             .removalListener(this::onCacheEviction)
             .build();
 
@@ -246,7 +247,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
                     // A cache loader is not allowed to return null, return a marker object instead.
                     return NULL_MARKER;
                 }
-                final long bitSetBytes = result.ramBytesUsed();
+                final long bitSetBytes = result.ramBytesUsed(); // note: this ignores the size of the key itself, but that's okay
                 if (bitSetBytes > this.maxWeightBytes) {
                     logger.warn(
                         "built a DLS BitSet that uses [{}] bytes; the DLS BitSet cache has a maximum size of [{}] bytes;"
@@ -323,6 +324,10 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     }
 
     private static final class BitsetCacheKey {
+
+        // the shallow size accounts for the object itself, but it ignores the index and the query.
+        // the index is owned by the associated IndexReader and the query is shared, so they don't count against us here.
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BitsetCacheKey.class);
 
         final IndexReader.CacheKey index;
         final Query query;

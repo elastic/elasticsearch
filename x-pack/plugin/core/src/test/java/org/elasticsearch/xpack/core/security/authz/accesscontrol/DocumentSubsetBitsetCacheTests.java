@@ -77,9 +77,14 @@ import static org.mockito.Mockito.when;
 public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     private static final int FIELD_COUNT = 10;
+    // This comes from the SHALLOW_SIZE of the BitsetCacheKey
+    private static final long EXPECTED_BYTES_PER_BIT_SET_KEY = 24; /* key size */
     // This value is based on the internal implementation details of lucene's FixedBitSet
     // If the implementation changes, this can be safely updated to match the new ram usage for a single bitset
-    private static final long EXPECTED_BYTES_PER_BIT_SET = 56;
+    private static final long EXPECTED_BYTES_PER_BIT_SET = 56; /* non-null value size */
+    // a non-null entry will have the size of the key and the bit set, while a null entry would just be the size of the key
+    private static final long EXPECTED_BYTES_PER_ENTRY = EXPECTED_BYTES_PER_BIT_SET_KEY + EXPECTED_BYTES_PER_BIT_SET;
+
     private ExecutorService singleThreadExecutor;
 
     @Before
@@ -127,7 +132,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 final Query query = QueryBuilders.termQuery("dne-" + i, "dne- " + i).toQuery(searchExecutionContext);
                 final BitSet bitSet = cache.getBitSet(query, leafContext);
                 assertThat(bitSet, nullValue());
-                assertThat(cache.ramBytesUsed(), equalTo(0L));
+                assertThat(cache.ramBytesUsed(), equalTo(EXPECTED_BYTES_PER_BIT_SET_KEY * i));
                 assertThat(cache.entryCount(), equalTo(i));
             }
         });
@@ -135,7 +140,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     public void testCacheRespectsMemoryLimit() throws Exception {
         // Enough to hold exactly 2 bit-sets in the cache
-        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET * 2;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_ENTRY * 2;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -156,24 +161,24 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 // The first time through we have 1 entry, after that we have 2
                 final int expectedCount = i == 1 ? 1 : 2;
                 assertThat(cache.entryCount(), equalTo(expectedCount));
-                assertThat(cache.ramBytesUsed(), equalTo(expectedCount * EXPECTED_BYTES_PER_BIT_SET));
+                assertThat(cache.ramBytesUsed(), equalTo(expectedCount * EXPECTED_BYTES_PER_ENTRY));
 
                 // Older queries should get evicted, but the query from last iteration should still be cached
                 if (previousQuery != null) {
                     assertThat(cache.getBitSet(previousQuery, leafContext), sameInstance(previousBitSet));
                     assertThat(cache.entryCount(), equalTo(expectedCount));
-                    assertThat(cache.ramBytesUsed(), equalTo(expectedCount * EXPECTED_BYTES_PER_BIT_SET));
+                    assertThat(cache.ramBytesUsed(), equalTo(expectedCount * EXPECTED_BYTES_PER_ENTRY));
                 }
                 previousQuery = query;
                 previousBitSet = bitSet;
 
                 assertThat(cache.getBitSet(queryBuilder.toQuery(searchExecutionContext), leafContext), sameInstance(bitSet));
                 assertThat(cache.entryCount(), equalTo(expectedCount));
-                assertThat(cache.ramBytesUsed(), equalTo(expectedCount * EXPECTED_BYTES_PER_BIT_SET));
+                assertThat(cache.ramBytesUsed(), equalTo(expectedCount * EXPECTED_BYTES_PER_ENTRY));
             }
 
             assertThat(cache.entryCount(), equalTo(2));
-            assertThat(cache.ramBytesUsed(), equalTo(2 * EXPECTED_BYTES_PER_BIT_SET));
+            assertThat(cache.ramBytesUsed(), equalTo(2 * EXPECTED_BYTES_PER_ENTRY));
 
             cache.clear("testing");
 
@@ -184,7 +189,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     public void testLogWarningIfBitSetExceedsCacheSize() throws Exception {
         // Enough to hold less than 1 bit-sets in the cache
-        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET - EXPECTED_BYTES_PER_BIT_SET / 3;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET - 1; // n.b. we're ignoring the key size, it's okay
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -221,7 +226,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     public void testLogMessageIfCacheFull() throws Exception {
         // Enough to hold slightly more than 1 bit-sets in the cache
-        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + EXPECTED_BYTES_PER_BIT_SET / 3;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_ENTRY + EXPECTED_BYTES_PER_ENTRY / 3;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -283,7 +288,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     public void testIndexLookupIsClearedWhenBitSetIsEvicted() throws Exception {
         // Enough to hold slightly more than 1 bit-set in the cache
-        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + EXPECTED_BYTES_PER_BIT_SET / 2;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_ENTRY + EXPECTED_BYTES_PER_ENTRY / 2;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -332,7 +337,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
         // Force cache evictions by setting the size to be less than the number of distinct queries we search on.
         final int maxCacheCount = randomIntBetween(FIELD_COUNT / 2, FIELD_COUNT * 3 / 4);
-        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET * maxCacheCount;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_ENTRY * maxCacheCount;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();
@@ -411,7 +416,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     public void testCleanupWorksWhenIndexIsClosing() throws Exception {
         // Enough to hold slightly more than 1 bit-set in the cache
-        final long maxCacheBytes = EXPECTED_BYTES_PER_BIT_SET + EXPECTED_BYTES_PER_BIT_SET / 2;
+        final long maxCacheBytes = EXPECTED_BYTES_PER_ENTRY + EXPECTED_BYTES_PER_ENTRY / 2;
         final Settings settings = Settings.builder()
             .put(DocumentSubsetBitsetCache.CACHE_SIZE_SETTING.getKey(), maxCacheBytes + "b")
             .build();

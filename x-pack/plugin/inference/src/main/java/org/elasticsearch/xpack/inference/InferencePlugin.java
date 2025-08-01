@@ -573,7 +573,7 @@ public class InferencePlugin extends Plugin
             new SemanticKnnVectorQueryRewriteInterceptor(),
             new SemanticMatchQueryRewriteInterceptor(),
             new SemanticSparseVectorQueryRewriteInterceptor(),
-            new SemanticMultiMatchQueryRewriteInterceptor()
+            new SemanticMultiMatchQueryRewriteInterceptor(getModelRegistry())
         );
     }
 

@@ -9,20 +9,36 @@ package org.elasticsearch.xpack.inference.queries;
 
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteInterceptor {
+
+    private static final String SCORE_MISMATCH_WARNING = "multi_match query is targeting a mixture of semantic_text fields with dense "
+        + "and sparse models, or a mixture of semantic_text and non-inference fields. Score ranges will not be comparable.";
+
+    private final Supplier<ModelRegistry> modelRegistrySupplier;
+
+    public SemanticMultiMatchQueryRewriteInterceptor(Supplier<ModelRegistry> modelRegistrySupplier) {
+        this.modelRegistrySupplier = Objects.requireNonNull(modelRegistrySupplier);
+    }
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
@@ -40,12 +56,29 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         Map<String, Float> otherFields = new HashMap<>();
         Collection<IndexMetadata> allIndicesMetadata = resolvedIndices.getConcreteLocalIndicesMetadata().values();
 
+        boolean hasDenseSemanticField = false;
+        boolean hasSparseSemanticField = false;
+
+        ModelRegistry modelRegistry = modelRegistrySupplier.get();
+        if (modelRegistry == null) {
+            // Should not happen in a sane lifecycle, but protect against it
+            return queryBuilder;
+        }
+
         for (Map.Entry<String, Float> fieldEntry : multiMatchBuilder.fields().entrySet()) {
             String fieldName = fieldEntry.getKey();
-            boolean isSemanticInAnyIndex = allIndicesMetadata.stream()
-                .anyMatch(indexMetadata -> indexMetadata.getInferenceFields().containsKey(fieldName));
-            if (isSemanticInAnyIndex) {
+            InferenceFieldMetadata inferenceMetadata = findInferenceMetadata(fieldName, allIndicesMetadata);
+
+            if (inferenceMetadata != null) {
                 semanticFields.put(fieldName, fieldEntry.getValue());
+                MinimalServiceSettings settings = modelRegistry.getMinimalServiceSettings(inferenceMetadata.getSearchInferenceId());
+                if (settings != null) {
+                    if (settings.taskType() == TaskType.TEXT_EMBEDDING) {
+                        hasDenseSemanticField = true;
+                    } else if (settings.taskType() == TaskType.SPARSE_EMBEDDING) {
+                        hasSparseSemanticField = true;
+                    }
+                }
             } else {
                 otherFields.put(fieldName, fieldEntry.getValue());
             }
@@ -53,6 +86,10 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
 
         if (semanticFields.isEmpty()) {
             return queryBuilder;
+        }
+
+        if (hasDenseSemanticField && (hasSparseSemanticField || otherFields.isEmpty() == false)) {
+            HeaderWarning.addWarning(SCORE_MISMATCH_WARNING);
         }
 
         MultiMatchQueryBuilder.Type type = multiMatchBuilder.type();
@@ -97,6 +134,21 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         return rewrittenQuery;
     }
 
+    @Override
+    public String getQueryName() {
+        return MultiMatchQueryBuilder.NAME;
+    }
+
+    private InferenceFieldMetadata findInferenceMetadata(String fieldName, Collection<IndexMetadata> allIndicesMetadata) {
+        for (IndexMetadata indexMetadata : allIndicesMetadata) {
+            InferenceFieldMetadata inferenceMetadata = indexMetadata.getInferenceFields().get(fieldName);
+            if (inferenceMetadata != null) {
+                return inferenceMetadata;
+            }
+        }
+        return null;
+    }
+
     private QueryBuilder createLexicalQuery(MultiMatchQueryBuilder original, Map<String, Float> lexicalFields) {
         MultiMatchQueryBuilder lexicalPart = new MultiMatchQueryBuilder(original.value());
         lexicalPart.fields(lexicalFields);
@@ -139,10 +191,5 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             semanticQuery.boost(fieldEntry.getValue());
         }
         return semanticQuery;
-    }
-
-    @Override
-    public String getQueryName() {
-        return MultiMatchQueryBuilder.NAME;
     }
 }

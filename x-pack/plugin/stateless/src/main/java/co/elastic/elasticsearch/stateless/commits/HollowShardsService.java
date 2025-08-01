@@ -365,7 +365,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     logger.debug("Flushing shard [{}] to produce a blob with a local translog node id", shardId);
                     indexShard.withEngine(engine -> {
                         engine.flush(true, true, ActionListener.wrap(flushResult -> {
-                            assert flushResult.flushPerformed() : "Flush wasn't performed";
+                            assert flushResult.skippedDueToCollision() == false : "Flush was skipped";
                             removeHollowShard(indexShard, "unhollowing gen " + flushResult.generation());
                             metrics.unhollowSuccessCounter().increment();
                             metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);

@@ -69,7 +69,7 @@
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "Pipelines can't re-route documents to child streams, but pipeline [reroute-to-logs-foo] tried to reroute this document from index [bad-index] to index [logs.foo]. Reroute history: bad-index" }
+  - match: { items.0.index.error.reason: "Pipeline [reroute-to-logs-foo] can't change the target index (from [bad-index] to [logs] child stream [logs.foo]) History: [bad-index]" }
 
 ---
 "Check Bulk Index With Script Processor To Substream Is Rejected":
@@ -102,7 +102,7 @@
   - match: { errors: true }
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: "illegal_argument_exception" }
-  - match: { items.0.index.error.reason: "Pipelines can't re-route documents to child streams, but pipeline [script-to-logs-foo] tried to reroute this document from index [bad-index-script] to index [logs.foo]. Reroute history: bad-index-script" }
+  - match: { items.0.index.error.reason: "Pipeline [script-to-logs-foo] can't change the target index (from [bad-index-script] to [logs] child stream [logs.foo]) History: [bad-index-script]" }
 
 ---
 "Check Delete By Query Directly On Substream After Reroute Succeeds":

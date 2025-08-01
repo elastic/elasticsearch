@@ -1247,12 +1247,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     pipelineId,
                                     new IllegalArgumentException(
                                         format(
-                                            "Pipelines can't re-route documents to child streams, but pipeline [%s] tried to reroute "
-                                                + "this document from index [%s] to index [%s]. Reroute history: %s",
+                                            "Pipeline [%s] can't change the target index (from [%s] to [%s] child stream [%s]) "
+                                                + "History: [%s]",
                                             pipelineId,
                                             originalIndex,
+                                            streamType.getStreamName(),
                                             newIndex,
-                                            String.join(" -> ", ingestDocument.getIndexHistory())
+                                            String.join(", ", ingestDocument.getIndexHistory())
                                         )
                                     )
                                 )

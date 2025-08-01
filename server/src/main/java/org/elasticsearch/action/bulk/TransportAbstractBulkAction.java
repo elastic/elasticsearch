@@ -402,10 +402,13 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
         BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(bulkRequest);
 
-        for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
-            for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                DocWriteRequest<?> req = bulkRequestModifier.bulkRequest.requests.get(i);
+        DocWriteRequest<?> req;
+        int i = -1;
+        while (bulkRequestModifier.hasNext()) {
+            req = bulkRequestModifier.next();
+            i++;
 
+            for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
                 if (req instanceof IndexRequest ir && streamType.matchesStreamPrefix(req.index()) && ir.isPipelineResolved() == false) {
                     IllegalArgumentException e = new IllegalArgumentException(
                         "Direct writes to child streams are prohibited. Index directly into the ["
@@ -416,8 +419,9 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
                     if (Boolean.TRUE.equals(failureStoreEnabled)) {
                         bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
                     } else {
-                        bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_ENABLED);
+                        bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
                     }
+                    break;
                 }
             }
         }

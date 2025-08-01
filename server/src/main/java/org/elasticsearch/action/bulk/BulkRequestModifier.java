@@ -114,7 +114,11 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
      * @return a wrapped listener that merges ingest and bulk results, or the original listener if no items were dropped/failed
      */
     ActionListener<BulkResponse> wrapActionListenerIfNeeded(ActionListener<BulkResponse> actionListener) {
-        return doWrapActionListenerIfNeeded(BulkResponse::getIngestTookInMillis, actionListener);
+        if (itemResponses.isEmpty()) {
+            return actionListener;
+        } else {
+            return doWrapActionListenerIfNeeded(BulkResponse::getIngestTookInMillis, actionListener);
+        }
     }
 
     /**
@@ -130,7 +134,18 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
      * @return a wrapped listener that merges ingest and bulk results, or the original listener if no items were dropped/failed
      */
     ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
-        return doWrapActionListenerIfNeeded(ignoredResponse -> ingestTookInMillis, actionListener);
+        if (itemResponses.isEmpty()) {
+            return actionListener.map(
+                response -> new BulkResponse(
+                    response.getItems(),
+                    response.getTookInMillis(),
+                    ingestTookInMillis,
+                    response.getIncrementalState()
+                )
+            );
+        } else {
+            return doWrapActionListenerIfNeeded(ignoredResponse -> ingestTookInMillis, actionListener);
+        }
     }
 
     /**
@@ -146,43 +161,32 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
         Function<BulkResponse, Long> ingestTimeProviderFunction,
         ActionListener<BulkResponse> actionListener
     ) {
-        if (itemResponses.isEmpty()) {
-            return actionListener.map(
-                response -> new BulkResponse(
-                    response.getItems(),
-                    response.getTookInMillis(),
-                    ingestTimeProviderFunction.apply(response),
-                    response.getIncrementalState()
-                )
-            );
-        } else {
-            return actionListener.map(response -> {
-                // these items are the responses from the subsequent bulk request, their 'slots'
-                // are not correct for this response we're building
-                final BulkItemResponse[] bulkResponses = response.getItems();
+        return actionListener.map(response -> {
+            // these items are the responses from the subsequent bulk request, their 'slots'
+            // are not correct for this response we're building
+            final BulkItemResponse[] bulkResponses = response.getItems();
 
-                final BulkItemResponse[] allResponses = new BulkItemResponse[bulkResponses.length + itemResponses.size()];
+            final BulkItemResponse[] allResponses = new BulkItemResponse[bulkResponses.length + itemResponses.size()];
 
-                // the item responses are from the original request, so their slots are correct.
-                // these are the responses for requests that failed early and were not passed on to the subsequent bulk.
-                for (BulkItemResponse item : itemResponses) {
-                    allResponses[item.getItemId()] = item;
-                }
+            // the item responses are from the original request, so their slots are correct.
+            // these are the responses for requests that failed early and were not passed on to the subsequent bulk.
+            for (BulkItemResponse item : itemResponses) {
+                allResponses[item.getItemId()] = item;
+            }
 
-                // use the original slots for the responses from the bulk
-                for (int i = 0; i < bulkResponses.length; i++) {
-                    allResponses[originalSlots.get(i)] = bulkResponses[i];
-                }
+            // use the original slots for the responses from the bulk
+            for (int i = 0; i < bulkResponses.length; i++) {
+                allResponses[originalSlots.get(i)] = bulkResponses[i];
+            }
 
-                if (Assertions.ENABLED) {
-                    assertResponsesAreCorrect(bulkResponses, allResponses);
-                }
+            if (Assertions.ENABLED) {
+                assertResponsesAreCorrect(bulkResponses, allResponses);
+            }
 
-                var ingestTookInMillis = ingestTimeProviderFunction.apply(response);
+            var ingestTookInMillis = ingestTimeProviderFunction.apply(response);
 
-                return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis, response.getIncrementalState());
-            });
-        }
+            return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis, response.getIncrementalState());
+        });
     }
 
     private void assertResponsesAreCorrect(BulkItemResponse[] bulkResponses, BulkItemResponse[] allResponses) {

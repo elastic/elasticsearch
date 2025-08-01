@@ -285,8 +285,10 @@ public class SLMFileSettingsIT extends AbstractSnapshotIntegTestCase {
                 if (reservedState != null && reservedState.errorMetadata() != null) {
                     assertEquals(ReservedStateErrorMetadata.ErrorKind.VALIDATION, reservedState.errorMetadata().errorKind());
                     assertThat(reservedState.errorMetadata().errors(), allOf(notNullValue(), hasSize(1)));
-                    assertThat(reservedState.errorMetadata().errors().get(0),
-                        containsString("no such repository [other-repo] in project [default]"));
+                    assertThat(
+                        reservedState.errorMetadata().errors().get(0),
+                        containsString("no such repository [other-repo] in project [default]")
+                    );
                     clusterService.removeListener(this);
                     metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();

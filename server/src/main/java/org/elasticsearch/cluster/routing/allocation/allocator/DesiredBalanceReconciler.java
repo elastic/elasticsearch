@@ -9,6 +9,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
@@ -27,7 +30,6 @@ import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
@@ -35,11 +37,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -533,16 +533,17 @@ public class DesiredBalanceReconciler {
 
         private DesiredBalanceMetrics.AllocationStats balance() {
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
-            final AllocationStatsBuilder allocationStatsBuilder = new AllocationStatsBuilder(unassignedShards);
+            int totalAllocations = 0;
+            int undesiredAllocationsExcludingShuttingDownNodes = 0;
+            final ObjectLongMap<ShardRouting.Role> undesiredAllocationsExcludingShuttingDownNodesByRole = new ObjectLongHashMap<>();
 
             // Iterate over all started shards and try to move any which are on undesired nodes. In the presence of throttling shard
             // movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are offloading the
             // shards.
             for (final var iterator = OrderedShardsIterator.createForBalancing(allocation, moveOrdering); iterator.hasNext();) {
                 final var shardRouting = iterator.next();
-                final String shardPartition = balancingWeightsFactory.partitionForShard(shardRouting);
 
-                allocationStatsBuilder.incrementTotalAllocations(shardPartition);
+                totalAllocations++;
 
                 if (shardRouting.started() == false) {
                     // can only rebalance started shards
@@ -562,7 +563,8 @@ public class DesiredBalanceReconciler {
 
                 if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
                     // shard is not on a shutting down node, nor is it on a desired node per the previous check.
-                    allocationStatsBuilder.incrementUndesiredAllocationsExcludingShuttingDownNodes(shardPartition);
+                    undesiredAllocationsExcludingShuttingDownNodes++;
+                    undesiredAllocationsExcludingShuttingDownNodesByRole.addTo(shardRouting.role(), 1);
                 }
 
                 if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
@@ -601,13 +603,14 @@ public class DesiredBalanceReconciler {
                 }
             }
 
-            final DesiredBalanceMetrics.AllocationStats allocationStats = allocationStatsBuilder.create();
-            maybeLogUndesiredAllocationsWarning(
-                allocationStats.totalAllocations(),
-                allocationStats.undesiredAllocationsExcludingShuttingDownNodes(),
-                routingNodes.size()
+            maybeLogUndesiredAllocationsWarning(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes, routingNodes.size());
+            return new DesiredBalanceMetrics.AllocationStats(
+                unassignedShards,
+                totalAllocations,
+                undesiredAllocationsExcludingShuttingDownNodes,
+                Arrays.stream(ShardRouting.Role.values())
+                    .collect(Collectors.toUnmodifiableMap(role -> role, undesiredAllocationsExcludingShuttingDownNodesByRole::get))
             );
-            return allocationStats;
         }
 
         private void maybeLogUndesiredAllocationsWarning(long totalAllocations, long undesiredAllocations, int nodeCount) {
@@ -672,39 +675,6 @@ public class DesiredBalanceReconciler {
         private Decision decideCanForceAllocateForVacate(ShardRouting shardRouting, RoutingNode target) {
             assert target != null : "Target node is not found";
             return allocation.deciders().canForceAllocateDuringReplace(shardRouting, target, allocation);
-        }
-
-        private static class AllocationStatsBuilder {
-            private final int unassignedShards;
-            private final Map<String, PartitionStats> partitionStats = new HashMap<>();
-
-            private AllocationStatsBuilder(int unassignedShards) {
-                this.unassignedShards = unassignedShards;
-            }
-
-            public DesiredBalanceMetrics.AllocationStats create() {
-                return new DesiredBalanceMetrics.AllocationStats(
-                    unassignedShards,
-                    Collections.unmodifiableMap(Maps.transformValues(partitionStats, PartitionStats::create))
-                );
-            }
-
-            public void incrementTotalAllocations(String partition) {
-                partitionStats.computeIfAbsent(partition, p -> new PartitionStats()).totalAllocations++;
-            }
-
-            public void incrementUndesiredAllocationsExcludingShuttingDownNodes(String partition) {
-                partitionStats.computeIfAbsent(partition, p -> new PartitionStats()).undesiredAllocationsExcludingShuttingDownNodes++;
-            }
-
-            private static class PartitionStats {
-                long totalAllocations;
-                long undesiredAllocationsExcludingShuttingDownNodes;
-
-                public DesiredBalanceMetrics.PartitionStats create() {
-                    return new DesiredBalanceMetrics.PartitionStats(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes);
-                }
-            }
         }
     }
 }

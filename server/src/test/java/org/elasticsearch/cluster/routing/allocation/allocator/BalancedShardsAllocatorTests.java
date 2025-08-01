@@ -810,11 +810,6 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             return new PrefixBalancingWeights();
         }
 
-        @Override
-        public String partitionForShard(ShardRouting shardRouting) {
-            return prefix(shardRouting.getIndexName());
-        }
-
         class PrefixBalancingWeights implements BalancingWeights {
 
             @Override

@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
@@ -31,30 +32,18 @@ public class DesiredBalanceMetrics {
 
     /**
      * @param unassignedShards Shards that are not assigned to any node.
-     * @param partitionStats   Allocation stats broken down by balancer partition
-     */
-    public record AllocationStats(long unassignedShards, Map<String, PartitionStats> partitionStats) {
-
-        public AllocationStats(long unassignedShards, long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {
-            this(unassignedShards, Map.of("global", new PartitionStats(totalAllocations, undesiredAllocationsExcludingShuttingDownNodes)));
-        }
-
-        public long totalAllocations() {
-            return partitionStats.values().stream().mapToLong(PartitionStats::totalAllocations).sum();
-        }
-
-        public long undesiredAllocationsExcludingShuttingDownNodes() {
-            return partitionStats.values().stream().mapToLong(PartitionStats::undesiredAllocationsExcludingShuttingDownNodes).sum();
-        }
-    }
-
-    /**
      * @param totalAllocations Shards that are assigned to a node.
      * @param undesiredAllocationsExcludingShuttingDownNodes Shards that are assigned to a node but must move to alleviate a resource
      *                                                       constraint per the {@link AllocationDeciders}. Excludes shards that must move
      *                                                       because of a node shutting down.
+     * @param undesiredAllocationsByRole A breakdown of the undesired allocations by {@link ShardRouting.Role}
      */
-    public record PartitionStats(long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {}
+    public record AllocationStats(
+        long unassignedShards,
+        long totalAllocations,
+        long undesiredAllocationsExcludingShuttingDownNodes,
+        Map<ShardRouting.Role, Long> undesiredAllocationsByRole
+    ) {}
 
     public record NodeWeightStats(long shardCount, double diskUsageInBytes, double writeLoad, double nodeWeight) {
         public static final NodeWeightStats ZERO = new NodeWeightStats(0, 0, 0, 0);
@@ -89,7 +78,7 @@ public class DesiredBalanceMetrics {
     public static final String CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME =
         "es.allocator.allocations.node.forecasted_disk_usage_bytes.current";
 
-    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, Map.of());
+    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, -1, -1, Map.of());
 
     private volatile boolean nodeIsMaster = false;
 
@@ -123,8 +112,8 @@ public class DesiredBalanceMetrics {
         assert weightStatsPerNode != null : "node balance weight stats cannot be null";
         if (allocationStats != EMPTY_ALLOCATION_STATS) {
             this.unassignedShards = allocationStats.unassignedShards;
-            this.totalAllocations = allocationStats.totalAllocations();
-            this.undesiredAllocationsExcludingShuttingDownNodes = allocationStats.undesiredAllocationsExcludingShuttingDownNodes();
+            this.totalAllocations = allocationStats.totalAllocations;
+            this.undesiredAllocationsExcludingShuttingDownNodes = allocationStats.undesiredAllocationsExcludingShuttingDownNodes;
         }
         weightStatsPerNodeRef.set(weightStatsPerNode);
         allocationStatsPerNodeRef.set(nodeAllocationStats);

@@ -17,7 +17,6 @@ import java.util.Iterator;
 
 public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
 
-    public static final String GLOBAL_PARTITION_NAME = "global";
     private final BalancerSettings balancerSettings;
 
     public GlobalBalancingWeightsFactory(BalancerSettings balancerSettings) {
@@ -27,11 +26,6 @@ public class GlobalBalancingWeightsFactory implements BalancingWeightsFactory {
     @Override
     public BalancingWeights create() {
         return new GlobalBalancingWeights();
-    }
-
-    @Override
-    public String partitionForShard(ShardRouting shardRouting) {
-        return GLOBAL_PARTITION_NAME;
     }
 
     private class GlobalBalancingWeights implements BalancingWeights {

@@ -583,29 +583,3 @@ tests:
 #  - class: "org.elasticsearch.xpack.esql.**"
 #    method: "test {union_types.MultiIndexIpStringStatsInline *}"
 #    issue: "https://github.com/elastic/elasticsearch/..."
-
-- class: org.elasticsearch.*YamlTestSuiteIT
-  methods:
-    - test {yaml=search.vectors/130_knn_query_nested_search/*}
-    - test {p0=search.vectors/130_knn_query_nested_search/*}
-  issue: https://github.com/elastic/elasticsearch/issues/131749
-- class: org.elasticsearch.*YamlTestSuiteIT
-  methods:
-    - test {yaml=search.vectors/100_knn_nested_search/*}
-    - test {p0=search.vectors/100_knn_nested_search/*}
-  issue: https://github.com/elastic/elasticsearch/issues/131749
-- class: org.elasticsearch.*YamlTestSuiteIT
-  methods:
-    - test {yaml=search.vectors/101_knn_nested_search_bits/*}
-    - test {p0=search.vectors/101_knn_nested_search_bits/*}
-- class: org.elasticsearch.*YamlTestSuiteIT
-  methods:
-    - test {yaml=search.vectors/135_knn_query_nested_search_ivf/*}
-    - test {p0=search.vectors/135_knn_query_nested_search_ivf/*}
-  issue: https://github.com/elastic/elasticsearch/issues/131749
-- class: org.elasticsearch.search.nested.VectorNestedIT
-  method: testNestedKNnnSearchWithMultipleSegments
-  issue: https://github.com/elastic/elasticsearch/issues/131749
-- class: org.elasticsearch.upgrades.SemanticTextUpgradeIT
-  method: testSemanticTextOperations*
-  issue: https://github.com/elastic/elasticsearch/issues/131749

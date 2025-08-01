@@ -268,6 +268,7 @@ public class ModelRegistry implements ClusterStateListener {
         SearchRequest modelSearch = client.prepareSearch(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN)
             .setQuery(queryBuilder)
             .setSize(2)
+            .setAllowPartialSearchResults(false)
             .request();
 
         client.search(modelSearch, searchListener);

@@ -7,7 +7,10 @@
 
 package org.elasticsearch.search.ccs;
 
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,6 +22,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -91,7 +95,28 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.source(new SearchSourceBuilder().query(new SemanticQueryBuilder(INFERENCE_FIELD, "foo")).size(10));
-        // searchRequest.setCcsMinimizeRoundtrips(false);
+        searchRequest.setCcsMinimizeRoundtrips(false);
+        searchRequest.pointInTimeBuilder();
+
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+            assertEquals(10, response.getHits().getHits().length);
+        });
+    }
+
+    public void testSemanticCrossClusterSearchWithPIT() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String localIndex = (String) testClusterInfo.get("local.index");
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+
+        BytesReference pitId = openPointInTime(new String[]{localIndex, REMOTE_CLUSTER + ":" + remoteIndex}, TimeValue.timeValueMinutes(2));
+
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder()
+            .query(new SemanticQueryBuilder(INFERENCE_FIELD, "foo"))
+            .pointInTimeBuilder(new PointInTimeBuilder(pitId))
+            .size(10)
+        );
 
         assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
             assertNotNull(response);
@@ -211,6 +236,12 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         }
         client.admin().indices().prepareRefresh(index).get();
         return numDocs;
+    }
+
+    private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
+        final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+        return response.getPointInTimeId();
     }
 
     public static class FakeMlPlugin extends Plugin {

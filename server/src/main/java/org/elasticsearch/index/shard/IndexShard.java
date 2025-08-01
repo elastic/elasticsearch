@@ -3522,14 +3522,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private <R> R withEngine(Function<Engine, R> operation, boolean allowNoEngine, boolean blockIfResetting) {
         assert operation != null;
         assert blockIfResetting == false || assertCurrentThreadWithEngine(); // assert current thread can block on engine resets
-        if (blockIfResetting == false && allowNoEngine == false) {
-            assert false : "blockIfResetting (false) only allowed with allowNoEngine (true)";
-            throw new IllegalArgumentException("blockIfResetting (false) only allowed with allowNoEngine (true)");
-        }
         boolean locked = true;
         if (blockIfResetting) {
             engineResetLock.readLock().lock();
         } else {
+            if (allowNoEngine == false) {
+                assert false : "blockIfResetting (false) only allowed with allowNoEngine (true)";
+                throw new IllegalArgumentException("blockIfResetting (false) only allowed with allowNoEngine (true)");
+            }
             locked = engineResetLock.readLock().tryLock();
         }
         if (locked) {

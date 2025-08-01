@@ -154,7 +154,6 @@ public class ApproximateTests extends ESTestCase {
         assertThat(runner.invocations, hasSize(2));
         assertThat(runner.invocations.get(0), allOf(not(hasFilter()), not(hasSample())));
         assertThat(runner.invocations.get(1), allOf(not(hasFilter()), hasSample(1e-5)));
-        System.out.println(runner.invocations);
     }
 
     public void testApproximate_smallDataNoFilters() throws Exception {

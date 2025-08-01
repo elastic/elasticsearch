@@ -356,7 +356,8 @@ public class TransportVersions {
     public static final TransportVersion PIPELINE_TRACKING_INFO = def(9_131_0_00);
     public static final TransportVersion COMPONENT_TEMPLATE_TRACKING_INFO = def(9_132_0_00);
     public static final TransportVersion TO_CHILD_BLOCK_JOIN_QUERY = def(9_133_0_00);
-    public static final TransportVersion TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION = def(9_134_0_00);
+    public static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = def(9_134_0_00);
+    public static final TransportVersion TRANSPORT_NODE_USAGE_STATS_FOR_THREAD_POOLS_ACTION = def(9_135_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

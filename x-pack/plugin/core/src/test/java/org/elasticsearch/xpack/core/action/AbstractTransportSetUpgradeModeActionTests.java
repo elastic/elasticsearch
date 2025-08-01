@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -108,7 +109,7 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
 
         var response = action.run(true);
 
-        assertThat(response.v1(), is(AcknowledgedResponse.TRUE));
+        assertThat(response.v1(), equalTo(new SetUpgradeModeActionResponse(true, true)));
         assertThat(response.v2(), nullValue());
         assertThat(shouldNotChange.get(), is(true));
     }
@@ -150,7 +151,7 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
 
         var response = action.run(true);
 
-        assertThat(response.v1(), is(AcknowledgedResponse.TRUE));
+        assertThat(response.v1(), equalTo(new SetUpgradeModeActionResponse(true, false)));
         assertThat(response.v2(), nullValue());
     }
 
@@ -177,8 +178,8 @@ public class AbstractTransportSetUpgradeModeActionTests extends ESTestCase {
             masterOperation(mock(), new SetUpgradeModeActionRequest(upgrade), ClusterState.EMPTY_STATE, ActionListener.noop());
         }
 
-        public Tuple<AcknowledgedResponse, Exception> run(boolean upgrade) throws Exception {
-            AtomicReference<Tuple<AcknowledgedResponse, Exception>> response = new AtomicReference<>();
+        public Tuple<SetUpgradeModeActionResponse, Exception> run(boolean upgrade) throws Exception {
+            AtomicReference<Tuple<SetUpgradeModeActionResponse, Exception>> response = new AtomicReference<>();
             CountDownLatch latch = new CountDownLatch(1);
             masterOperation(mock(), new SetUpgradeModeActionRequest(upgrade), ClusterState.EMPTY_STATE, ActionListener.wrap(r -> {
                 response.set(Tuple.tuple(r, null));

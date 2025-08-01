@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.xpack.core.action.SetUpgradeModeActionResponse;
 
-public class SetTransformUpgradeModeAction extends ActionType<AcknowledgedResponse> {
+public class SetTransformUpgradeModeAction extends ActionType<SetUpgradeModeActionResponse> {
     public static final SetTransformUpgradeModeAction INSTANCE = new SetTransformUpgradeModeAction();
     public static final String NAME = "cluster:admin/transform/upgrade_mode";
 

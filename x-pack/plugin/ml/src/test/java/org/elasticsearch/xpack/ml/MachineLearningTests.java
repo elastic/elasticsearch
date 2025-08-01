@@ -9,22 +9,21 @@ package org.elasticsearch.xpack.ml;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.action.SetUpgradeModeActionResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -43,6 +42,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,70 +56,54 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class MachineLearningTests extends ESTestCase {
 
-    @SuppressWarnings("unchecked")
     public void testPrePostSystemIndexUpgrade_givenNotInUpgradeMode() throws IOException {
-        ThreadPool threadpool = new TestThreadPool("test");
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-        Client client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadpool);
-        doAnswer(invocationOnMock -> {
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return null;
-        }).when(client).execute(same(SetUpgradeModeAction.INSTANCE), any(SetUpgradeModeAction.Request.class), any(ActionListener.class));
-
-        try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
-
-            SetOnce<Map<String, Object>> response = new SetOnce<>();
-            machineLearning.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
-
-            assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
-            verify(client).execute(
-                same(SetUpgradeModeAction.INSTANCE),
-                eq(new SetUpgradeModeAction.Request(true)),
-                any(ActionListener.class)
-            );
-
-            machineLearning.indicesMigrationComplete(
-                response.get(),
-                clusterService,
-                client,
-                ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
-            );
-
-            verify(client).execute(
-                same(SetUpgradeModeAction.INSTANCE),
-                eq(new SetUpgradeModeAction.Request(false)),
-                any(ActionListener.class)
-            );
-        } finally {
-            threadpool.shutdown();
-        }
+        testUpgradeMode(false);
     }
 
     public void testPrePostSystemIndexUpgrade_givenAlreadyInUpgradeMode() throws IOException {
+        testUpgradeMode(true);
+    }
+
+    private static void testUpgradeMode(boolean alreadyInUpgradeMode) throws IOException {
+        ThreadPool threadpool = new ThreadPool(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), MachineLearningTests.class.getSimpleName()).put(Settings.EMPTY).build(),
+            MeterRegistry.NOOP,
+            (settings1, allocatedProcessors) -> Map.of()
+        ) {
+            @Override
+            public ExecutorService executor(String name) {
+                return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            }
+
+            @Override
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor name) {
+                command.run();
+                return null;
+            }
+        };
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(
-            ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
-                .build()
-        );
         Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadpool);
+        doAnswer(invocationOnMock -> {
+            ActionListener<SetUpgradeModeActionResponse> listener = invocationOnMock.getArgument(2);
+            listener.onResponse(new SetUpgradeModeActionResponse(true, alreadyInUpgradeMode));
+            return Void.TYPE;
+        }).when(client).execute(same(SetUpgradeModeAction.INSTANCE), any(SetUpgradeModeAction.Request.class), any());
 
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
 
             SetOnce<Map<String, Object>> response = new SetOnce<>();
             machineLearning.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
 
-            assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", true)));
-            verifyNoMoreInteractions(client);
+            assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", alreadyInUpgradeMode)));
+            verify(client).execute(same(SetUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeAction.Request(true)), any());
 
             machineLearning.indicesMigrationComplete(
                 response.get(),
@@ -127,8 +112,10 @@ public class MachineLearningTests extends ESTestCase {
                 ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );
 
-            // Neither pre nor post should have called any action
-            verifyNoMoreInteractions(client);
+            var timesCalled = alreadyInUpgradeMode ? never() : times(1);
+            verify(client, timesCalled).execute(same(SetUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeAction.Request(false)), any());
+        } finally {
+            threadpool.shutdown();
         }
     }
 

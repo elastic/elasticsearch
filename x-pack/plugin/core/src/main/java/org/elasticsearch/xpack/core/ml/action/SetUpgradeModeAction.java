@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.SetUpgradeModeActionRequest;
+import org.elasticsearch.xpack.core.action.SetUpgradeModeActionResponse;
 
 import java.io.IOException;
 
-public class SetUpgradeModeAction extends ActionType<AcknowledgedResponse> {
+public class SetUpgradeModeAction extends ActionType<SetUpgradeModeActionResponse> {
 
     public static final SetUpgradeModeAction INSTANCE = new SetUpgradeModeAction();
     public static final String NAME = "cluster:admin/xpack/ml/upgrade_mode";

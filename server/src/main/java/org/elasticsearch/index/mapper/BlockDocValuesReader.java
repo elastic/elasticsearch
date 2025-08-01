@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.BlockAwareNumericDocValues;
+import org.elasticsearch.index.codec.tsdb.es819.BlockAwareSortedDocValues;
 import org.elasticsearch.index.codec.tsdb.es819.BlockAwareSortedNumericDocValues;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
@@ -840,13 +841,21 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             if (docValues != null) {
                 SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
                 if (singleton != null) {
-                    return new SingletonOrdinals(singleton);
+                    if (singleton instanceof BlockAwareSortedDocValues blockAware) {
+                        return new BlockAwareSingletonOrdinals(blockAware);
+                    } else {
+                        return new SingletonOrdinals(singleton);
+                    }
                 }
                 return new Ordinals(docValues);
             }
             SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
             if (singleton != null) {
-                return new SingletonOrdinals(singleton);
+                if (singleton instanceof BlockAwareSortedDocValues blockAware) {
+                    return new BlockAwareSingletonOrdinals(blockAware);
+                } else {
+                    return new SingletonOrdinals(singleton);
+                }
             }
             return new ConstantNullsReader();
         }
@@ -922,6 +931,54 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.SingletonOrdinals";
+        }
+    }
+
+    private static class BlockAwareSingletonOrdinals extends BlockDocValuesReader {
+        private final BlockAwareSortedDocValues ordinals;
+
+        BlockAwareSingletonOrdinals(BlockAwareSortedDocValues ordinals) {
+            this.ordinals = ordinals;
+        }
+
+        private BlockLoader.Block readSingleDoc(BlockFactory factory, int docId) throws IOException {
+            if (ordinals.advanceExact(docId)) {
+                BytesRef v = ordinals.lookupOrd(ordinals.ordValue());
+                // the returned BytesRef can be reused
+                return factory.constantBytes(BytesRef.deepCopyOf(v), 1);
+            } else {
+                return factory.constantNulls(1);
+            }
+        }
+
+        @Override
+        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
+            if (docs.count() - offset == 1) {
+                return readSingleDoc(factory, docs.get(offset));
+            }
+            try (var builder = factory.singletonOrdinalsBuilder(ordinals, docs.count() - offset)) {
+                ordinals.loadBlock(builder, docs, offset);
+                return builder.build();
+            }
+        }
+
+        @Override
+        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
+            if (ordinals.advanceExact(docId)) {
+                ((BytesRefBuilder) builder).appendBytesRef(ordinals.lookupOrd(ordinals.ordValue()));
+            } else {
+                builder.appendNull();
+            }
+        }
+
+        @Override
+        public int docId() {
+            return ordinals.docID();
+        }
+
+        @Override
+        public String toString() {
+            return "BlockDocValuesReader.BlockAwareSingletonOrdinals";
         }
     }
 

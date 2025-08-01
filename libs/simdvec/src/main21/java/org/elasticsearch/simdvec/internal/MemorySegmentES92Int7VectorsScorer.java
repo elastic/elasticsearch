@@ -8,255 +8,41 @@
  */
 package org.elasticsearch.simdvec.internal;
 
-import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
-import jdk.incubator.vector.ShortVector;
-import jdk.incubator.vector.Vector;
 import jdk.incubator.vector.VectorOperators;
-import jdk.incubator.vector.VectorShape;
-import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.nio.ByteOrder;
 
-import static java.nio.ByteOrder.LITTLE_ENDIAN;
-import static jdk.incubator.vector.VectorOperators.ADD;
-import static jdk.incubator.vector.VectorOperators.B2I;
-import static jdk.incubator.vector.VectorOperators.B2S;
-import static jdk.incubator.vector.VectorOperators.S2I;
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
-public final class MemorySegmentES92Int7VectorsScorer extends ES92Int7VectorsScorer {
-
-    private static final VectorSpecies<Byte> BYTE_SPECIES_64 = ByteVector.SPECIES_64;
-    private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
-
-    private static final VectorSpecies<Short> SHORT_SPECIES_128 = ShortVector.SPECIES_128;
-    private static final VectorSpecies<Short> SHORT_SPECIES_256 = ShortVector.SPECIES_256;
-
-    private static final VectorSpecies<Integer> INT_SPECIES_128 = IntVector.SPECIES_128;
-    private static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;
-    private static final VectorSpecies<Integer> INT_SPECIES_512 = IntVector.SPECIES_512;
-
-    private static final int VECTOR_BITSIZE;
-    private static final VectorSpecies<Float> FLOAT_SPECIES;
-    private static final VectorSpecies<Integer> INT_SPECIES;
-
-    static {
-        // default to platform supported bitsize
-        VECTOR_BITSIZE = VectorShape.preferredShape().vectorBitSize();
-        FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(VECTOR_BITSIZE));
-        INT_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(VECTOR_BITSIZE));
-    }
-
-    private final MemorySegment memorySegment;
+public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92FallBackInt7VectorsScorer {
 
     public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
-        super(in, dimensions);
-        this.memorySegment = memorySegment;
+        super(in, dimensions, memorySegment);
+    }
+
+    @Override
+    public boolean hasNativeAccess() {
+        return false; // This class does not support native access
     }
 
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
-        assert dimensions == q.length;
-        int i = 0;
-        int res = 0;
-        // only vectorize if we'll at least enter the loop a single time
-        if (dimensions >= 16) {
-            // compute vectorized dot product consistent with VPDPBUSD instruction
-            if (VECTOR_BITSIZE >= 512) {
-                i += BYTE_SPECIES_128.loopBound(dimensions);
-                res += dotProductBody512(q, i);
-            } else if (VECTOR_BITSIZE == 256) {
-                i += BYTE_SPECIES_64.loopBound(dimensions);
-                res += dotProductBody256(q, i);
-            } else {
-                // tricky: we don't have SPECIES_32, so we workaround with "overlapping read"
-                i += BYTE_SPECIES_64.loopBound(dimensions - BYTE_SPECIES_64.length());
-                res += dotProductBody128(q, i);
-            }
-            // scalar tail
-            while (i < dimensions) {
-                res += in.readByte() * q[i++];
-            }
-            return res;
-        } else {
-            return super.int7DotProduct(q);
-        }
-    }
-
-    private int dotProductBody512(byte[] q, int limit) throws IOException {
-        IntVector acc = IntVector.zero(INT_SPECIES_512);
-        long offset = in.getFilePointer();
-        for (int i = 0; i < limit; i += BYTE_SPECIES_128.length()) {
-            ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_128, q, i);
-            ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_128, memorySegment, offset + i, LITTLE_ENDIAN);
-
-            // 16-bit multiply: avoid AVX-512 heavy multiply on zmm
-            Vector<Short> va16 = va8.convertShape(B2S, SHORT_SPECIES_256, 0);
-            Vector<Short> vb16 = vb8.convertShape(B2S, SHORT_SPECIES_256, 0);
-            Vector<Short> prod16 = va16.mul(vb16);
-
-            // 32-bit add
-            Vector<Integer> prod32 = prod16.convertShape(S2I, INT_SPECIES_512, 0);
-            acc = acc.add(prod32);
-        }
-
-        in.seek(offset + limit); // advance the input stream
-        // reduce
-        return acc.reduceLanes(ADD);
-    }
-
-    private int dotProductBody256(byte[] q, int limit) throws IOException {
-        IntVector acc = IntVector.zero(INT_SPECIES_256);
-        long offset = in.getFilePointer();
-        for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
-            ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, q, i);
-            ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_64, memorySegment, offset + i, LITTLE_ENDIAN);
-
-            // 32-bit multiply and add into accumulator
-            Vector<Integer> va32 = va8.convertShape(B2I, INT_SPECIES_256, 0);
-            Vector<Integer> vb32 = vb8.convertShape(B2I, INT_SPECIES_256, 0);
-            acc = acc.add(va32.mul(vb32));
-        }
-        in.seek(offset + limit);
-        // reduce
-        return acc.reduceLanes(ADD);
-    }
-
-    private int dotProductBody128(byte[] q, int limit) throws IOException {
-        IntVector acc = IntVector.zero(IntVector.SPECIES_128);
-        long offset = in.getFilePointer();
-        // 4 bytes at a time (re-loading half the vector each time!)
-        for (int i = 0; i < limit; i += ByteVector.SPECIES_64.length() >> 1) {
-            // load 8 bytes
-            ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, q, i);
-            ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_64, memorySegment, offset + i, LITTLE_ENDIAN);
-
-            // process first "half" only: 16-bit multiply
-            Vector<Short> va16 = va8.convert(B2S, 0);
-            Vector<Short> vb16 = vb8.convert(B2S, 0);
-            Vector<Short> prod16 = va16.mul(vb16);
-
-            // 32-bit add
-            acc = acc.add(prod16.convertShape(S2I, IntVector.SPECIES_128, 0));
-        }
-        in.seek(offset + limit);
-        // reduce
-        return acc.reduceLanes(ADD);
+        return fallbackInt7DotProduct(q);
     }
 
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        assert dimensions == q.length;
-        // only vectorize if we'll at least enter the loop a single time
-        if (dimensions >= 16) {
-            // compute vectorized dot product consistent with VPDPBUSD instruction
-            if (VECTOR_BITSIZE >= 512) {
-                dotProductBody512Bulk(q, count, scores);
-            } else if (VECTOR_BITSIZE == 256) {
-                dotProductBody256Bulk(q, count, scores);
-            } else {
-                // tricky: we don't have SPECIES_32, so we workaround with "overlapping read"
-                dotProductBody128Bulk(q, count, scores);
-            }
-        } else {
-            int7DotProductBulk(q, count, scores);
-        }
-    }
-
-    private void dotProductBody512Bulk(byte[] q, int count, float[] scores) throws IOException {
-        int limit = BYTE_SPECIES_128.loopBound(dimensions);
-        for (int iter = 0; iter < count; iter++) {
-            IntVector acc = IntVector.zero(INT_SPECIES_512);
-            long offset = in.getFilePointer();
-            int i = 0;
-            for (; i < limit; i += BYTE_SPECIES_128.length()) {
-                ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_128, q, i);
-                ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_128, memorySegment, offset + i, LITTLE_ENDIAN);
-
-                // 16-bit multiply: avoid AVX-512 heavy multiply on zmm
-                Vector<Short> va16 = va8.convertShape(B2S, SHORT_SPECIES_256, 0);
-                Vector<Short> vb16 = vb8.convertShape(B2S, SHORT_SPECIES_256, 0);
-                Vector<Short> prod16 = va16.mul(vb16);
-
-                // 32-bit add
-                Vector<Integer> prod32 = prod16.convertShape(S2I, INT_SPECIES_512, 0);
-                acc = acc.add(prod32);
-            }
-
-            in.seek(offset + limit); // advance the input stream
-            // reduce
-            long res = acc.reduceLanes(ADD);
-            for (; i < dimensions; i++) {
-                res += in.readByte() * q[i];
-            }
-            scores[iter] = res;
-        }
-    }
-
-    private void dotProductBody256Bulk(byte[] q, int count, float[] scores) throws IOException {
-        int limit = BYTE_SPECIES_128.loopBound(dimensions);
-        for (int iter = 0; iter < count; iter++) {
-            IntVector acc = IntVector.zero(INT_SPECIES_256);
-            long offset = in.getFilePointer();
-            int i = 0;
-            for (; i < limit; i += BYTE_SPECIES_64.length()) {
-                ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, q, i);
-                ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_64, memorySegment, offset + i, LITTLE_ENDIAN);
-
-                // 32-bit multiply and add into accumulator
-                Vector<Integer> va32 = va8.convertShape(B2I, INT_SPECIES_256, 0);
-                Vector<Integer> vb32 = vb8.convertShape(B2I, INT_SPECIES_256, 0);
-                acc = acc.add(va32.mul(vb32));
-            }
-            in.seek(offset + limit);
-            // reduce
-            long res = acc.reduceLanes(ADD);
-            for (; i < dimensions; i++) {
-                res += in.readByte() * q[i];
-            }
-            scores[iter] = res;
-        }
-    }
-
-    private void dotProductBody128Bulk(byte[] q, int count, float[] scores) throws IOException {
-        int limit = BYTE_SPECIES_64.loopBound(dimensions - BYTE_SPECIES_64.length());
-        for (int iter = 0; iter < count; iter++) {
-            IntVector acc = IntVector.zero(IntVector.SPECIES_128);
-            long offset = in.getFilePointer();
-            // 4 bytes at a time (re-loading half the vector each time!)
-            int i = 0;
-            for (; i < limit; i += ByteVector.SPECIES_64.length() >> 1) {
-                // load 8 bytes
-                ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, q, i);
-                ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_64, memorySegment, offset + i, LITTLE_ENDIAN);
-
-                // process first "half" only: 16-bit multiply
-                Vector<Short> va16 = va8.convert(B2S, 0);
-                Vector<Short> vb16 = vb8.convert(B2S, 0);
-                Vector<Short> prod16 = va16.mul(vb16);
-
-                // 32-bit add
-                acc = acc.add(prod16.convertShape(S2I, IntVector.SPECIES_128, 0));
-            }
-            in.seek(offset + limit);
-            // reduce
-            long res = acc.reduceLanes(ADD);
-            for (; i < dimensions; i++) {
-                res += in.readByte() * q[i];
-            }
-            scores[iter] = res;
-        }
+        fallbackInt7DotProductBulk(q, count, scores);
     }
 
     @Override

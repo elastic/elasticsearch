@@ -11,13 +11,11 @@ package org.elasticsearch.simdvec.internal;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.VectorOperators;
-import jdk.incubator.vector.VectorShape;
-import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -27,27 +25,31 @@ import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Native / panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
-public final class MemorySegmentES92Int7VectorsScorer extends ES92Int7VectorsScorer {
+public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92FallBackInt7VectorsScorer {
 
-    private static final VectorSpecies<Float> FLOAT_SPECIES;
-    private static final VectorSpecies<Integer> INT_SPECIES;
-
-    static {
-        // default to platform supported bitsize
-        final int vectorBitSize = VectorShape.preferredShape().vectorBitSize();
-        FLOAT_SPECIES = VectorSpecies.of(float.class, VectorShape.forBitSize(vectorBitSize));
-        INT_SPECIES = VectorSpecies.of(int.class, VectorShape.forBitSize(vectorBitSize));
-    }
-
-    private final MemorySegment memorySegment;
+    private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
     public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
-        super(in, dimensions);
-        this.memorySegment = memorySegment;
+        super(in, dimensions, memorySegment);
+    }
+
+    @Override
+    public boolean hasNativeAccess() {
+        return NATIVE_SUPPORTED;
     }
 
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
+        assert q.length == dimensions;
+        if (NATIVE_SUPPORTED) {
+            return nativeInt7DotProduct(q);
+        } else {
+            return fallbackInt7DotProduct(q);
+        }
+
+    }
+
+    private long nativeInt7DotProduct(byte[] q) throws IOException {
         final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions);
         final MemorySegment querySegment = MemorySegment.ofArray(q);
         final long res = Similarities.dotProduct7u(segment, querySegment, dimensions);
@@ -57,9 +59,14 @@ public final class MemorySegmentES92Int7VectorsScorer extends ES92Int7VectorsSco
 
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        // TODO: can we speed up bulks in native code?
-        for (int i = 0; i < count; i++) {
-            scores[i] = int7DotProduct(q);
+        assert q.length == dimensions;
+        if (NATIVE_SUPPORTED) {
+            // TODO: can we speed up bulks in native code?
+            for (int i = 0; i < count; i++) {
+                scores[i] = nativeInt7DotProduct(q);
+            }
+        } else {
+            fallbackInt7DotProductBulk(q, count, scores);
         }
     }
 

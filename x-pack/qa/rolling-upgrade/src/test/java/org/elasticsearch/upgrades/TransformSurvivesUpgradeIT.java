@@ -69,7 +69,6 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a transform is running through a rolling upgrade it
      * keeps working and does not fail
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/84283")
     public void testTransformRollingUpgrade() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity("""

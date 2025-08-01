@@ -36,13 +36,13 @@ public class DesiredBalanceMetrics {
      * @param undesiredAllocationsExcludingShuttingDownNodes Shards that are assigned to a node but must move to alleviate a resource
      *                                                       constraint per the {@link AllocationDeciders}. Excludes shards that must move
      *                                                       because of a node shutting down.
-     * @param undesiredAllocationsByRole A breakdown of the undesired allocations by {@link ShardRouting.Role}
+     * @param undesiredAllocationsExcludingShuttingDownNodesByRole A breakdown of the undesired allocations by {@link ShardRouting.Role}
      */
     public record AllocationStats(
         long unassignedShards,
         long totalAllocations,
         long undesiredAllocationsExcludingShuttingDownNodes,
-        Map<ShardRouting.Role, Long> undesiredAllocationsByRole
+        Map<ShardRouting.Role, Long> undesiredAllocationsExcludingShuttingDownNodesByRole
     ) {}
 
     public record NodeWeightStats(long shardCount, double diskUsageInBytes, double writeLoad, double nodeWeight) {

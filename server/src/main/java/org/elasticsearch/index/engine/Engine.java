@@ -32,6 +32,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.SetOnce;
@@ -309,8 +310,7 @@ public abstract class Engine implements Closeable {
                     if (trackLiveDocsMemoryEnabled) {
                         var liveDocs = segmentReader.getLiveDocs();
                         if (liveDocs != null) {
-                            assert liveDocs.getClass().getName().equals("org.apache.lucene.util.FixedBits")
-                                : "unexpected class [" + liveDocs.getClass().getName() + "]";
+                            assert validateLiveDocsClass(liveDocs);
                             // Would prefer to use FixedBitSet#ramBytesUsed() however FixedBits / Bits interface don't expose that.
                             // This almost does what FixedBitSet#ramBytesUsed() does, liveDocs.length() returns the length of the bits long
                             // array
@@ -323,6 +323,15 @@ public abstract class Engine implements Closeable {
             }
         }
         return new ShardFieldStats(numSegments, totalFields, usages, totalPostingBytes, liveDocsBytes);
+    }
+
+    private static boolean validateLiveDocsClass(Bits liveDocs) {
+        // These classes are package protected in Lucene and therefor we compare fully qualified classnames as strings here:
+        String fullClassName = liveDocs.getClass().getName();
+        assert fullClassName.equals("org.apache.lucene.util.FixedBits")
+            || fullClassName.equals("org.apache.lucene.tests.codecs.asserting.AssertingLiveDocsFormat$AssertingBits")
+            : "unexpected class [" + fullClassName + "]";
+        return true;
     }
 
     /**

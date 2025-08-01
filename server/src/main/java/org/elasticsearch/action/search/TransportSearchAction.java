@@ -1904,12 +1904,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     try {
                         final ShardIterator shards = OperationRouting.getShards(projectState.routingTable(), shardId);
                         // Prefer executing shard requests on nodes that are part of PIT first.
-                        if (projectState.cluster().nodes().nodeExists(perNode.getNode())) {
+                        boolean nodeExists = projectState.cluster().nodes().nodeExists(perNode.getNode());
+                        if (nodeExists) {
                             targetNodes.add(perNode.getNode());
                         }
-                        for (ShardRouting shard : shards) {
-                            if (shard.currentNodeId().equals(perNode.getNode()) == false) {
-                                targetNodes.add(shard.currentNodeId());
+                        if (perNode.getSearchContextId().getSearcherId() != null || nodeExists == false) {
+                            for (ShardRouting shard : shards) {
+                                if (shard.currentNodeId().equals(perNode.getNode()) == false) {
+                                    targetNodes.add(shard.currentNodeId());
+                                }
                             }
                         }
                     } catch (IndexNotFoundException | ShardNotFoundException e) {

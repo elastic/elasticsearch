@@ -179,7 +179,7 @@ public class TransportSimulateTemplateAction extends TransportLocalProjectMetada
             matchingTemplate,
             temporaryIndexName,
             projectWithTemplate,
-            projectWithTemplate, // this arg does not matter -- we never need data stream overrides because we never match a data stream
+            null, // we never match a data stream
             isDslOnlyMode,
             xContentRegistry,
             indicesService,

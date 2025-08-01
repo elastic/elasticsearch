@@ -88,15 +88,15 @@ required_capability: match_operator_colon
 FROM books METADATA _score
 | WHERE MATCH(title, "lord of the rings", {"minimum_should_match": "100%"}) AND author:"tolkien"
 | RERANK rerank_score="war and peace" ON collection WITH { "inference_id" : "test_reranker" }
-| EVAL _score=ROUND(_score, 2)
+| EVAL _score=ROUND(_score, 2), rerank_score=ROUND(rerank_score, 2)
 | SORT rerank_score DESC NULLS LAST, _score  DESC
 | LIMIT 3
 | KEEP book_no, title, author, collection, rerank_score, _score
 ;
 
 book_no:keyword | title:text                                                                 | author:text                  | collection:text       | rerank_score:double | _score:double
-2714            | Return of the King Being the Third Part of The Lord of the Rings           | J. R. R. Tolkien             | The Lord of the Rings | 0.04761905          | 8.56
-2675            | The Lord of the Rings - Boxed Set                                          | J.R.R. Tolkien               | The Lord of the Rings | 0.04761905          | 8.35
+2714            | Return of the King Being the Third Part of The Lord of the Rings           | J. R. R. Tolkien             | The Lord of the Rings | 0.05                | 8.56
+2675            | The Lord of the Rings - Boxed Set                                          | J.R.R. Tolkien               | The Lord of the Rings | 0.05                | 8.35
 7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | [Alan Lee, J. R. R. Tolkien] | null                  | null                | 5.5
 ;
 

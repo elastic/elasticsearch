@@ -198,19 +198,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    /*
-    private MapperService createMapperService(String mappings, boolean useLegacyFormat) throws IOException {
-        var settings = Settings.builder()
-            .put(
-                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
-            )
-            .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
-            .build();
-        return createMapperService(settings, mappings);
-    }
-     */
-
     @Override
     protected Settings getIndexSettings() {
         return Settings.builder()

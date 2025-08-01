@@ -455,6 +455,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 return;
             }
 
+            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR && modelSettings == null) {
+                return;
+            }
+
             if (modelSettings == null) {
                 throw new IllegalArgumentException(
                     "Model settings must be set to validate index options for inference ID [" + inferenceId + "]"

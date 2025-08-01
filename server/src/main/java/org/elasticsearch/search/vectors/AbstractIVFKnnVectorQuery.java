@@ -136,9 +136,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector());
 
         // TODO: sort segments by affinity score in descending order, and cut the long tail ?
-        // segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
-        // ...subList(0, (int) (segmentAffinities.size() * 0.99));
-
+        
         // with larger affinity we increase nprobe (and viceversa)
         // also sort segments by affinity and eventually filter out the long tail
         List<LeafReaderContext> selectedSegments = new ArrayList<>();
@@ -202,27 +200,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     }
 
     abstract float[] getQueryVector() throws IOException;
-
-    /*
-    private List<IVFVectorsReader.CentroidIterator> collectIterators(List<LeafReaderContext> leafReaderContexts) throws IOException {
-        List<IVFVectorsReader.ScoredCentroidIterator> iterators = new ArrayList<>(leafReaderContexts.size());
-        for (LeafReaderContext context : leafReaderContexts) {
-            LeafReader leafReader = context.reader();
-            if (leafReader instanceof SegmentReader segmentReader) {
-                KnnVectorsReader vectorReader = segmentReader.getVectorReader();
-                IVFVectorsReader reader = unwrapReader(vectorReader);
-                if (reader == null) {
-                    return null;
-                }
-                FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
-                int numCentroids = reader.getNumCentroids(fieldInfo);
-                IndexInput centroids = reader.getIvfCentroids();
-                iterators.add(reader.getCentroidIterator(fieldInfo, numCentroids, centroids, getQueryVector()));
-            }
-        }
-        return iterators;
-    }
-     */
 
     private IVFVectorsReader unwrapReader(KnnVectorsReader knnVectorsReader) {
         IVFVectorsReader result = null;

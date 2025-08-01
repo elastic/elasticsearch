@@ -548,11 +548,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
             // Doubles from doc values ensures that the values are in order
             try (BlockLoader.FloatBuilder builder = factory.denseVectors(docs.count() - offset, dimensions)) {
                 for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    if (doc < iterator.docID()) {
-                        throw new IllegalStateException("docs within same block must be in order");
-                    }
-                    read(doc, builder);
+                    read(docs.get(i), builder);
                 }
                 return builder.build();
             }
@@ -564,7 +560,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
 
         private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
-            if (iterator.advance(doc) == doc) {
+            if (iterator.docID() > doc) {
+                builder.appendNull();
+            } else if (iterator.docID() == doc || iterator.advance(doc) == doc) {
                 builder.beginPositionEntry();
                 float[] floats = floatVectorValues.vectorValue(iterator.index());
                 assert floats.length == dimensions

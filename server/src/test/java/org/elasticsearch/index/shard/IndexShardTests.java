@@ -1980,6 +1980,54 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testShardFieldStatsWithDeletes() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build();
+        IndexShard shard = newShard(true, settings);
+        assertNull(shard.getShardFieldStats());
+        recoverShardFromStore(shard);
+        boolean liveDocsTrackingEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
+
+        // index some documents
+        int numDocs = 10;
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(shard, "_doc", "first_" + i, """
+                {
+                    "f1": "foo",
+                    "f2": "bar"
+                }
+                """);
+        }
+        shard.refresh("test");
+        var stats = shard.getShardFieldStats();
+        assertThat(stats.numSegments(), equalTo(1));
+        assertThat(stats.liveDocsBytes(), equalTo(0L));
+
+        // delete a doc
+        deleteDoc(shard, "first_0");
+
+        // Refresh and fetch new stats:
+        shard.refresh("test");
+        stats = shard.getShardFieldStats();
+        // More segments because delete operation is stored in the new segment for replication purposes.
+        assertThat(stats.numSegments(), equalTo(2));
+        // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
+        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 40L : 0L));
+
+        // delete another doc:
+        deleteDoc(shard, "first_1");
+        shard.getMinRetainedSeqNo();
+
+        // Refresh and fetch new stats:
+        shard.refresh("test");
+        stats = shard.getShardFieldStats();
+        // More segments because delete operation is stored in the new segment for replication purposes.
+        assertThat(stats.numSegments(), equalTo(3));
+        // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
+        assertThat(stats.liveDocsBytes(), equalTo(liveDocsTrackingEnabled ? 56L : 0L));
+
+        closeShards(shard);
+    }
+
     public void testIndexingOperationsListeners() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}");
@@ -4342,8 +4390,8 @@ public class IndexShardTests extends IndexShardTestCase {
             shard.flushOnIdle(0);
             mockLog.awaitAllExpectationsMatched();
 
-            // A direct call to flush (with waitIfOngoing=false) should not wait and return false immediately
-            assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
+            // A direct call to flush (with waitIfOngoing=false) should not wait and return immediately
+            assertTrue(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)).skippedDueToCollision());
 
             // Allow first flushOnIdle to complete
             readyToCompleteFlushLatch.countDown();
@@ -4362,8 +4410,8 @@ public class IndexShardTests extends IndexShardTestCase {
             // The second flushOnIdle (that did not happen) should have turned the active flag to true
             assertTrue(shard.isActive());
 
-            // After all the previous flushes are done, issue a final flush (for any remaining documents) that should return true
-            assertTrue(shard.flush(new FlushRequest()));
+            // After all the previous flushes are done, issue a final flush (for any remaining documents) that should be processed
+            assertFalse(shard.flush(new FlushRequest()).skippedDueToCollision());
 
             closeShards(shard);
         }
@@ -4463,7 +4511,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(pendingListeners.size(), is(numberOfFlushes));
         assertThat(shard.flushStats().getPeriodic(), is(equalTo(0L)));
 
-        pendingListeners.forEach(l -> l.onResponse(new Engine.FlushResult(true, 1)));
+        pendingListeners.forEach(l -> l.onResponse(new Engine.FlushResult(false, 1)));
         assertThat(shard.flushStats().getPeriodic(), is(equalTo((long) numberOfFlushes)));
 
         closeShards(shard);
@@ -5087,7 +5135,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.isPromotableToPrimary(),
                 config.getMapperService(),
                 config.getEngineResetLock(),
-                config.getMergeMetrics()
+                config.getMergeMetrics(),
+                Function.identity()
             );
             return new InternalEngine(configWithWarmer);
         });
@@ -5265,6 +5314,67 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testTryWithEngineOrNull() throws Exception {
+        final var preparedForReset = new AtomicBoolean();
+        final var shard = newStartedShard(true, Settings.EMPTY, config -> {
+            if (preparedForReset.get()) {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true);
+            } else {
+                return new InternalEngine(config) {
+                    @Override
+                    public void prepareForEngineReset() throws IOException {
+                        assertTrue(preparedForReset.compareAndSet(false, true));
+                    }
+                };
+            }
+        });
+        final var engineResetLock = shard.getEngine().getEngineConfig().getEngineResetLock();
+
+        final var release = new CountDownLatch(1);
+        final var reset = new PlainActionFuture<Void>();
+        final var resetEngineThread = new Thread(() -> {
+            try {
+                shard.acquirePrimaryOperationPermit(reset.delegateFailure((l, permit) -> {
+                    try (permit) {
+                        shard.resetEngine(newEngine -> {
+                            assertThat(engineResetLock.isWriteLockedByCurrentThread(), equalTo(true));
+                            assertThat(newEngine, instanceOf(ReadOnlyEngine.class));
+                            safeAwait(release);
+                        });
+                        assertThat(preparedForReset.get(), equalTo(true));
+                        l.onResponse(null);
+                    }
+                }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            } catch (Exception e) {
+                reset.onFailure(e);
+            }
+        });
+        resetEngineThread.start();
+
+        assertBusy(() -> assertThat(engineResetLock.isWriteLocked(), equalTo(true)));
+
+        shard.tryWithEngineOrNull(engine -> {
+            assertNull(engine);
+            assertThat(engineResetLock.isReadLocked(), equalTo(false));
+            assertThat(engineResetLock.isWriteLocked(), equalTo(true));
+            return null;
+        });
+
+        release.countDown();
+        safeGet(reset);
+        assertThat(engineResetLock.isWriteLocked(), equalTo(false));
+
+        shard.tryWithEngineOrNull(engine -> {
+            assertThat(engine, instanceOf(ReadOnlyEngine.class));
+            assertThat(engineResetLock.isReadLocked(), equalTo(true));
+            assertThat(engineResetLock.isWriteLocked(), equalTo(false));
+            return null;
+        });
+
+        resetEngineThread.join();
+        closeShards(shard);
+    }
+
     public void testReentrantEngineReadLockAcquisitionInRefreshListener() throws Exception {
         final var lazyShard = new AtomicReference<IndexShard>();
         final var lazyEngineConfig = new AtomicReference<EngineConfig>();
@@ -5370,7 +5480,8 @@ public class IndexShardTests extends IndexShardTestCase {
                     config.isPromotableToPrimary(),
                     config.getMapperService(),
                     config.getEngineResetLock(),
-                    config.getMergeMetrics()
+                    config.getMergeMetrics(),
+                    Function.identity()
                 );
                 lazyEngineConfig.set(engineConfigWithBlockingRefreshListener);
                 return new InternalEngine(engineConfigWithBlockingRefreshListener) {

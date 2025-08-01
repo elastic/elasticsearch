@@ -297,8 +297,8 @@ public final class FirstOverTimeFloatGroupingAggregatorFunction implements Group
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = FirstOverTimeFloatAggregator.evaluateFinal(state, selected, evaluatorContext);
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = FirstOverTimeFloatAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

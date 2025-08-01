@@ -72,6 +72,7 @@ public class QueryRewriteContext {
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
+    private final boolean ccsMinimizeRoundtrips;
     private final boolean isExplain;
 
     public QueryRewriteContext(
@@ -91,6 +92,7 @@ public class QueryRewriteContext {
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
+        final boolean ccsMinimizeRoundtrips,
         final boolean isExplain
     ) {
 
@@ -111,6 +113,7 @@ public class QueryRewriteContext {
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
         this.queryRewriteInterceptor = queryRewriteInterceptor;
+        this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
         this.isExplain = isExplain;
     }
 
@@ -132,6 +135,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
+            true,
             false
         );
     }
@@ -142,9 +146,10 @@ public class QueryRewriteContext {
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
-        final QueryRewriteInterceptor queryRewriteInterceptor
+        final QueryRewriteInterceptor queryRewriteInterceptor,
+        final boolean ccsMinimizeRoundtrips
     ) {
-        this(parserConfiguration, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, false);
+        this(parserConfiguration, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, ccsMinimizeRoundtrips, false);
     }
 
     public QueryRewriteContext(
@@ -154,6 +159,7 @@ public class QueryRewriteContext {
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
+        final boolean ccsMinimizeRoundtrips,
         final boolean isExplain
     ) {
         this(
@@ -173,6 +179,7 @@ public class QueryRewriteContext {
             resolvedIndices,
             pit,
             queryRewriteInterceptor,
+            ccsMinimizeRoundtrips,
             isExplain
         );
     }
@@ -277,6 +284,10 @@ public class QueryRewriteContext {
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    public boolean isCcsMinimizeRoundtrips() {
+        return ccsMinimizeRoundtrips;
     }
 
     public boolean isExplain() {

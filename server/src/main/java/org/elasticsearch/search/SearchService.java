@@ -2127,8 +2127,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit, final boolean ccsMinimizeRoundtrips) {
+        return getRewriteContext(nowInMillis, resolvedIndices, pit, ccsMinimizeRoundtrips, false);
     }
 
     /**
@@ -2138,9 +2138,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         LongSupplier nowInMillis,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
+        final boolean ccsMinimizeRoundtrips,
         final boolean isExplain
     ) {
-        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, isExplain);
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, ccsMinimizeRoundtrips, isExplain);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

@@ -1849,9 +1849,10 @@ public class IndicesService extends AbstractLifecycleComponent
         LongSupplier nowInMillis,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
+        final boolean ccsMinimizeRoundtrips,
         final boolean isExplain
     ) {
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, isExplain);
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, ccsMinimizeRoundtrips, isExplain);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

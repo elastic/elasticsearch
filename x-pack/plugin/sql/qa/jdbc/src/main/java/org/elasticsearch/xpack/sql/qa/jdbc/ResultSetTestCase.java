@@ -845,7 +845,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     // Double values testing
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingValidDoubleWithoutCasting() throws IOException, SQLException {
         List<Double> doubleTestValues = createTestDataForNumericValueTests(ESTestCase::randomDouble);
         double random1 = doubleTestValues.get(0);
@@ -1158,7 +1157,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingValidBigDecimalFromDoubleWithoutCasting() throws IOException, SQLException {
         List<Double> doubleTestValues = createTestDataForNumericValueTests(ESTestCase::randomDouble);
         doWithQuery(
@@ -1406,7 +1404,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingDateWithCalendar() throws Exception {
         long randomLongDate = randomMillisUpToYear9999();
         setupDataForDateTimeTests(randomLongDate);
@@ -1436,7 +1433,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingDateWithCalendarWithNanos() throws Exception {
         assumeTrue(
             "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
@@ -1600,7 +1596,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testGettingTimestampWithoutCalendarWithNanos() throws Exception {
         assumeTrue(
             "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
@@ -1933,7 +1928,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testValidGetObjectCalls() throws IOException, SQLException {
         createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");

@@ -26,15 +26,19 @@ import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommit
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
+import co.elastic.elasticsearch.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
 import co.elastic.elasticsearch.stateless.cache.action.ClearBlobCacheNodesRequest;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
+import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -47,6 +51,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -180,6 +185,68 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    public void testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation() throws Exception {
+        // testing that the first commit notification received after the search node started is used as the
+        // lower bound of things to prefetch (put another way, we won't donwload files from commits that were created in previous
+        // generations)
+        var nodeSettings = Settings.builder()
+            .put(SearchCommitPrefetcher.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), true)
+            .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
+            .build();
+        startMasterAndIndexNode(nodeSettings);
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
+        ensureGreen(indexName);
+
+        var numberOfCommits = randomIntBetween(5, 10);
+        for (int j = 0; j < numberOfCommits; j++) {
+            // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
+            indexDocs(indexName, 10_000);
+            refresh(indexName);
+        }
+        flush(indexName);
+
+        var searchNode = startSearchNode(nodeSettings);
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+        ensureGreen(indexName);
+
+        var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
+        assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
+
+        var searchRequest = prepareSearch(indexName);
+        searchRequest.setQuery(new MatchAllQueryBuilder()).setSize(randomIntBetween(100, 10_000));
+        assertNoFailures(searchRequest);
+
+        // no new commits were created since the search node started, so it didn't receive any commit notifications, nothing to prefetch
+        assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
+
+        var latestCommitGeneration = client().admin().indices().prepareStats(indexName).get().getAt(0).getCommitStats().getGeneration();
+        var vBCCGen = latestCommitGeneration + 1;
+        var bccBlobName = BatchedCompoundCommit.blobNameFromGeneration(vBCCGen);
+        var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
+
+        var beforeNewCommit = bytesReadFromBlobStore.get();
+
+        ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
+        String prewarmThreadPool = Stateless.PREWARM_THREAD_POOL;
+        // number of completed tasks in the prewarming threadpool before we start indexing
+        long preIngestTasksPrewarmingPool = getNumberOfCompletedTasks(threadPool, prewarmThreadPool);
+        // number of completed tasks in the refresh pool before we start indexing
+        long preIngestTasksRefreshPool = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
+        // create a new commit and upload it
+        indexDocs(indexName, 10_000);
+        refresh(indexName);
+        flush(indexName);
+
+        // wait for the refreshes to complete
+        assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
+        assertNoRunningAndQueueTasks(threadPool, prewarmThreadPool, preIngestTasksPrewarmingPool);
+
+        var afterFlush = bytesReadFromBlobStore.get();
+        // we should have prefetched the latest commit generation only
+        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(afterFlush - beforeNewCommit)));
+    }
+
     public void testSkipFetchingForSearchIdleIndices() throws Exception {
         var prefetchNonUploadedCommits = randomBoolean();
         var nodeSettings = Settings.builder()
@@ -203,8 +270,10 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         var bytesReadFromBlobStore = meterBlobStoreReadsForBCC(searchNode, bccBlobName);
         var bytesReadFromIndexingNode = meterIndexingNodeReadsForBCC(indexNode, shardId, vBCCGen);
 
-        var searchEngine = getShardEngine(findSearchShard(indexName), SearchEngine.class);
+        IndexShard searchShard = findSearchShard(indexName);
+        var searchEngine = getShardEngine(searchShard, SearchEngine.class);
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
+        assertThat(searchEngine.getMaxPrefetchedOffset(), is(BCCPreFetchedOffset.ZERO));
 
         var numberOfCommits = randomIntBetween(5, 10);
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, DiscoveryNodeRole.SEARCH_ROLE);
@@ -212,7 +281,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         // number of completed tasks in the prewarming threadpool before we start indexing
         long preIngestTasksPrewarmingPool = getNumberOfCompletedTasks(threadPool, prewarmThreadPool);
         // number of completed tasks in the refresh pool before we start indexing
-        long preIngestTasksShardReadPool = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
+        long preIngestTasksRefreshPool = getNumberOfCompletedTasks(threadPool, ThreadPool.Names.REFRESH);
         for (int j = 0; j < numberOfCommits; j++) {
             // Index enough documents so the initial read happening during refresh doesn't include the complete Lucene files
             indexDocs(indexName, 10_000);
@@ -227,7 +296,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
             flush(indexName);
         }
         // wait for the refreshes to complete
-        assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksShardReadPool);
+        assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
 
         // it's tricky to test that something does NOT happen (you can't wait for things to not happen)
         // so we just submit a marker task to the prewarming thread pool and then check that it was the only task that ran in the pool
@@ -248,6 +317,26 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessIntegTestCase {
         assertThat(bytesReadFromIndexingNode.get(), is(greaterThan(0L)));
         assertThat(bytesReadFromIndexingNode.get(), is(lessThan(bccTotalSizeInBytes)));
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(0L));
+
+        // let's test we updated the internal tracking of the max prefetch offset to the latest commit, at the very end
+        Store store = searchShard.store();
+        store.incRef();
+        try {
+            var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
+            StatelessCompoundCommit engineCurrentCommit = searchDirectory.getCurrentCommit();
+
+            BlobLocation maxOffsetInCurrentTerm = engineCurrentCommit.getMaxOffsetInCurrentGeneration();
+            assertThat(
+                searchEngine.getMaxPrefetchedOffset().bccTermAndGen(),
+                is(maxOffsetInCurrentTerm.getBatchedCompoundCommitTermAndGeneration())
+            );
+            assertThat(
+                searchEngine.getMaxPrefetchedOffset().offset(),
+                is(maxOffsetInCurrentTerm.offset() + maxOffsetInCurrentTerm.fileLength())
+            );
+        } finally {
+            store.decRef();
+        }
     }
 
     public void testCommitPrefetching() throws Exception {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.RoutingMissingException;
@@ -1188,6 +1189,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertNull(parsedFailure.getCause());
     }
 
+
     public void testFailureToAndFromXContentWithDetails() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
@@ -1258,6 +1260,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 DiscoveryNode node = DiscoveryNodeUtils.create("node_g");
                 failureCause = new NodeClosedException(node);
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
+                String sessionId = UUIDs.randomBase64UUID();
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[] {
                     new ShardSearchFailure(
                         new ParsingException(0, 0, "Parsing g", null),
@@ -1268,7 +1271,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                         new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null)
                     ),
                     new ShardSearchFailure(
-                        new SearchContextMissingException(new ShardSearchContextId(UUIDs.randomBase64UUID(), 0L)),
+                        new SearchContextMissingException(new ShardSearchContextId(sessionId, 0L)),
                         null
                     ) };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
@@ -1293,7 +1296,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 );
                 expected.addSuppressed(
                     new ElasticsearchException(
-                        "Elasticsearch exception [type=search_context_missing_exception, " + "reason=No search context found for id [0]]"
+                        "Elasticsearch exception [type=search_context_missing_exception, "
+                            + "reason=No search context found for id ["
+                            + sessionId
+                            + "/0]]"
                     )
                 );
             }

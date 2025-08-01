@@ -1,5 +1,5 @@
 pr: 132210
-summary: Adding a `mapping_merge_reason` parameter to the ingest simulate API
+summary: Adding a `merge_type` parameter to the ingest simulate API
 area: Ingest Node
 type: enhancement
 issues:

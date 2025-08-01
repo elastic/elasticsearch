@@ -103,7 +103,7 @@ public class SimulateBulkRequest extends BulkRequest {
     private final Map<String, Map<String, Object>> componentTemplateSubstitutions;
     private final Map<String, Map<String, Object>> indexTemplateSubstitutions;
     private final Map<String, Object> mappingAddition;
-    private final String mappingMergeReason;
+    private final String mappingMergeType;
 
     /**
      * @param pipelineSubstitutions The pipeline definitions that are to be used in place of any pre-existing pipeline definitions with
@@ -120,7 +120,7 @@ public class SimulateBulkRequest extends BulkRequest {
         Map<String, Map<String, Object>> componentTemplateSubstitutions,
         Map<String, Map<String, Object>> indexTemplateSubstitutions,
         Map<String, Object> mappingAddition,
-        String mappingMergeReason
+        String mappingMergeType
     ) {
         super();
         Objects.requireNonNull(pipelineSubstitutions);
@@ -131,7 +131,7 @@ public class SimulateBulkRequest extends BulkRequest {
         this.componentTemplateSubstitutions = componentTemplateSubstitutions;
         this.indexTemplateSubstitutions = indexTemplateSubstitutions;
         this.mappingAddition = mappingAddition;
-        this.mappingMergeReason = mappingMergeReason;
+        this.mappingMergeType = mappingMergeType;
     }
 
     @SuppressWarnings("unchecked")
@@ -150,10 +150,10 @@ public class SimulateBulkRequest extends BulkRequest {
         } else {
             mappingAddition = Map.of();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_MAPPING_MERGE_REASON)) {
-            mappingMergeReason = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
+            mappingMergeType = in.readOptionalString();
         } else {
-            mappingMergeReason = null;
+            mappingMergeType = null;
         }
     }
 
@@ -168,8 +168,8 @@ public class SimulateBulkRequest extends BulkRequest {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             out.writeGenericValue(mappingAddition);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_MAPPING_MERGE_REASON)) {
-            out.writeOptionalString(mappingMergeReason);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_INGEST_MAPPING_MERGE_TYPE)) {
+            out.writeOptionalString(mappingMergeType);
         }
     }
 
@@ -200,8 +200,8 @@ public class SimulateBulkRequest extends BulkRequest {
         return mappingAddition;
     }
 
-    public String getMappingMergeReason() {
-        return mappingMergeReason;
+    public String getMappingMergeType() {
+        return mappingMergeType;
     }
 
     private static ComponentTemplate convertRawTemplateToComponentTemplate(Map<String, Object> rawTemplate) {
@@ -231,7 +231,7 @@ public class SimulateBulkRequest extends BulkRequest {
             componentTemplateSubstitutions,
             indexTemplateSubstitutions,
             mappingAddition,
-            mappingMergeReason
+            mappingMergeType
         );
         bulkRequest.setRefreshPolicy(getRefreshPolicy());
         bulkRequest.waitForActiveShards(waitForActiveShards());

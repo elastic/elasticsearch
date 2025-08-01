@@ -68,7 +68,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -137,9 +136,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         Map<String, ComponentTemplate> componentTemplateSubstitutions = bulkRequest.getComponentTemplateSubstitutions();
         Map<String, ComposableIndexTemplate> indexTemplateSubstitutions = bulkRequest.getIndexTemplateSubstitutions();
         Map<String, Object> mappingAddition = ((SimulateBulkRequest) bulkRequest).getMappingAddition();
-        MapperService.MergeReason mappingMergeReason = Optional.ofNullable(((SimulateBulkRequest) bulkRequest).getMappingMergeReason())
-            .map(mergeReason -> MapperService.MergeReason.valueOf(mergeReason.toUpperCase(Locale.ROOT)))
-            .orElse(MapperService.MergeReason.MAPPING_UPDATE);
+        MapperService.MergeReason mappingMergeReason = getMergeReason(((SimulateBulkRequest) bulkRequest).getMappingMergeType());
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> docRequest = bulkRequest.requests.get(i);
             assert docRequest instanceof IndexRequest : "TransportSimulateBulkAction should only ever be called with IndexRequests";
@@ -173,6 +170,14 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         listener.onResponse(
             new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]), buildTookInMillis(relativeStartTimeNanos))
         );
+    }
+
+    private MapperService.MergeReason getMergeReason(String mergeType) {
+        return Optional.ofNullable(mergeType).map(type -> switch (type) {
+            case "index" -> MapperService.MergeReason.MAPPING_UPDATE;
+            case "template" -> MapperService.MergeReason.INDEX_TEMPLATE;
+            default -> throw new IllegalArgumentException("Unsupported merge type " + mergeType);
+        }).orElse(MapperService.MergeReason.MAPPING_UPDATE);
     }
 
     /**

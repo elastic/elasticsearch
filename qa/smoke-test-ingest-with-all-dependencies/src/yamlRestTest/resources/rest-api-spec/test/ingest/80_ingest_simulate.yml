@@ -1985,7 +1985,7 @@ setup:
       headers:
         Content-Type: application/json
       simulate.ingest:
-        mapping_merge_reason: "index_template"
+        merge_type: "template"
         body: >
           {
             "docs": [

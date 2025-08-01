@@ -39,9 +39,9 @@
         "type":"string",
         "description":"The pipeline id to preprocess incoming documents with if no pipeline is given for a particular document"
       },
-      "mapping_merge_reason":{
+      "merge_type":{
         "type":"string",
-        "description":"The mapping merge reason if mapping overrides are being provided in mapping_addition, index_template_substitutions, or component_template_substitutions. The allowed values are one of mapping_update or index_template. The mapping_update option merges mappings the way they would be merged into an existing index. The index_template option merges mappings the way they would be merged into a template.",
+        "description":"The mapping merge type if mapping overrides are being provided in mapping_addition, index_template_substitutions, or component_template_substitutions. The allowed values are one of index or template. The index option merges mappings the way they would be merged into an existing index. The template option merges mappings the way they would be merged into a template.",
         "default": "mapping_update"
       }
     },

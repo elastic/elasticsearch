@@ -297,8 +297,8 @@ public final class FirstOverTimeDoubleGroupingAggregatorFunction implements Grou
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = FirstOverTimeDoubleAggregator.evaluateFinal(state, selected, evaluatorContext);
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = FirstOverTimeDoubleAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

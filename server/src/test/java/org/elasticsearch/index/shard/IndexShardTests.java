@@ -5356,6 +5356,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.tryWithEngineOrNull(engine -> {
             assertNull(engine);
             assertThat(engineResetLock.isReadLocked(), equalTo(false));
+            assertThat(engineResetLock.isWriteLocked(), equalTo(true));
             return null;
         });
 
@@ -5366,6 +5367,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.tryWithEngineOrNull(engine -> {
             assertThat(engine, instanceOf(ReadOnlyEngine.class));
             assertThat(engineResetLock.isReadLocked(), equalTo(true));
+            assertThat(engineResetLock.isWriteLocked(), equalTo(false));
             return null;
         });
 

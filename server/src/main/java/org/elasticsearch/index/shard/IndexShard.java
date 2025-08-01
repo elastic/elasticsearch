@@ -3438,34 +3438,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Executes an operation while preventing the shard's engine instance to be reset during the execution.
-     * The operation might be executed with a {@code null} engine instance in case the engine/shard is closed or the engine is being
-     * reset. The engine might be closed while the operation is executed.
+     * The operation might be executed with a {@code null} engine instance in case the engine/shard is closed or the engine is already
+     * being reset. During an engine reset, this means the function will not block and return a null engine. The engine might be closed
+     * while the operation is executed.
      *
      * @param operation     the operation to execute
      * @return              the result of the operation
      * @param <R>           the type of the result
      */
     public <R> R tryWithEngineOrNull(Function<Engine, R> operation) {
-        return withEngine(operation, true, true);
+        return withEngine(operation, true, false);
     }
 
     /**
      * Executes an operation while preventing the shard's engine instance to be reset during the execution.
-     * The operation might be executed with a {@code null} engine instance in case the engine/shard is closed. The engine might be
-     * closed while the operation is executed.
+     * The operation might be executed with a {@code null} engine instance in case the engine/shard is closed. The function may block
+     * during an engine reset. The engine might be closed while the operation is executed.
      *
      * @param operation     the operation to execute
      * @return              the result of the operation
      * @param <R>           the type of the result
      */
     public <R> R withEngineOrNull(Function<Engine, R> operation) {
-        return withEngine(operation, true, false);
+        return withEngine(operation, true, true);
     }
 
     /**
      * Executes an operation while preventing the shard's engine instance to be reset during the execution.
      * If the current engine instance is null, this method throws an {@link AlreadyClosedException} and the operation is not executed. The
-     * engine might be closed while the operation is executed.
+     * function may block during an engine reset. The engine might be closed while the operation is executed.
      *
      * @param operation     the operation to execute
      * @return              the result of the operation
@@ -3473,14 +3474,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws              AlreadyClosedException if the current engine instance is {@code null}.
      */
     public <R> R withEngine(Function<Engine, R> operation) {
-        return withEngine(operation, false, false);
+        return withEngine(operation, false, true);
     }
 
     /**
      * Executes an operation (potentially throwing a checked exception) while preventing the shard's engine instance to be reset during the
      * execution.
      * If the current engine instance is null, this method throws an {@link AlreadyClosedException} and the operation is not executed. The
-     * engine might be closed while the operation is executed.
+     * function may block during an engine reset. The engine might be closed while the operation is executed.
      *
      * @param operation     the operation to execute
      * @return              the result of the operation
@@ -3508,7 +3509,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The parameter {@code allowNoEngine} is used to allow the operation to be executed when the current engine instance is {@code null}.
      * When {@code allowNoEngine} is set to {@code `false`} the method will throw an {@link AlreadyClosedException} if the current engine
      * instance is {@code null}.
-     * The parameter {@code noEngineDuringReset} is used to execute the operation with a {@code null} engine instance if the engine is
+     * The parameter {@code blockIfResetting} is used to execute the operation with a {@code null} engine instance if the engine is
      * being reset at the time the function is invoked. This is useful for operations that access a shard's engine periodically, e.g.,
      * to get statistics, and are OK to skip it if the engine is being reset, rather than blocking until reset is complete. Note that
      * it is illegal to set this parameter to true if {@code allowNoEngine} is set to false.
@@ -3518,16 +3519,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return              the result of the operation
      * @param <R>           the type of the result
      */
-    private <R> R withEngine(Function<Engine, R> operation, boolean allowNoEngine, boolean noEngineDuringReset) {
+    private <R> R withEngine(Function<Engine, R> operation, boolean allowNoEngine, boolean blockIfResetting) {
         assert operation != null;
-        assert allowNoEngine || noEngineDuringReset == false
-            : "noEngineDuringReset " + noEngineDuringReset + " (true) is not allowed when allowNoEngine is " + allowNoEngine + " (false)";
+        assert blockIfResetting == false || assertCurrentThreadWithEngine(); // assert current thread can block on engine resets
+        if (blockIfResetting == false && allowNoEngine == false) {
+            assert false : "blockIfResetting (false) only allowed with allowNoEngine (true)";
+            throw new IllegalArgumentException("blockIfResetting (false) only allowed with allowNoEngine (true)");
+        }
         boolean locked = true;
-        if (noEngineDuringReset) {
-            locked = engineResetLock.readLock().tryLock();
-        } else {
-            assert assertCurrentThreadWithEngine();
+        if (blockIfResetting) {
             engineResetLock.readLock().lock();
+        } else {
+            locked = engineResetLock.readLock().tryLock();
         }
         if (locked) {
             try {

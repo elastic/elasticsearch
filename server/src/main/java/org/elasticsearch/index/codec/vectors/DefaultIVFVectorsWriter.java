@@ -405,9 +405,9 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         // this are small numbers so we run it wih all the centroids.
         final KMeansResult kMeansResult = new HierarchicalKMeans(
             fieldInfo.getVectorDimension(),
-            6,
-            floatVectorValues.size(),
-            floatVectorValues.size(),
+            HierarchicalKMeans.MAX_ITERATIONS_DEFAULT,
+            HierarchicalKMeans.SAMPLES_PER_CLUSTER_DEFAULT,
+            HierarchicalKMeans.MAXK,
             -1 // disable SOAR assignments
         ).cluster(floatVectorValues, centroidsPerParentCluster);
         final int[] centroidVectorCount = new int[kMeansResult.centroids().length];

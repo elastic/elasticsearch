@@ -100,8 +100,8 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(searchRequestBuilder, response -> { assertNotNull(response.getSuggest()); });
     }
 
-    private void createIndexAndDocs(boolean allowUnigrams) throws IOException {
-        // Create an index with a shingle analyzer that outputs NO unigrams (only n-grams)
+    private void createIndexAndDocs(boolean outputUnigrams) throws IOException {
+        // Create an index with a shingle analyzer that outputs unigrams or not
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -109,7 +109,7 @@ public class PhraseSuggesterIT extends ESIntegTestCase {
                     .put("index.analysis.analyzer.ngram_only.tokenizer", "standard")
                     .putList("index.analysis.analyzer.ngram_only.filter", "my_shingle", "lowercase")
                     .put("index.analysis.filter.my_shingle.type", "shingle")
-                    .put("index.analysis.filter.my_shingle.output_unigrams", allowUnigrams)
+                    .put("index.analysis.filter.my_shingle.output_unigrams", outputUnigrams)
                     .put("index.analysis.filter.my_shingle.min_shingle_size", 2)
                     .put("index.analysis.filter.my_shingle.max_shingle_size", 3)
             )

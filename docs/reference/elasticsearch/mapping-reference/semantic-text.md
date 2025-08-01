@@ -160,7 +160,7 @@ for the field. Currently, `dense_vector` and `sparse_vector` index options are s
 For text embeddings, `index_options` may match any allowed.
 
 * [dense_vector index options](/reference/elasticsearch/mapping-reference/dense-vector.md#dense-vector-index-options).
-* [sparse_vector index options](/reference/elasticsearch/mapping-reference/sparse-vector.md#sparse-vectors-params)
+* [sparse_vector index options](/reference/elasticsearch/mapping-reference/sparse-vector.md#sparse-vectors-params). {applies_to}`stack: ga 9.2`
 
 `chunking_settings` {applies_to}`stack: ga 9.1`
 :   (Optional, object) Settings for chunking text into smaller passages.

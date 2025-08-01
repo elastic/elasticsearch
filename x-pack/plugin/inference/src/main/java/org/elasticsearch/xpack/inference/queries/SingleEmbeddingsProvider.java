@@ -12,20 +12,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
-public class MapEmbeddingsProvider implements EmbeddingsProvider {
-    public static final String NAME = "map_embeddings_provider";
+public class SingleEmbeddingsProvider implements EmbeddingsProvider {
+    public static final String NAME = "single_embeddings_provider";
 
-    private final Map<InferenceEndpointKey, InferenceResults> embeddings;
+    private final InferenceResults embeddings;
 
-    public MapEmbeddingsProvider() {
-        this.embeddings = new HashMap<>();
+    public SingleEmbeddingsProvider(InferenceResults embeddings) {
+        this.embeddings = embeddings;
     }
 
-    public MapEmbeddingsProvider(StreamInput in) throws IOException {
-        this.embeddings = in.readMap(InferenceEndpointKey::new, i -> i.readNamedWriteable(InferenceResults.class));
+    public SingleEmbeddingsProvider(StreamInput in) throws IOException {
+        this.embeddings = in.readNamedWriteable(InferenceResults.class);
     }
 
     @Override
@@ -35,15 +33,11 @@ public class MapEmbeddingsProvider implements EmbeddingsProvider {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(embeddings);
+        out.writeNamedWriteable(embeddings);
     }
 
     @Override
     public InferenceResults getEmbeddings(InferenceEndpointKey key) {
-        return embeddings.get(key);
-    }
-
-    public void addEmbeddings(InferenceEndpointKey key, InferenceResults embeddings) {
-        this.embeddings.put(key, embeddings);
+        return embeddings;
     }
 }

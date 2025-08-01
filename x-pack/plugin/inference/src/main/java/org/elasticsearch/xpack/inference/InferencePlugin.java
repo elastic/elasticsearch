@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteIn
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticSparseVectorQueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.queries.SingleEmbeddingsProvider;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankBuilder;
 import org.elasticsearch.xpack.inference.rank.random.RandomRankRetrieverBuilder;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankBuilder;
@@ -429,6 +430,9 @@ public class InferencePlugin extends Plugin
         entries.add(new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new));
         entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom));
         entries.add(new NamedWriteableRegistry.Entry(EmbeddingsProvider.class, MapEmbeddingsProvider.NAME, MapEmbeddingsProvider::new));
+        entries.add(
+            new NamedWriteableRegistry.Entry(EmbeddingsProvider.class, SingleEmbeddingsProvider.NAME, SingleEmbeddingsProvider::new)
+        );
         return entries;
     }
 

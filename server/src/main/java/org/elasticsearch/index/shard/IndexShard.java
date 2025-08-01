@@ -810,7 +810,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
-            indexShardOperationPermits.blockOperations(new ActionListener<>() {
+            blockOperations(new ActionListener<>() {
                 @Override
                 public void onResponse(Releasable releasable) {
                     boolean success = false;
@@ -888,8 +888,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         listener.onFailure(e);
                     }
                 }
-            }, 30L, TimeUnit.MINUTES, EsExecutors.DIRECT_EXECUTOR_SERVICE); // Wait on current thread because this execution is wrapped by
-                                                                            // CancellableThreads and we want to be able to interrupt it
+            },
+                30L,
+                TimeUnit.MINUTES,
+                // Wait on current thread because this execution is wrapped by CancellableThreads and we want to be able to interrupt it
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+
         }
     }
 
@@ -2765,6 +2770,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    private void suspendThrottling() {
+        try {
+            getEngine().suspendThrottling();
+        } catch (AlreadyClosedException ex) {
+            // ignore
+        }
+    }
+
+    private void resumeThrottling() {
+        try {
+            getEngine().resumeThrottling();
+        } catch (AlreadyClosedException ex) {
+            // ignore
+        }
+    }
+
     private void handleRefreshException(Exception e) {
         if (e instanceof AlreadyClosedException) {
             // ignore
@@ -3765,7 +3786,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             routingEntry().isPromotableToPrimary(),
             mapperService(),
             engineResetLock,
-            mergeMetrics
+            mergeMetrics,
+            Function.identity()
         );
     }
 
@@ -3822,6 +3844,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         });
     }
 
+    /**
+     * Immediately delays operations and uses the {@code executor} to wait for in-flight operations to finish and then acquires all
+     * permits. When all permits are acquired, the provided {@link ActionListener} is called under the guarantee that no new operations are
+     * started. Delayed operations are run once the {@link Releasable} is released or if a failure occurs while acquiring all permits; in
+     * this case the {@code onFailure} handler will be invoked after delayed operations are released.
+     *
+     * @param onAcquired {@link ActionListener} that is invoked once acquisition is successful or failed. This listener should not throw.
+     * @param timeout    the maximum time to wait for the in-flight operations block
+     * @param timeUnit   the time unit of the {@code timeout} argument
+     * @param executor   executor on which to wait for in-flight operations to finish and acquire all permits
+     */
+    public void blockOperations(
+        final ActionListener<Releasable> onAcquired,
+        final long timeout,
+        final TimeUnit timeUnit,
+        final Executor executor
+    ) {
+        // In case indexing is paused on the shard, suspend throttling so that any currently paused task can
+        // go ahead and release the indexing permit it holds.
+        suspendThrottling();
+        try {
+            indexShardOperationPermits.blockOperations(
+                ActionListener.runAfter(onAcquired, this::resumeThrottling),
+                timeout,
+                timeUnit,
+                executor
+            );
+        } catch (IndexShardClosedException e) {
+            resumeThrottling();
+            throw e;
+        }
+    }
+
     private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
         final Releasable forceRefreshes = refreshListeners.forceRefreshes();
         final ActionListener<Releasable> wrappedListener = ActionListener.wrap(r -> {
@@ -3832,7 +3887,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onPermitAcquired.onFailure(e);
         });
         try {
-            indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
+            blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
         } catch (Exception e) {
             forceRefreshes.close();
             throw e;
@@ -4732,11 +4787,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param listener the listener to be notified when the shard is mutable
      */
     public void ensureMutable(ActionListener<Void> listener, boolean permitAcquired) {
-        indexEventListener.beforeIndexShardMutableOperation(
-            this,
-            permitAcquired,
-            listener.delegateFailure((l, unused) -> l.onResponse(null))
-        );
+        indexEventListener.beforeIndexShardMutableOperation(this, permitAcquired, listener);
     }
 
     // package-private for tests

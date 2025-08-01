@@ -115,6 +115,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
     public Map<String, ReservedStateMetadata> reservedStateMetadata(ProjectId projectId) {
         return projectsEntries.getOrDefault(projectId, EMPTY_ENTRY).reservedStateMetadata;
     }
+  
+    public Set<ProjectId> getProjectsMarkedForDeletion() {
+        return projectsMarkedForDeletion;
+    }
 
     public boolean isProjectMarkedForDeletion(ProjectId projectId) {
         return projectsMarkedForDeletion.contains(projectId);
@@ -337,6 +341,12 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             return this;
         }
 
+        public Builder removeProject(ProjectId projectId) {
+            projectsEntries.remove(projectId);
+            projectsMarkedForDeletion.remove(projectId);
+            return this;
+        }
+
         public ProjectStateRegistry build() {
             final var unknownButUnderDeletion = Sets.difference(projectsMarkedForDeletion, projectsEntries.keys());
             if (unknownButUnderDeletion.isEmpty() == false) {
@@ -346,7 +356,7 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             }
             return new ProjectStateRegistry(
                 projectsEntries.build(),
-                projectsMarkedForDeletion,
+                Collections.unmodifiableSet(projectsMarkedForDeletion),
                 newProjectMarkedForDeletion ? projectsMarkedForDeletionGeneration + 1 : projectsMarkedForDeletionGeneration
             );
         }

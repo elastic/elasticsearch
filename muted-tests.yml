@@ -479,9 +479,6 @@ tests:
 - class: org.elasticsearch.indices.cluster.RemoteSearchForceConnectTimeoutIT
   method: testTimeoutSetting
   issue: https://github.com/elastic/elasticsearch/issues/131656
-- class: org.elasticsearch.xpack.stack.StackYamlIT
-  method: test {yaml=stack/10_basic/Test wrong data_stream type - logs from 9.2.0}
-  issue: https://github.com/elastic/elasticsearch/issues/131803
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437

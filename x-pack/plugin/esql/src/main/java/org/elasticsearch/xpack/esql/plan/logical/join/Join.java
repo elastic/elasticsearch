@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 
@@ -56,7 +57,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
-public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic {
+public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic, ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
     public static final DataType[] UNSUPPORTED_TYPES = {
         TEXT,
@@ -308,5 +309,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
 
     public boolean isRemote() {
         return isRemote;
+    }
+
+    @Override
+    public ExecuteLocation executesOn() {
+        return isRemote ? ExecuteLocation.REMOTE : ExecuteLocation.COORDINATOR;
     }
 }

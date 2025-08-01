@@ -2358,7 +2358,7 @@ public class VerifierTests extends ESTestCase {
             | %s
             | ENRICH _remote:languages ON language_code
             """, lookupCommand), analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [" + lookupCommand + "]@3:3"));
 
         err = error(Strings.format("""
             FROM test
@@ -2367,7 +2367,7 @@ public class VerifierTests extends ESTestCase {
             | ENRICH _remote:languages ON language_code
             | %s
             """, lookupCommand, lookupCommand), analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [" + lookupCommand + "]@3:3"));
 
         err = error(Strings.format("""
             FROM test
@@ -2377,7 +2377,7 @@ public class VerifierTests extends ESTestCase {
             | MV_EXPAND language_code
             | ENRICH _remote:languages ON language_code
             """, lookupCommand), analyzer);
-        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after LOOKUP JOIN"));
+        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after [" + lookupCommand + "]@3:3"));
     }
 
     public void testRemoteEnrichAfterCoordinatorOnlyPlans() {
@@ -2420,7 +2420,7 @@ public class VerifierTests extends ESTestCase {
             | STATS count(*) BY language_code
             | ENRICH _remote:languages ON language_code
             """, analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after STATS"));
+        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after [STATS count(*) BY language_code]@3:3"));
 
         err = error("""
             FROM test
@@ -2430,7 +2430,7 @@ public class VerifierTests extends ESTestCase {
             | MV_EXPAND language_code
             | ENRICH _remote:languages ON language_code
             """, analyzer);
-        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after STATS"));
+        assertThat(err, containsString("6:3: ENRICH with remote policy can't be executed after [STATS count(*) BY language_code]@3:3"));
 
         query("""
             FROM test
@@ -2445,7 +2445,10 @@ public class VerifierTests extends ESTestCase {
             | ENRICH _coordinator:languages ON language_code
             | ENRICH _remote:languages ON language_code
             """, analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
+        assertThat(
+            err,
+            containsString("4:3: ENRICH with remote policy can't be executed after [ENRICH _coordinator:languages ON language_code]@3:3")
+        );
 
         err = error("""
             FROM test
@@ -2456,7 +2459,10 @@ public class VerifierTests extends ESTestCase {
             | DISSECT language_name "%{foo}"
             | ENRICH _remote:languages ON language_code
             """, analyzer);
-        assertThat(err, containsString("7:3: ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
+        assertThat(
+            err,
+            containsString("7:3: ENRICH with remote policy can't be executed after [ENRICH _coordinator:languages ON language_code]@3:3")
+        );
 
         err = error("""
             FROM test
@@ -2464,7 +2470,12 @@ public class VerifierTests extends ESTestCase {
             | EVAL language_code = languages
             | ENRICH _remote:languages ON language_code
             """, analyzer);
-        assertThat(err, containsString("4:3: ENRICH with remote policy can't be executed after FORK"));
+        assertThat(
+            err,
+            containsString(
+                "4:3: ENRICH with remote policy can't be executed after [FORK (WHERE languages == 1) (WHERE languages == 2)]@2:3"
+            )
+        );
     }
 
     private void checkFullTextFunctionsInStats(String functionInvocation) {

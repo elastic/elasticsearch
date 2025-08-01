@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAwa
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -48,7 +47,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -148,35 +146,24 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Post
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        if (order != null && order instanceof Literal == false) {
-            // if we are here, we know that order is foldable, so we can safely fold it
-            Literal newOrder = Literal.of(ctx, order);
-            List<Expression> newChildren = new ArrayList<>();
-            newChildren.add(field);
-            newChildren.add(newOrder);
-            return replaceChildren(newChildren).fold(ctx);
-        }
-        return super.fold(ctx);
-    }
-
-    @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         boolean ordering = true;
-        if (isValidOrder() == false) {
-            throw new IllegalArgumentException(
-                LoggerMessageFormat.format(
-                    null,
-                    INVALID_ORDER_ERROR,
-                    sourceText(),
-                    BytesRefs.toString(ASC.value()),
-                    BytesRefs.toString(DESC.value()),
-                    BytesRefs.toString(order.fold(toEvaluator.foldCtx()))
-                )
-            );
-        }
         if (order != null && order.foldable()) {
-            ordering = BytesRefs.toString(order.fold(toEvaluator.foldCtx())).equalsIgnoreCase(BytesRefs.toString(ASC.value()));
+            String orderValue = BytesRefs.toString(order.fold(toEvaluator.foldCtx()));
+            if (orderValue.equalsIgnoreCase(BytesRefs.toString(DESC.value())) == false
+                && orderValue.equalsIgnoreCase(BytesRefs.toString(ASC.value())) == false) {
+                throw new IllegalArgumentException(
+                    LoggerMessageFormat.format(
+                        null,
+                        INVALID_ORDER_ERROR,
+                        sourceText(),
+                        BytesRefs.toString(ASC.value()),
+                        BytesRefs.toString(DESC.value()),
+                        orderValue
+                    )
+                );
+            }
+            ordering = orderValue.equalsIgnoreCase(BytesRefs.toString(ASC.value()));
         }
 
         return switch (PlannerUtils.toElementType(field.dataType())) {

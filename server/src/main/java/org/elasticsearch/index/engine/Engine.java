@@ -315,7 +315,7 @@ public abstract class Engine implements Closeable {
                             // This almost does what FixedBitSet#ramBytesUsed() does, liveDocs.length() returns the length of the bits long
                             // array
                             liveDocsBytes += RamUsageEstimator.alignObjectSize(
-                                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long)(liveDocs.length() / 8)
+                                (long) RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (liveDocs.length() / 8L)
                             );
                         }
                     }

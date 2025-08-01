@@ -9,7 +9,6 @@
 
 package org.elasticsearch;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.RoutingMissingException;
@@ -1189,7 +1188,6 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertNull(parsedFailure.getCause());
     }
 
-
     public void testFailureToAndFromXContentWithDetails() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
@@ -1270,10 +1268,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                         new RepositoryException("repository_g", "Repo"),
                         new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null)
                     ),
-                    new ShardSearchFailure(
-                        new SearchContextMissingException(new ShardSearchContextId(sessionId, 0L)),
-                        null
-                    ) };
+                    new ShardSearchFailure(new SearchContextMissingException(new ShardSearchContextId(sessionId, 0L)), null) };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
                 expectedCause = new ElasticsearchException(
                     "Elasticsearch exception [type=node_closed_exception, " + "reason=node closed " + node + "]"

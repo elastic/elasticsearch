@@ -2521,6 +2521,11 @@ public class VerifierTests extends ESTestCase {
             error("from test | stats max(event_duration) by tbucket(\"1\")", sampleDataAnalyzer),
             equalTo("1:42: argument of [tbucket(\"1\")] must be [date_period or time_duration], found value [\"1\"] type [keyword]")
         );
+
+        /*
+        To test unsupported @timestamp data type. In this case, we use a boolean as a type for the @timestamp field which is not supported
+        by TBUCKET.
+         */
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1 hour\")", oddSampleDataAnalyzer),
             equalTo(

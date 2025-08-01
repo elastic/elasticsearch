@@ -1340,7 +1340,7 @@ public class EsqlCapabilities {
         /**
          * Support for tbucket function
          */
-        TBUCKET();
+        TBUCKET;
 
         private final boolean enabled;
 

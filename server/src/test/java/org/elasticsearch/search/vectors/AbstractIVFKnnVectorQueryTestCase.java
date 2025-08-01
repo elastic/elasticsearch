@@ -98,7 +98,7 @@ abstract class AbstractIVFKnnVectorQueryTestCase extends LuceneTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        format = new IVFVectorsFormat(128);
+        format = new IVFVectorsFormat(128, 4);
     }
 
     abstract AbstractIVFKnnVectorQuery getKnnVectorQuery(String field, float[] query, int k, Query queryFilter, int nProbe);

@@ -2131,7 +2131,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         LongSupplier nowInMillis,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
-        final boolean ccsMinimizeRoundtrips
+        final Boolean ccsMinimizeRoundtrips
     ) {
         return getRewriteContext(nowInMillis, resolvedIndices, pit, ccsMinimizeRoundtrips, false);
     }
@@ -2143,7 +2143,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         LongSupplier nowInMillis,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
-        final boolean ccsMinimizeRoundtrips,
+        final Boolean ccsMinimizeRoundtrips,
         final boolean isExplain
     ) {
         return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, ccsMinimizeRoundtrips, isExplain);

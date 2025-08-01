@@ -72,7 +72,7 @@ public class QueryRewriteContext {
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
     private QueryRewriteInterceptor queryRewriteInterceptor;
-    private final boolean ccsMinimizeRoundtrips;
+    private final Boolean ccsMinimizeRoundtrips;
     private final boolean isExplain;
 
     public QueryRewriteContext(
@@ -92,7 +92,7 @@ public class QueryRewriteContext {
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
-        final boolean ccsMinimizeRoundtrips,
+        final Boolean ccsMinimizeRoundtrips,
         final boolean isExplain
     ) {
 
@@ -135,7 +135,7 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            true,
+            null,
             false
         );
     }
@@ -147,7 +147,7 @@ public class QueryRewriteContext {
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
-        final boolean ccsMinimizeRoundtrips
+        final Boolean ccsMinimizeRoundtrips
     ) {
         this(parserConfiguration, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, ccsMinimizeRoundtrips, false);
     }
@@ -159,7 +159,7 @@ public class QueryRewriteContext {
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
         final QueryRewriteInterceptor queryRewriteInterceptor,
-        final boolean ccsMinimizeRoundtrips,
+        final Boolean ccsMinimizeRoundtrips,
         final boolean isExplain
     ) {
         this(
@@ -286,7 +286,7 @@ public class QueryRewriteContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
-    public boolean isCcsMinimizeRoundtrips() {
+    public Boolean isCcsMinimizeRoundtrips() {
         return ccsMinimizeRoundtrips;
     }
 

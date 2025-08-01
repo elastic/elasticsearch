@@ -1849,7 +1849,7 @@ public class IndicesService extends AbstractLifecycleComponent
         LongSupplier nowInMillis,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
-        final boolean ccsMinimizeRoundtrips,
+        final Boolean ccsMinimizeRoundtrips,
         final boolean isExplain
     ) {
         return new QueryRewriteContext(

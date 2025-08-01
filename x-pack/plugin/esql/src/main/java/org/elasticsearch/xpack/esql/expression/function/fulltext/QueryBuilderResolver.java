@@ -61,7 +61,7 @@ public final class QueryBuilderResolver {
             System.currentTimeMillis()
         );
 
-        return services.searchService().getRewriteContext(System::currentTimeMillis, resolvedIndices, null, true);
+        return services.searchService().getRewriteContext(System::currentTimeMillis, resolvedIndices, null, null);
     }
 
     private static Set<String> indexNames(LogicalPlan plan) {

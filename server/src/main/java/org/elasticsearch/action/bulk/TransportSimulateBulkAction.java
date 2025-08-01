@@ -176,7 +176,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         return Optional.ofNullable(mergeType).map(type -> switch (type) {
             case "index" -> MapperService.MergeReason.MAPPING_UPDATE;
             case "template" -> MapperService.MergeReason.INDEX_TEMPLATE;
-            default -> throw new IllegalArgumentException("Unsupported merge type " + mergeType);
+            default -> throw new IllegalArgumentException("Unsupported merge type '" + mergeType + "'. Valid values are 'index' and 'template'.");
         }).orElse(MapperService.MergeReason.MAPPING_UPDATE);
     }
 

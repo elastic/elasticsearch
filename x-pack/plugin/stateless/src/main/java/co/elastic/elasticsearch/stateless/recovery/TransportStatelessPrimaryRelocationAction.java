@@ -266,7 +266,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
 
         final long beforeInitialFlush = threadPool.relativeTimeInMillis();
         if (hollowShardsService.isHollowShard(indexShard.shardId())) {
-            preFlushStep.onResponse(Engine.FlushResult.NO_FLUSH);
+            preFlushStep.onResponse(Engine.FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
         } else {
             ActionListener.run(preFlushStep, l -> preFlushEngine.flush(false, false, l));
         }

@@ -791,7 +791,7 @@ public class SearchEngine extends Engine {
 
     @Override
     protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-        listener.onResponse(FlushResult.NO_FLUSH);
+        listener.onResponse(FlushResult.FLUSH_REQUEST_PROCESSED_AND_NOT_PERFORMED);
     }
 
     @Override

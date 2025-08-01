@@ -42,13 +42,8 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
 
         for (Map.Entry<String, Float> fieldEntry : multiMatchBuilder.fields().entrySet()) {
             String fieldName = fieldEntry.getKey();
-            boolean isSemanticInAnyIndex = false;
-            for (IndexMetadata indexMetadata : allIndicesMetadata) {
-                if (indexMetadata.getInferenceFields().containsKey(fieldName)) {
-                    isSemanticInAnyIndex = true;
-                    break;
-                }
-            }
+            boolean isSemanticInAnyIndex = allIndicesMetadata.stream()
+                .anyMatch(indexMetadata -> indexMetadata.getInferenceFields().containsKey(fieldName));
             if (isSemanticInAnyIndex) {
                 semanticFields.put(fieldName, fieldEntry.getValue());
             } else {
@@ -67,72 +62,83 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             throw new IllegalArgumentException("Query type [" + type.parseField().getPreferredName() + "] is not supported with semantic_text fields");
         }
 
-        if (type == MultiMatchQueryBuilder.Type.BEST_FIELDS) {
-            DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
-            if (otherFields.isEmpty() == false) {
-                MultiMatchQueryBuilder lexicalPart = new MultiMatchQueryBuilder(multiMatchBuilder.value());
-                lexicalPart.fields(otherFields);
-                lexicalPart.type(multiMatchBuilder.type());
-                disMaxQuery.add(lexicalPart);
-            }
-            for (Map.Entry<String, Float> fieldEntry : semanticFields.entrySet()) {
-                SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldEntry.getKey(), multiMatchBuilder.value().toString(), true);
-                if (fieldEntry.getValue() != 1.0f) {
-                    semanticQuery.boost(fieldEntry.getValue());
+        QueryBuilder rewrittenQuery;
+        switch (type) {
+            case BEST_FIELDS:
+                DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
+                if (otherFields.isEmpty() == false) {
+                    disMaxQuery.add(createLexicalQuery(multiMatchBuilder, otherFields));
                 }
-                disMaxQuery.add(semanticQuery);
-            }
-            Float tieBreaker = multiMatchBuilder.tieBreaker();
-            if (tieBreaker != null) {
-                disMaxQuery.tieBreaker(tieBreaker);
-            }
-            disMaxQuery.boost(multiMatchBuilder.boost());
-            disMaxQuery.queryName(multiMatchBuilder.queryName());
-            return disMaxQuery;
-        }
-
-        // Fallback for other types like MOST_FIELDS and BOOL_PREFIX
-        BoolQueryBuilder rewrittenQuery = new BoolQueryBuilder();
-        if (otherFields.isEmpty() == false) {
-            MultiMatchQueryBuilder lexicalPart = new MultiMatchQueryBuilder(multiMatchBuilder.value());
-            lexicalPart.fields(otherFields);
-            lexicalPart.type(multiMatchBuilder.type());
-            lexicalPart.operator(multiMatchBuilder.operator());
-            lexicalPart.analyzer(multiMatchBuilder.analyzer());
-            lexicalPart.slop(multiMatchBuilder.slop());
-            if (multiMatchBuilder.fuzziness() != null) {
-                lexicalPart.fuzziness(multiMatchBuilder.fuzziness());
-            }
-            lexicalPart.prefixLength(multiMatchBuilder.prefixLength());
-            lexicalPart.maxExpansions(multiMatchBuilder.maxExpansions());
-            lexicalPart.minimumShouldMatch(multiMatchBuilder.minimumShouldMatch());
-            lexicalPart.fuzzyRewrite(multiMatchBuilder.fuzzyRewrite());
-            if (multiMatchBuilder.tieBreaker() != null) {
-                lexicalPart.tieBreaker(multiMatchBuilder.tieBreaker());
-            }
-            lexicalPart.lenient(multiMatchBuilder.lenient());
-            lexicalPart.zeroTermsQuery(multiMatchBuilder.zeroTermsQuery());
-            lexicalPart.autoGenerateSynonymsPhraseQuery(multiMatchBuilder.autoGenerateSynonymsPhraseQuery());
-            lexicalPart.fuzzyTranspositions(multiMatchBuilder.fuzzyTranspositions());
-            rewrittenQuery.should(lexicalPart);
-        }
-
-        if (semanticFields.isEmpty() == false) {
-            BoolQueryBuilder semanticPart = new BoolQueryBuilder();
-            for (Map.Entry<String, Float> fieldEntry : semanticFields.entrySet()) {
-                SemanticQueryBuilder semanticQueryBuilder = new SemanticQueryBuilder(fieldEntry.getKey(), multiMatchBuilder.value().toString(), true);
-                if (fieldEntry.getValue() != 1.0f) {
-                    semanticQueryBuilder.boost(fieldEntry.getValue());
+                for (Map.Entry<String, Float> fieldEntry : semanticFields.entrySet()) {
+                    disMaxQuery.add(createSemanticQuery(multiMatchBuilder.value().toString(), fieldEntry));
                 }
-                semanticPart.should(semanticQueryBuilder);
-            }
-            rewrittenQuery.should(semanticPart);
+                Float tieBreaker = multiMatchBuilder.tieBreaker();
+                if (tieBreaker != null) {
+                    disMaxQuery.tieBreaker(tieBreaker);
+                }
+                rewrittenQuery = disMaxQuery;
+                break;
+            case MOST_FIELDS:
+            case BOOL_PREFIX:
+            default:
+                BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+                if (otherFields.isEmpty() == false) {
+                    boolQuery.should(createLexicalQuery(multiMatchBuilder, otherFields));
+                }
+                if (semanticFields.isEmpty() == false) {
+                    boolQuery.should(createSemanticQuery(multiMatchBuilder.value().toString(), semanticFields));
+                }
+                rewrittenQuery = boolQuery;
+                break;
         }
 
         rewrittenQuery.boost(multiMatchBuilder.boost());
         rewrittenQuery.queryName(multiMatchBuilder.queryName());
-
         return rewrittenQuery;
+    }
+
+    private QueryBuilder createLexicalQuery(MultiMatchQueryBuilder original, Map<String, Float> lexicalFields) {
+        MultiMatchQueryBuilder lexicalPart = new MultiMatchQueryBuilder(original.value());
+        lexicalPart.fields(lexicalFields);
+        lexicalPart.type(original.type());
+        lexicalPart.operator(original.operator());
+        lexicalPart.analyzer(original.analyzer());
+        lexicalPart.slop(original.slop());
+        if (original.fuzziness() != null) {
+            lexicalPart.fuzziness(original.fuzziness());
+        }
+        lexicalPart.prefixLength(original.prefixLength());
+        lexicalPart.maxExpansions(original.maxExpansions());
+        lexicalPart.minimumShouldMatch(original.minimumShouldMatch());
+        lexicalPart.fuzzyRewrite(original.fuzzyRewrite());
+        if (original.tieBreaker() != null) {
+            lexicalPart.tieBreaker(original.tieBreaker());
+        }
+        lexicalPart.lenient(original.lenient());
+        lexicalPart.zeroTermsQuery(original.zeroTermsQuery());
+        lexicalPart.autoGenerateSynonymsPhraseQuery(original.autoGenerateSynonymsPhraseQuery());
+        lexicalPart.fuzzyTranspositions(original.fuzzyTranspositions());
+        return lexicalPart;
+    }
+
+    private QueryBuilder createSemanticQuery(String queryText, Map<String, Float> semanticFields) {
+        if (semanticFields.size() == 1) {
+            return createSemanticQuery(queryText, semanticFields.entrySet().iterator().next());
+        }
+
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+        for (Map.Entry<String, Float> fieldEntry : semanticFields.entrySet()) {
+            boolQuery.should(createSemanticQuery(queryText, fieldEntry));
+        }
+        return boolQuery;
+    }
+
+    private QueryBuilder createSemanticQuery(String queryText, Map.Entry<String, Float> fieldEntry) {
+        SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldEntry.getKey(), queryText, true);
+        if (fieldEntry.getValue() != 1.0f) {
+            semanticQuery.boost(fieldEntry.getValue());
+        }
+        return semanticQuery;
     }
 
     @Override

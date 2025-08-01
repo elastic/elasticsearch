@@ -288,8 +288,8 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = state.toValuesBlock(selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = state.toValuesBlock(selected, ctx.driverContext());
   }
 
   @Override

@@ -548,6 +548,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/132337
+- class: org.elasticsearch.search.suggest.phrase.PhraseSuggesterIT
+  method: testPhraseSuggestionWithNgramOnlyAnalyzerThrowsException
+  issue: https://github.com/elastic/elasticsearch/issues/132347
 
 # Examples:
 #

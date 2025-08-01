@@ -338,7 +338,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private SortedDocValues getSorted(SortedEntry entry) throws IOException {
-        final NumericDocValues ords = getNumeric(entry.ordsEntry, entry.termsDictEntry.termsDictSize);
+        if (entry.ordsEntry.docsWithFieldOffset == -2) {
+            return DocValues.emptySorted();
+        }
+
+        final BlockAwareNumericDocValues ords = (BlockAwareNumericDocValues) getNumeric(
+            entry.ordsEntry,
+            entry.termsDictEntry.termsDictSize
+        );
         return new BaseSortedDocValues(entry) {
 
             @Override
@@ -370,10 +377,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             public long cost() {
                 return ords.cost();
             }
+
+            @Override
+            public void loadBlock(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                ords.loadBlock(builder, docs, offset);
+            }
         };
     }
 
-    abstract class BaseSortedDocValues extends SortedDocValues {
+    abstract class BaseSortedDocValues extends BlockAwareSortedDocValues {
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -1061,7 +1073,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                     @Override
                     public void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
-                        for (int i = 0; i < docs.count(); i++) {
+                        for (int i = offset; i < docs.count(); i++) {
                             builder.appendLong(0L);
                         }
                     }
@@ -1073,7 +1085,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                     @Override
                     public void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
-                        for (int i = 0; i < docs.count(); i++) {
+                        for (int i = offset; i < docs.count(); i++) {
                             builder.appendInt(0);
                         }
                     }
@@ -1081,6 +1093,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     @Override
                     public void loadDoc(BlockLoader.IntBuilder builder, int docId) throws IOException {
                         builder.appendInt(0);
+                    }
+
+                    @Override
+                    public void loadBlock(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset)
+                        throws IOException {
+                        for (int i = offset; i < docs.count(); i++) {
+                            builder.appendOrd(0);
+                        }
                     }
 
                     @Override
@@ -1209,6 +1229,18 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             builder.appendInt(0);
                         } else {
                             builder.appendNull();
+                        }
+                    }
+
+                    @Override
+                    public void loadBlock(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset)
+                        throws IOException {
+                        for (int i = offset; i < docs.count(); i++) {
+                            if (disi.advanceExact(docs.get(i))) {
+                                builder.appendOrd(0);
+                            } else {
+                                builder.appendNull();
+                            }
                         }
                     }
 
@@ -1389,6 +1421,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 }
 
                 @Override
+                public void loadBlock(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                    for (int i = offset; i < docs.count(); i++) {
+                        doc = docs.get(i);
+                        builder.appendOrd(Math.toIntExact(longValue()));
+                    }
+                }
+
+                @Override
                 public void loadBlock(
                     BlockLoader.DoubleBuilder builder,
                     BlockLoader.Docs docs,
@@ -1519,6 +1559,21 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         builder.appendInt(value);
                     } else {
                         builder.appendNull();
+                    }
+                }
+
+                @Override
+                public void loadBlock(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
+                    // TODO: collect all doc ids for current block and then append values to builder?
+
+                    for (int i = offset; i < docs.count(); i++) {
+                        int docId = docs.get(i);
+                        if (disi.advanceExact(docId)) {
+                            int value = Math.toIntExact(longValue());
+                            builder.appendOrd(value);
+                        } else {
+                            builder.appendNull();
+                        }
                     }
                 }
 

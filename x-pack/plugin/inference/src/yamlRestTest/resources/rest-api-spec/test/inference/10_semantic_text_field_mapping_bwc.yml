@@ -1076,6 +1076,33 @@ setup:
   - match: { status: 400 }
 
 ---
+"Specifying dense vector index options should fail using sparse index options":
+  - requires:
+      cluster_features: "semantic_text.sparse_vector_index_options"
+      reason: Index options for sparse vector introduced in 9.2.0
+
+  - do:
+      catch: /Invalid task type for index options/
+      indices.create:
+        index: my-custom-semantic-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                index_options:
+                  sparse_vector:
+                    prune: false
+
+  - match: { status: 400 }
+
+---
 "Specifying sparse vector index options requires sparse vector model":
   - requires:
       cluster_features: "semantic_text.sparse_vector_index_options"

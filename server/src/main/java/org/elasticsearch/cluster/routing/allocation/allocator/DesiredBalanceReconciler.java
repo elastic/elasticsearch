@@ -37,13 +37,13 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.REPLACE;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
@@ -602,8 +602,8 @@ public class DesiredBalanceReconciler {
                 unassignedShards,
                 totalAllocations,
                 undesiredAllocationsExcludingShuttingDownNodes,
-                Arrays.stream(ShardRouting.Role.values())
-                    .collect(Collectors.toUnmodifiableMap(role -> role, undesiredAllocationsExcludingShuttingDownNodesByRole::get))
+                StreamSupport.stream(undesiredAllocationsExcludingShuttingDownNodesByRole.spliterator(), false)
+                    .collect(Collectors.toUnmodifiableMap(lc -> lc.key, lc -> lc.value))
             );
         }
 

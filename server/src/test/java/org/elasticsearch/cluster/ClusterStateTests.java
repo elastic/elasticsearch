@@ -944,11 +944,15 @@ public class ClusterStateTests extends ESTestCase {
                         projectId1,
                         Settings.builder().put(PROJECT_SETTING.getKey(), 42).put(PROJECT_SETTING2.getKey(), 43).build()
                     )
-                    .putReservedStateMetadata(projectId1, ReservedStateMetadata.builder("file_settings")
-                        .putHandler(new ReservedStateHandlerMetadata("settings",
-                            Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey())))
-                        .version(42L)
-                        .build())
+                    .putReservedStateMetadata(
+                        projectId1,
+                        ReservedStateMetadata.builder("file_settings")
+                            .putHandler(
+                                new ReservedStateHandlerMetadata("settings", Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey()))
+                            )
+                            .version(42L)
+                            .build()
+                    )
                     .markProjectForDeletion(projectId1)
                     .build()
             )

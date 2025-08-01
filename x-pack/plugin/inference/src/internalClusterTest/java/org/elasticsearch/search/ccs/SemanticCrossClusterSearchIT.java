@@ -108,13 +108,16 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
-        BytesReference pitId = openPointInTime(new String[]{localIndex, REMOTE_CLUSTER + ":" + remoteIndex}, TimeValue.timeValueMinutes(2));
+        BytesReference pitId = openPointInTime(
+            new String[] { localIndex, REMOTE_CLUSTER + ":" + remoteIndex },
+            TimeValue.timeValueMinutes(2)
+        );
 
         SearchRequest searchRequest = new SearchRequest();
-        searchRequest.source(new SearchSourceBuilder()
-            .query(new SemanticQueryBuilder(INFERENCE_FIELD, "foo"))
-            .pointInTimeBuilder(new PointInTimeBuilder(pitId))
-            .size(10)
+        searchRequest.source(
+            new SearchSourceBuilder().query(new SemanticQueryBuilder(INFERENCE_FIELD, "foo"))
+                .pointInTimeBuilder(new PointInTimeBuilder(pitId))
+                .size(10)
         );
 
         assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {

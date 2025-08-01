@@ -2127,7 +2127,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit, final boolean ccsMinimizeRoundtrips) {
+    public QueryRewriteContext getRewriteContext(
+        LongSupplier nowInMillis,
+        ResolvedIndices resolvedIndices,
+        PointInTimeBuilder pit,
+        final boolean ccsMinimizeRoundtrips
+    ) {
         return getRewriteContext(nowInMillis, resolvedIndices, pit, ccsMinimizeRoundtrips, false);
     }
 

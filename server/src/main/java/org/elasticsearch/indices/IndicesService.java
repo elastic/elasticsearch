@@ -1852,7 +1852,16 @@ public class IndicesService extends AbstractLifecycleComponent
         final boolean ccsMinimizeRoundtrips,
         final boolean isExplain
     ) {
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, ccsMinimizeRoundtrips, isExplain);
+        return new QueryRewriteContext(
+            parserConfig,
+            client,
+            nowInMillis,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            ccsMinimizeRoundtrips,
+            isExplain
+        );
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

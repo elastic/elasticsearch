@@ -289,6 +289,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
          * Get the most recent utilization value calculated
          */
         public double getUtilization() {
+            recalculateUtilizationIfDue();
             return lastUtilization;
         }
     }

@@ -33,7 +33,6 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-RateAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    timeseries = true,
     value = {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
         @IntermediateState(name = "values", type = "LONG_BLOCK"),

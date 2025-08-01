@@ -26,7 +26,6 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit `X-ValueOverTimeAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    timeseries = true,
     value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
 )
 public class LastOverTimeDoubleAggregator {

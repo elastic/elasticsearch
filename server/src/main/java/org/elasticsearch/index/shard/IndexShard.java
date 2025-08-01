@@ -1352,11 +1352,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns how many bytes we are currently moving from heap to disk
      */
     public long getWritingBytes() {
-        Engine engine = getEngineOrNull();
-        if (engine == null) {
-            return 0;
-        }
-        return engine.getWritingBytes();
+        return tryWithEngineOrNull(engine -> {
+            if (engine == null) {
+                return 0L;
+            }
+            return engine.getWritingBytes();
+        });
     }
 
     public RefreshStats refreshStats() {
@@ -1371,12 +1372,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
-        final Engine engine = getEngineOrNull();
-        return new FlushStats(
-            flushMetric.count(),
-            periodicFlushMetric.count(),
-            TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
-            engine != null ? engine.getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
+        return tryWithEngineOrNull(
+            engine -> new FlushStats(
+                flushMetric.count(),
+                periodicFlushMetric.count(),
+                TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
+                engine != null ? engine.getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
+            )
         );
     }
 
@@ -1402,30 +1404,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public IndexingStats indexingStats() {
-        Engine engine = getEngineOrNull();
-        final boolean throttled;
-        final long throttleTimeInMillis;
-        if (engine == null) {
-            throttled = false;
-            throttleTimeInMillis = 0;
-        } else {
-            throttled = engine.isThrottled();
-            throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
-        }
+        return tryWithEngineOrNull(engine -> {
+            final boolean throttled;
+            final long throttleTimeInMillis;
+            if (engine == null) {
+                throttled = false;
+                throttleTimeInMillis = 0;
+            } else {
+                throttled = engine.isThrottled();
+                throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
+            }
 
-        long currentTimeInNanos = getRelativeTimeInNanos();
-        // We use -1 to indicate that startedRelativeTimeInNanos has yet not been set to its true value, i.e the shard has not started.
-        // In that case, we set timeSinceShardStartedInNanos to zero (which will result in all load metrics definitely being zero).
-        long timeSinceShardStartedInNanos = (startedRelativeTimeInNanos != -1L) ? (currentTimeInNanos - startedRelativeTimeInNanos) : 0L;
-        return internalIndexingStats.stats(
-            throttled,
-            throttleTimeInMillis,
-            indexingTimeBeforeShardStartedInNanos,
-            indexingTaskExecutionTimeBeforeShardStartedInNanos,
-            timeSinceShardStartedInNanos,
-            currentTimeInNanos,
-            recentIndexingLoadAtShardStarted
-        );
+            long currentTimeInNanos = getRelativeTimeInNanos();
+            // We use -1 to indicate that startedRelativeTimeInNanos has yet not been set to its true value, i.e the shard has not started.
+            // In that case, we set timeSinceShardStartedInNanos to zero (which will result in all load metrics definitely being zero).
+            long timeSinceShardStartedInNanos = (startedRelativeTimeInNanos != -1L)
+                ? (currentTimeInNanos - startedRelativeTimeInNanos)
+                : 0L;
+            return internalIndexingStats.stats(
+                throttled,
+                throttleTimeInMillis,
+                indexingTimeBeforeShardStartedInNanos,
+                indexingTaskExecutionTimeBeforeShardStartedInNanos,
+                timeSinceShardStartedInNanos,
+                currentTimeInNanos,
+                recentIndexingLoadAtShardStarted
+            );
+        });
     }
 
     public SearchStats searchStats(String... groups) {
@@ -2518,15 +2523,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Returns number of heap bytes used by the indexing buffer for this shard, or 0 if the shard is closed
      */
     public long getIndexBufferRAMBytesUsed() {
-        Engine engine = getEngineOrNull();
-        if (engine == null) {
-            return 0;
-        }
-        try {
-            return engine.getIndexBufferRAMBytesUsed();
-        } catch (AlreadyClosedException ex) {
-            return 0;
-        }
+        return tryWithEngineOrNull(engine -> {
+            if (engine == null) {
+                return 0L;
+            }
+            try {
+                return engine.getIndexBufferRAMBytesUsed();
+            } catch (AlreadyClosedException ex) {
+                return 0L;
+            }
+        });
     }
 
     public void addShardFailureCallback(Consumer<ShardFailure> onShardFailure) {
@@ -3387,6 +3393,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));
     }
 
+    /**
+     * @deprecated use {@link #withEngine(Function)} instead, which considers the situation an engine may be reset / changed.
+     */
+    @Deprecated
     Engine getEngine() {
         engineResetLock.readLock().lock();
         try {
@@ -3399,7 +3409,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
      * closed.
+     *
+     * @deprecated use the try/withEngine* family of functions instead, which consider the situation an engine may be reset / changed.
      */
+    @Deprecated
     public Engine getEngineOrNull() {
         engineResetLock.readLock().lock();
         try {
@@ -3425,20 +3438,35 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Executes an operation while preventing the shard's engine instance to be reset during the execution.
-     * The operation might be executed with a {@code null} engine instance. The engine might be closed while the operation is executed.
+     * The operation might be executed with a {@code null} engine instance in case the engine/shard is closed or the engine is already
+     * being reset. During an engine reset, this means the function will not block and return a null engine. The engine might be closed
+     * while the operation is executed.
+     *
+     * @param operation     the operation to execute
+     * @return              the result of the operation
+     * @param <R>           the type of the result
+     */
+    public <R> R tryWithEngineOrNull(Function<Engine, R> operation) {
+        return withEngine(operation, true, false);
+    }
+
+    /**
+     * Executes an operation while preventing the shard's engine instance to be reset during the execution.
+     * The operation might be executed with a {@code null} engine instance in case the engine/shard is closed. The function may block
+     * during an engine reset. The engine might be closed while the operation is executed.
      *
      * @param operation     the operation to execute
      * @return              the result of the operation
      * @param <R>           the type of the result
      */
     public <R> R withEngineOrNull(Function<Engine, R> operation) {
-        return withEngine(operation, true);
+        return withEngine(operation, true, true);
     }
 
     /**
      * Executes an operation while preventing the shard's engine instance to be reset during the execution.
      * If the current engine instance is null, this method throws an {@link AlreadyClosedException} and the operation is not executed. The
-     * engine might be closed while the operation is executed.
+     * function may block during an engine reset. The engine might be closed while the operation is executed.
      *
      * @param operation     the operation to execute
      * @return              the result of the operation
@@ -3446,14 +3474,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws              AlreadyClosedException if the current engine instance is {@code null}.
      */
     public <R> R withEngine(Function<Engine, R> operation) {
-        return withEngine(operation, false);
+        return withEngine(operation, false, true);
     }
 
     /**
      * Executes an operation (potentially throwing a checked exception) while preventing the shard's engine instance to be reset during the
      * execution.
      * If the current engine instance is null, this method throws an {@link AlreadyClosedException} and the operation is not executed. The
-     * engine might be closed while the operation is executed.
+     * function may block during an engine reset. The engine might be closed while the operation is executed.
      *
      * @param operation     the operation to execute
      * @return              the result of the operation
@@ -3481,22 +3509,38 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * The parameter {@code allowNoEngine} is used to allow the operation to be executed when the current engine instance is {@code null}.
      * When {@code allowNoEngine} is set to {@code `false`} the method will throw an {@link AlreadyClosedException} if the current engine
      * instance is {@code null}.
+     * The parameter {@code blockIfResetting} is used to execute the operation with a {@code null} engine instance if the engine is
+     * being reset at the time the function is invoked. This is useful for operations that access a shard's engine periodically, e.g.,
+     * to get statistics, and are OK to skip it if the engine is being reset, rather than blocking until reset is complete. Note that
+     * it is illegal to set this parameter to true if {@code allowNoEngine} is set to false.
      *
      * @param operation     the operation to execute
      * @param allowNoEngine if the operation can be executed even if the current engine instance is {@code null}
      * @return              the result of the operation
      * @param <R>           the type of the result
      */
-    private <R> R withEngine(Function<Engine, R> operation, boolean allowNoEngine) {
-        assert assertCurrentThreadWithEngine();
+    private <R> R withEngine(Function<Engine, R> operation, boolean allowNoEngine, boolean blockIfResetting) {
         assert operation != null;
-
-        engineResetLock.readLock().lock();
-        try {
-            var engine = getCurrentEngine(allowNoEngine);
-            return operation.apply(engine);
-        } finally {
-            engineResetLock.readLock().unlock();
+        assert blockIfResetting == false || assertCurrentThreadWithEngine(); // assert current thread can block on engine resets
+        boolean locked = true;
+        if (blockIfResetting) {
+            engineResetLock.readLock().lock();
+        } else {
+            if (allowNoEngine == false) {
+                assert false : "blockIfResetting (false) only allowed with allowNoEngine (true)";
+                throw new IllegalArgumentException("blockIfResetting (false) only allowed with allowNoEngine (true)");
+            }
+            locked = engineResetLock.readLock().tryLock();
+        }
+        if (locked) {
+            try {
+                var engine = getCurrentEngine(allowNoEngine);
+                return operation.apply(engine);
+            } finally {
+                engineResetLock.readLock().unlock();
+            }
+        } else {
+            return operation.apply(null);
         }
     }
 

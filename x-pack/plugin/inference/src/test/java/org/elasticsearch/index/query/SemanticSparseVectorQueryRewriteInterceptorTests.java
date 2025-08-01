@@ -142,7 +142,7 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
             Map.of(index, indexMetadata)
         );
 
-        return new QueryRewriteContext(null, client, null, resolvedIndices, null, createRewriteInterceptor());
+        return new QueryRewriteContext(null, client, null, resolvedIndices, null, createRewriteInterceptor(), null);
     }
 
     private QueryRewriteInterceptor createRewriteInterceptor() {

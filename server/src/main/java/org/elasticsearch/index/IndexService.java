@@ -836,6 +836,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             null,
             null,
             null,
+            null,
             false
         );
     }

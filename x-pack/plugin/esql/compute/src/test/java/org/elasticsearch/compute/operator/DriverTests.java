@@ -254,6 +254,7 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
+
     public void testUnchangedStatus() {
         DriverContext driverContext = driverContext();
         List<Page> inPages = randomList(2, 100, DriverTests::randomPage);

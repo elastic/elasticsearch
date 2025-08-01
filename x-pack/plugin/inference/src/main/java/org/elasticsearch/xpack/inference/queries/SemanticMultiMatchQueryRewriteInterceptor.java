@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.inference.queries;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 
@@ -58,6 +60,38 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             return queryBuilder;
         }
 
+        MultiMatchQueryBuilder.Type type = multiMatchBuilder.type();
+        if (type == MultiMatchQueryBuilder.Type.CROSS_FIELDS ||
+            type == MultiMatchQueryBuilder.Type.PHRASE ||
+            type == MultiMatchQueryBuilder.Type.PHRASE_PREFIX) {
+            throw new IllegalArgumentException("Query type [" + type.parseField().getPreferredName() + "] is not supported with semantic_text fields");
+        }
+
+        if (type == MultiMatchQueryBuilder.Type.BEST_FIELDS) {
+            DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
+            if (otherFields.isEmpty() == false) {
+                MultiMatchQueryBuilder lexicalPart = new MultiMatchQueryBuilder(multiMatchBuilder.value());
+                lexicalPart.fields(otherFields);
+                lexicalPart.type(multiMatchBuilder.type());
+                disMaxQuery.add(lexicalPart);
+            }
+            for (Map.Entry<String, Float> fieldEntry : semanticFields.entrySet()) {
+                SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldEntry.getKey(), multiMatchBuilder.value().toString(), true);
+                if (fieldEntry.getValue() != 1.0f) {
+                    semanticQuery.boost(fieldEntry.getValue());
+                }
+                disMaxQuery.add(semanticQuery);
+            }
+            Float tieBreaker = multiMatchBuilder.tieBreaker();
+            if (tieBreaker != null) {
+                disMaxQuery.tieBreaker(tieBreaker);
+            }
+            disMaxQuery.boost(multiMatchBuilder.boost());
+            disMaxQuery.queryName(multiMatchBuilder.queryName());
+            return disMaxQuery;
+        }
+
+        // Fallback for other types like MOST_FIELDS and BOOL_PREFIX
         BoolQueryBuilder rewrittenQuery = new BoolQueryBuilder();
         if (otherFields.isEmpty() == false) {
             MultiMatchQueryBuilder lexicalPart = new MultiMatchQueryBuilder(multiMatchBuilder.value());

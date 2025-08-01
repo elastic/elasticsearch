@@ -2849,11 +2849,6 @@ public class ProjectMetadataTests extends ESTestCase {
             }
         }
 
-        if (params.paramAsBoolean("multi-project", false)) {
-            // 2 chunks for wrapping reserved state + 1 chunk for each item
-            chunkCount += 2 + project.reservedStateMetadata().size();
-        }
-
         return Math.toIntExact(chunkCount);
     }
 

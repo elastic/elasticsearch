@@ -127,8 +127,6 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             .put(idx2, false)
             .put(DataStreamTestHelper.newInstance("data-stream1", List.of(idx1.getIndex())))
             .put(DataStreamTestHelper.newInstance("data-stream2", List.of(idx2.getIndex())))
-            .put(reservedStateMetadata)
-            .put(reservedStateMetadata1)
             .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();

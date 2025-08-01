@@ -125,11 +125,13 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * <p>
      * If there's no file based settings file in this cluster, we'll remove all state reservations for
      * file based settings from the cluster state.
+     *
      * @param clusterState the cluster state before snapshot restore
-     * @param mdBuilder the current metadata builder for the new cluster state
-     * @param projectId the project associated with the restore
+     * @param builder      the current ClusterState builder for the new cluster state
+     * @param mdBuilder    the current metadata builder for the new cluster state
+     * @param projectId    the project associated with the restore
      */
-    public void handleSnapshotRestore(ClusterState clusterState, Metadata.Builder mdBuilder, ProjectId projectId) {
+    public void handleSnapshotRestore(ClusterState clusterState, ClusterState.Builder builder, Metadata.Builder mdBuilder, ProjectId projectId) {
         assert clusterState.nodes().isLocalNodeElectedMaster();
 
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);

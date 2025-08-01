@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -451,7 +452,7 @@ public class ReservedClusterStateService {
         ProjectMetadata projectMetadata = getPotentiallyNewProject(state, projectId);
         state = ClusterState.builder(state).putProjectMetadata(projectMetadata).build();
 
-        ReservedStateMetadata existingMetadata = projectMetadata.reservedStateMetadata().get(namespace);
+        ReservedStateMetadata existingMetadata = ProjectStateRegistry.get(state).reservedStateMetadata(projectId).get(namespace);
 
         // We check if we should exit early on the state version from clusterService. The ReservedStateUpdateTask
         // will check again with the most current state version if this continues.

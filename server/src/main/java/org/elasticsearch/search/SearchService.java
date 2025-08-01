@@ -1245,9 +1245,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (id.getSessionId().isEmpty()) {
             throw new IllegalArgumentException("Session id must be specified");
         }
-//         if (sessionId.equals(id.getSessionId()) == false) {
-//            throw new SearchContextMissingException(id);
-//         }
+        // if (sessionId.equals(id.getSessionId()) == false) {
+        // throw new SearchContextMissingException(id);
+        // }
         final ReaderContext reader = activeReaders.get(id.readerContextId());
         if (reader == null) {
             throw new SearchContextMissingException(id);

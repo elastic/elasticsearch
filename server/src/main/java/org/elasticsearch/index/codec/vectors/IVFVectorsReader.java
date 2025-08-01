@@ -91,6 +91,9 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     abstract CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
         throws IOException;
 
+    public abstract float[] getParentCentroidsScores(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
+        throws IOException;
+
     private static IndexInput openDataInput(
         SegmentReadState state,
         int versionMeta,
@@ -292,13 +295,6 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         IOUtils.close(rawVectorsReader, ivfCentroids, ivfClusters);
     }
 
-    public abstract ScoredCentroidIterator getScoredCentroidIterator(
-        FieldInfo fieldInfo,
-        int numCentroids,
-        IndexInput centroids,
-        float[] queryVector
-    ) throws IOException;
-
     protected record FieldEntry(
         VectorSimilarityFunction similarityFunction,
         VectorEncoding vectorEncoding,
@@ -343,8 +339,8 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         int visit(KnnCollector collector) throws IOException;
     }
 
-    public IndexInput getIvfCentroids() {
-        return ivfCentroids;
+    public IndexInput getIvfCentroids(FieldInfo fieldInfo) throws IOException {
+        return fields.get(fieldInfo.number).centroidSlice(ivfCentroids);
     }
 
     public int getNumCentroids(FieldInfo fieldInfo) {

@@ -37,7 +37,6 @@ import org.apache.lucene.search.TopKnnCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
@@ -48,12 +47,14 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 
+import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
@@ -134,6 +135,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         // (need information from each segment: no. of clusters, global centroid, density, whatever, ...)
         List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector());
 
+        // TODO: sort segments by affinity score in descending order, and cut the long tail ?
+        // segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
+        // ...subList(0, (int) (segmentAffinities.size() * 0.99));
+
         // with larger affinity we increase nprobe (and viceversa)
         // also sort segments by affinity and eventually filter out the long tail
         List<LeafReaderContext> selectedSegments = new ArrayList<>();
@@ -155,6 +160,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             }
 
             // Adjust nProbe based on affinity score
+            // with larger affinity we increase nprobe (and viceversa)
             int adjustedNProbe = adjustNProbeForSegment(score, higher_affinity, lower_affinity, max_adjustment);
 
             // Store the adjusted nProbe value for this segment
@@ -197,7 +203,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     abstract float[] getQueryVector() throws IOException;
 
-    private List<IVFVectorsReader.ScoredCentroidIterator> collectIterators(List<LeafReaderContext> leafReaderContexts) throws IOException {
+    /*
+    private List<IVFVectorsReader.CentroidIterator> collectIterators(List<LeafReaderContext> leafReaderContexts) throws IOException {
         List<IVFVectorsReader.ScoredCentroidIterator> iterators = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext context : leafReaderContexts) {
             LeafReader leafReader = context.reader();
@@ -210,11 +217,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
                 int numCentroids = reader.getNumCentroids(fieldInfo);
                 IndexInput centroids = reader.getIvfCentroids();
-                iterators.add(reader.getScoredCentroidIterator(fieldInfo, numCentroids, centroids, getQueryVector()));
+                iterators.add(reader.getCentroidIterator(fieldInfo, numCentroids, centroids, getQueryVector()));
             }
         }
         return iterators;
     }
+     */
 
     private IVFVectorsReader unwrapReader(KnnVectorsReader knnVectorsReader) {
         IVFVectorsReader result = null;
@@ -229,20 +237,26 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return result;
     }
 
-    private List<SegmentAffinity> calculateSegmentAffinities(List<LeafReaderContext> leafReaderContexts, float[] queryVector) {
+    private List<SegmentAffinity> calculateSegmentAffinities(List<LeafReaderContext> leafReaderContexts, float[] queryVector)
+        throws IOException {
         List<SegmentAffinity> segmentAffinities = new ArrayList<>(leafReaderContexts.size());
 
         for (LeafReaderContext context : leafReaderContexts) {
             LeafReader leafReader = context.reader();
             FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo(field);
+            if (fieldInfo == null) {
+                continue;
+            }
             VectorSimilarityFunction similarityFunction = fieldInfo.getVectorSimilarityFunction();
             if (leafReader instanceof SegmentReader segmentReader) {
                 KnnVectorsReader vectorReader = segmentReader.getVectorReader();
                 IVFVectorsReader reader = unwrapReader(vectorReader);
                 if (reader != null) {
                     float[] globalCentroid = reader.getGlobalCentroid(fieldInfo);
-                    int numCentroids = reader.getNumCentroids(fieldInfo);
 
+                    if (similarityFunction == COSINE) {
+                        VectorUtil.l2normalize(queryVector);
+                    }
                     // similarity between query vector and global centroid, higher is better
                     float globalCentroidScore = similarityFunction.compare(queryVector, globalCentroid);
                     if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
@@ -250,7 +264,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     }
 
                     // clusters per vector (< 1), higher is better (better coverage)
+                    int numCentroids = reader.getNumCentroids(fieldInfo);
                     double centroidDensity = (double) numCentroids / leafReader.numDocs();
+
+                    if (numCentroids > 64) {
+                        float[] parentCentroidsScores = reader.getParentCentroidsScores(
+                            fieldInfo,
+                            numCentroids,
+                            reader.getIvfCentroids(fieldInfo),
+                            queryVector
+                        );
+                        Arrays.sort(parentCentroidsScores);
+                        globalCentroidScore = (parentCentroidsScores[0] + parentCentroidsScores[1] + globalCentroidScore) / 3;
+                    }
 
                     double affinityScore = globalCentroidScore * (1 + centroidDensity);
 
@@ -261,9 +287,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             }
         }
 
-        // TODO: sort segments by affinity score in descending order, and cut the long tail ?
-        //segmentAffinities.sort((a, b) -> Double.compare(b.affinityScore(), a.affinityScore()));
-        //...subList(0, (int) (segmentAffinities.size() * 0.99));
         return segmentAffinities;
     }
 

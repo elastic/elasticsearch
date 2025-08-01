@@ -48,105 +48,6 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     }
 
     @Override
-    public ScoredCentroidIterator getScoredCentroidIterator(
-        FieldInfo fieldInfo,
-        int numCentroids,
-        IndexInput centroids,
-        float[] targetQuery
-    ) throws IOException {
-        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
-        final float globalCentroidDp = fieldEntry.globalCentroidDp();
-        final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
-        final int[] scratch = new int[targetQuery.length];
-        final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
-            ArrayUtil.copyArray(targetQuery),
-            scratch,
-            (byte) 4,
-            fieldEntry.globalCentroid()
-        );
-        final byte[] quantized = new byte[targetQuery.length];
-        for (int i = 0; i < quantized.length; i++) {
-            quantized[i] = (byte) scratch[i];
-        }
-        final ES91Int4VectorsScorer scorer = ESVectorUtil.getES91Int4VectorsScorer(centroids, fieldInfo.getVectorDimension());
-        NeighborQueue queue = new NeighborQueue(fieldEntry.numCentroids(), true);
-        centroids.seek(0L);
-        final float[] centroidCorrectiveValues = new float[3];
-        for (int i = 0; i < numCentroids; i++) {
-            final float qcDist = scorer.int4DotProduct(quantized);
-            centroids.readFloats(centroidCorrectiveValues, 0, 3);
-            final int quantizedCentroidComponentSum = Short.toUnsignedInt(centroids.readShort());
-            // TODO : fix this
-            float score = Float.NaN;/*int4QuantizedScore(
-                                    qcDist,
-                                    queryParams,
-                                    fieldInfo.getVectorDimension(),
-                                    centroidCorrectiveValues,
-                                    quantizedCentroidComponentSum,
-                                    globalCentroidDp,
-                                    fieldInfo.getVectorSimilarityFunction()
-                                    );*/
-            queue.add(i, score);
-        }
-        final long offset = centroids.getFilePointer();
-        CentroidIterator centroidIterator = new CentroidIterator() {
-            @Override
-            public boolean hasNext() {
-                return queue.size() > 0;
-            }
-
-            @Override
-            public long nextPostingListOffset() throws IOException {
-                int centroidOrdinal = queue.pop();
-                centroids.seek(offset + (long) Long.BYTES * centroidOrdinal);
-                return centroids.readLong();
-            }
-        };
-        ScoredCentroidIterator scoredCentroidIterator = new ScoredCentroidIterator() {
-            private float currentTopScore = Float.NEGATIVE_INFINITY;
-            private long currentTopCentroidOffset = -1;
-
-            @Override
-            public boolean hasNext() {
-                return centroidIterator.hasNext();
-            }
-
-            @Override
-            public void scorePostingList(long offset) throws IOException {
-
-            }
-
-            @Override
-            public long next() {
-                return currentTopCentroidOffset;
-            }
-
-            @Override
-            public long nextPostingListOffset() throws IOException {
-                return centroidIterator.nextPostingListOffset();
-            }
-
-            public float getCurrentTopScore() {
-                return currentTopScore;
-            }
-
-            private void updateTopScore(float score, long offset) {
-                if (score > currentTopScore) {
-                    currentTopScore = score;
-                    currentTopCentroidOffset = offset;
-                }
-            }
-
-            public long getCurrentTopCentroidOffset() {
-                return currentTopCentroidOffset;
-            }
-
-        };
-        return scoredCentroidIterator;
-
-    }
-
-    @Override
     CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
         throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
@@ -183,6 +84,54 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             );
         }
         return getCentroidIteratorNoParent(fieldInfo, centroids, numCentroids, scorer, quantized, queryParams, globalCentroidDp);
+    }
+
+    @Override
+    public float[] getParentCentroidsScores(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
+        throws IOException {
+        final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        final float globalCentroidDp = fieldEntry.globalCentroidDp();
+        final OptimizedScalarQuantizer scalarQuantizer = new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction());
+        final int[] scratch = new int[targetQuery.length];
+        float[] targetQueryCopy = ArrayUtil.copyArray(targetQuery);
+        if (fieldInfo.getVectorSimilarityFunction() == COSINE) {
+            VectorUtil.l2normalize(targetQueryCopy);
+        }
+        final OptimizedScalarQuantizer.QuantizationResult queryParams = scalarQuantizer.scalarQuantize(
+            targetQueryCopy,
+            scratch,
+            (byte) 7,
+            fieldEntry.globalCentroid()
+        );
+        final byte[] quantizedQuery = new byte[targetQuery.length];
+        for (int i = 0; i < quantizedQuery.length; i++) {
+            quantizedQuery[i] = (byte) scratch[i];
+        }
+        final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
+        centroids.seek(0L);
+        // score the parents
+        final float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];
+
+        int numParents = centroids.readVInt();
+        if (numParents > 0) {
+            final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);
+            final int maxChildrenSize = centroids.readVInt();
+            final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
+            final int bufferSize = (int) Math.max(numCentroids * CENTROID_SAMPLING_PERCENTAGE, 1);
+            final NeighborQueue neighborQueue = new NeighborQueue(bufferSize, true);
+            score(
+                parentsQueue,
+                numParents,
+                0,
+                scorer,
+                quantizedQuery,
+                queryParams,
+                globalCentroidDp,
+                fieldInfo.getVectorSimilarityFunction(),
+                scores
+            );
+        }
+        return scores;
     }
 
     private static CentroidIterator getCentroidIteratorNoParent(

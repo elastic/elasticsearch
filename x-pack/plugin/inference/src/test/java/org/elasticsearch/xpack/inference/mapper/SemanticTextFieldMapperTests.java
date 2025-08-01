@@ -681,10 +681,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testSparseVectorMappingUpdate() throws IOException {
         for (int i = 0; i < 5; i++) {
             Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-            when(globalModelRegistry.getMinimalServiceSettings(anyString()))
-                .thenAnswer(invocation -> {
-                    return new MinimalServiceSettings(model);
-                });
+            when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(
+                invocation -> { return new MinimalServiceSettings(model); }
+            );
 
             final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
             IndexVersion indexVersion = SparseVectorFieldMapperTests.getIndexOptionsCompatibleIndexVersion();
@@ -692,16 +691,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             String fieldName = "field";
 
             MapperService mapperService = createMapperServiceWithIndexVersion(
-                mapping(
-                    b -> addSemanticTextMapping(
-                        b,
-                        fieldName,
-                        model.getInferenceEntityId(),
-                        null,
-                        chunkingSettings,
-                        indexOptions
-                    )
-                ),
+                mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, chunkingSettings, indexOptions)),
                 useLegacyFormat,
                 indexVersion
             );
@@ -724,16 +714,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
             merge(
                 mapperService,
-                mapping(
-                    b -> addSemanticTextMapping(
-                        b,
-                        fieldName,
-                        model.getInferenceEntityId(),
-                        null,
-                        newChunkingSettings,
-                        newIndexOptions
-                    )
-                )
+                mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, newChunkingSettings, newIndexOptions))
             );
             assertSemanticTextField(mapperService, fieldName, false, newChunkingSettings, expectedIndexOptions);
         }
@@ -907,17 +888,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             Model model1 = TestModel.createRandomInstance(taskType);
             Model model2 = TestModel.createRandomInstance(taskType);
 
-            when(globalModelRegistry.getMinimalServiceSettings(anyString()))
-                .thenAnswer(invocation -> {
-                    var modelId = (String) invocation.getArguments()[0];
-                    if (modelId.equals(model1.getInferenceEntityId())) {
-                        return new MinimalServiceSettings(model1);
-                    }
-                    if (modelId.equals(model2.getInferenceEntityId())) {
-                        return new MinimalServiceSettings(model2);
-                    }
-                    return null;
-                });
+            when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(invocation -> {
+                var modelId = (String) invocation.getArguments()[0];
+                if (modelId.equals(model1.getInferenceEntityId())) {
+                    return new MinimalServiceSettings(model1);
+                }
+                if (modelId.equals(model2.getInferenceEntityId())) {
+                    return new MinimalServiceSettings(model2);
+                }
+                return null;
+            });
 
             ChunkingSettings chunkingSettings = null; // Some chunking settings configs can produce different Lucene docs counts
             SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(taskType);
@@ -1170,19 +1150,16 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     public void testSettingAndUpdatingChunkingSettings() throws IOException {
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-        when(globalModelRegistry.getMinimalServiceSettings(anyString()))
-            .thenAnswer(invocation -> {
-                return new MinimalServiceSettings(model);
-            });
+        when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(
+            invocation -> { return new MinimalServiceSettings(model); }
+        );
 
         final ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
         final SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(TaskType.SPARSE_EMBEDDING);
         String fieldName = "field";
 
         MapperService mapperService = createMapperService(
-            mapping(
-                b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, chunkingSettings, indexOptions)
-            ),
+            mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, chunkingSettings, indexOptions)),
             useLegacyFormat
         );
         assertSemanticTextField(mapperService, fieldName, false, chunkingSettings, indexOptions);
@@ -1190,16 +1167,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         ChunkingSettings newChunkingSettings = generateRandomChunkingSettingsOtherThan(chunkingSettings);
         merge(
             mapperService,
-            mapping(
-                b -> addSemanticTextMapping(
-                    b,
-                    fieldName,
-                    model.getInferenceEntityId(),
-                    null,
-                    newChunkingSettings,
-                    indexOptions
-                )
-            )
+            mapping(b -> addSemanticTextMapping(b, fieldName, model.getInferenceEntityId(), null, newChunkingSettings, indexOptions))
         );
         assertSemanticTextField(mapperService, fieldName, false, newChunkingSettings, indexOptions);
     }
@@ -1209,10 +1177,9 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         TaskType taskType = TaskType.SPARSE_EMBEDDING;
         Model model = TestModel.createRandomInstance(taskType);
 
-        when(globalModelRegistry.getMinimalServiceSettings(anyString()))
-            .thenAnswer(invocation -> {
-                return new MinimalServiceSettings(model);
-            });
+        when(globalModelRegistry.getMinimalServiceSettings(anyString())).thenAnswer(
+            invocation -> { return new MinimalServiceSettings(model); }
+        );
 
         ChunkingSettings chunkingSettings = generateRandomChunkingSettings(false);
         SemanticTextIndexOptions indexOptions = randomSemanticTextIndexOptions(taskType);

@@ -14,6 +14,7 @@ import org.elasticsearch.inference.InferenceResults;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class MapEmbeddingsProvider implements EmbeddingsProvider {
     public static final String NAME = "map_embeddings_provider";
@@ -45,5 +46,18 @@ public class MapEmbeddingsProvider implements EmbeddingsProvider {
 
     public void addEmbeddings(InferenceEndpointKey key, InferenceResults embeddings) {
         this.embeddings.put(key, embeddings);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MapEmbeddingsProvider that = (MapEmbeddingsProvider) o;
+        return Objects.equals(embeddings, that.embeddings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(embeddings);
     }
 }

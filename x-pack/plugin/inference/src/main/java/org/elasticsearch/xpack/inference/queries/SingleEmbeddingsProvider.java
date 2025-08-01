@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.InferenceResults;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class SingleEmbeddingsProvider implements EmbeddingsProvider {
     public static final String NAME = "single_embeddings_provider";
@@ -39,5 +40,18 @@ public class SingleEmbeddingsProvider implements EmbeddingsProvider {
     @Override
     public InferenceResults getEmbeddings(InferenceEndpointKey key) {
         return embeddings;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SingleEmbeddingsProvider that = (SingleEmbeddingsProvider) o;
+        return Objects.equals(embeddings, that.embeddings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(embeddings);
     }
 }

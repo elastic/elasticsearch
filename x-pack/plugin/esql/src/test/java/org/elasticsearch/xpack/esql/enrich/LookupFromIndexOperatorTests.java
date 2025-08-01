@@ -93,7 +93,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
 
     @Before
     public void buildLookupIndex() throws IOException {
-        numberOfJoinColumns = 2;// 1 + randomInt(1); // 1 or 2 join columns
+        numberOfJoinColumns = 1 + randomInt(1); // 1 or 2 join columns
         try (RandomIndexWriter writer = new RandomIndexWriter(random(), lookupIndexDirectory)) {
             for (int i = 0; i < LOOKUP_SIZE; i++) {
                 List<IndexableField> fields = new ArrayList<>();

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
@@ -3798,7 +3799,15 @@ public class AnalyzerTests extends ESTestCase {
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
             EsRelation relation = as(rerank.child(), EsRelation.class);
             Attribute fieldAttribute = getAttributeByName(relation.output(), fieldName);
-            assertThat(rerank.rerankFields(), equalTo(List.of(alias(fieldName, fieldAttribute))));
+            if (DataType.isString(fieldAttribute.dataType())) {
+                assertThat(rerank.rerankFields(), equalTo(List.of(alias(fieldName, fieldAttribute))));
+
+            } else {
+                assertThat(
+                    rerank.rerankFields(),
+                    equalTo(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute))))
+                );
+            }
         }
     }
 

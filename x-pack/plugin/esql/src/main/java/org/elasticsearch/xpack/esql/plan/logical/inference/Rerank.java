@@ -162,6 +162,13 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         return Eval.computeReferences(fields);
     }
 
+    public boolean isValidRerankField(Alias rerankField) {
+        // Only supportinng the following datatypes for now: text, numeric and boolean
+        return DataType.isString(rerankField.dataType())
+            || rerankField.dataType() == DataType.BOOLEAN
+            || rerankField.dataType().isNumeric();
+    }
+
     @Override
     public boolean expressionsResolved() {
         return super.expressionsResolved() && queryText.resolved() && Resolvables.resolved(rerankFields) && scoreAttribute.resolved();
@@ -182,7 +189,7 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
         // When using multiple fields the content is transformed into YAML before it is reranked
         // We can use any of string, numeric or boolean field.
         rerankFields.stream()
-            .filter(Predicate.not(f -> DataType.isString(f.dataType()) || f.dataType() == DataType.BOOLEAN || f.dataType().isNumeric()))
+            .filter(Predicate.not(this::isValidRerankField))
             .forEach(
                 rerankField -> failures.add(
                     fail(

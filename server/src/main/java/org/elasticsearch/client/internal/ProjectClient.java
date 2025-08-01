@@ -9,38 +9,13 @@
 
 package org.elasticsearch.client.internal;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.metadata.ProjectId;
 
 /**
- * A dedicated {@link Client} that is scoped to a specific project. It will set the project ID in the thread context before executing any
- * requests.
+ * A {@link Client} that is scoped to a specific project. It should execute any request in the scope of that project. This scope is usually
+ * defined by the thread context.
  */
-public class ProjectClient extends FilterClient {
+public interface ProjectClient extends Client {
 
-    private final ProjectId projectId;
-
-    public ProjectClient(Client in, ProjectId projectId) {
-        super(in);
-        this.projectId = projectId;
-    }
-
-    @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-        ActionType<Response> action,
-        Request request,
-        ActionListener<Response> listener
-    ) {
-        projectResolver().executeOnProject(projectId, () -> super.doExecute(action, request, listener));
-    }
-
-    @Override
-    public ProjectClient projectClient(ProjectId projectId) {
-        throw new IllegalStateException(
-            "Unable to create a project client for project [" + projectId + "], nested project client creation is not supported"
-        );
-    }
+    ProjectId projectId();
 }

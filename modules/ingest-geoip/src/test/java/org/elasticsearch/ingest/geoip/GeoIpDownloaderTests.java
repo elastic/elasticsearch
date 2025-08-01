@@ -703,12 +703,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
         return new GeoIpTaskState.Metadata(0, 0, 0, randomAlphaOfLength(20), lastChecked.toEpochMilli());
     }
 
-    private static class MockClient extends ProjectClient {
+    private static class MockClient extends NoOpClient implements ProjectClient {
 
         private final Map<ActionType<?>, BiConsumer<? extends ActionRequest, ? extends ActionListener<?>>> handlers = new HashMap<>();
+        private final ProjectId projectId;
 
         private MockClient(ThreadPool threadPool, ProjectId projectId) {
-            super(new NoOpClient(threadPool, TestProjectResolvers.singleProject(projectId)), projectId);
+            super(threadPool, TestProjectResolvers.singleProject(projectId));
+            this.projectId = projectId;
         }
 
         public <Response extends ActionResponse, Request extends ActionRequest> void addHandler(
@@ -716,6 +718,11 @@ public class GeoIpDownloaderTests extends ESTestCase {
             BiConsumer<Request, ActionListener<Response>> listener
         ) {
             handlers.put(action, listener);
+        }
+
+        @Override
+        public ProjectId projectId() {
+            return projectId;
         }
 
         @SuppressWarnings("unchecked")

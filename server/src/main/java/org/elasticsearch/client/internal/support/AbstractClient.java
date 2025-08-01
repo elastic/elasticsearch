@@ -97,7 +97,7 @@ public abstract class AbstractClient implements Client {
     private final ThreadPool threadPool;
     private final ProjectResolver projectResolver;
     private final AdminClient admin;
-    private ProjectClient defaultProjectClient;
+    private final ProjectClient defaultProjectClient;
 
     @SuppressWarnings("this-escape")
     public AbstractClient(Settings settings, ThreadPool threadPool, ProjectResolver projectResolver) {
@@ -106,6 +106,10 @@ public abstract class AbstractClient implements Client {
         this.projectResolver = projectResolver;
         this.admin = new AdminClient(this);
         this.logger = LogManager.getLogger(this.getClass());
+        // We construct a dedicated project client for the default project if we're in single project mode, to avoid reconstructing it.
+        this.defaultProjectClient = projectResolver.supportsMultipleProjects() == false
+            ? new ProjectClientImpl(this, ProjectId.DEFAULT)
+            : null;
     }
 
     @Override
@@ -124,7 +128,7 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public AdminClient admin() {
+    public final AdminClient admin() {
         return admin;
     }
 
@@ -423,23 +427,9 @@ public abstract class AbstractClient implements Client {
         // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
         // take care of error handling.
         if (projectResolver.supportsMultipleProjects() == false && projectId.equals(projectResolver.getProjectId())) {
-            // We construct a dedicated project client for the default project if we're in single project mode. This dedicated project
-            // client is an optimization in that it does not use the project resolver and instead executes the request directly.
-            if (defaultProjectClient == null) {
-                defaultProjectClient = new ProjectClient(this, projectId) {
-                    @Override
-                    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                        ActionType<Response> action,
-                        Request request,
-                        ActionListener<Response> listener
-                    ) {
-                        in().execute(action, request, listener);
-                    }
-                };
-            }
             return defaultProjectClient;
         }
-        return new ProjectClient(this, projectId);
+        return new ProjectClientImpl(this, projectId);
     }
 
     /**
@@ -475,6 +465,30 @@ public abstract class AbstractClient implements Client {
                 throw ise;
             }
             return super.get();
+        }
+    }
+
+    private static class ProjectClientImpl extends FilterClient implements ProjectClient {
+
+        private final ProjectId projectId;
+
+        ProjectClientImpl(Client in, ProjectId projectId) {
+            super(in);
+            this.projectId = projectId;
+        }
+
+        @Override
+        public ProjectId projectId() {
+            return projectId;
+        }
+
+        @Override
+        protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
+            projectResolver().executeOnProject(projectId, () -> super.doExecute(action, request, listener));
         }
     }
 }

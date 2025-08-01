@@ -89,8 +89,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             assertThat(executor.getTotalTaskExecutionTime(), equalTo(500L));
         });
         assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
-        executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
+        ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
     }
 
     /**
@@ -143,28 +142,27 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             executor.execute(() -> {});
 
             var frontOfQueueDuration = executor.peekMaxQueueLatencyInQueue();
-            assertThat("Expected a task to be queued", frontOfQueueDuration, greaterThan(0L));
+            assertBusy(
+                // Wrap this call in an assertBusy because it's feasible for the thread pool's clock to see no time pass.
+                () -> assertThat("Expected a task to be queued", frontOfQueueDuration, greaterThan(0L))
+            );
             safeSleep(10);
             var updatedFrontOfQueueDuration = executor.peekMaxQueueLatencyInQueue();
-            assertThat(
-                "Expected a second peek to report a longer duration",
-                updatedFrontOfQueueDuration,
-                greaterThan(frontOfQueueDuration)
+            assertBusy(
+                // Again add an assertBusy to ensure time passes on the thread pool's clock and there are no races.
+                () -> assertThat(
+                    "Expected a second peek to report a longer duration",
+                    updatedFrontOfQueueDuration,
+                    greaterThan(frontOfQueueDuration)
+                )
             );
 
             // Release the first task that's running, and wait for the second to start -- then it is ensured that the queue will be empty.
             safeAwait(barrier);
             safeAwait(barrier);
-            assertBusy(() -> { assertEquals("Queue should be emptied", 0, executor.peekMaxQueueLatencyInQueue()); });
+            assertEquals("Queue should be emptied", 0, executor.peekMaxQueueLatencyInQueue());
         } finally {
-            // Clean up.
-            while (barrier.getNumberWaiting() > 0) {
-                // Release any potentially running task. This could be racy (a task may start executing and hit the barrier afterward) and
-                // is best-effort.
-                safeAwait(barrier);
-            }
-            executor.shutdown();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }
     }
 
@@ -224,14 +222,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             assertEquals("Max should not be the last task", 5, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
             assertEquals("The max was just reset, should be zero", 0, executor.getMaxQueueLatencyMillisSinceLastPollAndReset());
         } finally {
-            // Clean up.
-            while (barrier.getNumberWaiting() > 0) {
-                // Release any potentially running task. This could be racy (a task may start executing and hit the barrier afterward) and
-                // is best-effort.
-                safeAwait(barrier);
-            }
-            executor.shutdown();
-            executor.awaitTermination(10, TimeUnit.SECONDS);
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
         }
     }
 
@@ -268,8 +259,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         assertThat(executor.getTotalTaskExecutionTime(), equalTo(0L));
         assertThat(executor.getActiveCount(), equalTo(0));
         assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0));
-        executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
+        ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
     }
 
     public void testGetOngoingTasks() throws Exception {
@@ -306,8 +296,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         exitTaskLatch.countDown();
         assertBusy(() -> assertThat(executor.getOngoingTasks().toString(), executor.getOngoingTasks().size(), equalTo(0)));
         assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));
-        executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
+        ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
     }
 
     public void testQueueLatencyHistogramMetrics() {

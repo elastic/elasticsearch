@@ -422,6 +422,8 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
             ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata) implements Diff<Entry> {
 
             public static EntryDiff readFrom(StreamInput in) throws IOException {
+                Diff<Settings> settingsDiff = Settings.readSettingsDiffFromStream(in);
+
                 DiffableUtils.MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata;
                 if (in.getTransportVersion().onOrAfter(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
                     reservedStateMetadata = DiffableUtils.readImmutableOpenMapDiff(
@@ -432,7 +434,8 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
                 } else {
                     reservedStateMetadata = DiffableUtils.emptyDiff();
                 }
-                return new EntryDiff(Settings.readSettingsDiffFromStream(in), reservedStateMetadata);
+
+                return new EntryDiff(settingsDiff, reservedStateMetadata);
             }
 
             @Override
@@ -442,10 +445,10 @@ public class ProjectStateRegistry extends AbstractNamedDiffable<Custom> implemen
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
+                out.writeWriteable(settingsDiff);
                 if (out.getTransportVersion().onOrAfter(TransportVersions.PROJECT_RESERVED_STATE_MOVE_TO_REGISTRY)) {
                     reservedStateMetadata.writeTo(out);
                 }
-                out.writeWriteable(settingsDiff);
             }
         }
     }

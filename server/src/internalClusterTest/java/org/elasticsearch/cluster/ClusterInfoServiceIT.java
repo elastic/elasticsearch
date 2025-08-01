@@ -59,7 +59,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.cluster.InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -208,7 +207,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         internalCluster().startNodes(
             2,
             // manually control publishing
-            Settings.builder().put(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build()
+            Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(), "60m").build()
         );
         prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)).get();
         ensureGreen("test");

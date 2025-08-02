@@ -61,7 +61,6 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
-import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -96,8 +95,9 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
     private int initialShardSnapshotPerNodeLimit;
 
-    @Before
-    public void randomInitialShardSnapshotPerNodeLimit() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         initialShardSnapshotPerNodeLimit = between(0, 10);
     }
 

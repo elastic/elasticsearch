@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -317,8 +316,6 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
                 badCommands.add("STATS");
             } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
                 badCommands.add("another ENRICH with coordinator policy");
-            } else if (u instanceof LookupJoin) {
-                badCommands.add("LOOKUP JOIN");
             } else if (u instanceof Fork) {
                 badCommands.add("FORK");
             }

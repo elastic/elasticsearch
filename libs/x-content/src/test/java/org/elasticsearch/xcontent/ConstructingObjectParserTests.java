@@ -20,6 +20,7 @@ import org.hamcrest.Matcher;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.List;
 import java.util.function.BiConsumer;
 
@@ -849,5 +850,20 @@ public class ConstructingObjectParserTests extends ESTestCase {
 
         assertThat(exception, instanceOf(IllegalArgumentException.class));
         assertThat(exception.getMessage(), startsWith("Parser already registered for name=[name]"));
+    }
+
+    public void testForRecord() throws IOException {
+        record TestRecord(int field1, String field2) {}
+        var PARSER = ConstructingObjectParser.forRecord("record", false, TestRecord.class, MethodHandles.lookup());
+        PARSER.declareInt(constructorArg(), new ParseField("field1"));
+        PARSER.declareString(constructorArg(), new ParseField("field2"));
+
+        TestRecord actual = PARSER.parse(createParser(JsonXContent.jsonXContent, """
+            {
+                "field1": 123,
+                "field2": "value2"
+            }
+            """), null);
+        assertEquals(new TestRecord(123, "value2"), actual);
     }
 }

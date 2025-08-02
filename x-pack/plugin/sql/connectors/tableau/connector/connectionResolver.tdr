@@ -13,7 +13,18 @@
           <attr>username</attr>
           <attr>password</attr>
           <attr>sslmode</attr>
-          <attr>vendor1</attr>
+          <attr>v-timezone</attr>
+          <attr>v-connectTimeout</attr>
+          <attr>v-networkTimeout</attr>
+          <attr>v-pageSize</attr>
+          <attr>v-pageTimeout</attr>
+          <attr>v-queryTimeout</attr>
+          <attr>v-proxyHttp</attr>
+          <attr>v-proxySocks</attr>
+          <attr>v-fieldMultiValueLeniency</attr>
+          <attr>v-indexIncludeFrozen</attr>
+          <attr>v-allowPartialSearchResults</attr>
+          <attr>v-validateProperties</attr>
         </attribute-list>
       </required-attributes>
     </connection-normalizer>

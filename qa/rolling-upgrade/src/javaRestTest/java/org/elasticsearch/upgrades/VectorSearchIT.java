@@ -16,6 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.SearchFeatures;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +36,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     private static final String BYTE_INDEX_NAME = "byte_vector_index";
     private static final String QUANTIZED_INDEX_NAME = "quantized_vector_index";
     private static final String BBQ_INDEX_NAME = "bbq_vector_index";
+    private static final String BBQ_INDEX_NAME_RESCORE = "bbq_vector_index_rescore";
     private static final String FLAT_QUANTIZED_INDEX_NAME = "flat_quantized_vector_index";
     private static final String FLAT_BBQ_INDEX_NAME = "flat_bbq_vector_index";
 
@@ -499,6 +501,63 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
+        assertThat("expected: 0 received" + hits.get(0).get("_id") + " hits: " + response, hits.get(0).get("_id"), equalTo("0"));
+        assertThat(
+            "expected_near: 0.99 received" + hits.get(0).get("_score") + "hits: " + response,
+            (double) hits.get(0).get("_score"),
+            closeTo(0.9934857, 0.005)
+        );
+    }
+
+    public void testBBQVectorSearchOffheapRescoring() throws Exception {
+        assumeTrue("Disabling off-heap rescoring is not supported", oldClusterHasFeature(SearchFeatures.BBQ_OFFHEAP_RESCORING));
+        if (isOldCluster()) {
+            String mapping = """
+                {
+                  "properties": {
+                    "vector": {
+                      "type": "dense_vector",
+                      "dims": 64,
+                      "index": true,
+                      "similarity": "cosine",
+                      "index_options": {
+                        "type": "bbq_hnsw",
+                        "ef_construction": 100,
+                        "m": 16,
+                        "disable_offheap_cache_rescoring": true
+                      }
+                    }
+                  }
+                }
+                """;
+            // create index and index 10 random floating point vectors
+            createIndex(
+                BBQ_INDEX_NAME_RESCORE,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+                mapping
+            );
+            index64DimVectors(BBQ_INDEX_NAME_RESCORE);
+            // force merge the index
+            client().performRequest(new Request("POST", "/" + BBQ_INDEX_NAME_RESCORE + "/_forcemerge?max_num_segments=1"));
+        }
+        Request searchRequest = new Request("POST", "/" + BBQ_INDEX_NAME_RESCORE + "/_search");
+        searchRequest.setJsonEntity("""
+            {
+                "knn": {
+                "field": "vector",
+                  "query_vector": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+                   5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
+                  "k": 2,
+                  "num_candidates": 5,
+                  "rescore_vector": {
+                    "oversample": 2.0
+                  }
+                }
+            }
+            """);
+        Map<String, Object> response = search(searchRequest);
+        assertThat(extractValue(response, "hits.total.value"), equalTo(2));
+        List<Map<String, Object>> hits = extractValue(response, "hits.hits");
         assertThat("expected: 0 received" + hits.get(0).get("_id") + " hits: " + response, hits.get(0).get("_id"), equalTo("0"));
         assertThat(
             "expected_near: 0.99 received" + hits.get(0).get("_score") + "hits: " + response,

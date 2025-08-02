@@ -252,7 +252,7 @@ public class ApiKeyService implements Closeable {
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
-        final int maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
+        final long maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
             this.apiKeyAuthCache = CacheBuilder.<String, ListenableFuture<CachedApiKeyHashResult>>builder()
                 .setExpireAfterAccess(ttl)
@@ -2340,9 +2340,9 @@ public class ApiKeyService implements Closeable {
 
     private record VersionedApiKeyDoc(ApiKeyDoc doc, String id, long seqNo, long primaryTerm) {}
 
-    private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
+    private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(long maximumWeight) {
         return notification -> {
-            if (RemovalReason.EVICTED == notification.getRemovalReason() && getApiKeyAuthCache().count() >= maximumWeight) {
+            if (RemovalReason.EVICTED == notification.getRemovalReason() && getApiKeyAuthCache().weight() >= maximumWeight) {
                 evictionCounter.increment();
                 logger.trace(
                     "API key with ID [{}] was evicted from the authentication cache, " + "possibly due to cache size limit",
@@ -2683,7 +2683,7 @@ public class ApiKeyService implements Closeable {
         private final Cache<String, BytesReference> roleDescriptorsBytesCache;
         private final LockingAtomicCounter lockingAtomicCounter;
 
-        ApiKeyDocCache(TimeValue ttl, int maximumWeight) {
+        ApiKeyDocCache(TimeValue ttl, long maximumWeight) {
             this.docCache = CacheBuilder.<String, ApiKeyService.CachedApiKeyDoc>builder()
                 .setMaximumWeight(maximumWeight)
                 .setExpireAfterWrite(ttl)
@@ -2693,7 +2693,7 @@ public class ApiKeyService implements Closeable {
             // multiple API keys, so we cache for longer and rely on the weight to manage the cache size.
             this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
                 .setExpireAfterAccess(TimeValue.timeValueHours(1))
-                .setMaximumWeight(maximumWeight * 2L)
+                .setMaximumWeight(maximumWeight < Long.MAX_VALUE / 2 ? maximumWeight * 2L : Long.MAX_VALUE)
                 .build();
             this.lockingAtomicCounter = new LockingAtomicCounter();
         }

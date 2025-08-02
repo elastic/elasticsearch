@@ -154,3 +154,45 @@ teardown:
       ingest.processor_grok: {}
   - length: { patterns: 318 }
   - match: { patterns.PATH: "(?:%{UNIXPATH}|%{WINPATH})" }
+
+
+---
+"Test simulate with invalid GROK pattern":
+  - skip:
+        features: headers
+  - do:
+      catch: bad_request
+      headers:
+        Content-Type: application/json
+      simulate.ingest:
+        pipeline: "invalid-grok"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index-1",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ],
+            "pipeline_substitutions": {
+              "invalid-grok": {
+                "description": "invalid grok pattern",
+                "processors": [
+                  {
+                    "grok": {
+                      "field": "field",
+                      "patterns": [
+                        "%{INVALID_PATTERN:field}"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+  - match: { status: 400 }
+  - match: { error.reason: "[patterns] Invalid regex pattern found in: [%{INVALID_PATTERN:field}]. Unable to find pattern [INVALID_PATTERN] in Grok's pattern dictionary" }
+  - match: { error.property_name: "patterns" }
+  - match: { error.processor_type: "grok" }

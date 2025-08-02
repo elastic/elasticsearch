@@ -140,6 +140,82 @@ Filter fields in object:
   - match: { hits.hits.0._source.object.public: interest }
   - is_false: "_source.object.secret"
 
+---
+Filter fields multi fields:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              message:
+                type: text
+                fields:
+                  keyword:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"message": "2025-07-01T09:11 3328971 [Note] Access denied for user root@10.12.6.38 (using password: YES)"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read", "monitor" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "message" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.hits.0._source.message: "2025-07-01T09:11 3328971 [Note] Access denied for user root@10.12.6.38 (using password: YES)" }
+
+  - do:
+      search:
+        index: index_fls
+        body:
+          fields: [message.keyword]
+  - match: { hits.hits.0._source.message: "2025-07-01T09:11 3328971 [Note] Access denied for user root@10.12.6.38 (using password: YES)" }
+  - match: { hits.hits.0.fields.message\.keyword.0: "2025-07-01T09:11 3328971 [Note] Access denied for user root@10.12.6.38 (using password: YES)" }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - is_false: "hits.hits.0._source.message"
+
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+        body:
+          fields: [ message.keyword ]
+  - is_false: hits.hits.0._source.message
+  - is_false: hits.hits.0.fields.message\.keyword.0
 
 ---
 Fields under a disabled object - uses _ignored_source:

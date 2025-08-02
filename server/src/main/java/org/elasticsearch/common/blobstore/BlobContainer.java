@@ -11,7 +11,6 @@ package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -377,9 +376,7 @@ public interface BlobContainer {
      * @param listener a listener, completed with the value read from the register or {@code OptionalBytesReference#MISSING} if the value
      *                 could not be read due to concurrent activity (which should not happen).
      */
-    default void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
-        compareAndExchangeRegister(purpose, key, BytesArray.EMPTY, BytesArray.EMPTY, listener);
-    }
+    void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener);
 
     /**
      * Verify that the {@link OperationPurpose} is (somewhat) suitable for the name of the blob to which it applies:

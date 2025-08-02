@@ -14,6 +14,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
@@ -30,6 +32,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -685,6 +689,191 @@ public class IndexRoutingTests extends ESTestCase {
         // Verify that the request id gets updated to contain the routing hash.
         routing.postProcess(req);
         assertEquals(expectedShard, routing.getShard(req.id(), null));
+    }
+
+    public void testCollectSearchShardsUnpartitionedWithResharding() throws IOException {
+        int shards = 1;
+        int newShardCount = 2;
+        var initialRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), 2, 1))
+                .numberOfShards(newShardCount)
+                .numberOfReplicas(1)
+                .build()
+        );
+
+        var shardToRouting = new HashMap<Integer, String>();
+        do {
+            var routing = randomAlphaOfLength(5);
+            var shard = initialRouting.indexShard("dummy", routing, null, null);
+            if (shardToRouting.containsKey(shard) == false) {
+                shardToRouting.put(shard, routing);
+            }
+        } while (shardToRouting.size() < newShardCount);
+
+        var initialReshardingRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), newShardCount, 1))
+                .numberOfShards(newShardCount)
+                .numberOfReplicas(1)
+                .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(shards, 2))
+                .build()
+        );
+
+        for (var shardAndRouting : shardToRouting.entrySet()) {
+            var collectedShards = new ArrayList<>();
+            initialReshardingRouting.collectSearchShards(shardAndRouting.getValue(), collectedShards::add);
+            assertEquals(1, collectedShards.size());
+            // Rerouting is in effect due to resharding metadata having a shard in CLONE state.
+            assertEquals(0, collectedShards.get(0));
+        }
+
+        var reshardingRoutingWithShardInHandoff = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), newShardCount, 1))
+                .numberOfShards(newShardCount)
+                .numberOfReplicas(1)
+                .reshardingMetadata(
+                    IndexReshardingMetadata.newSplitByMultiple(shards, 2)
+                        .transitionSplitTargetToNewState(new ShardId("test", "na", 1), IndexReshardingState.Split.TargetShardState.HANDOFF)
+                )
+                .build()
+        );
+
+        for (var shardAndRouting : shardToRouting.entrySet()) {
+            var collectedShards = new ArrayList<>();
+            reshardingRoutingWithShardInHandoff.collectSearchShards(shardAndRouting.getValue(), collectedShards::add);
+            assertEquals(1, collectedShards.size());
+            // Rerouting is in effect due to resharding metadata having a shard in CLONE state.
+            assertEquals(0, collectedShards.get(0));
+        }
+
+        var reshardingRoutingWithShardInSplit = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), newShardCount, 1))
+                .numberOfShards(newShardCount)
+                .numberOfReplicas(1)
+                .reshardingMetadata(
+                    IndexReshardingMetadata.newSplitByMultiple(shards, 2)
+                        .transitionSplitTargetToNewState(new ShardId("test", "na", 1), IndexReshardingState.Split.TargetShardState.HANDOFF)
+                        .transitionSplitTargetToNewState(new ShardId("test", "na", 1), IndexReshardingState.Split.TargetShardState.SPLIT)
+                )
+                .build()
+        );
+
+        for (var shardAndRouting : shardToRouting.entrySet()) {
+            var collectedShards = new ArrayList<>();
+            reshardingRoutingWithShardInSplit.collectSearchShards(shardAndRouting.getValue(), collectedShards::add);
+            assertEquals(1, collectedShards.size());
+            // Rerouting is no longer in effect since resharding metadata has SPLIT state for this shard
+            assertEquals(shardAndRouting.getKey(), collectedShards.get(0));
+        }
+    }
+
+    public void testCollectSearchShardsPartitionedWithResharding() throws IOException {
+        int preReshardShards = 4;
+        int postReshardShards = 8;
+        var initialRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), 8, 1))
+                .numberOfShards(postReshardShards)
+                .numberOfReplicas(1)
+                .routingPartitionSize(2)
+                .build()
+        );
+
+        var shardToRouting = new TreeMap<Integer, String>();
+        do {
+            var routing = randomAlphaOfLength(5);
+            var shard = initialRouting.indexShard("dummy", routing, null, null);
+            if (shardToRouting.containsKey(shard) == false) {
+                shardToRouting.put(shard, routing);
+            }
+        } while (shardToRouting.size() < postReshardShards);
+
+        var initialReshardingRouting = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), postReshardShards, 1))
+                .numberOfShards(postReshardShards)
+                .numberOfReplicas(1)
+                .routingPartitionSize(2)
+                .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2))
+                .build()
+        );
+
+        // Rerouting is in effect due to presence of resharding metadata.
+        // We won't see shard 4 and above (there is a corresponding logic in index operation routing).
+        Function<Integer, Integer> adjustForResharding = i -> i < preReshardShards
+            ? i
+            : IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2).getSplit().sourceShard(i);
+
+        for (var shardAndRouting : shardToRouting.entrySet()) {
+            var collectedShards = new ArrayList<Integer>();
+            initialReshardingRouting.collectSearchShards(shardAndRouting.getValue(), collectedShards::add);
+            assertEquals(2, collectedShards.size());
+
+            var expected = new ArrayList<Integer>();
+            expected.add(adjustForResharding.apply(shardAndRouting.getKey()));
+            expected.add(adjustForResharding.apply(shardAndRouting.getKey() + 1));
+
+            assertEquals(expected, collectedShards);
+        }
+
+        var reshardingRoutingWithShardInHandoff = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), postReshardShards, 1))
+                .numberOfShards(postReshardShards)
+                .numberOfReplicas(1)
+                .routingPartitionSize(2)
+                .reshardingMetadata(
+                    IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2)
+                        .transitionSplitTargetToNewState(new ShardId("test", "na", 4), IndexReshardingState.Split.TargetShardState.HANDOFF)
+                )
+                .build()
+        );
+
+        // Rerouting is in effect due to presence of resharding metadata.
+        // We won't see shard 4 and above (there is a corresponding logic in index operation routing).
+        for (var shardAndRouting : shardToRouting.entrySet()) {
+            var collectedShards = new ArrayList<Integer>();
+            reshardingRoutingWithShardInHandoff.collectSearchShards(shardAndRouting.getValue(), collectedShards::add);
+            assertEquals(2, collectedShards.size());
+
+            var expected = new ArrayList<Integer>();
+            expected.add(adjustForResharding.apply(shardAndRouting.getKey()));
+            expected.add(adjustForResharding.apply(shardAndRouting.getKey() + 1));
+
+            assertEquals(expected, collectedShards);
+        }
+
+        var reshardingRoutingWithShardInSplit = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(indexSettings(IndexVersion.current(), postReshardShards, 1))
+                .numberOfShards(postReshardShards)
+                .numberOfReplicas(1)
+                .routingPartitionSize(2)
+                .reshardingMetadata(
+                    IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2)
+                        .transitionSplitTargetToNewState(new ShardId("test", "na", 4), IndexReshardingState.Split.TargetShardState.HANDOFF)
+                        .transitionSplitTargetToNewState(new ShardId("test", "na", 4), IndexReshardingState.Split.TargetShardState.SPLIT)
+                )
+                .build()
+        );
+
+        // Shard 4 can now be included in routing too based on the resharding metadata, adjust the rule.
+        adjustForResharding = i -> i < 5 ? i : IndexReshardingMetadata.newSplitByMultiple(preReshardShards, 2).getSplit().sourceShard(i);
+
+        for (var shardAndRouting : shardToRouting.entrySet()) {
+            var collectedShards = new ArrayList<Integer>();
+            reshardingRoutingWithShardInSplit.collectSearchShards(shardAndRouting.getValue(), collectedShards::add);
+            assertEquals(2, collectedShards.size());
+
+            var expected = new ArrayList<Integer>();
+            expected.add(adjustForResharding.apply(shardAndRouting.getKey()));
+            expected.add(adjustForResharding.apply(shardAndRouting.getKey() + 1));
+
+            assertEquals(expected, collectedShards);
+        }
     }
 
     /**

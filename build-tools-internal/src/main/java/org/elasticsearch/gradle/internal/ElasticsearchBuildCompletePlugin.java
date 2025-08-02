@@ -66,7 +66,7 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             ? System.getenv("BUILD_NUMBER")
             : System.getenv("BUILDKITE_BUILD_NUMBER");
         String performanceTest = System.getenv("BUILD_PERFORMANCE_TEST");
-        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false && OS.current() != OS.WINDOWS) {
+        if (buildNumber != null && performanceTest == null && GradleUtils.isIncludedBuild(target) == false) {
             File targetFile = calculateTargetFile(target, buildNumber);
             File projectDir = target.getProjectDir();
             File gradleWorkersDir = new File(target.getGradle().getGradleUserHomeDir(), "workers/");
@@ -276,7 +276,12 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
 
         @NotNull
         private static String calculateArchivePath(Path path, Path projectPath) {
-            return path.startsWith(projectPath) ? projectPath.relativize(path).toString() : path.getFileName().toString();
+            String archivePath = path.startsWith(projectPath) ? projectPath.relativize(path).toString() : path.getFileName().toString();
+            if (OS.current() == OS.WINDOWS) {
+                // tar always uses forward slashes
+                archivePath = archivePath.replace("\\", "/");
+            }
+            return archivePath;
         }
     }
 }

@@ -40,6 +40,11 @@ public abstract class TextStructureTestCase extends ESTestCase {
         "class":"ml","method":"core::SomeNoiseMaker","file":"Noisemaker.cc","line":333}
         """;
 
+    protected static final String NESTED_NDJSON_SAMPLE = """
+        {"host": {"id": 1, "category": "NETWORKING DEVICE"}, "timestamp": "1478261151445"}
+        {"host": {"id": 2, "category": "COMPUTE NODE"}, "timestamp": "1478261151445"}
+        """;
+
     protected static final String PIPE_DELIMITED_SAMPLE = """
         2018-01-06 16:56:14.295748|INFO    |VirtualServer |1  |listening on 0.0.0.0:9987, :::9987
         2018-01-06 17:19:44.465252|INFO    |VirtualServer |1  |client 'User1'(id:2) changed default admin channelgroup to 'Guest'(id:8)

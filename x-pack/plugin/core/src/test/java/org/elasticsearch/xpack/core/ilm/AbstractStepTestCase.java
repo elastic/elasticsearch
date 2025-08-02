@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.IndicesAdminClient;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
 
     protected Client client;
+    protected ProjectClient projectClient;
     protected AdminClient adminClient;
     protected IndicesAdminClient indicesClient;
 
@@ -34,9 +36,10 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
         client = Mockito.mock(Client.class);
         adminClient = Mockito.mock(AdminClient.class);
         indicesClient = Mockito.mock(IndicesAdminClient.class);
+        projectClient = Mockito.mock(ProjectClient.class);
 
-        Mockito.when(client.projectClient(Mockito.any())).thenReturn(client);
-        Mockito.when(client.admin()).thenReturn(adminClient);
+        Mockito.when(client.projectClient(Mockito.any())).thenReturn(projectClient);
+        Mockito.when(projectClient.admin()).thenReturn(adminClient);
         Mockito.when(adminClient.indices()).thenReturn(indicesClient);
     }
 

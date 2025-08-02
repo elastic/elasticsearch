@@ -204,6 +204,6 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
                 .getArguments()[2];
             listener.onResponse(new FollowStatsAction.StatsResponses(List.of(), List.of(), statsResponses));
             return null;
-        }).when(client).execute(Mockito.eq(FollowStatsAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.eq(FollowStatsAction.INSTANCE), Mockito.any(), Mockito.any());
     }
 }

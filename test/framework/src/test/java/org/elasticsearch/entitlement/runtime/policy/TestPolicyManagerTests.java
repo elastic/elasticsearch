@@ -41,13 +41,13 @@ public class TestPolicyManagerTests extends ESTestCase {
         policyManager.setActive(true);
     }
 
-    public void testResetAfterTest() {
+    public void testClearModuleEntitlementsCache() {
         assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
         assertEquals("example-plugin1", policyManager.getEntitlements(getClass()).componentName());
         assertFalse(policyManager.classEntitlementsMap.isEmpty());
 
-        policyManager.resetAfterTest();
+        policyManager.clearModuleEntitlementsCache();
 
         assertTrue(policyManager.classEntitlementsMap.isEmpty());
         assertEquals("example-plugin2", policyManager.getEntitlements(getClass()).componentName());

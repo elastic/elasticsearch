@@ -486,6 +486,22 @@ ROW end_23 = TO_DATETIME("2023-12-31T23:59:59.999Z"),
 // end::evalDateDiffYearForDocs-result[]
 ;
 
+dateDiffMv
+// tag::date-diff-mv[]
+ROW lhs=TO_DATETIME(["2024-01-01", "2024-02-01"]),
+    rhs=TO_DATETIME("2024-03-01")
+| EVAL diff=DATE_DIFF("year", lhs, rhs)
+// end::date-diff-mv[]
+;
+warning:Line 3:13: evaluation of [DATE_DIFF(\"year\", lhs, rhs)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:13: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// tag::date-diff-mv-result[]
+            lhs:date        |          rhs:date       | diff:integer
+["2024-01-01", "2024-02-01"]| 2024-03-01T00:00:00.000Z| null
+// end::date-diff-mv-result[]
+;
+
 evalDateParseWithSimpleDate
 row a = "2023-02-01" | eval b = date_parse("yyyy-MM-dd", a) | keep b;
 
@@ -642,6 +658,34 @@ from employees | where emp_no == 10049 or emp_no == 10050 | sort emp_no
 emp_no:integer  | new_date:datetime          | birth_date:datetime       | bool:boolean
 10049           | null                       | null                      | null
 10050           | 1958-05-21T00:00:00.000Z   | 1958-05-21T00:00:00.000Z  | true
+;
+
+dateParseSimple
+// tag::date-parse[]
+ROW v = "2022-05-06"
+| EVAL date = DATE_PARSE("yyyy-MM-dd", v)
+// end::date-parse[]
+;
+
+//tag::date-parse-result[]
+ v:keyword | date:date
+2022-05-06 | 2022-05-06T00:00:00.000Z
+// end::date-parse-result[]
+;
+
+dateParseMv
+// tag::date-parse-mv[]
+ROW v = ["2022-05-06", "2022-06-06"]
+| EVAL date = DATE_PARSE("yyyy-MM-dd", v)
+// end::date-parse-mv[]
+;
+warning:Line 2:15: evaluation of [DATE_PARSE(\"yyyy-MM-dd\", v)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:15: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+//tag::date-parse-mv-result[]
+          v:keyword         | date:date
+["2022-05-06", "2022-06-06"]| null
+// end::date-parse-mv-result[]
 ;
 
 dateFields
@@ -1085,6 +1129,21 @@ ROW a = 1
 
 a:integer | df:keyword
 1         | 1989-06-02
+;
+
+dateFormatMv
+// tag::date-format-mv[]
+ROW v = TO_DATETIME(["2024-01-01", "2024-02-01"])
+| EVAL fmt = DATE_FORMAT("yyyy-MM-dd", v)
+// end::date-format-mv[]
+;
+warning:Line 2:14: evaluation of [DATE_FORMAT(\"yyyy-MM-dd\", v)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:14: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+// tag::date-format-mv-result[]
+            v:date           | fmt:keyword
+["2024-01-01", "2024-02-01"] | null
+// end::date-format-mv-result[]
 ;
 
 docsDateTrunc

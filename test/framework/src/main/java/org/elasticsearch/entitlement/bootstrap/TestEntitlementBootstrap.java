@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.bootstrap;
 
+import org.apache.lucene.tests.mockfile.FilterPath;
 import org.elasticsearch.bootstrap.TestBuildInfo;
 import org.elasticsearch.bootstrap.TestBuildInfoParser;
 import org.elasticsearch.bootstrap.TestScopeResolver;
@@ -38,6 +39,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -83,34 +85,56 @@ public class TestEntitlementBootstrap {
         if (policyManager == null) {
             return;
         }
-        Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
-        Path configDir = configPath != null ? configPath : homeDir.resolve("config");
+
+        Path homeDir = homeDir(settings);
+        Path configDir = configDir(configPath, homeDir);
         Collection<Path> dataDirs = dataDirs(settings, homeDir);
         Collection<Path> sharedDataDir = sharedDataDir(settings);
         Collection<Path> repoDirs = repoDirs(settings);
-        logger.debug("Registering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
+        logger.debug(
+            "Registering node dirs: config [{}], dataDirs [{}], sharedDataDir [{}], repoDirs [{}]",
+            configDir,
+            dataDirs,
+            sharedDataDir,
+            repoDirs
+        );
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.add(configDir)));
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.addAll(dataDirs)));
         baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.addAll(sharedDataDir)));
         baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.addAll(repoDirs)));
-        policyManager.reset();
+        policyManager.clearModuleEntitlementsCache();
     }
 
     public static void unregisterNodeBaseDirs(Settings settings, Path configPath) {
         if (policyManager == null) {
             return;
         }
-        Path homeDir = absolutePath(PATH_HOME_SETTING.get(settings));
-        Path configDir = configPath != null ? configPath : homeDir.resolve("config");
+
+        Path homeDir = homeDir(settings);
+        Path configDir = configDir(configPath, homeDir);
         Collection<Path> dataDirs = dataDirs(settings, homeDir);
         Collection<Path> sharedDataDir = sharedDataDir(settings);
         Collection<Path> repoDirs = repoDirs(settings);
-        logger.debug("Unregistering node dirs: config [{}], dataDirs [{}], repoDirs [{}]", configDir, dataDirs, repoDirs);
+        logger.debug(
+            "Unregistering node dirs: config [{}], dataDirs [{}], sharedDataDir [{}], repoDirs [{}]",
+            configDir,
+            dataDirs,
+            sharedDataDir,
+            repoDirs
+        );
         baseDirPaths.compute(BaseDir.CONFIG, baseDirModifier(paths -> paths.remove(configDir)));
         baseDirPaths.compute(BaseDir.DATA, baseDirModifier(paths -> paths.removeAll(dataDirs)));
         baseDirPaths.compute(BaseDir.SHARED_DATA, baseDirModifier(paths -> paths.removeAll(sharedDataDir)));
         baseDirPaths.compute(BaseDir.SHARED_REPO, baseDirModifier(paths -> paths.removeAll(repoDirs)));
-        policyManager.reset();
+        policyManager.clearModuleEntitlementsCache();
+    }
+
+    private static Path homeDir(Settings settings) {
+        return absolutePath(PATH_HOME_SETTING.get(settings));
+    }
+
+    private static Path configDir(Path configDir, Path homeDir) {
+        return configDir != null ? unwrapFilterPath(configDir) : homeDir.resolve("config");
     }
 
     private static Collection<Path> dataDirs(Settings settings, Path homeDir) {
@@ -130,13 +154,19 @@ public class TestEntitlementBootstrap {
     }
 
     private static BiFunction<BaseDir, Collection<Path>, Collection<Path>> baseDirModifier(Consumer<Collection<Path>> consumer) {
+        // always return a new unmodifiable copy
         return (BaseDir baseDir, Collection<Path> paths) -> {
-            if (paths == null) {
-                paths = new HashSet<>();
-            }
+            paths = paths == null ? new HashSet<>() : new HashSet<>(paths);
             consumer.accept(paths);
-            return paths;
+            return Collections.unmodifiableCollection(paths);
         };
+    }
+
+    private static Path unwrapFilterPath(Path path) {
+        while (path instanceof FilterPath fPath) {
+            path = fPath.getDelegate();
+        }
+        return path;
     }
 
     @SuppressForbidden(reason = "must be resolved using the default file system, rather then the mocked test file system")
@@ -168,9 +198,11 @@ public class TestEntitlementBootstrap {
         policyManager.setEntitledTestPackages(entitledTestPackages);
     }
 
-    public static void reset() {
+    public static void resetAfterTest() {
+        // reset all base dirs except TEMP, which is initialized just once statically
+        baseDirPaths.keySet().retainAll(List.of(TEMP));
         if (policyManager != null) {
-            policyManager.reset();
+            policyManager.resetAfterTest();
         }
     }
 

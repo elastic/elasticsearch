@@ -46,6 +46,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
@@ -76,6 +77,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final String INFERENCE_ROUTE = "/_inference";
     private static final String REQUEST_COUNT = "request_count";

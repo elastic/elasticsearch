@@ -277,4 +277,8 @@ public class StringsTests extends ESTestCase {
         }
         return sb.toString();
     }
+
+    public void testSplitStringContainingOnlyCommasToArray() {
+        assertArrayEquals(new String[]{","}, Strings.splitStringByCommaToArray(","));
+    }
 }

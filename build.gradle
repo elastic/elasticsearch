@@ -342,7 +342,7 @@ allprojects {
     }
     if (project.path.contains(":libs:cli")) {
       // ensure we resolve p2 dependencies for the spotless eclipse formatter
-      dependsOn "spotlessJavaCheck"
+      dependsOn "spotlessJavaCheck" "rewriteDryRun"
     }
 
   }

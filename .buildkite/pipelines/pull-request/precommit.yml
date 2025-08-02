@@ -6,7 +6,9 @@ steps:
     command: |
       .buildkite/scripts/spotless.sh
       .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
-    timeout_in_minutes: 300
+      .buildkite/scripts/rewrite.sh
+      .ci/scripts/run-gradle.sh -Dignore.tests.seed precommit
+    timeout_in_minutes: 400
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404

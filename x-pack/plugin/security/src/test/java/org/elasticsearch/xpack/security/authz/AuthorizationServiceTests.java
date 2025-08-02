@@ -3289,7 +3289,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         RoleDescriptor role = new RoleDescriptor(
             "a_all",
             null,
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read_cross_cluster").build() },
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read").build() },
             null
         );
         final Authentication authentication = createAuthentication(new User("test user", "a_all"));
@@ -3303,31 +3303,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
         authorize(authentication, action, transportRequest);
         verify(auditTrail).accessGranted(
-            eq(requestId),
-            eq(authentication),
-            eq(action),
-            eq(clearScrollRequest),
-            authzInfoRoles(new String[] { role.getName() })
-        );
-    }
-
-    public void testProxyRequestAuthenticationDeniedWithReadPrivileges() {
-        final Authentication authentication = createAuthentication(new User("test user", "a_all"));
-        final RoleDescriptor role = new RoleDescriptor(
-            "a_all",
-            null,
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read").build() },
-            null
-        );
-        roleMap.put("a_all", role);
-        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
-        mockEmptyMetadata();
-        DiscoveryNode node = DiscoveryNodeUtils.create("foo");
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);
-        String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
-        assertThrowsAuthorizationException(() -> authorize(authentication, action, transportRequest), action, "test user");
-        verify(auditTrail).accessDenied(
             eq(requestId),
             eq(authentication),
             eq(action),

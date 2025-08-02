@@ -72,7 +72,7 @@ public class RemoteClusterSecurityWithMixedModelRemotesRestIT extends AbstractRe
                   "indices": [
                     {
                       "names": ["cluster2_index1"],
-                      "privileges": ["read", "read_cross_cluster"]
+                      "privileges": ["read"]
                     }
                   ]
                 }""");
@@ -94,7 +94,7 @@ public class RemoteClusterSecurityWithMixedModelRemotesRestIT extends AbstractRe
                   "remote_indices": [
                     {
                       "names": ["cluster1_index1"],
-                      "privileges": ["read", "read_cross_cluster"],
+                      "privileges": ["read"],
                       "clusters": ["my_remote_cluster"]
                     }
                   ]

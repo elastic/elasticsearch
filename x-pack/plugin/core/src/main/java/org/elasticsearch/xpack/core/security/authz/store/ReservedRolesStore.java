@@ -91,7 +91,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices("*")
                 // TODO add read_failure_store when failures authorization is implemented
-                .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
+                .privileges("monitor", "read", "view_index_metadata")
                 .allowRestrictedIndices(true)
                 .build() },
         new RoleDescriptor.ApplicationResourcePrivileges[] {
@@ -109,7 +109,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
                     // TODO add read_failure_store when failures authorization is implemented
-                    .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
+                    .privileges("monitor", "read", "view_index_metadata")
                     .allowRestrictedIndices(true)
                     .build(),
                 "*"
@@ -163,11 +163,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     static RoleDescriptor.RemoteIndicesPrivileges getRemoteIndicesReadPrivileges(String indexPattern) {
         return new RoleDescriptor.RemoteIndicesPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(indexPattern)
-                .privileges("read", "read_cross_cluster")
-                .allowRestrictedIndices(false)
-                .build(),
+            RoleDescriptor.IndicesPrivileges.builder().indices(indexPattern).privileges("read").allowRestrictedIndices(false).build(),
             "*"
         );
     }
@@ -206,18 +202,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "monitoring_user",
                     new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", TransportRemoteInfoAction.TYPE.name() },
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".monitoring-*")
-                            .privileges("read", "read_cross_cluster")
-                            .build(),
+                        RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read").build(),
                         RoleDescriptor.IndicesPrivileges.builder()
                             .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
-                            .privileges("read", "read_cross_cluster")
+                            .privileges("read")
                             .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("metricbeat-*")
-                            .privileges("read", "read_cross_cluster")
-                            .build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices("metricbeat-*").privileges("read").build() },
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
                         RoleDescriptor.ApplicationResourcePrivileges.builder()
                             .application("kibana-*")

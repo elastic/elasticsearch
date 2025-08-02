@@ -113,7 +113,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("read").build(),
                 RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("create_index", "read", "write").build(),
                 // To facilitate ML UI functionality being controlled using Kibana security
                 // privileges
@@ -150,11 +150,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
 
                 // APM telemetry queries APM indices in kibana task runner
-                RoleDescriptor.IndicesPrivileges.builder().indices("apm-*").privileges("read", "read_cross_cluster").build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "read_cross_cluster").build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read", "read_cross_cluster").build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm.*").privileges("read", "read_cross_cluster").build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("apm-*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm.*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm.*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm.*").privileges("read").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm-*").privileges("read").build(),
 
                 // Logstash telemetry queries of kibana task runner to access Logstash metric
                 // indices

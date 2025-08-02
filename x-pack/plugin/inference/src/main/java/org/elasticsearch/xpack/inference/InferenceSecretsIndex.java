@@ -29,10 +29,19 @@ public class InferenceSecretsIndex {
     private static final int INDEX_MAPPING_VERSION = 1;
 
     public static Settings settings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .build();
+        return builder().build();
+    }
+
+    private static Settings.Builder builder() {
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
+    }
+
+    /**
+     * This allows tests to set additional settings for the inference index.
+     * @param extraSettings additional settings to apply to the inference index.
+     */
+    public static Settings settingsForTesting(Settings extraSettings) {
+        return builder().put(extraSettings).build();
     }
 
     /**

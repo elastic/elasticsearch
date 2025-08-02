@@ -427,7 +427,13 @@ public class CsvTests extends ESTestCase {
             if (mapping.containsKey(entry.getKey())) {
                 DataType dataType = DataType.fromTypeName(entry.getValue());
                 EsField field = mapping.get(entry.getKey());
-                EsField editedField = new EsField(field.getName(), dataType, field.getProperties(), field.isAggregatable());
+                EsField editedField = new EsField(
+                    field.getName(),
+                    dataType,
+                    field.getProperties(),
+                    field.isAggregatable(),
+                    field.getTimeSeriesFieldType()
+                );
                 mapping.put(entry.getKey(), editedField);
             }
         }

@@ -149,4 +149,9 @@ public abstract class Attribute extends NamedExpression {
         }
         return true;
     }
+
+    /**
+     * @return true if the attribute represents a TSDB dimension type
+     */
+    public abstract boolean isDimension();
 }

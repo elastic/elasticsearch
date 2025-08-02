@@ -151,7 +151,10 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         var multiIndexMapping = loadMapping("mapping-basic.json");
-        multiIndexMapping.put("partial_type_keyword", new EsField("partial_type_keyword", KEYWORD, emptyMap(), true));
+        multiIndexMapping.put(
+            "partial_type_keyword",
+            new EsField("partial_type_keyword", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
         var multiIndex = IndexResolution.valid(
             new EsIndex(
                 "multi_index",

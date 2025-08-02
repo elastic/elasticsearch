@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator.NodeAllocationStatsAndWeight;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
@@ -35,8 +36,14 @@ public class DesiredBalanceMetrics {
      * @param undesiredAllocationsExcludingShuttingDownNodes Shards that are assigned to a node but must move to alleviate a resource
      *                                                       constraint per the {@link AllocationDeciders}. Excludes shards that must move
      *                                                       because of a node shutting down.
+     * @param undesiredAllocationsExcludingShuttingDownNodesByRole A breakdown of the undesired allocations by {@link ShardRouting.Role}
      */
-    public record AllocationStats(long unassignedShards, long totalAllocations, long undesiredAllocationsExcludingShuttingDownNodes) {}
+    public record AllocationStats(
+        long unassignedShards,
+        long totalAllocations,
+        long undesiredAllocationsExcludingShuttingDownNodes,
+        Map<ShardRouting.Role, Long> undesiredAllocationsExcludingShuttingDownNodesByRole
+    ) {}
 
     public record NodeWeightStats(long shardCount, double diskUsageInBytes, double writeLoad, double nodeWeight) {
         public static final NodeWeightStats ZERO = new NodeWeightStats(0, 0, 0, 0);
@@ -71,7 +78,7 @@ public class DesiredBalanceMetrics {
     public static final String CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME =
         "es.allocator.allocations.node.forecasted_disk_usage_bytes.current";
 
-    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, -1, -1);
+    public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, -1, -1, Map.of());
 
     private volatile boolean nodeIsMaster = false;
 

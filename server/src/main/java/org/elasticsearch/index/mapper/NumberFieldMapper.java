@@ -483,7 +483,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> HalfFloatPoint.sortableShortToHalfFloat((short) l));
+                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, BlockDocValuesReader.ToDouble.SHORT_TO_HALF_FLOAT);
             }
 
             @Override
@@ -672,7 +672,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, l -> NumericUtils.sortableIntToFloat((int) l));
+                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, BlockDocValuesReader.ToDouble.INT_TO_FLOAT);
             }
 
             @Override
@@ -827,7 +827,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             BlockLoader blockLoaderFromDocValues(String fieldName) {
-                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, NumericUtils::sortableLongToDouble);
+                return new BlockDocValuesReader.DoublesBlockLoader(fieldName, BlockDocValuesReader.ToDouble.LONG_TO_DOUBLE);
             }
 
             @Override

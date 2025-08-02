@@ -62,7 +62,8 @@ interface FieldSpecificMatcher {
                 put("geo_shape", new ExactMatcher("geo_shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("shape", new ExactMatcher("shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("geo_point", new GeoPointMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
-                put("text", new TextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("text", new TextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings, false));
+                put("match_only_text", new TextMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings, true));
                 put("ip", new IpMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("constant_keyword", new ConstantKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put("wildcard", new WildcardMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
@@ -608,17 +609,20 @@ interface FieldSpecificMatcher {
         private final Settings.Builder actualSettings;
         private final XContentBuilder expectedMappings;
         private final Settings.Builder expectedSettings;
+        private final boolean isMatchOnlyText;
 
         TextMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
-            Settings.Builder expectedSettings
+            Settings.Builder expectedSettings,
+            boolean isMatchOnlyText
         ) {
             this.actualMappings = actualMappings;
             this.actualSettings = actualSettings;
             this.expectedMappings = expectedMappings;
             this.expectedSettings = expectedSettings;
+            this.isMatchOnlyText = isMatchOnlyText;
         }
 
         @Override
@@ -640,23 +644,24 @@ interface FieldSpecificMatcher {
             // In some cases synthetic source for text fields is synthesized using the keyword multi field.
             // So in this case it's appropriate to match it using keyword matching logic (mainly to cover `null_value`).
             var multiFields = (Map<String, Object>) getMappingParameter("fields", actualMapping, expectedMapping);
-            if (multiFields != null) {
+            if (multiFields != null && multiFields.containsKey("subfield_keyword")) {
                 var keywordMatcher = new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
 
-                var keywordFieldMapping = (Map<String, Object>) multiFields.get("kwd");
+                var keywordFieldMapping = (Map<String, Object>) multiFields.get("subfield_keyword");
                 var keywordMatchResult = keywordMatcher.match(actual, expected, keywordFieldMapping, keywordFieldMapping);
                 if (keywordMatchResult.isMatch()) {
                     return MatchResult.match();
                 }
             }
 
+            var typeName = isMatchOnlyText ? "match_only_text" : "text";
             return MatchResult.noMatch(
                 formatErrorMessage(
                     actualMappings,
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "Values of type [text] don't match, " + prettyPrintCollections(actual, expected)
+                    "Values of type [" + typeName + "] don't match, " + prettyPrintCollections(actual, expected)
                 )
             );
         }

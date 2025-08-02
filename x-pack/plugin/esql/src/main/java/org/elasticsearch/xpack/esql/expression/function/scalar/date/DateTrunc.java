@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,52 +16,37 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
-import org.elasticsearch.xpack.esql.expression.LocalSurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Period;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.session.Configuration.DEFAULT_TZ;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 
-public class DateTrunc extends EsqlScalarFunction implements LocalSurrogateExpression {
+public class DateTrunc extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "DateTrunc",
         DateTrunc::new
     );
-
-    private static final Logger logger = LogManager.getLogger(DateTrunc.class);
 
     @FunctionalInterface
     public interface DateTruncFactoryProvider {
@@ -121,11 +105,11 @@ public class DateTrunc extends EsqlScalarFunction implements LocalSurrogateExpre
         return ENTRY.name;
     }
 
-    Expression interval() {
+    public Expression interval() {
         return interval;
     }
 
-    Expression field() {
+    public Expression field() {
         return timestampField;
     }
 
@@ -284,57 +268,5 @@ public class DateTrunc extends EsqlScalarFunction implements LocalSurrogateExpre
         Rounding.Prepared rounding
     ) {
         return evaluatorMap.get(forType).apply(source, fieldEvaluator, rounding);
-    }
-
-    @Override
-    public Expression surrogate(SearchStats searchStats) {
-        // LocalSubstituteSurrogateExpressions should make sure this doesn't happen
-        assert searchStats != null : "SearchStats cannot be null";
-        return maybeSubstituteWithRoundTo(
-            source(),
-            field(),
-            interval(),
-            searchStats,
-            (interval, minValue, maxValue) -> createRounding(interval, DEFAULT_TZ, minValue, maxValue)
-        );
-    }
-
-    public static RoundTo maybeSubstituteWithRoundTo(
-        Source source,
-        Expression field,
-        Expression foldableTimeExpression,
-        SearchStats searchStats,
-        TriFunction<Object, Long, Long, Rounding.Prepared> roundingFunction
-    ) {
-        if (field instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField == false && isDateTime(fa.dataType())) {
-            // Extract min/max from SearchStats
-            DataType fieldType = fa.dataType();
-            FieldAttribute.FieldName fieldName = fa.fieldName();
-            var min = searchStats.min(fieldName);
-            var max = searchStats.max(fieldName);
-            // If min/max is available create rounding with them
-            if (min instanceof Long minValue && max instanceof Long maxValue && foldableTimeExpression.foldable()) {
-                Object foldedInterval = foldableTimeExpression.fold(FoldContext.small() /* TODO remove me */);
-                Rounding.Prepared rounding = roundingFunction.apply(foldedInterval, minValue, maxValue);
-                long[] roundingPoints = rounding.fixedRoundingPoints();
-                if (roundingPoints == null) {
-                    logger.trace(
-                        "Fixed rounding point is null for field {}, minValue {} in string format {} and maxValue {} in string format {}",
-                        fieldName,
-                        minValue,
-                        dateWithTypeToString(minValue, fieldType),
-                        maxValue,
-                        dateWithTypeToString(maxValue, fieldType)
-                    );
-                    return null;
-                }
-                // Convert to round_to function with the roundings
-                List<Expression> points = Arrays.stream(roundingPoints)
-                    .mapToObj(l -> new Literal(Source.EMPTY, l, fieldType))
-                    .collect(Collectors.toList());
-                return new RoundTo(source, field, points);
-            }
-        }
-        return null;
     }
 }

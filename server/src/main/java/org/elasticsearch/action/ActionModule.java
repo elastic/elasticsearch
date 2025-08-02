@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsActi
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
@@ -455,7 +456,6 @@ public class ActionModule extends AbstractModule {
     private final Set<RestHeaderDefinition> headersToCopy;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
-    private final ThreadPool threadPool;
     private final ReservedClusterStateService reservedClusterStateService;
     private final RestExtension restExtension;
 
@@ -488,7 +488,6 @@ public class ActionModule extends AbstractModule {
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
-        this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         this.bulkService = bulkService;
@@ -595,10 +594,10 @@ public class ActionModule extends AbstractModule {
                     Optional<String> traceId = RestUtils.extractTraceId(traceparent);
                     if (traceId.isPresent()) {
                         threadContext.putHeader(Task.TRACE_ID, traceId.get());
-                        threadContext.putTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER, traceparent);
+                        threadContext.putTransient(Task.PARENT_TRACE_PARENT_HEADER, traceparent);
                     }
                 } else if (name.equals(Task.TRACE_STATE)) {
-                    threadContext.putTransient("parent_" + Task.TRACE_STATE, distinctHeaderValues.get(0));
+                    threadContext.putTransient(Task.PARENT_TRACE_STATE, distinctHeaderValues.get(0));
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }
@@ -631,6 +630,7 @@ public class ActionModule extends AbstractModule {
         ActionRegistry actions = new ActionRegistry();
 
         actions.register(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class);
+        actions.register(TransportNodeUsageStatsForThreadPoolsAction.TYPE, TransportNodeUsageStatsForThreadPoolsAction.class);
         actions.register(TransportRemoteInfoAction.TYPE, TransportRemoteInfoAction.class);
         actions.register(TransportNodesCapabilitiesAction.TYPE, TransportNodesCapabilitiesAction.class);
         actions.register(TransportNodesFeaturesAction.TYPE, TransportNodesFeaturesAction.class);
@@ -855,7 +855,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestGetDesiredBalanceAction());
         registerHandler.accept(new RestDeleteDesiredBalanceAction());
         registerHandler.accept(new RestClusterStatsAction());
-        registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
+        registerHandler.accept(new RestClusterStateAction(settingsFilter));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
@@ -1061,7 +1061,6 @@ public class ActionModule extends AbstractModule {
             bind(action.getTransportAction()).asEagerSingleton();
             transportActionsBinder.addBinding(action.getAction()).to(action.getTransportAction()).asEagerSingleton();
         }
-
     }
 
     public ActionFilters getActionFilters() {

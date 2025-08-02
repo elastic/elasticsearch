@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -86,7 +87,8 @@ class NodeServiceProvider {
             clusterService,
             threadPool,
             client,
-            estimatedHeapUsageCollector
+            estimatedHeapUsageCollector,
+            new NodeUsageStatsForThreadPoolsCollector()
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             // listen for state changes (this node starts/stops being the elected master, or new nodes are added)

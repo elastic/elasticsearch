@@ -436,6 +436,50 @@ synthetic_source match_only_text as multi-field:
       hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
 
 ---
+synthetic_source match_only_text as multi-field with ignored keyword as parent:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                store: false
+                doc_values: true
+                ignore_above: 10
+                fields:
+                  text:
+                    type: match_only_text
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        refresh: true
+        body:
+          foo: [ "Apache Lucene powers Elasticsearch", "Apache" ]
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo.text: apache lucene
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: [ "Apache", "Apache Lucene powers Elasticsearch" ]
+
+---
 synthetic_source match_only_text as multi-field with stored keyword as parent:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
@@ -479,6 +523,49 @@ synthetic_source match_only_text as multi-field with stored keyword as parent:
       hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
 
 ---
+synthetic_source match_only_text as multi-field with ignored stored keyword as parent:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: keyword
+                store: true
+                doc_values: false
+                ignore_above: 10
+                fields:
+                  text:
+                    type: match_only_text
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo.text: apache lucene
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
+---
 synthetic_source match_only_text with multi-field:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
@@ -503,6 +590,50 @@ synthetic_source match_only_text with multi-field:
       index:
         index: synthetic_source_test
         id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: apache lucene
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
+
+---
+synthetic_source match_only_text with ignored multi-field:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+                fields:
+                  raw:
+                    type: keyword
+                    store: false
+                    doc_values: true
+                    ignore_above: 10
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
         refresh: true
         body:
           foo: "Apache Lucene powers Elasticsearch"
@@ -546,6 +677,50 @@ synthetic_source match_only_text with stored multi-field:
       index:
         index: synthetic_source_test
         id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          query:
+            match_phrase:
+              foo: apache lucene
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
+
+---
+synthetic_source match_only_text with ignored stored multi-field:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+                fields:
+                  raw:
+                    type: keyword
+                    store: true
+                    doc_values: false
+                    ignore_above: 10
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id: "1"
         refresh: true
         body:
           foo: "Apache Lucene powers Elasticsearch"

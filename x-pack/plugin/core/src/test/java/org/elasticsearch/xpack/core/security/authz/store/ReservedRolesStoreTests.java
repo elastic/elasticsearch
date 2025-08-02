@@ -1851,6 +1851,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertViewIndexMetadata(kibanaRole, indexName);
         });
 
+        Arrays.asList(".entities.v1.latest.security_" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach(indexName -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertViewIndexMetadata(kibanaRole, indexName);
+        });
+
         Arrays.asList("metrics-logstash." + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((indexName) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
@@ -3676,6 +3683,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
+        assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".asset-criticality.asset-criticality-" + randomIntBetween(0, 5));
+
         assertOnlyReadAllowed(role, ".slo-observability." + randomIntBetween(0, 5));
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
 
@@ -3746,6 +3756,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "endgame-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "profiling-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".profiling-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".entities.v1.latest.security_" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, randomAlphaOfLength(5));
 
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
@@ -3756,6 +3767,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".internal.alerts-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".internal.preview.alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".asset-criticality.asset-criticality-" + randomIntBetween(0, 5));
 
         assertViewIndexMetadata(role, ".slo-observability." + randomIntBetween(0, 5));
         assertReadWriteAndManage(role, ".slo-observability." + randomIntBetween(0, 5));

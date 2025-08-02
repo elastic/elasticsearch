@@ -60,6 +60,7 @@ import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -204,6 +205,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.shutdown.PluginShutdownService;
+import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer;
+import org.elasticsearch.snapshots.IndexMetadataRestoreTransformer.NoOpRestoreTransformer;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
@@ -791,6 +794,15 @@ class NodeConstruction {
             )::onNewInfo
         );
 
+        clusterInfoService.addListener(
+            new WriteLoadConstraintMonitor(
+                clusterService.getClusterSettings(),
+                threadPool.relativeTimeInMillisSupplier(),
+                clusterService::state,
+                rerouteService
+            )::onNewInfo
+        );
+
         IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class).toList());
         modules.add(indicesModule);
 
@@ -1073,7 +1085,7 @@ class NodeConstruction {
             actionModule.getRestController(),
             actionModule::copyRequestHeadersToThreadContext,
             clusterService.getClusterSettings(),
-            telemetryProvider.getTracer()
+            telemetryProvider
         );
 
         var indexTemplateMetadataUpgraders = pluginsService.map(Plugin::getIndexTemplateMetadataUpgrader).toList();
@@ -1155,7 +1167,9 @@ class NodeConstruction {
             systemIndices,
             indicesService,
             fileSettingsService,
-            threadPool
+            threadPool,
+            projectResolver.supportsMultipleProjects(),
+            pluginsService.loadSingletonServiceProvider(IndexMetadataRestoreTransformer.class, NoOpRestoreTransformer::getInstance)
         );
 
         DiscoveryModule discoveryModule = createDiscoveryModule(

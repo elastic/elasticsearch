@@ -26,7 +26,8 @@ public class LoaderHelper {
             return Paths.get(path);
         }
 
-        Path platformDir = Paths.get("lib", "platform");
+        Path homeDir = Paths.get(System.getProperty("es.path.home"));
+        Path platformDir = homeDir.resolve("lib/platform");
 
         String osname = System.getProperty("os.name");
         String os;

@@ -54,6 +54,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
@@ -68,36 +69,55 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
      * Note that for convenience, the returned reader
      * can be used normally (e.g. passed to {@link DirectoryReader#openIfChanged(DirectoryReader)})
      * and so on.
+     *
+     * @param in     reader to filter
+     * @param filter fields to filter.
+     */
+    // TODO rm
+    public static DirectoryReader wrap(DirectoryReader in, CharacterRunAutomaton filter) throws IOException {
+        return wrap(in, filter, f -> f.startsWith("_"));
+    }
+
+    /**
+     * Wraps a provided DirectoryReader, exposing a subset of fields.
+     * <p>
+     * Note that for convenience, the returned reader
+     * can be used normally (e.g. passed to {@link DirectoryReader#openIfChanged(DirectoryReader)})
+     * and so on.
      * @param in reader to filter
      * @param filter fields to filter.
      */
-    public static DirectoryReader wrap(DirectoryReader in, CharacterRunAutomaton filter) throws IOException {
-        return new FieldSubsetDirectoryReader(in, filter);
+    public static DirectoryReader wrap(DirectoryReader in, CharacterRunAutomaton filter, Predicate<String> isMetadataField)
+        throws IOException {
+        return new FieldSubsetDirectoryReader(in, filter, isMetadataField);
     }
 
     // wraps subreaders with fieldsubsetreaders.
     static class FieldSubsetDirectoryReader extends FilterDirectoryReader {
 
         private final CharacterRunAutomaton filter;
+        private final Predicate<String> isMetadataField;
 
-        FieldSubsetDirectoryReader(DirectoryReader in, final CharacterRunAutomaton filter) throws IOException {
+        FieldSubsetDirectoryReader(DirectoryReader in, final CharacterRunAutomaton filter, Predicate<String> isMetadataField)
+            throws IOException {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
                     try {
-                        return new FieldSubsetReader(reader, filter);
+                        return new FieldSubsetReader(reader, filter, isMetadataField);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
                 }
             });
             this.filter = filter;
+            this.isMetadataField = isMetadataField;
             verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(in);
         }
 
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, filter);
+            return new FieldSubsetDirectoryReader(in, filter, isMetadataField);
         }
 
         /** Return the automaton that is used to filter fields. */
@@ -133,15 +153,15 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
     /**
      * Wrap a single segment, exposing a subset of its fields.
      */
-    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter) throws IOException {
+    FieldSubsetReader(LeafReader in, CharacterRunAutomaton filter, Predicate<String> isMetadataField) throws IOException {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (filter.run(fi.name)) {
+            if (isMetadataField.test(fi.name) || filter.run(fi.name)) {
                 filteredInfos.add(fi);
             }
         }
-        fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
+        fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[0]));
         this.filter = filter;
     }
 

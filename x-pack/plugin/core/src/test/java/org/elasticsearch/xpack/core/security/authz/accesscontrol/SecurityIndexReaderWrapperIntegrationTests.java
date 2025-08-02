@@ -179,7 +179,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 bitsetCache,
                 securityContext,
                 licenseState,
-                scriptService
+                scriptService,
+                null
             ) {
 
                 @Override
@@ -284,7 +285,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             bitsetCache,
             securityContext,
             licenseState,
-            scriptService
+            scriptService,
+            null
         ) {
 
             @Override

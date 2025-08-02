@@ -118,6 +118,10 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
                     }
                 }
 
+                if (shardSnapshotStatus.isAssignedQueued()) {
+                    continue;
+                }
+
                 return allocation.decision(
                     Decision.THROTTLE,
                     NAME,

@@ -18,6 +18,8 @@ import java.io.File;
 
 public class VersionPropertiesPlugin implements Plugin<Project> {
 
+    public static final String VERSIONS_EXT = "versions";
+
     @Override
     public void apply(Project project) {
         File workspaceDir = Util.locateElasticsearchWorkspace(project.getGradle());
@@ -28,6 +30,6 @@ public class VersionPropertiesPlugin implements Plugin<Project> {
                 .registerIfAbsent("versions", VersionPropertiesBuildService.class, spec -> {
             spec.getParameters().getInfoPath().set(infoPath);
         });
-        project.getExtensions().add("versions", serviceProvider.get().getProperties());
+        project.getExtensions().add(VERSIONS_EXT, serviceProvider.get().getProperties());
     }
 }

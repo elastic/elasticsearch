@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
@@ -396,8 +397,39 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         ActionListener<BulkResponse> listener
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
-        if (applyPipelines(task, bulkRequest, executor, listener) == false) {
-            doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
+
+        // Validate child stream writes before processing pipelines
+        ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
+        BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(bulkRequest);
+
+        DocWriteRequest<?> req;
+        int i = -1;
+        while (bulkRequestModifier.hasNext()) {
+            req = bulkRequestModifier.next();
+            i++;
+
+            for (StreamType streamType : StreamType.getEnabledStreamTypesForProject(projectMetadata)) {
+                if (req instanceof IndexRequest ir && streamType.matchesStreamPrefix(req.index()) && ir.isPipelineResolved() == false) {
+                    IllegalArgumentException e = new IllegalArgumentException(
+                        "Direct writes to child streams are prohibited. Index directly into the ["
+                            + streamType.getStreamName()
+                            + "] stream instead"
+                    );
+                    Boolean failureStoreEnabled = resolveFailureStore(req.index(), projectMetadata, threadPool.absoluteTimeInMillis());
+                    if (Boolean.TRUE.equals(failureStoreEnabled)) {
+                        bulkRequestModifier.markItemForFailureStore(i, req.index(), e);
+                    } else {
+                        bulkRequestModifier.markItemAsFailed(i, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
+                    }
+                    break;
+                }
+            }
+        }
+
+        var wrappedListener = bulkRequestModifier.wrapActionListenerIfNeeded(listener);
+
+        if (applyPipelines(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener) == false) {
+            doInternalExecute(task, bulkRequestModifier.getBulkRequest(), executor, wrappedListener, relativeStartTimeNanos);
         }
     }
 

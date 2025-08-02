@@ -337,7 +337,7 @@ public class CustomService extends SenderService {
         }
     }
 
-    private static CustomServiceSettings getCustomServiceSettings(CustomModel customModel, int embeddingSize) {
+    static CustomServiceSettings getCustomServiceSettings(CustomModel customModel, int embeddingSize) {
         var serviceSettings = customModel.getServiceSettings();
         var similarityFromModel = serviceSettings.similarity();
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
@@ -351,7 +351,8 @@ public class CustomService extends SenderService {
             serviceSettings.getResponseJsonParser(),
             serviceSettings.rateLimitSettings(),
             serviceSettings.getBatchSize(),
-            serviceSettings.getInputTypeTranslator()
+            serviceSettings.getInputTypeTranslator(),
+            serviceSettings.getParameters()
         );
     }
 

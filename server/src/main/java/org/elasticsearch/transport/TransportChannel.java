@@ -23,6 +23,14 @@ public interface TransportChannel {
     void sendResponse(Exception exception);
 
     /**
+     * Returns a suggestion about the desired compression scheme to use for sending the response when using {@link BytesTransportResponse}
+     * to bypass transport layer serialization and compression.
+     *
+     * @return the suggested compression scheme to use for responses or {@code null} when not using compression
+     */
+    Compression.Scheme compressionScheme();
+
+    /**
      * Returns the version of the data to communicate in this channel.
      */
     default TransportVersion getVersion() {

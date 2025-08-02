@@ -71,6 +71,7 @@ import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
@@ -720,6 +721,11 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                                         channel.sendResponse(exception);
                                     });
                                 }
+                            }
+
+                            @Override
+                            public Compression.Scheme compressionScheme() {
+                                return channel.compressionScheme();
                             }
 
                             private boolean assertShardClosedException(Exception e) {

@@ -36,7 +36,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
@@ -96,7 +98,6 @@ import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
@@ -137,7 +138,9 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.BytesTransportResponse;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
@@ -1137,7 +1140,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeFetchPhase(
         InternalScrollSearchRequest request,
         SearchShardTask task,
-        ActionListener<ScrollQueryFetchSearchResult> listener
+        RecyclerBytesStreamOutput networkBuffer,
+        ActionListener<TransportResponse> listener
     ) {
         final LegacyReaderContext readerContext = (LegacyReaderContext) findReaderContext(request.contextId(), request);
         final Releasable markAsUsed;
@@ -1169,8 +1173,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         opsListener.onFailedQueryPhase(searchContext);
                     }
                 }
-                QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
-                return new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
+                var resp = executeFetchPhase(readerContext, searchContext, afterQueryTime);
+                if (networkBuffer == null) {
+                    return new ScrollQueryFetchSearchResult(resp, searchContext.shardTarget());
+                }
+                searchContext.shardTarget().writeTo(networkBuffer);
+                resp.writeTo(networkBuffer);
+                resp.decRef();
+                return new BytesTransportResponse(new ReleasableBytesReference(networkBuffer.bytes(), networkBuffer));
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 logger.trace("Fetch phase failed", e);
@@ -1180,7 +1190,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
-    public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
+    public void executeFetchPhase(
+        ShardFetchRequest request,
+        CancellableTask task,
+        RecyclerBytesStreamOutput networkBuffer,
+        ActionListener<TransportResponse> listener
+    ) {
         final ReaderContext readerContext = findReaderContext(request.contextId(), request);
         final ShardSearchRequest shardSearchRequest = readerContext.getShardSearchRequest(request.getShardSearchRequest());
         final Releasable markAsUsed = readerContext.markAsUsed(getKeepAlive(shardSearchRequest));
@@ -1209,8 +1224,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     }
                     var fetchResult = searchContext.fetchResult();
                     // inc-ref fetch result because we close the SearchContext that references it in this try-with-resources block
-                    fetchResult.incRef();
-                    return fetchResult;
+                    if (networkBuffer == null) {
+                        fetchResult.incRef();
+                        return fetchResult;
+                    }
+                    try (networkBuffer) {
+                        // no need to worry about releasing this instance safely before we write the first byte to it
+                        // => the try-with-resources here is all we need to not leak any buffers
+                        fetchResult.contextId.writeTo(networkBuffer);
+                        fetchResult.consumeHits(networkBuffer);
+                        networkBuffer.writeOptionalWriteable(fetchResult.profileResult());
+                        return new BytesTransportResponse(networkBuffer.moveToBytesReference());
+                    }
                 } catch (Exception e) {
                     assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                     // we handle the failure in the failure listener below

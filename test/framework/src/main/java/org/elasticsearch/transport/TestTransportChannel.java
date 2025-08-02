@@ -33,4 +33,9 @@ public class TestTransportChannel implements TransportChannel {
     public void sendResponse(Exception exception) {
         listener.onFailure(exception);
     }
+
+    @Override
+    public Compression.Scheme compressionScheme() {
+        return null;
+    }
 }

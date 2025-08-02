@@ -130,6 +130,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
@@ -413,8 +414,8 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 intCursors,
                                 null/* not a scroll */
                             );
-                            PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), listener);
+                            PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
+                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), null, listener);
                             listener.get();
                             if (useScroll) {
                                 // have to free context since this test does not remove the index from IndicesService.
@@ -602,9 +603,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             // execute fetch phase and perform any validations once we retrieve the response
             // the difference in how we do assertions here is needed because once the transport service sends back the response
             // it decrements the reference to the FetchSearchResult (through the ActionListener#respondAndRelease) and sets hits to null
-            PlainActionFuture<FetchSearchResult> fetchListener = new PlainActionFuture<>() {
+            PlainActionFuture<TransportResponse> fetchListener = new PlainActionFuture<>() {
                 @Override
-                public void onResponse(FetchSearchResult fetchSearchResult) {
+                public void onResponse(TransportResponse response) {
+                    FetchSearchResult fetchSearchResult = (FetchSearchResult) response;
                     assertNotNull(fetchSearchResult);
                     assertNotNull(fetchSearchResult.hits());
 
@@ -625,7 +627,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     throw new AssertionError("No failure should have been raised", e);
                 }
             };
-            service.executeFetchPhase(fetchRequest, searchTask, fetchListener);
+            service.executeFetchPhase(fetchRequest, searchTask, null, fetchListener);
             fetchListener.get();
         } catch (Exception ex) {
             if (queryResult != null) {

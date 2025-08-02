@@ -49,6 +49,7 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
@@ -425,6 +426,11 @@ public class RepositoryVerifyIntegrityIT extends AbstractSnapshotIntegTestCase {
                             } else {
                                 channel.sendResponse(exception);
                             }
+                        }
+
+                        @Override
+                        public Compression.Scheme compressionScheme() {
+                            return channel.compressionScheme();
                         }
                     }, task);
                 }

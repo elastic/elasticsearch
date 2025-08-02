@@ -322,6 +322,11 @@ public abstract class DisruptableMockTransport extends MockTransport {
                     }
                 });
             }
+
+            @Override
+            public Compression.Scheme compressionScheme() {
+                return null;
+            }
         };
 
         final TransportRequest copiedRequest;

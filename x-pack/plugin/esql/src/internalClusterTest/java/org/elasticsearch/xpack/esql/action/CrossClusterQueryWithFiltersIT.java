@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
@@ -528,6 +529,11 @@ public class CrossClusterQueryWithFiltersIT extends AbstractCrossClusterTestCase
                     @Override
                     public void sendResponse(Exception exception) {
                         channel.sendResponse(exception);
+                    }
+
+                    @Override
+                    public Compression.Scheme compressionScheme() {
+                        return channel.compressionScheme();
                     }
                 }, task)
             );

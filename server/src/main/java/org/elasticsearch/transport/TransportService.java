@@ -1608,6 +1608,11 @@ public class TransportService extends AbstractLifecycleComponent
             }
         }
 
+        @Override
+        public Compression.Scheme compressionScheme() {
+            return null;
+        }
+
         protected RemoteTransportException wrapInRemote(Exception e) {
             return e instanceof RemoteTransportException remoteTransportException
                 ? remoteTransportException

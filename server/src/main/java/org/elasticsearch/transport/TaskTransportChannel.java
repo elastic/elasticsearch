@@ -48,6 +48,11 @@ public class TaskTransportChannel implements TransportChannel {
     }
 
     @Override
+    public Compression.Scheme compressionScheme() {
+        return channel.compressionScheme();
+    }
+
+    @Override
     public TransportVersion getVersion() {
         return channel.getVersion();
     }

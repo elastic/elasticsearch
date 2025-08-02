@@ -713,7 +713,6 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse response = mock(SearchResponse.class);
         when(response.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> aggTree = new ArrayList<>(1);
-        InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
@@ -732,9 +731,7 @@ public class SearchActionTests extends ESTestCase {
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
-        when(filter.getName()).thenReturn("filter_foo");
-        aggTree.add(filter);
+        aggTree.add(new InternalFilter("filter_foo", 0, InternalAggregations.from(subaggs), null));
 
         InternalAggregations mockAggs = InternalAggregations.from(aggTree);
         when(response.getAggregations()).thenReturn(mockAggs);
@@ -852,7 +849,6 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse responseWithout = mock(SearchResponse.class);
         when(responseWithout.getTook()).thenReturn(new TimeValue(100));
         List<InternalAggregation> aggTree = new ArrayList<>(1);
-        InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
         Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
@@ -871,9 +867,7 @@ public class SearchActionTests extends ESTestCase {
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
-        when(filter.getName()).thenReturn("filter_foo");
-        aggTree.add(filter);
+        aggTree.add(new InternalFilter("filter_foo", 0, InternalAggregations.from(subaggs), null));
 
         InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);

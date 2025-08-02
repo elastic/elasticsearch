@@ -12,12 +12,13 @@ package org.elasticsearch.join.aggregations;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.SingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 
 import java.util.List;
 import java.util.Map;
 
-public class InternalChildrenTests extends InternalSingleBucketAggregationTestCase<InternalChildren> {
+public class InternalChildrenTests extends SingleBucketAggregationTestCase<SingleBucketAggregation> {
 
     @Override
     protected SearchPlugin registerPlugin() {
@@ -25,7 +26,7 @@ public class InternalChildrenTests extends InternalSingleBucketAggregationTestCa
     }
 
     @Override
-    protected InternalChildren createTestInstance(
+    protected SingleBucketAggregation createTestInstance(
         String name,
         long docCount,
         InternalAggregations aggregations,
@@ -35,7 +36,7 @@ public class InternalChildrenTests extends InternalSingleBucketAggregationTestCa
     }
 
     @Override
-    protected void extraAssertReduced(InternalChildren reduced, List<InternalChildren> inputs) {
+    protected void extraAssertReduced(SingleBucketAggregation reduced, List<SingleBucketAggregation> inputs) {
         // Nothing extra to assert
     }
 }

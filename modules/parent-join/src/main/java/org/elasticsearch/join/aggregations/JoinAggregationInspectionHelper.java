@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.join.aggregations;
 
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+
 /**
  * Counterpart to {@link org.elasticsearch.search.aggregations.support.AggregationInspectionHelper}, providing
  * helpers for some aggs in the Join package
@@ -18,7 +20,7 @@ public class JoinAggregationInspectionHelper {
         return agg.getDocCount() > 0;
     }
 
-    public static boolean hasValue(InternalChildren agg) {
+    public static boolean hasValue(SingleBucketAggregation agg) {
         return agg.getDocCount() > 0;
     }
 }

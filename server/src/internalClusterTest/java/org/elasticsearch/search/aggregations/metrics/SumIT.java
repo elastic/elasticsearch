@@ -13,7 +13,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -146,9 +145,9 @@ public class SumIT extends AbstractNumericTestCase {
                 assertThat(sum.getName(), equalTo("sum"));
                 double expectedSumValue = (double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10;
                 assertThat(sum.value(), equalTo(expectedSumValue));
-                assertThat((Sum) ((InternalAggregation) global).getProperty("sum"), equalTo(sum));
-                assertThat((double) ((InternalAggregation) global).getProperty("sum.value"), equalTo(expectedSumValue));
-                assertThat((double) ((InternalAggregation) sum).getProperty("value"), equalTo(expectedSumValue));
+                assertThat((Sum) global.getProperty("sum"), equalTo(sum));
+                assertThat((double) global.getProperty("sum.value"), equalTo(expectedSumValue));
+                assertThat((double) sum.getProperty("value"), equalTo(expectedSumValue));
             }
         );
     }

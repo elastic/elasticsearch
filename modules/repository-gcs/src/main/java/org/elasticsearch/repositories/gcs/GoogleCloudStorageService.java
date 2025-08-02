@@ -25,8 +25,12 @@ import com.google.cloud.storage.StorageRetryStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -43,26 +47,28 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.security.KeyStore;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.Collections.emptyMap;
-import static org.elasticsearch.core.Strings.format;
 
 public class GoogleCloudStorageService {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
-
-    private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
+    private final GoogleCloudStorageClientsManager clientsManager;
 
     private final boolean isServerless;
 
-    public GoogleCloudStorageService() {
-        this.isServerless = false;
-    }
-
-    public GoogleCloudStorageService(boolean isServerless) {
-        this.isServerless = isServerless;
+    @SuppressWarnings("this-escape")
+    public GoogleCloudStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
+        final Settings nodeSettings = clusterService.getSettings();
+        this.isServerless = DiscoveryNode.isStateless(nodeSettings);
+        this.clientsManager = new GoogleCloudStorageClientsManager(
+            nodeSettings,
+            this::createClient,
+            projectResolver.supportsMultipleProjects()
+        );
+        if (projectResolver.supportsMultipleProjects()) {
+            clusterService.addHighPriorityApplier(this.clientsManager);
+        }
     }
 
     public boolean isServerless() {
@@ -70,21 +76,16 @@ public class GoogleCloudStorageService {
     }
 
     /**
-     * Dictionary of client instances. Client instances are built lazily from the
-     * latest settings. Clients are cached by a composite repositoryName key.
-     */
-    private volatile Map<String, MeteredStorage> clientCache = emptyMap();
-
-    /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
      * {@code GoogleCloudStorageService#client} will return new clients constructed
-     * using the parameter settings.
+     * using the parameter settings. Note this method is for clients in non-MP setup
+     * or cluster clients in MP setup. Project clients in MP setup are refreshed differently
+     * via cluster applier, see {@link GoogleCloudStorageClientsManager#applyClusterState}.
      *
      * @param clientsSettings the new settings used for building clients for subsequent requests
      */
-    public synchronized void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
-        this.clientCache = emptyMap();
-        this.clientSettings = Maps.ofEntries(clientsSettings.entrySet());
+    public void refreshAndClearCache(Map<String, GoogleCloudStorageClientSettings> clientsSettings) {
+        clientsManager.refreshAndClearCacheForClusterClients(clientsSettings);
     }
 
     /**
@@ -94,49 +95,34 @@ public class GoogleCloudStorageService {
      * use, the (possibly updated) instance should be requested by calling this
      * method.
      *
+     * @param projectId project for this repository. It is null if the repository is at cluster level in MP setup.
      * @param clientName name of the client settings used to create the client
      * @param repositoryName name of the repository that would use the client
      * @return a cached client storage instance that can be used to manage objects
      *         (blobs)
      */
-    public MeteredStorage client(final String clientName, final String repositoryName, final GcsRepositoryStatsCollector statsCollector)
-        throws IOException {
-        {
-            final MeteredStorage storage = clientCache.get(repositoryName);
-            if (storage != null) {
-                return storage;
-            }
-        }
-        synchronized (this) {
-            final MeteredStorage existing = clientCache.get(repositoryName);
-
-            if (existing != null) {
-                return existing;
-            }
-
-            final GoogleCloudStorageClientSettings settings = clientSettings.get(clientName);
-
-            if (settings == null) {
-                throw new IllegalArgumentException(
-                    "Unknown client name ["
-                        + clientName
-                        + "]. Existing client configs: "
-                        + Strings.collectionToDelimitedString(clientSettings.keySet(), ",")
-                );
-            }
-
-            logger.debug(() -> format("creating GCS client with client_name [%s], endpoint [%s]", clientName, settings.getHost()));
-            final MeteredStorage storage = createClient(settings, statsCollector);
-            clientCache = Maps.copyMapWithAddedEntry(clientCache, repositoryName, storage);
-            return storage;
-        }
+    public MeteredStorage client(
+        @Nullable final ProjectId projectId,
+        final String clientName,
+        final String repositoryName,
+        final GcsRepositoryStatsCollector statsCollector
+    ) throws IOException {
+        return clientsManager.client(projectId, clientName, repositoryName, statsCollector);
     }
 
-    synchronized void closeRepositoryClients(String repositoryName) {
-        clientCache = clientCache.entrySet()
-            .stream()
-            .filter(entry -> entry.getKey().equals(repositoryName) == false)
-            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    /**
+     * Close the repository client associated with the given project and repository.
+     *
+     * @param projectId project for the repository. It is null if the repository is at cluster level in MP setup.
+     * @param repositoryName name of the repository for which the client is closed
+     */
+    void closeRepositoryClients(@Nullable final ProjectId projectId, String repositoryName) {
+        clientsManager.closeRepositoryClients(projectId, repositoryName);
+    }
+
+    // package-private for tests
+    GoogleCloudStorageClientsManager getClientsManager() {
+        return clientsManager;
     }
 
     /**

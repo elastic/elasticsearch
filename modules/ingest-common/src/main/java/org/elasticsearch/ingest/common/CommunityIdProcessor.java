@@ -229,11 +229,11 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         switch (flow.protocol.getType()) {
             case Tcp, Udp, Sctp -> {
                 flow.sourcePort = parseIntFromObjectOrString(sourcePort.get(), "source port");
-                if (flow.sourcePort < 1 || flow.sourcePort > 65535) {
+                if (flow.sourcePort < 0 || flow.sourcePort > 65535) {
                     throw new IllegalArgumentException("invalid source port [" + sourcePort.get() + "]");
                 }
                 flow.destinationPort = parseIntFromObjectOrString(destinationPort.get(), "destination port");
-                if (flow.destinationPort < 1 || flow.destinationPort > 65535) {
+                if (flow.destinationPort < 0 || flow.destinationPort > 65535) {
                     throw new IllegalArgumentException("invalid destination port [" + destinationPort.get() + "]");
                 }
             }
@@ -268,7 +268,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
      */
     private static int parseIntFromObjectOrString(Object o, String fieldName) {
         if (o == null) {
-            return 0;
+            return -1;
         } else if (o instanceof Number number) {
             return number.intValue();
         } else if (o instanceof String string) {

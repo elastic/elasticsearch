@@ -460,7 +460,7 @@ public class IndexRoutingTests extends ESTestCase {
      */
     private int shardIdFromSimple(IndexRouting indexRouting, String id, @Nullable String routing) {
         return switch (between(0, 3)) {
-            case 0 -> indexRouting.indexShard(id, routing, null, null);
+            case 0 -> indexRouting.indexShard(id, routing, null, (BytesReference) null);
             case 1 -> indexRouting.updateShard(id, routing);
             case 2 -> indexRouting.deleteShard(id, routing);
             case 3 -> indexRouting.getShard(id, routing);

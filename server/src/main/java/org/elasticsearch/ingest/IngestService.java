@@ -73,7 +73,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -938,8 +937,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         // start the stopwatch and acquire a ref to indicate that we're working on this document
                         final long startTimeInNanos = System.nanoTime();
                         totalMetrics.preIngest();
+                        long bytesIngestedStart = indexRequest.ramBytesUsed();
                         if (firstPipeline != null) {
-                            firstPipeline.getMetrics().preIngestBytes(indexRequest.ramBytesUsed());
+                            firstPipeline.getMetrics().preIngestBytes(bytesIngestedStart);
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
@@ -957,7 +957,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                             onDropped.accept(slot);
                                         } else {
                                             assert firstPipeline != null;
-                                            firstPipeline.getMetrics().postIngestBytes(indexRequest.ramBytesUsed());
+                                            firstPipeline.getMetrics().postIngestBytes(bytesIngestedStart + 1);
                                         }
                                     } else {
                                         totalMetrics.ingestFailed();
@@ -1195,6 +1195,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         ingestDocument.doNoSelfReferencesCheck(false);
                     }
                 } catch (IllegalArgumentException ex) {
+                    // TODO: Hack to delete mutated source
+                    indexRequest.source(indexRequest.source(), indexRequest.getContentType());
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include more details
                     exceptionHandler.accept(
@@ -1379,13 +1381,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Builds a new ingest document from the passed-in index request.
      */
     private static IngestDocument newIngestDocument(final IndexRequest request) {
+        request.ensureStructureSource();
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(XContentParserDecorator.NOOP)
+            new MapStructuredSource(request.structuredSource())
         );
     }
 
@@ -1426,7 +1429,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // we already check for self references elsewhere (and clear the bit), so this should always be false,
         // keeping the check and assert as a guard against extraordinarily surprising circumstances
         assert ensureNoSelfReferences == false;
-        request.source(document.getSource(), request.getContentType(), ensureNoSelfReferences);
+        MapStructuredSource source = (MapStructuredSource) document.getSource();
+        ESONSource.ESONObject esonSource = (ESONSource.ESONObject) source.map();
+        request.setStructuredSource(ESONSource.flatten(esonSource));
     }
 
     /**

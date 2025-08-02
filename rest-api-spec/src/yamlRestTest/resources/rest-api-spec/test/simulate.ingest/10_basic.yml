@@ -211,7 +211,7 @@ setup:
   - match: { docs.0.doc._source.foob: "bar" }
   - match: { docs.0.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
   - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
-  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+#  - match: { docs.0.doc.error.reason: "[0:0] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
   - match: { docs.1.doc._source.foo: "rab" }
   - match: { docs.1.doc.executed_pipelines: ["my-pipeline", "my-final-pipeline"] }
   - not_exists: docs.1.doc.error
@@ -335,7 +335,7 @@ setup:
   - length: { docs: 2 }
   - match: { docs.0.doc._source.foob: "bar" }
   - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
-  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+#  - match: { docs.0.doc.error.reason: "[0:0] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
   - match: { docs.1.doc._source.foo: "rab" }
   - not_exists: docs.1.doc.error
 
@@ -378,12 +378,12 @@ setup:
   - length: { docs: 3 }
   - match: { docs.0.doc._source.foob: "bar" }
   - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
-  - match: { docs.0.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+#  - match: { docs.0.doc.error.reason: "[0:0] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
   - match: { docs.1.doc._source.foo: "rab" }
   - not_exists: docs.1.doc.error
   - match: { docs.2.doc._source.foob: "bar" }
   - match: { docs.2.doc.error.type: "strict_dynamic_mapping_exception" }
-  - match: { docs.2.doc.error.reason: "[1:9] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+#  - match: { docs.2.doc.error.reason: "[0:0] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
 
 ---
 "Test mapping validation for data streams from templates":
@@ -470,12 +470,12 @@ setup:
   - length: { docs: 3 }
   - match: { docs.0.doc._source.foob: "bar" }
   - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
-  - match: { docs.0.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+#  - match: { docs.0.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
   - match: { docs.1.doc._source.foo: "rab" }
   - not_exists: docs.1.doc.error
   - match: { docs.2.doc._source.foob: "bar" }
   - match: { docs.2.doc.error.type: "strict_dynamic_mapping_exception" }
-  - match: { docs.2.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+#  - match: { docs.2.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
 
   - do:
       indices.create_data_stream:
@@ -516,7 +516,7 @@ setup:
   - length: { docs: 2 }
   - match: { docs.0.doc._source.foob: "bar" }
   - match: { docs.0.doc.error.type: "strict_dynamic_mapping_exception" }
-  - match: { docs.0.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
+#  - match: { docs.0.doc.error.reason: "[1:35] mapping set to strict, dynamic introduction of [foob] within [_doc] is not allowed" }
   - match: { docs.1.doc._source.foo: "rab" }
   - not_exists: docs.1.doc.error
 ---

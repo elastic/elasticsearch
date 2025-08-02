@@ -181,6 +181,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
         executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() throws IOException {
+                for (DocWriteRequest<?> actionRequest : bulkRequest.requests) {
+                    if (actionRequest instanceof IndexRequest ir) {
+                        ir.ensureStructureSource();
+                    }
+                }
                 applyPipelinesAndDoInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });
@@ -397,6 +402,11 @@ public abstract class TransportAbstractBulkAction extends HandledTransportAction
     ) throws IOException {
         final long relativeStartTimeNanos = relativeTimeNanos();
         if (applyPipelines(task, bulkRequest, executor, listener) == false) {
+            for (DocWriteRequest<?> docWriteRequest : bulkRequest.requests()) {
+                if (docWriteRequest instanceof IndexRequest indexRequest) {
+                    indexRequest.flattenAndSerializeStructuredSource();
+                }
+            }
             doInternalExecute(task, bulkRequest, executor, listener, relativeStartTimeNanos);
         }
     }

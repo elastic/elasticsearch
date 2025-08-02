@@ -88,6 +88,13 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
 
         List<String> indexPatterns = randomList(1, 4, () -> randomAlphaOfLength(4));
         List<String> ignoreMissingComponentTemplates = randomList(0, 4, () -> randomAlphaOfLength(4));
+        final Long createdDate = randomBoolean() ? null : randomNonNegativeLong();
+        final Long modifiedDate;
+        if (randomBoolean()) {
+            modifiedDate = createdDate == null ? randomNonNegativeLong() : randomLongBetween(createdDate, Long.MAX_VALUE);
+        } else {
+            modifiedDate = null;
+        }
         return ComposableIndexTemplate.builder()
             .indexPatterns(indexPatterns)
             .template(template)
@@ -99,6 +106,8 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
             .allowAutoCreate(randomOptionalBoolean())
             .ignoreMissingComponentTemplates(ignoreMissingComponentTemplates)
             .deprecated(randomOptionalBoolean())
+            .createdDate(createdDate)
+            .modifiedDate(modifiedDate)
             .build();
     }
 

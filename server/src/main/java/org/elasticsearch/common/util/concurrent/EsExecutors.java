@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -576,61 +577,49 @@ public class EsExecutors {
         }
     }
 
-    public static class TaskTrackingConfig {
+    /**
+     * @param trackExecutionTime Whether to track execution stats
+     * @param trackUtilization Enables thread-pool utilization metrics
+     * @param utilizationReportingInterval When utilization is enabled, specifies interval for reporting utilization, default 30 seconds
+     * @param utilizationSamplingInterval When utilization is enabled, specifies sample interval, default 1 second
+     * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
+     * @param trackMaxQueueLatency Whether to track max queue latency
+     * @param executionTimeEwmaAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage)
+     */
+    public record TaskTrackingConfig(
+        boolean trackExecutionTime,
+        boolean trackUtilization,
+        Duration utilizationReportingInterval,
+        Duration utilizationSamplingInterval,
+        boolean trackOngoingTasks,
+        boolean trackMaxQueueLatency,
+        double executionTimeEwmaAlpha
+    ) {
+
         // This is a random starting point alpha.
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
-
-        private final boolean trackExecutionTime;
-        private final boolean trackOngoingTasks;
-        private final boolean trackMaxQueueLatency;
-        private final double executionTimeEwmaAlpha;
+        public static final Duration DEFAULT_UTILIZATION_INTERVAL = Duration.ofSeconds(30);
+        public static final Duration DEFAULT_UTILIZATION_SAMPLING_INTERVAL = Duration.ofSeconds(1);
 
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
             false,
+            DEFAULT_UTILIZATION_INTERVAL,
+            DEFAULT_UTILIZATION_SAMPLING_INTERVAL,
+            false,
             false,
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
         );
+
         public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
             true,
+            true,
+            DEFAULT_UTILIZATION_INTERVAL,
+            DEFAULT_UTILIZATION_SAMPLING_INTERVAL,
             false,
             false,
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
         );
-
-        /**
-         * @param trackExecutionTime Whether to track execution stats
-         * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
-         * @param trackMaxQueueLatency Whether to track max queue latency.
-         * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
-         */
-        private TaskTrackingConfig(
-            boolean trackExecutionTime,
-            boolean trackOngoingTasks,
-            boolean trackMaxQueueLatency,
-            double executionTimeEWMAAlpha
-        ) {
-            this.trackExecutionTime = trackExecutionTime;
-            this.trackOngoingTasks = trackOngoingTasks;
-            this.trackMaxQueueLatency = trackMaxQueueLatency;
-            this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
-        }
-
-        public boolean trackExecutionTime() {
-            return trackExecutionTime;
-        }
-
-        public boolean trackOngoingTasks() {
-            return trackOngoingTasks;
-        }
-
-        public boolean trackMaxQueueLatency() {
-            return trackMaxQueueLatency;
-        }
-
-        public double getExecutionTimeEwmaAlpha() {
-            return executionTimeEwmaAlpha;
-        }
 
         public static Builder builder() {
             return new Builder();
@@ -638,15 +627,27 @@ public class EsExecutors {
 
         public static class Builder {
             private boolean trackExecutionTime = false;
+            private boolean trackUtilization = false;
             private boolean trackOngoingTasks = false;
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+            private Duration utilizationInterval = DEFAULT_UTILIZATION_INTERVAL;
+            private Duration utilizationSamplingInterval = DEFAULT_UTILIZATION_SAMPLING_INTERVAL;
 
             public Builder() {}
 
             public Builder trackExecutionTime(double alpha) {
                 trackExecutionTime = true;
+                trackUtilization = true;
                 ewmaAlpha = alpha;
+                return this;
+            }
+
+            public Builder trackUtilization(Duration interval, Duration samplingInterval) {
+                assert interval.dividedBy(samplingInterval) > 0 : "interval should be same or larger than sampling interval";
+                trackUtilization = true;
+                utilizationInterval = interval;
+                utilizationSamplingInterval = samplingInterval;
                 return this;
             }
 
@@ -661,7 +662,15 @@ public class EsExecutors {
             }
 
             public TaskTrackingConfig build() {
-                return new TaskTrackingConfig(trackExecutionTime, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
+                return new TaskTrackingConfig(
+                    trackExecutionTime,
+                    trackUtilization,
+                    utilizationInterval,
+                    utilizationSamplingInterval,
+                    trackOngoingTasks,
+                    trackMaxQueueLatency,
+                    ewmaAlpha
+                );
             }
         }
     }

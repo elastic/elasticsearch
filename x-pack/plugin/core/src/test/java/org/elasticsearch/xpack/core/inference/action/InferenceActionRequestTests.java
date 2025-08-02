@@ -191,6 +191,24 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertThat(inputError.getMessage(), is("Validation Failed: 1: Field [top_n] cannot be specified for task type [text_embedding];"));
     }
 
+    public void testValidation_TextEmbedding_WithQuery() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.TEXT_EMBEDDING,
+            "model",
+            "query",
+            null,
+            null,
+            List.of("input"),
+            null,
+            null,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [query] cannot be specified for task type [text_embedding];"));
+    }
+
     public void testValidation_Rerank_Null() {
         InferenceAction.Request queryNullRequest = new InferenceAction.Request(
             TaskType.RERANK,
@@ -249,7 +267,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         InferenceAction.Request queryRequest = new InferenceAction.Request(
             TaskType.SPARSE_EMBEDDING,
             "model",
-            "",
+            null,
             null,
             null,
             List.of("input"),
@@ -306,6 +324,27 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertThat(
             queryError.getMessage(),
             is("Validation Failed: 1: Field [top_n] cannot be specified for task type [sparse_embedding];")
+        );
+    }
+
+    public void testValidation_SparseEmbedding_WithQuery() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.SPARSE_EMBEDDING,
+            "model",
+            "query",
+            null,
+            null,
+            List.of("input"),
+            null,
+            null,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(
+            queryError.getMessage(),
+            is("Validation Failed: 1: Field [query] cannot be specified for task type [sparse_embedding];")
         );
     }
 

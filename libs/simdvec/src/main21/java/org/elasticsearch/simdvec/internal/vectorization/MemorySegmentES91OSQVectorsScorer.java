@@ -36,15 +36,19 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
 
     private static final VectorSpecies<Long> LONG_SPECIES_128 = LongVector.SPECIES_128;
     private static final VectorSpecies<Long> LONG_SPECIES_256 = LongVector.SPECIES_256;
+    private static final VectorSpecies<Long> LONG_SPECIES_512 = LongVector.SPECIES_512;
 
     private static final VectorSpecies<Byte> BYTE_SPECIES_128 = ByteVector.SPECIES_128;
     private static final VectorSpecies<Byte> BYTE_SPECIES_256 = ByteVector.SPECIES_256;
+    private static final VectorSpecies<Byte> BYTE_SPECIES_512 = ByteVector.SPECIES_512;
 
     private static final VectorSpecies<Short> SHORT_SPECIES_128 = ShortVector.SPECIES_128;
     private static final VectorSpecies<Short> SHORT_SPECIES_256 = ShortVector.SPECIES_256;
+    private static final VectorSpecies<Short> SHORT_SPECIES_512 = ShortVector.SPECIES_512;
 
     private static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
     private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
+    private static final VectorSpecies<Float> FLOAT_SPECIES_512 = FloatVector.SPECIES_512;
 
     private final MemorySegment memorySegment;
 
@@ -58,7 +62,9 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         assert q.length == length * 4;
         // 128 / 8 == 16
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 512) {
+                return quantizeScore512(q);
+            } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 256) {
                 return quantizeScore256(q);
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                 return quantizeScore128(q);
@@ -67,60 +73,36 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         return super.quantizeScore(q);
     }
 
-    private long quantizeScore256(byte[] q) throws IOException {
+    private long quantizeScore128(byte[] q) throws IOException {
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
         int i = 0;
         long offset = in.getFilePointer();
-        if (length >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
-            int limit = ByteVector.SPECIES_256.loopBound(length);
-            var sum0 = LongVector.zero(LONG_SPECIES_256);
-            var sum1 = LongVector.zero(LONG_SPECIES_256);
-            var sum2 = LongVector.zero(LONG_SPECIES_256);
-            var sum3 = LongVector.zero(LONG_SPECIES_256);
-            for (; i < limit; i += ByteVector.SPECIES_256.length(), offset += LONG_SPECIES_256.vectorByteSize()) {
-                var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
-                var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length).reinterpretAsLongs();
-                var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 2).reinterpretAsLongs();
-                var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 3).reinterpretAsLongs();
-                var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
-                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
-            }
-            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-        }
 
-        if (length - i >= ByteVector.SPECIES_128.vectorByteSize()) {
-            var sum0 = LongVector.zero(LONG_SPECIES_128);
-            var sum1 = LongVector.zero(LONG_SPECIES_128);
-            var sum2 = LongVector.zero(LONG_SPECIES_128);
-            var sum3 = LongVector.zero(LONG_SPECIES_128);
-            int limit = ByteVector.SPECIES_128.loopBound(length);
-            for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += LONG_SPECIES_128.vectorByteSize()) {
-                var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
-                var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsLongs();
-                var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsLongs();
-                var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsLongs();
-                var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
-                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
-                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
-            }
-            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+        var sum0 = IntVector.zero(INT_SPECIES_128);
+        var sum1 = IntVector.zero(INT_SPECIES_128);
+        var sum2 = IntVector.zero(INT_SPECIES_128);
+        var sum3 = IntVector.zero(INT_SPECIES_128);
+        int limit = BYTE_SPECIES_128.loopBound(length);
+        for (; i < limit; i += BYTE_SPECIES_128.length()) {
+            var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
+            var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
+            var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsInts();
+            var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsInts();
+            var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsInts();
+            sum0 = sum0.add(vd.and(vq0).lanewise(VectorOperators.BIT_COUNT));
+            sum1 = sum1.add(vd.and(vq1).lanewise(VectorOperators.BIT_COUNT));
+            sum2 = sum2.add(vd.and(vq2).lanewise(VectorOperators.BIT_COUNT));
+            sum3 = sum3.add(vd.and(vq3).lanewise(VectorOperators.BIT_COUNT));
         }
-        // process scalar tail
-        in.seek(offset);
+        subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+        subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+        subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+        subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+        // tail as bytes
+        in.seek(i + offset);
         for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
             final long value = in.readLong();
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
@@ -145,36 +127,161 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
 
-    private long quantizeScore128(byte[] q) throws IOException {
+    private long quantizeScore256(byte[] q) throws IOException {
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
         int i = 0;
         long offset = in.getFilePointer();
-
-        var sum0 = IntVector.zero(INT_SPECIES_128);
-        var sum1 = IntVector.zero(INT_SPECIES_128);
-        var sum2 = IntVector.zero(INT_SPECIES_128);
-        var sum3 = IntVector.zero(INT_SPECIES_128);
-        int limit = ByteVector.SPECIES_128.loopBound(length);
-        for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += INT_SPECIES_128.vectorByteSize()) {
-            var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
-            var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
-            var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsInts();
-            var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsInts();
-            var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsInts();
-            sum0 = sum0.add(vd.and(vq0).lanewise(VectorOperators.BIT_COUNT));
-            sum1 = sum1.add(vd.and(vq1).lanewise(VectorOperators.BIT_COUNT));
-            sum2 = sum2.add(vd.and(vq2).lanewise(VectorOperators.BIT_COUNT));
-            sum3 = sum3.add(vd.and(vq3).lanewise(VectorOperators.BIT_COUNT));
+        if (length >= BYTE_SPECIES_256.vectorByteSize() * 2) {
+            int limit = BYTE_SPECIES_256.loopBound(length);
+            var sum0 = LongVector.zero(LONG_SPECIES_256);
+            var sum1 = LongVector.zero(LONG_SPECIES_256);
+            var sum2 = LongVector.zero(LONG_SPECIES_256);
+            var sum3 = LongVector.zero(LONG_SPECIES_256);
+            for (; i < limit; i += BYTE_SPECIES_256.length()) {
+                var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
+                var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length).reinterpretAsLongs();
+                var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 2).reinterpretAsLongs();
+                var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 3).reinterpretAsLongs();
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
+                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+            }
+            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         }
-        subRet0 += sum0.reduceLanes(VectorOperators.ADD);
-        subRet1 += sum1.reduceLanes(VectorOperators.ADD);
-        subRet2 += sum2.reduceLanes(VectorOperators.ADD);
-        subRet3 += sum3.reduceLanes(VectorOperators.ADD);
-        // process scalar tail
-        in.seek(offset);
+
+        if (length - i >= BYTE_SPECIES_128.vectorByteSize()) {
+            var sum0 = LongVector.zero(LONG_SPECIES_128);
+            var sum1 = LongVector.zero(LONG_SPECIES_128);
+            var sum2 = LongVector.zero(LONG_SPECIES_128);
+            var sum3 = LongVector.zero(LONG_SPECIES_128);
+            int limit = BYTE_SPECIES_128.loopBound(length);
+            for (; i < limit; i += BYTE_SPECIES_128.length()) {
+                var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
+                var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsLongs();
+                var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsLongs();
+                var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsLongs();
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
+                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+            }
+            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+        }
+        // tail as bytes
+        in.seek(i + offset);
+        for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+            final long value = in.readLong();
+            subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
+            subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
+            subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
+            subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
+        }
+        for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
+            final int value = in.readInt();
+            subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
+            subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
+            subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
+            subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
+        }
+        for (; i < length; i++) {
+            int dValue = in.readByte() & 0xFF;
+            subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
+            subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
+            subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
+            subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
+        }
+        return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+    }
+
+    private long quantizeScore512(byte[] q) throws IOException {
+        long subRet0 = 0;
+        long subRet1 = 0;
+        long subRet2 = 0;
+        long subRet3 = 0;
+        int i = 0;
+        long offset = in.getFilePointer();
+        if (length >= BYTE_SPECIES_512.vectorByteSize() * 2) {
+            int limit = BYTE_SPECIES_512.loopBound(length);
+            var sum0 = LongVector.zero(LONG_SPECIES_512);
+            var sum1 = LongVector.zero(LONG_SPECIES_512);
+            var sum2 = LongVector.zero(LONG_SPECIES_512);
+            var sum3 = LongVector.zero(LONG_SPECIES_512);
+            for (; i < limit; i += BYTE_SPECIES_512.length()) {
+                var vq0 = ByteVector.fromArray(BYTE_SPECIES_512, q, i).reinterpretAsLongs();
+                var vq1 = ByteVector.fromArray(BYTE_SPECIES_512, q, i + length).reinterpretAsLongs();
+                var vq2 = ByteVector.fromArray(BYTE_SPECIES_512, q, i + length * 2).reinterpretAsLongs();
+                var vq3 = ByteVector.fromArray(BYTE_SPECIES_512, q, i + length * 3).reinterpretAsLongs();
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_512, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
+                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+            }
+            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+        }
+
+        if (length - i >= BYTE_SPECIES_256.vectorByteSize()) {
+            var sum0 = LongVector.zero(LONG_SPECIES_256);
+            var sum1 = LongVector.zero(LONG_SPECIES_256);
+            var sum2 = LongVector.zero(LONG_SPECIES_256);
+            var sum3 = LongVector.zero(LONG_SPECIES_256);
+            int limit = BYTE_SPECIES_256.loopBound(length);
+            for (; i < limit; i += BYTE_SPECIES_256.length()) {
+                var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
+                var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length).reinterpretAsLongs();
+                var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 2).reinterpretAsLongs();
+                var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 3).reinterpretAsLongs();
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
+                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+            }
+            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+        }
+
+        if (length - i >= BYTE_SPECIES_128.vectorByteSize()) {
+            var sum0 = LongVector.zero(LONG_SPECIES_128);
+            var sum1 = LongVector.zero(LONG_SPECIES_128);
+            var sum2 = LongVector.zero(LONG_SPECIES_128);
+            var sum3 = LongVector.zero(LONG_SPECIES_128);
+            int limit = BYTE_SPECIES_128.loopBound(length);
+            for (; i < limit; i += BYTE_SPECIES_128.length()) {
+                var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
+                var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsLongs();
+                var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsLongs();
+                var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsLongs();
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
+                sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+            }
+            subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+            subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+            subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+            subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+        }
+        // tail as bytes
+        in.seek(i + offset);
         for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
             final long value = in.readLong();
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
@@ -204,7 +311,10 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         assert q.length == length * 4;
         // 128 / 8 == 16
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 512) {
+                quantizeScore512Bulk(q, count, scores);
+                return;
+            } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 256) {
                 quantizeScore256Bulk(q, count, scores);
                 return;
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
@@ -228,9 +338,9 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             var sum1 = IntVector.zero(INT_SPECIES_128);
             var sum2 = IntVector.zero(INT_SPECIES_128);
             var sum3 = IntVector.zero(INT_SPECIES_128);
-            int limit = ByteVector.SPECIES_128.loopBound(length);
-            for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += INT_SPECIES_128.vectorByteSize()) {
-                var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+            int limit = BYTE_SPECIES_128.loopBound(length);
+            for (; i < limit; i += BYTE_SPECIES_128.length()) {
+                var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
                 var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
                 var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsInts();
                 var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsInts();
@@ -244,6 +354,8 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             subRet1 += sum1.reduceLanes(VectorOperators.ADD);
             subRet2 += sum2.reduceLanes(VectorOperators.ADD);
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+            // tail as bytes
+            in.seek(i + offset);
             // process scalar tail
             in.seek(offset);
             for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
@@ -279,18 +391,18 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             long subRet3 = 0;
             int i = 0;
             long offset = in.getFilePointer();
-            if (length >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
-                int limit = ByteVector.SPECIES_256.loopBound(length);
+            if (length >= BYTE_SPECIES_256.vectorByteSize() * 2) {
+                int limit = BYTE_SPECIES_256.loopBound(length);
                 var sum0 = LongVector.zero(LONG_SPECIES_256);
                 var sum1 = LongVector.zero(LONG_SPECIES_256);
                 var sum2 = LongVector.zero(LONG_SPECIES_256);
                 var sum3 = LongVector.zero(LONG_SPECIES_256);
-                for (; i < limit; i += ByteVector.SPECIES_256.length(), offset += LONG_SPECIES_256.vectorByteSize()) {
+                for (; i < limit; i += BYTE_SPECIES_256.length()) {
                     var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
                     var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length).reinterpretAsLongs();
                     var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 2).reinterpretAsLongs();
                     var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 3).reinterpretAsLongs();
-                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
                     sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                     sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                     sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -302,18 +414,18 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             }
 
-            if (length - i >= ByteVector.SPECIES_128.vectorByteSize()) {
+            if (length - i >= BYTE_SPECIES_128.vectorByteSize()) {
                 var sum0 = LongVector.zero(LONG_SPECIES_128);
                 var sum1 = LongVector.zero(LONG_SPECIES_128);
                 var sum2 = LongVector.zero(LONG_SPECIES_128);
                 var sum3 = LongVector.zero(LONG_SPECIES_128);
-                int limit = ByteVector.SPECIES_128.loopBound(length);
-                for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += LONG_SPECIES_128.vectorByteSize()) {
+                int limit = BYTE_SPECIES_128.loopBound(length);
+                for (; i < limit; i += BYTE_SPECIES_128.length()) {
                     var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
                     var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsLongs();
                     var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsLongs();
                     var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsLongs();
-                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
                     sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                     sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                     sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -324,6 +436,113 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 subRet2 += sum2.reduceLanes(VectorOperators.ADD);
                 subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             }
+            // tail as bytes
+            in.seek(i + offset);
+            // process scalar tail
+            in.seek(offset);
+            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
+                final long value = in.readLong();
+                subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
+                subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
+                subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
+                subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
+            }
+            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
+                final int value = in.readInt();
+                subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
+                subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
+                subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
+                subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
+            }
+            for (; i < length; i++) {
+                int dValue = in.readByte() & 0xFF;
+                subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
+                subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
+                subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
+                subRet3 += Integer.bitCount((q[i + 3 * length] & dValue) & 0xFF);
+            }
+            scores[iter] = subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+        }
+    }
+
+    private void quantizeScore512Bulk(byte[] q, int count, float[] scores) throws IOException {
+        for (int iter = 0; iter < count; iter++) {
+            long subRet0 = 0;
+            long subRet1 = 0;
+            long subRet2 = 0;
+            long subRet3 = 0;
+            int i = 0;
+            long offset = in.getFilePointer();
+            if (length >= BYTE_SPECIES_512.vectorByteSize() * 2) {
+                int limit = BYTE_SPECIES_512.loopBound(length);
+                var sum0 = LongVector.zero(LONG_SPECIES_512);
+                var sum1 = LongVector.zero(LONG_SPECIES_512);
+                var sum2 = LongVector.zero(LONG_SPECIES_512);
+                var sum3 = LongVector.zero(LONG_SPECIES_512);
+                for (; i < limit; i += BYTE_SPECIES_512.length()) {
+                    var vq0 = ByteVector.fromArray(BYTE_SPECIES_512, q, i).reinterpretAsLongs();
+                    var vq1 = ByteVector.fromArray(BYTE_SPECIES_512, q, i + length).reinterpretAsLongs();
+                    var vq2 = ByteVector.fromArray(BYTE_SPECIES_512, q, i + length * 2).reinterpretAsLongs();
+                    var vq3 = ByteVector.fromArray(BYTE_SPECIES_512, q, i + length * 3).reinterpretAsLongs();
+                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_512, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
+                    sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                    sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                    sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                    sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                }
+                subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+                subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+                subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+                subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+            }
+
+            if (length - i >= BYTE_SPECIES_256.vectorByteSize()) {
+                var sum0 = LongVector.zero(LONG_SPECIES_256);
+                var sum1 = LongVector.zero(LONG_SPECIES_256);
+                var sum2 = LongVector.zero(LONG_SPECIES_256);
+                var sum3 = LongVector.zero(LONG_SPECIES_256);
+                int limit = BYTE_SPECIES_256.loopBound(length);
+                for (; i < limit; i += BYTE_SPECIES_256.length()) {
+                    var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
+                    var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length).reinterpretAsLongs();
+                    var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 2).reinterpretAsLongs();
+                    var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 3).reinterpretAsLongs();
+                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
+                    sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                    sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                    sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                    sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                }
+                subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+                subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+                subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+                subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+            }
+
+            if (length - i >= BYTE_SPECIES_128.vectorByteSize()) {
+                var sum0 = LongVector.zero(LONG_SPECIES_128);
+                var sum1 = LongVector.zero(LONG_SPECIES_128);
+                var sum2 = LongVector.zero(LONG_SPECIES_128);
+                var sum3 = LongVector.zero(LONG_SPECIES_128);
+                int limit = BYTE_SPECIES_128.loopBound(length);
+                for (; i < limit; i += BYTE_SPECIES_128.length()) {
+                    var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
+                    var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsLongs();
+                    var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsLongs();
+                    var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsLongs();
+                    var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, i + offset, ByteOrder.LITTLE_ENDIAN);
+                    sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                    sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                    sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                    sum3 = sum3.add(vq3.and(vd).lanewise(VectorOperators.BIT_COUNT));
+                }
+                subRet0 += sum0.reduceLanes(VectorOperators.ADD);
+                subRet1 += sum1.reduceLanes(VectorOperators.ADD);
+                subRet2 += sum2.reduceLanes(VectorOperators.ADD);
+                subRet3 += sum3.reduceLanes(VectorOperators.ADD);
+            }
+            // tail as bytes
+            in.seek(i + offset);
             // process scalar tail
             in.seek(offset);
             for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
@@ -365,7 +584,19 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         assert q.length == length * 4;
         // 128 / 8 == 16
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
+            if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 512) {
+                score512Bulk(
+                    q,
+                    queryLowerInterval,
+                    queryUpperInterval,
+                    queryComponentSum,
+                    queryAdditionalCorrection,
+                    similarityFunction,
+                    centroidDp,
+                    scores
+                );
+                return;
+            } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 256) {
                 score256Bulk(
                     q,
                     queryLowerInterval,
@@ -532,6 +763,76 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                     res.intoArray(scores, i);
                     // not sure how to do it better
                     for (int j = 0; j < FLOAT_SPECIES_256.length(); j++) {
+                        scores[i + j] = VectorUtil.scaleMaxInnerProductScore(scores[i + j]);
+                    }
+                } else {
+                    res = res.add(1f).mul(0.5f).max(0);
+                    res.intoArray(scores, i);
+                }
+            }
+        }
+        in.seek(offset + 14L * BULK_SIZE);
+    }
+
+    private void score512Bulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores
+    ) throws IOException {
+        quantizeScore512Bulk(q, BULK_SIZE, scores);
+        int limit = FLOAT_SPECIES_512.loopBound(BULK_SIZE);
+        int i = 0;
+        long offset = in.getFilePointer();
+        float ay = queryLowerInterval;
+        float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
+        float y1 = queryComponentSum;
+        for (; i < limit; i += FLOAT_SPECIES_512.length()) {
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES_512, memorySegment, offset + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var lx = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES_512,
+                memorySegment,
+                offset + 4 * BULK_SIZE + i * Float.BYTES,
+                ByteOrder.LITTLE_ENDIAN
+            ).sub(ax);
+            var targetComponentSums = ShortVector.fromMemorySegment(
+                SHORT_SPECIES_512,
+                memorySegment,
+                offset + 8 * BULK_SIZE + i * Short.BYTES,
+                ByteOrder.LITTLE_ENDIAN
+            ).convert(VectorOperators.S2I, 0).reinterpretAsInts().and(0xffff).convert(VectorOperators.I2F, 0);
+            var additionalCorrections = FloatVector.fromMemorySegment(
+                FLOAT_SPECIES_512,
+                memorySegment,
+                offset + 10 * BULK_SIZE + i * Float.BYTES,
+                ByteOrder.LITTLE_ENDIAN
+            );
+            var qcDist = FloatVector.fromArray(FLOAT_SPECIES_512, scores, i);
+            // ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly *
+            // qcDist;
+            var res1 = ax.mul(ay).mul(dimensions);
+            var res2 = lx.mul(ay).mul(targetComponentSums);
+            var res3 = ax.mul(ly).mul(y1);
+            var res4 = lx.mul(ly).mul(qcDist);
+            var res = res1.add(res2).add(res3).add(res4);
+            // For euclidean, we need to invert the score and apply the additional correction, which is
+            // assumed to be the squared l2norm of the centroid centered vectors.
+            if (similarityFunction == EUCLIDEAN) {
+                res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
+                res = FloatVector.broadcast(FLOAT_SPECIES_512, 1).div(res).max(0);
+                res.intoArray(scores, i);
+            } else {
+                // For cosine and max inner product, we need to apply the additional correction, which is
+                // assumed to be the non-centered dot-product between the vector and the centroid
+                res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
+                if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
+                    res.intoArray(scores, i);
+                    // not sure how to do it better
+                    for (int j = 0; j < FLOAT_SPECIES_512.length(); j++) {
                         scores[i + j] = VectorUtil.scaleMaxInnerProductScore(scores[i + j]);
                     }
                 } else {

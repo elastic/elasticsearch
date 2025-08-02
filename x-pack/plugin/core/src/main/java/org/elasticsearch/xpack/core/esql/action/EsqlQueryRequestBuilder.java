@@ -39,6 +39,8 @@ public abstract class EsqlQueryRequestBuilder<Request extends EsqlQueryRequest, 
 
     public abstract EsqlQueryRequestBuilder<Request, Response> filter(QueryBuilder filter);
 
+    public abstract EsqlQueryRequestBuilder<Request, Response> approximate(boolean approximate);
+
     public abstract EsqlQueryRequestBuilder<Request, Response> allowPartialResults(boolean allowPartialResults);
 
 }

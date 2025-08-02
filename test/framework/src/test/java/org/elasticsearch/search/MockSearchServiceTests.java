@@ -9,7 +9,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.search.internal.ReaderContext;
+import org.elasticsearch.search.SearchService.ReaderContextId;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;
@@ -17,10 +17,10 @@ import static org.mockito.Mockito.mock;
 public class MockSearchServiceTests extends ESTestCase {
 
     public void testAssertNoInFlightContext() {
-        ReaderContext reader = mock(ReaderContext.class);
-        MockSearchService.addActiveContext(reader);
+        ReaderContextId readerId = mock(ReaderContextId.class);
+        MockSearchService.addActiveContext(readerId);
         try {
-            Throwable e = expectThrows(AssertionError.class, () -> MockSearchService.assertNoInFlightContext());
+            Throwable e = expectThrows(AssertionError.class, MockSearchService::assertNoInFlightContext);
             assertEquals(
                 "There are still [1] in-flight contexts. The first one's creation site is listed as the cause of this exception.",
                 e.getMessage()
@@ -29,7 +29,7 @@ public class MockSearchServiceTests extends ESTestCase {
             assertEquals(MockSearchService.class.getName(), e.getStackTrace()[0].getClassName());
             assertEquals(MockSearchServiceTests.class.getName(), e.getStackTrace()[1].getClassName());
         } finally {
-            MockSearchService.removeActiveContext(reader);
+            MockSearchService.removeActiveContext(readerId);
         }
     }
 }

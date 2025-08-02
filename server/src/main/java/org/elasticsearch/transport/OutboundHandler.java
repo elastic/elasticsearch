@@ -145,6 +145,8 @@ public final class OutboundHandler {
     ) {
         assert assertValidTransportVersion(transportVersion);
         assert response.hasReferences();
+        var messageListener = this.messageListener;
+        messageListener.onBeforeResponseSent(requestId, action, response);
         try {
             sendMessage(
                 channel,

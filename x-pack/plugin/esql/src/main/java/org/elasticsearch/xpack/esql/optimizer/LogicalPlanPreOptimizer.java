@@ -8,7 +8,13 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.InferenceFunctionConstantFolding;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.preoptimizer.PreOptimizerRule;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+
+import java.util.List;
 
 /**
  * The class is responsible for invoking any steps that need to be applied to the logical plan,
@@ -19,10 +25,12 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
  */
 public class LogicalPlanPreOptimizer {
 
-    private final LogicalPreOptimizerContext preOptimizerContext;
+    private final List<PreOptimizerRule> rules;
 
-    public LogicalPlanPreOptimizer(LogicalPreOptimizerContext preOptimizerContext) {
-        this.preOptimizerContext = preOptimizerContext;
+    public LogicalPlanPreOptimizer(TransportActionServices services, LogicalPreOptimizerContext preOptimizerContext) {
+        rules = List.of(
+            new InferenceFunctionConstantFolding(services.inferenceService().bulkInferenceRunner(), preOptimizerContext.foldCtx())
+        );
     }
 
     /**
@@ -43,8 +51,19 @@ public class LogicalPlanPreOptimizer {
         }));
     }
 
+    /**
+     * Loop over the rules and apply them to the logical plan.
+     *
+     * @param plan     the analyzed logical plan to pre-optimize
+     * @param listener the listener returning the pre-optimized plan when pre-optimization is complete
+     */
     private void doPreOptimize(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        // this is where we will be executing async tasks
-        listener.onResponse(plan);
+        SubscribableListener<LogicalPlan> rulesListener = SubscribableListener.newSucceeded(plan);
+
+        for (PreOptimizerRule rule : rules) {
+            rulesListener = rulesListener.andThen((l, p) -> rule.apply(p, l));
+        }
+
+        rulesListener.addListener(listener);
     }
 }

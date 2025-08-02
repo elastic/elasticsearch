@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.inference;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunnerConfig;
 
@@ -35,8 +36,8 @@ public class InferenceService {
      *
      * @return a new inference resolver instance
      */
-    public InferenceResolver inferenceResolver() {
-        return inferenceResolverFactory.create();
+    public InferenceResolver inferenceResolver(EsqlFunctionRegistry functionRegistry) {
+        return inferenceResolverFactory.create(functionRegistry);
     }
 
     public BulkInferenceRunner bulkInferenceRunner() {

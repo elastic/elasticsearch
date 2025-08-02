@@ -1335,7 +1335,12 @@ public class EsqlCapabilities {
         /**
          * Support correct counting of skipped shards.
          */
-        CORRECT_SKIPPED_SHARDS_COUNT;
+        CORRECT_SKIPPED_SHARDS_COUNT,
+
+        /**
+         * Support for tbucket function
+         */
+        TBUCKET;
 
         private final boolean enabled;
 

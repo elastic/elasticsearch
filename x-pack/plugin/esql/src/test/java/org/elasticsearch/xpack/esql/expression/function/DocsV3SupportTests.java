@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -422,8 +423,8 @@ public class DocsV3SupportTests extends ESTestCase {
             super(source, List.of(field));
         }
 
-        public static Map<List<DataType>, DataType> signatures() {
-            return Map.of(List.of(DataType.KEYWORD), DataType.LONG);
+        public static Set<TestClassSignatureTypes> signatures() {
+            return Set.of(new TestClassSignatureTypes(List.of(DataType.KEYWORD), DataType.LONG));
         }
 
         @Override

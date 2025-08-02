@@ -150,6 +150,10 @@ public class DataNodeRequestSenderIT extends AbstractEsqlIntegTestCase {
 
         try (EsqlQueryResponse resp = run("FROM " + randomFrom("index-1,index-2", "index-*"))) {
             assertThat(getValuesList(resp), hasSize(2));
+        } finally {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                as(transportService, MockTransportService.class).clearAllRules();
+            }
         }
     }
 }

@@ -217,6 +217,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         Setting.Property.Dynamic
     );
 
+    public static final String STATELESS_SNAPSHOT_ENABLED_SETTING_NAME = "stateless.snapshot.enabled";
+
     private volatile int maxConcurrentOperations;
 
     public SnapshotsService(
@@ -3610,6 +3612,8 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                         "snapshot aborted"
                     );
                 } else {
+                    // TODO: For stateless snapshot, if the update is PAUSED_FOR_NODE_REMOVAL, we can directly move it back to INIT
+                    // if the shard has relocated and started on a different node.
                     updatedShardSnapshotStatus = shardSnapshotStatusUpdate.updatedState;
                 }
 

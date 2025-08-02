@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -38,7 +39,7 @@ import java.util.Map;
 
 public class SnapshotInProgressAllocationDeciderTests extends ESTestCase {
 
-    private final SnapshotInProgressAllocationDecider decider = new SnapshotInProgressAllocationDecider();
+    private final SnapshotInProgressAllocationDecider decider = new SnapshotInProgressAllocationDecider(Settings.EMPTY);
     private final Index index = new Index(randomIdentifier(), randomUUID());
     private final ShardId shardId = new ShardId(index, 0);
     private final String repositoryName = randomIdentifier();

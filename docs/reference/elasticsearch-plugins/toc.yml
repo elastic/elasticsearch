@@ -106,4 +106,10 @@ toc:
       - file: store-smb.md
         children:
           - file: store-smb-usage.md
+  - file: authentication-plugins.md
+    children:
+      - file: ms-graph-authz.md
+        children:
+          - file: ms-graph-authz-configure-azure.md
+          - file: ms-graph-authz-configure-elasticsearch.md
   - file: integrations.md

@@ -33,6 +33,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -48,7 +49,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -158,7 +161,6 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             listener.onResponse(new SimulateIndexTemplateResponse(null, null));
             return;
         }
-
         final ProjectMetadata tempProjectMetadata = resolveTemporaryState(matchingTemplate, request.getIndexName(), projectWithTemplate);
         ComposableIndexTemplate templateV2 = tempProjectMetadata.templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
@@ -167,6 +169,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             matchingTemplate,
             request.getIndexName(),
             projectWithTemplate,
+            state.metadata().dataStreams().get(request.getIndexName()),
             isDslOnlyMode,
             xContentRegistry,
             indicesService,
@@ -233,22 +236,34 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
     /**
      * Take a template and index name as well as state where the template exists, and return a final
      * {@link Template} that represents all the resolved Settings, Mappings, Aliases and Lifecycle
+     *
+     * @param matchingTemplate
+     * @param indexName
+     * @param simulatedProject
+     * @param dataStream Used to get any data stream mapping or settings overrides to merge into the returned template
+     * @param isDslOnlyMode
+     * @param xContentRegistry
+     * @param indicesService
+     * @param systemIndices
+     * @param indexSettingProviders
+     * @return
+     * @throws Exception
      */
     public static Template resolveTemplate(
         final String matchingTemplate,
         final String indexName,
         final ProjectMetadata simulatedProject,
+        @Nullable final DataStream dataStream,
         final boolean isDslOnlyMode,
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
         final SystemIndices systemIndices,
         Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
-        Settings templateSettings = resolveSettings(simulatedProject, matchingTemplate);
-
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(simulatedProject, matchingTemplate);
 
         ComposableIndexTemplate template = simulatedProject.templatesV2().get(matchingTemplate);
+        Settings templateSettings = collectSettings(simulatedProject, dataStream, matchingTemplate, template);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -256,21 +271,7 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        /*
-         * If the index name doesn't look like a data stream backing index, then MetadataCreateIndexService.collectV2Mappings() won't
-         * include data stream specific mappings in its response.
-         */
-        String simulatedIndexName = template.getDataStreamTemplate() != null
-            && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX) == false
-                ? DataStream.getDefaultBackingIndexName(indexName, 1)
-                : indexName;
-        List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
-            null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
-            simulatedProject,
-            template,
-            xContentRegistry,
-            simulatedIndexName
-        );
+        List<CompressedXContent> mappings = collectMappings(simulatedProject, dataStream, template, indexName, xContentRegistry);
 
         // First apply settings sourced from index settings providers
         final var now = Instant.now();
@@ -358,6 +359,53 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
             lifecycle,
             optionsBuilder == null ? null : optionsBuilder.buildTemplate()
         );
+    }
+
+    private static List<CompressedXContent> collectMappings(
+        ProjectMetadata simulatedProject,
+        DataStream dataStream,
+        ComposableIndexTemplate template,
+        String indexName,
+        NamedXContentRegistry xContentRegistry
+    ) throws IOException {
+        /*
+         * If the index name doesn't look like a data stream backing index, then MetadataCreateIndexService.collectV2Mappings() won't
+         * include data stream specific mappings in its response.
+         */
+        String simulatedIndexName = template.getDataStreamTemplate() != null
+            && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX) == false
+                ? DataStream.getDefaultBackingIndexName(indexName, 1)
+                : indexName;
+        List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
+            null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
+            simulatedProject,
+            template,
+            xContentRegistry,
+            simulatedIndexName
+        );
+        if (template.getDataStreamTemplate() != null && dataStream != null) {
+            CompressedXContent dataStreamMappingOverrides = dataStream.getMappings();
+            if (ComposableIndexTemplate.EMPTY_MAPPINGS.equals(dataStreamMappingOverrides) == false) {
+                // The data stream has had mapping overrides applied, so include these
+                mappings = new ArrayList<>(mappings);
+                mappings.add(dataStreamMappingOverrides);
+            }
+        }
+        return mappings;
+    }
+
+    private static Settings collectSettings(
+        final ProjectMetadata simulatedProject,
+        final DataStream dataStream,
+        String templateNmae,
+        ComposableIndexTemplate template
+    ) {
+        Settings templateSettings = resolveSettings(simulatedProject, templateNmae);
+        if (template.getDataStreamTemplate() != null && dataStream != null) {
+            // The data stream has had settings overrides applied, so include them
+            templateSettings = templateSettings.merge(dataStream.getSettings());
+        }
+        return templateSettings;
     }
 
     private static IndexLongFieldRange getEventIngestedRange(String indexName, ProjectMetadata simulatedProject) {

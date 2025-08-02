@@ -257,6 +257,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                         matchingTemplate,
                         request.index(),
                         simulatedProjectMetadata,
+                        project.dataStreams().get(request.index()),
                         isDataStreamsLifecycleOnlyMode(clusterService.getSettings()),
                         xContentRegistry,
                         indicesService,

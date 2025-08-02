@@ -258,7 +258,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             maxConcurrentOperations = MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING.get(settings);
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
-            shardSnapshotPerNodeLimit = SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING.get(settings);
+            clusterService.getClusterSettings()
+                .initializeAndWatch(SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING, i -> shardSnapshotPerNodeLimit = i);
+
         }
         this.systemIndices = systemIndices;
         this.serializeProjectMetadata = serializeProjectMetadata;

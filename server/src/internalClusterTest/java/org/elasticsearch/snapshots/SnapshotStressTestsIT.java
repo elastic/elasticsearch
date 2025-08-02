@@ -60,6 +60,8 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
+import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -92,7 +94,25 @@ import static org.hamcrest.Matchers.notNullValue;
 @LuceneTestCase.SuppressFileSystems(value = "HandleLimitFS") // we sometimes have >2048 open files
 public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
 
+    private int initialShardSnapshotPerNodeLimit;
+
+    @Before
+    public void randomInitialShardSnapshotPerNodeLimit() {
+        initialShardSnapshotPerNodeLimit = between(0, 10);
+    }
+
+    @After
+    public void clearShardSnapshotPerNodeLimitSetting() {
+        // Clear any persistent setting that may have been set during the test. The teardown process does not like it.
+        safeGet(
+            clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull(SnapshotsService.SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING.getKey()))
+                .execute()
+        );
+    }
+
     public void testRandomActivities() throws InterruptedException {
+        logger.info("--> initial shard snapshot per node limit: [{}]", initialShardSnapshotPerNodeLimit);
         final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setNodes(true)
@@ -108,7 +128,7 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.ALL)
-            .put(SnapshotsService.SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING.getKey(), 5) // more aggressive limit
+            .put(SnapshotsService.SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING.getKey(), initialShardSnapshotPerNodeLimit)
             .build();
     }
 
@@ -339,6 +359,10 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                 startNodeShutdownMarker();
             } else {
                 startAllocationFiltering();
+            }
+
+            if (randomBoolean()) {
+                startUpdateShardSnapshotPerNodeLimit();
             }
 
             if (completedSnapshotLatch.await(30, TimeUnit.SECONDS)) {
@@ -1392,6 +1416,43 @@ public class SnapshotStressTestsIT extends AbstractSnapshotIntegTestCase {
                     pollForAllocationFilterCompletion(excludedNode, indexName, onCompletion, onSuccess);
                 }
             }));
+        }
+
+        private void startUpdateShardSnapshotPerNodeLimit() {
+            enqueueAction(() -> {
+                boolean rerun = true;
+                try (TransferableReleasables localReleasables = new TransferableReleasables()) {
+                    if (usually()) {
+                        return;
+                    }
+
+                    if (localReleasables.add(blockNodeRestarts()) == null) {
+                        return;
+                    }
+
+                    final Releasable releaseAll = localReleasables.transfer();
+
+                    final int newLimit = between(0, 10);
+                    logger.info("--> updating shard snapshot per node limit to [{}]", newLimit);
+
+                    clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                        .setPersistentSettings(
+                            Settings.builder().put(SnapshotsService.SHARD_SNAPSHOT_PER_NODE_LIMIT_SETTING.getKey(), newLimit)
+                        )
+                        .execute(mustSucceed(response -> {
+                            assertTrue(response.isAcknowledged());
+                            logger.info("--> updated shard snapshot per node limit to [{}]", newLimit);
+                            Releasables.close(releaseAll);
+                            startUpdateShardSnapshotPerNodeLimit();
+                        }));
+
+                    rerun = false;
+                } finally {
+                    if (rerun) {
+                        startUpdateShardSnapshotPerNodeLimit();
+                    }
+                }
+            });
         }
 
         @Nullable // if we couldn't block node restarts

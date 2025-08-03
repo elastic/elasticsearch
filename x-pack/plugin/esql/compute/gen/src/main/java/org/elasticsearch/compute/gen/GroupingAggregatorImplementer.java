@@ -129,7 +129,7 @@ public class GroupingAggregatorImplementer {
             default -> throw new IllegalArgumentException("combine must have 2, 3, or 4 parameters but was: " + combine);
         }
         // TODO support multiple parameters
-        this.aggParam = AggregationParameter.create(combine.getParameters().getLast().asType());
+        this.aggParam = AggregationParameter.create(combine.getParameters().getLast());
 
         this.createParameters = init.getParameters()
             .stream()

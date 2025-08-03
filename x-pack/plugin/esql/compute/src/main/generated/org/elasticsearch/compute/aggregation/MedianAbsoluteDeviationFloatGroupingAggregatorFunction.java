@@ -268,8 +268,8 @@ public final class MedianAbsoluteDeviationFloatGroupingAggregatorFunction implem
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = MedianAbsoluteDeviationFloatAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = MedianAbsoluteDeviationFloatAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

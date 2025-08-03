@@ -78,11 +78,11 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
     // all transport version names referenced
     private final Set<String> allNames = new HashSet<>();
     // direct lookup of definition by name
-    private final Map<String,TransportVersionDefinition> definitions = new HashMap<>();
+    private final Map<String, TransportVersionDefinition> definitions = new HashMap<>();
     // which resource files already existed
     private final Set<String> existingResources = new HashSet<>();
     // reverse lookup of ids back to name
-    private final Map<Integer,String> definedIds = new HashMap<>();
+    private final Map<Integer, String> definedIds = new HashMap<>();
     // lookup of base ids back to definition
     private final Map<Integer, List<IdAndDefinition>> idsByBase = new HashMap<>();
     // direct lookup of latest for each branch
@@ -146,10 +146,17 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         });
 
         if (result.getExitValue() != 0) {
-            throw new RuntimeException("git command failed with exit code " + result.getExitValue() + System.lineSeparator() +
-                "command: " + String.join(" ", command) + System.lineSeparator() +
-                "output:" + System.lineSeparator()
-                + stdout.toString(StandardCharsets.UTF_8));
+            throw new RuntimeException(
+                "git command failed with exit code "
+                    + result.getExitValue()
+                    + System.lineSeparator()
+                    + "command: "
+                    + String.join(" ", command)
+                    + System.lineSeparator()
+                    + "output:"
+                    + System.lineSeparator()
+                    + stdout.toString(StandardCharsets.UTF_8)
+            );
         }
 
         return stdout.toString(StandardCharsets.UTF_8);
@@ -245,16 +252,29 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
             throwLatestFailure(latest.branch(), "contains transport version name [" + latest.name() + "] which is not defined");
         }
         if (latestDefinition.ids().contains(latest.id()) == false) {
-            throwLatestFailure(latest.branch(), "has id " + latest.id() +
-                " which is not in definition [" + definitionRelativePath(latest.name()) + "]");
+            throwLatestFailure(
+                latest.branch(),
+                "has id " + latest.id() + " which is not in definition [" + definitionRelativePath(latest.name()) + "]"
+            );
         }
 
         List<IdAndDefinition> baseIds = idsByBase.get(latest.id().base());
         IdAndDefinition lastId = baseIds.getLast();
         if (lastId.id().complete() != latest.id().complete()) {
-            throwLatestFailure(latest.branch(), "has id " + latest.id() + " from [" + latest.name() +
-                "] with base " + latest.id().base() + " but another id " + lastId.id().complete() + " from [" +
-                lastId.definition().name() + "] is later for that base");
+            throwLatestFailure(
+                latest.branch(),
+                "has id "
+                    + latest.id()
+                    + " from ["
+                    + latest.name()
+                    + "] with base "
+                    + latest.id().base()
+                    + " but another id "
+                    + lastId.id().complete()
+                    + " from ["
+                    + lastId.definition().name()
+                    + "] is later for that base"
+            );
         }
 
         TransportVersionLatest existingLatest = readExistingLatest(latest.branch());
@@ -272,8 +292,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         for (int ndx = 0; ndx < ids.size(); ++ndx) {
             IdAndDefinition idAndDefinition = ids.get(ndx);
             if (idAndDefinition.id().patch() != ndx) {
-                throw new IllegalStateException("Transport version base version " + base +
-                    " is missing patch version " + (base + ndx));
+                throw new IllegalStateException("Transport version base version " + base + " is missing patch version " + (base + ndx));
             }
         }
     }

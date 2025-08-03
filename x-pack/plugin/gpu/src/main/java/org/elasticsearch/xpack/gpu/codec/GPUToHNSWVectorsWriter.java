@@ -263,6 +263,7 @@ final class GPUToHNSWVectorsWriter extends KnnVectorsWriter {
         // TODO: expose cagra index params of intermediate graph degree, graph degree, algorithm, NNDescentNumIterations
         CagraIndexParams params = new CagraIndexParams.Builder().withNumWriterThreads(1) // TODO: how many CPU threads we can use?
             .withCagraGraphBuildAlgo(CagraIndexParams.CagraGraphBuildAlgo.NN_DESCENT)
+            .withGraphDegree(16)
             .withMetric(distanceType)
             .build();
 

@@ -9,14 +9,10 @@
 
 package org.elasticsearch.datageneration.queries;
 
-import org.elasticsearch.common.MacAddressProvider;
 import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -29,7 +25,7 @@ public interface LeafQueryGenerator {
      * @param type the type to build a query for
      * @return a generator that can build queries for this type
      */
-    static LeafQueryGenerator buildForType(String type, MappingContextHelper mappingContextHelper) {
+    static LeafQueryGenerator buildForType(String type, MappingPredicates mappingContextHelper) {
         LeafQueryGenerator noQueries = (Map<String, Object> fieldMapping, String path, Object value) -> List.of();
 
         FieldType fieldType = FieldType.tryParse(type);
@@ -89,12 +85,12 @@ public interface LeafQueryGenerator {
         }
     }
 
-    record MatchOnlyTextQueryGenerator(MappingContextHelper mappingContextHelper) implements LeafQueryGenerator {
+    record MatchOnlyTextQueryGenerator(MappingPredicates mappingPredicates) implements LeafQueryGenerator {
 
         public List<QueryBuilder> generate(Map<String, Object> fieldMapping, String path, Object value) {
             // TODO remove when fixed
             // match_only_text in nested context fails for synthetic source https://github.com/elastic/elasticsearch/issues/132352
-            if (mappingContextHelper.inNestedContext(path)) {
+            if (mappingPredicates.inNestedContext(path)) {
                 return List.of(QueryBuilders.matchQuery(path, value));
             }
 

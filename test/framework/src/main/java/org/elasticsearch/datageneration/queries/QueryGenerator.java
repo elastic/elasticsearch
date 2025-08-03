@@ -19,11 +19,11 @@ import java.util.List;
 public class QueryGenerator {
 
     private final Mapping mapping;
-    private final MappingContextHelper mappingContextHelper;
+    private final MappingPredicates mappingPredicates;
 
     public QueryGenerator(Mapping mapping) {
         this.mapping = mapping;
-        this.mappingContextHelper = new MappingContextHelper(mapping);
+        this.mappingPredicates = new MappingPredicates(mapping);
     }
 
     public List<QueryBuilder> generateQueries(String type, String path, Object value) {
@@ -32,18 +32,17 @@ public class QueryGenerator {
             return List.of();
         }
         // Can handle dynamically mapped fields, but not runtime fields
-        if (mappingContextHelper.isRuntimeField(path)) {
+        if (mappingPredicates.isRuntimeField(path)) {
             return List.of();
         }
-        var leafQueryGenerator = LeafQueryGenerator.buildForType(type, mappingContextHelper);
+        var leafQueryGenerator = LeafQueryGenerator.buildForType(type, mappingPredicates);
         var fieldMapping = mapping.lookup().get(path);
         var leafQueries = leafQueryGenerator.generate(fieldMapping, path, value);
         return leafQueries.stream().map(q -> wrapInNestedQuery(path, q)).toList();
     }
 
     private QueryBuilder wrapInNestedQuery(String path, QueryBuilder leafQuery) {
-        String[] parts = path.split("\\.");
-        List<String> nestedPaths = mappingContextHelper.getNestedPathPrefixes(parts);
+        List<String> nestedPaths = mappingPredicates.getNestedPathPrefixes(path);
         QueryBuilder query = leafQuery;
         for (String nestedPath : nestedPaths.reversed()) {
             query = QueryBuilders.nestedQuery(nestedPath, query, ScoreMode.Max);

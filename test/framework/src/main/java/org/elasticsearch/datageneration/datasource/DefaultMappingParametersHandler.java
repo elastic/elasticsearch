@@ -98,13 +98,13 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
                 }
             }
 
-            if (ESTestCase.randomDouble() <= 0.2) {
+            if (ESTestCase.randomDouble() <= 0.3) {
                 mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
-            if (hasParent == false && ESTestCase.randomDouble() <= 0.3) {
+            if (hasParent == false && ESTestCase.randomBoolean()) {
                 mapping.put("fields", stringSubField(request));
             }
 
@@ -208,7 +208,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             mapping.put("store", ESTestCase.randomBoolean());
             mapping.put("index", ESTestCase.randomBoolean());
 
-            if (hasParent == false && ESTestCase.randomDouble() <= 0.3) {
+            if (hasParent == false && ESTestCase.randomBoolean()) {
                 mapping.put("fields", stringSubField(request));
             }
 
@@ -248,13 +248,13 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return () -> {
             var mapping = new HashMap<String, Object>();
 
-            if (ESTestCase.randomDouble() <= 0.2) {
+            if (ESTestCase.randomDouble() <= 0.3) {
                 mapping.put("ignore_above", ESTestCase.randomIntBetween(1, 50));
             }
             if (ESTestCase.randomDouble() <= 0.2) {
                 mapping.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
-            if (hasParent == false && ESTestCase.randomDouble() <= 0.3) {
+            if (hasParent == false && ESTestCase.randomBoolean()) {
                 mapping.put("fields", stringSubField(request));
             }
 
@@ -268,7 +268,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
     ) {
         return () -> {
             var mapping = new HashMap<String, Object>();
-            if (hasParent == false && ESTestCase.randomDouble() <= 0.3) {
+            if (hasParent == false && ESTestCase.randomBoolean()) {
                 mapping.put("fields", stringSubField(request));
             }
             return mapping;

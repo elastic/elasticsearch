@@ -16,10 +16,15 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
+import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.LongStream;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -49,27 +54,28 @@ public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunction
     @Override
     public void assertSimpleOutput(List<Page> input, Block result) {
         long v = (Long) BlockUtils.toJavaObject(result, 0);
-        boolean first = true;
         long expectedTimestamp = 0;
-        long expected = 0;
+        Set<Long> expected = new HashSet<>();
         for (Page page : input) {
             LongVector values = page.<LongBlock>getBlock(0).asVector();
             LongVector timestamps = page.<LongBlock>getBlock(1).asVector();
             for (int p = 0; p < page.getPositionCount(); p++) {
                 long timestamp = timestamps.getLong(p);
                 long value = values.getLong(p);
-                if (first) {
-                    first = false;
+                if (expected.isEmpty()) {
                     expectedTimestamp = timestamp;
-                    expected = value;
+                    expected.add(value);
                 } else if (timestamp < expectedTimestamp) {
                     expectedTimestamp = timestamp;
-                    expected = value;
-                } else if (timestamp == expectedTimestamp && value < expected) {
-                    expected = value;
+                    expected.clear();
+                    expected.add(value);
+                } else if (timestamp == expectedTimestamp) {
+                    expected.add(value);
                 }
             }
         }
-        assertThat(v, equalTo(expected));
+        if (expected.contains(v) == false) {
+            throw new AssertionError("expected one of " + expected.stream().sorted().toList() + " but was " + v);
+        }
     }
 }

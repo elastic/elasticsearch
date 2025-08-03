@@ -186,8 +186,8 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         def result = validateDefinitionsFails()
         then:
         assertDefinitionsFailure(result, "Transport version definition file " +
-            "[myserver/src/main/resources/transport/defined/duplicate.csv] contains id already defined in " +
-            "[myserver/src/main/resources/transport/defined/existing_92.csv]")
+            "[myserver/src/main/resources/transport/defined/existing_92.csv] contains id 8123000 already defined in " +
+            "[myserver/src/main/resources/transport/defined/duplicate.csv]")
     }
 
     def "definitions have bwc ids with non-zero patch part"() {

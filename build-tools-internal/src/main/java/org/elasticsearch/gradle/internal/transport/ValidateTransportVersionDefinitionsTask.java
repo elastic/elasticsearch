@@ -110,7 +110,8 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
         // now load all definitions, do some validation and record them by various keys for later quick lookup
         // NOTE: this must run after loading referenced names and existing definitions
-        try (var definitionsStream = Files.list(definitionsDir)) {
+        // NOTE: this is sorted so that the order of cross validation is deterministic
+        try (var definitionsStream = Files.list(definitionsDir).sorted()) {
             for (var definitionFile : definitionsStream.toList()) {
                 recordAndValidateDefinition(readDefinitionFile(definitionFile));
             }
@@ -206,7 +207,10 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
 
             String existing = definedIds.put(id.complete(), definition.name());
             if (existing != null) {
-                throwDefinitionFailure(definition.name(), "contains id already defined in [" + definitionRelativePath(existing) + "]");
+                throwDefinitionFailure(
+                    definition.name(),
+                    "contains id " + id + " already defined in [" + definitionRelativePath(existing) + "]"
+                );
             }
 
             if (ndx == 0) {

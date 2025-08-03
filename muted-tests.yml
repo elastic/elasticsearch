@@ -548,6 +548,9 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
   method: testRandomQueries
   issue: https://github.com/elastic/elasticsearch/issues/132377
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedIntoStoredSourceChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/132378
 
 # Examples:
 #

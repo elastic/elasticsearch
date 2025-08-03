@@ -321,7 +321,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     null,
                     () -> exchangeSink.createExchangeSink(pagesProduced::incrementAndGet)
                 );
-                computeService.runCompute(parentTask, computeContext, request.plan(), batchListener, request.runNodeLevelReduction(), true);
+                computeService.runCompute(parentTask, computeContext, request.plan(), batchListener, true);
             }, batchListener::onFailure));
         }
 
@@ -484,7 +484,6 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         exchangeService.finishSinkHandler(externalId, e);
                         reductionListener.onFailure(e);
                     }),
-                    request.runNodeLevelReduction(),
                     false
                 );
                 parentListener.onResponse(null);

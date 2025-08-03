@@ -287,7 +287,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     ),
                     coordinatorPlan,
                     computeListener.acquireCompute(),
-                    false,
                     false
                 );
                 dataNodeComputeHandler.startComputeOnDataNodes(

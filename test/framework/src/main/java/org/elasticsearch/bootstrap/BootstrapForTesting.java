@@ -15,7 +15,7 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementsRule;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.jdk.JarHell;
 
 import java.io.IOException;
@@ -75,7 +75,7 @@ public class BootstrapForTesting {
 
         // Fire up entitlements
         try {
-            TestEntitlementsRule.initialize(javaTmpDir);
+            TestEntitlementBootstrap.bootstrap(javaTmpDir);
         } catch (IOException e) {
             throw new IllegalStateException(e.getClass().getSimpleName() + " while initializing entitlements for tests", e);
         }

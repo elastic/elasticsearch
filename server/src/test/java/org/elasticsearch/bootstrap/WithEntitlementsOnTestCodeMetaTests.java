@@ -10,7 +10,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementsRule;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithEntitlementsOnTestCode;
@@ -30,13 +30,13 @@ public class WithEntitlementsOnTestCodeMetaTests extends ESTestCase {
      * is called from server code. The self-test should pass as usual.
      */
     public void testSelfTestPasses() {
-        assumeTrue("Not yet working in serverless", TestEntitlementsRule.isEnabledForTests());
+        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTests());
         Elasticsearch.entitlementSelfTest();
     }
 
     @SuppressForbidden(reason = "Testing that a forbidden API is disallowed")
     public void testForbiddenActionDenied() {
-        assumeTrue("Not yet working in serverless", TestEntitlementsRule.isEnabledForTests());
+        assumeTrue("Not yet working in serverless", TestEntitlementBootstrap.isEnabledForTests());
         assertThrows(NotEntitledException.class, () -> Path.of(".").toRealPath());
     }
 }

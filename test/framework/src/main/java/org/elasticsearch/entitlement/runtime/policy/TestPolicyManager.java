@@ -88,7 +88,7 @@ public class TestPolicyManager extends PolicyManager {
 
     /**
      * Clear cached module entitlements.
-     * This is required after updating entries in {@link TestPathLookup}.
+     * This is required after updating path entries.
      */
     public final void clearModuleEntitlementsCache() {
         assert moduleEntitlementsMap.isEmpty() : "We're not supposed to be using moduleEntitlementsMap in tests";

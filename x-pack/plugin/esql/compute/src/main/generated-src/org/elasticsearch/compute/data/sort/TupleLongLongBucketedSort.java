@@ -9,7 +9,8 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.FloatArray;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -23,11 +24,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.stream.IntStream;
 
 /**
- * Aggregates the top N {@code float} values per bucket.
+ * Aggregates the top N {@code Tuple<Long, Long>} values per bucket.
  * See {@link BucketedSort} for more information.
  * This class is generated. Edit @{code X-BucketedSort.java.st} instead of this file.
  */
-public class FloatBucketedSort implements Releasable {
+public class TupleLongLongBucketedSort implements Releasable {
 
     private final BigArrays bigArrays;
     private final SortOrder order;
@@ -64,9 +65,9 @@ public class FloatBucketedSort implements Releasable {
      *     </li>
      * </ul>
      */
-    private FloatArray values;
+    private ObjectArray<Tuple<Long, Long>> values;
 
-    public FloatBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
+    public TupleLongLongBucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
         this.bigArrays = bigArrays;
         this.order = order;
         this.bucketSize = bucketSize;
@@ -74,7 +75,7 @@ public class FloatBucketedSort implements Releasable {
 
         boolean success = false;
         try {
-            values = bigArrays.newFloatArray(0, false);
+            values = bigArrays.newObjectArray(0);
             success = true;
         } finally {
             if (success == false) {
@@ -89,7 +90,7 @@ public class FloatBucketedSort implements Releasable {
      *     It may or may not be inserted in the heap, depending on if it is better than the current root.
      * </p>
      */
-    public void collect(float value, int bucket) {
+    public void collect(Tuple<Long, Long> value, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
             if (betterThan(value, values.get(rootIndex))) {
@@ -148,7 +149,7 @@ public class FloatBucketedSort implements Releasable {
     /**
      * Merge the values from {@code other}'s {@code otherGroupId} into {@code groupId}.
      */
-    public void merge(int groupId, FloatBucketedSort other, int otherGroupId) {
+    public void merge(int groupId, TupleLongLongBucketedSort other, int otherGroupId) {
         var otherBounds = other.getBucketValuesIndexes(otherGroupId);
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
@@ -160,13 +161,17 @@ public class FloatBucketedSort implements Releasable {
     /**
      * Creates a block with the values from the {@code selected} groups.
      */
-    public Block toBlock(BlockFactory blockFactory, IntVector selected) {
+    public void toBlocks(BlockFactory blockFactory, Block[] blocks, int offset, IntVector selected) {
         // Check if the selected groups are all empty, to avoid allocating extra memory
         if (allSelectedGroupsAreEmpty(selected)) {
-            return blockFactory.newConstantNullBlock(selected.getPositionCount());
+            blocks[offset] = blockFactory.newConstantNullBlock(selected.getPositionCount());
+            blocks[offset + 1] = blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (var builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())) {
+        try (
+            var longBuilder = blockFactory.newLongBlockBuilder(selected.getPositionCount());
+            var builder = blockFactory.newLongBlockBuilder(selected.getPositionCount())
+        ) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
@@ -175,12 +180,14 @@ public class FloatBucketedSort implements Releasable {
                 var size = bounds.v2() - bounds.v1();
 
                 if (size == 0) {
+                    longBuilder.appendNull();
                     builder.appendNull();
                     continue;
                 }
 
                 if (size == 1) {
-                    builder.appendFloat(values.get(rootIndex));
+                    longBuilder.appendLong(values.get(rootIndex).v1());
+                    builder.appendLong(values.get(rootIndex).v2());
                     continue;
                 }
 
@@ -190,16 +197,19 @@ public class FloatBucketedSort implements Releasable {
                 }
                 heapSort(rootIndex, (int) size);
 
+                longBuilder.beginPositionEntry();
                 builder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {
-                    builder.appendFloat(values.get(rootIndex + i));
+                    longBuilder.appendLong(values.get(rootIndex + i).v1());
+                    builder.appendLong(values.get(rootIndex + i).v2());
                 }
+                longBuilder.endPositionEntry();
                 builder.endPositionEntry();
             }
-            return builder.build();
+            blocks[offset] = builder.build();
+            blocks[offset + 1] = longBuilder.build();
         }
     }
-
     /**
      * Checks if the selected groups are all empty.
      */
@@ -223,7 +233,7 @@ public class FloatBucketedSort implements Releasable {
      * at {@code rootIndex}.
      */
     private int getNextGatherOffset(long rootIndex) {
-        return (int) values.get(rootIndex);
+        return (int) values.get(rootIndex).v1().longValue();
     }
 
     /**
@@ -231,7 +241,7 @@ public class FloatBucketedSort implements Releasable {
      * at {@code rootIndex}.
      */
     private void setNextGatherOffset(long rootIndex, int offset) {
-        values.set(rootIndex, offset);
+        values.set(rootIndex, Tuple.<Long, Long>tuple((long) offset, null));
     }
 
     /**
@@ -239,8 +249,13 @@ public class FloatBucketedSort implements Releasable {
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
-    private boolean betterThan(float lhs, float rhs) {
-        return getOrder().reverseMul() * Float.compare(lhs, rhs) < 0;
+    private boolean betterThan(Tuple<Long, Long> lhs, Tuple<Long, Long> rhs) {
+        int res = Long.compare(lhs.v1(), rhs.v1());
+        if (res != 0) {
+            return getOrder().reverseMul() * res < 0;
+        }
+        res = Long.compare(lhs.v2(), rhs.v2());
+        return getOrder().reverseMul() * res < 0;
     }
 
     /**
@@ -261,7 +276,7 @@ public class FloatBucketedSort implements Releasable {
         long oldMax = values.size();
         assert oldMax % bucketSize == 0;
 
-        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.FLOAT_PAGE_SIZE, Float.BYTES);
+        long newSize = BigArrays.overSize(((long) bucket + 1) * bucketSize, PageCacheRecycler.OBJECT_PAGE_SIZE, 2 * Long.BYTES);
         // Round up to the next full bucket.
         newSize = (newSize + bucketSize - 1) / bucketSize;
         values = bigArrays.resize(values, newSize * bucketSize);

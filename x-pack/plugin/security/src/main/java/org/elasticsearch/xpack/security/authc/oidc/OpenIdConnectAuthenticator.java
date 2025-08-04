@@ -478,7 +478,7 @@ public class OpenIdConnectAuthenticator {
                 if (ContentType.parse(contentHeader.getValue()).getMimeType().equals("application/json")) {
                     final JWTClaimsSet userInfoClaims = JWTClaimsSet.parse(contentAsString);
                     String expectedSub = verifiedIdTokenClaims.getSubject();
-                    if (userInfoClaims.getSubject().isEmpty()) {
+                    if (userInfoClaims.getSubject() == null || userInfoClaims.getSubject().isEmpty()) {
                         claimsListener.onFailure(new ElasticsearchSecurityException("Userinfo Response did not contain a sub Claim"));
                         return;
                     } else if (userInfoClaims.getSubject().equals(expectedSub) == false) {

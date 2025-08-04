@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.StatelessMockRepositoryStrategy;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -56,6 +58,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -335,8 +338,16 @@ public class StatelessClusterIntegrityStressIT extends AbstractStatelessIntegTes
                     );
                 }
             } else {
+                logger.error("--> failed to terminate test activities thread pool");
+                logger.info("--> current cluster state:\n{}", clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState());
+                HotThreads.logLocalHotThreads(
+                    logger,
+                    Level.INFO,
+                    "hot threads while failing to terminate test activities thread pool",
+                    ReferenceDocs.LOGGING
+                );
                 ThreadPool.terminate(threadPool, 1, TimeUnit.MILLISECONDS);
-                throw new AssertionError("timed out waiting for actions to stop");
+                throw new AssertionError("timed out waiting for activities to stop");
             }
             logger.info("--> end of test");
         }

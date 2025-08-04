@@ -54,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -62,8 +63,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -600,7 +599,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 null,
                 () -> true,
                 null,
-                emptyMap(),
+                Map.of(),
                 MapperMetrics.NOOP
             );
 
@@ -630,7 +629,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
         }
 
-        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, emptyList());
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, List.of());
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

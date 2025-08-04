@@ -64,14 +64,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singleton;
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -115,7 +112,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap(),
+            Map.of(),
             MapperMetrics.NOOP
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
@@ -172,7 +169,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             String termQuery = "{\"term\": {\"field\": \"" + values[i] + "\"} }";
             IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
                 FieldPermissions.DEFAULT,
-                DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery)))
+                DocumentPermissions.filteredBy(Set.of(new BytesArray(termQuery)))
             );
             SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(
                 s -> searchExecutionContext,
@@ -184,7 +181,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
                 @Override
                 protected IndicesAccessControl getIndicesAccessControl() {
-                    return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                    return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
                 }
             };
 
@@ -237,9 +234,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             FieldPermissions.DEFAULT,
             DocumentPermissions.filteredBy(queries)
         );
-        queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
+        queries = Set.of(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
         if (restrictiveLimitedIndexPermissions) {
-            queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv31\"] } }"));
+            queries = Set.of(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv31\"] } }"));
         }
         IndicesAccessControl.IndexAccessControl limitedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(
             FieldPermissions.DEFAULT,
@@ -271,7 +268,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap(),
+            Map.of(),
             MapperMetrics.NOOP
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
@@ -289,13 +286,13 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
-                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
                 if (noFilteredIndexPermissions) {
                     return indicesAccessControl;
                 }
                 IndicesAccessControl limitedByIndicesAccessControl = new IndicesAccessControl(
                     true,
-                    singletonMap("_index", limitedIndexAccessControl)
+                    Map.of("_index", limitedIndexAccessControl)
                 );
                 return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
             }
@@ -494,7 +491,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl indicesAccessControl = new IndicesAccessControl(
                     true,
-                    singletonMap(indexSettings().getIndex().getName(), indexAccessControl)
+                    Map.of(indexSettings().getIndex().getName(), indexAccessControl)
                 );
                 return indicesAccessControl;
             }
@@ -522,6 +519,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
+        return MappingLookup.fromMappers(Mapping.EMPTY, mappers, List.of());
     }
 }

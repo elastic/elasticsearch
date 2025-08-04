@@ -30,12 +30,12 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -93,7 +93,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
                     new FieldPermissions(fieldPermissionDef(new String[] {}, null)),
                     DocumentPermissions.allowAll()
                 );
-                return new IndicesAccessControl(true, singletonMap("_index", indexAccessControl));
+                return new IndicesAccessControl(true, Map.of("_index", indexAccessControl));
             }
         };
 
@@ -166,7 +166,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         deniedFields = META_FIELDS.toArray(new String[0]);
         assertResolved(
             new FieldPermissions(fieldPermissionDef(null, deniedFields)),
-            new HashSet<>(Arrays.asList("foo", "bar", "_some_plugin_meta_field"))
+            new HashSet<>(List.of("foo", "bar", "_some_plugin_meta_field"))
         );
 
         // check we can add all fields with *

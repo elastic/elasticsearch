@@ -13,9 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.lucene.HighlighterExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -194,15 +197,44 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
 
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
-            // TODO we can probably create the highlighter here instead of in EsPhysicalOperationProviders
+            SearchExecutionContext searchExecutionContext = shardContext.searchExecutionContext();
+            SearchContext searchContext = shardContext.searchContext();
+            if (searchContext == null) {
+                throw new IllegalStateException("Missing search context, cannot extract snippets");
+            }
 
-            shardContext.addHighlightQuery(
-                field.sourceText(),
-                str.sourceText(),
-                Integer.parseInt(numSnippets.sourceText()),
-                Integer.parseInt(snippetLength.sourceText()),
-                queryBuilder
-            );
+            try {
+                // TODO: Reduce duplication between this method and TextSimilarityRerankingRankFeaturePhaseRankShardContext#prepareForFetch
+                HighlightBuilder highlightBuilder = new HighlightBuilder();
+                if (queryBuilder != null) {
+                    highlightBuilder.highlightQuery(queryBuilder);
+                }
+                // Stripping pre/post tags as they're not useful for snippet creation
+                highlightBuilder.field(field.sourceText()).preTags("").postTags("");
+                // Return highest scoring fragments
+                highlightBuilder.order(HighlightBuilder.Order.SCORE);
+                highlightBuilder.numOfFragments(Integer.parseInt(numSnippets.sourceText()));
+                highlightBuilder.fragmentSize(Integer.parseInt(snippetLength.sourceText()));
+                highlightBuilder.noMatchSize(Integer.parseInt(snippetLength.sourceText()));
+
+                SearchHighlightContext highlightContext = highlightBuilder.build(searchExecutionContext);
+                searchContext.highlight(highlightContext);
+
+            } catch (IOException e) {
+                throw new RuntimeException(
+                    "Failed to create highlight context for field ["
+                        + field.sourceText()
+                        + "], str ["
+                        + str.sourceText()
+                        + "], numSnippets: ["
+                        + Integer.parseInt(numSnippets.sourceText())
+                        + "], snippetLength: ["
+                        + Integer.parseInt(snippetLength.sourceText())
+                        + "]",
+                    e
+                );
+            }
+
             shardConfigs[i++] = new LuceneQueryEvaluator.ShardConfig(shardContext.toQuery(queryBuilder), shardContext.searcher());
         }
         return new HighlighterExpressionEvaluator.Factory(shardConfigs);

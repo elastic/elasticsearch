@@ -37,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
@@ -55,11 +56,13 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
         final Settings.Builder settings = super.nodeSettings();
         settings.put("gcs.client.test.endpoint", httpServerUrl());
         settings.put("gcs.client.test.token_uri", httpServerUrl() + "/token");
+        settings.put("gcs.client.backup.endpoint", httpServerUrl());
+        settings.put("gcs.client.backup.token_uri", httpServerUrl() + "/token");
         settings.put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.GCS);
         settings.put(ObjectStoreService.BUCKET_SETTING.getKey(), "bucket");
         settings.put(ObjectStoreService.CLIENT_SETTING.getKey(), "test");
 
-        final byte[] serviceAccount = TestUtils.createServiceAccount(random());
+        final byte[] serviceAccount = TestUtils.createServiceAccount(random(), UUID.randomUUID().toString(), "admin@cluster.com");
         MockSecureSettings mockSecureSettings = new MockSecureSettings();
         mockSecureSettings.setFile("gcs.client.test.credentials_file", serviceAccount);
         settings.setSecureSettings(mockSecureSettings);

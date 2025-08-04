@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.esql.core.tree;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -65,28 +67,33 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     @SuppressWarnings("unchecked")
-    public boolean forEachDownMayReturnEarly(Function<? super T, Boolean> action) {
-        if (action.apply((T) this) == false) {
+    void forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action, Holder<Boolean> breakEarly) {
+        action.accept((T) this, breakEarly);
+        if (breakEarly.get()) {
             // Early return.
-            return false;
+            return;
         }
         // please do not refactor it to a for-each loop to avoid
         // allocating iterator that performs concurrent modification checks and extra stack frames
         for (int c = 0, size = children.size(); c < size; c++) {
-            if (children.get(c).forEachDownMayReturnEarly(action) == false) {
-                return false;
+            children.get(c).forEachDownMayReturnEarly(action, breakEarly);
+            if (breakEarly.get()) {
+                // Early return.
+                return;
             }
         }
-        return true;
     }
 
-    @SuppressWarnings("unchecked")
+    public boolean forEachDownMayReturnEarly(BiConsumer<? super T, Holder<Boolean>> action) {
+        var breakEarly = new Holder<>(false);
+        forEachDownMayReturnEarly(action, breakEarly);
+        return breakEarly.get();
+    }
+
     public void forEachDown(Consumer<? super T> action) {
-        forEachDownMayReturnEarly(p -> {
-            action.accept(p);
-            // No early return.
-            return true;
-        });
+        boolean result = forEachDownMayReturnEarly((p, breakFlag) -> { action.accept(p); });
+        // We should be breaking early here...
+        assert result == false;
     }
 
     @SuppressWarnings("unchecked")

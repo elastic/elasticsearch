@@ -49,7 +49,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession.PreAnalysisResult;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
@@ -107,31 +107,36 @@ public class FieldNameUtils {
         Set<String> wildcardJoinIndices = new java.util.HashSet<>();
 
         var canRemoveAliases = new Holder<>(true);
-        var needsAllFields = new Holder<>(false);
 
-        var processingLambda = new Holder<Function<LogicalPlan, Boolean>>();
-        processingLambda.set((LogicalPlan p) -> {// go over each plan top-down
+        var processingLambda = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
+        processingLambda.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
             if (p instanceof Fork fork) {
-                // Early return from forEachDown. We will iterate over the children manually.
+                // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
                 var forkRefsResult = AttributeSet.builder();
                 forkRefsResult.addAll(referencesBuilder.get());
 
-                for (var child : fork.children()) {
+                for (var fork_child : fork.children()) {
                     referencesBuilder.set(AttributeSet.builder());
-                    var return_result = child.forEachDownMayReturnEarly(processingLambda.get());
-                    // No nested Forks for now...
-                    assert return_result;
+                    var nested_early_return = fork_child.forEachDownMayReturnEarly(processingLambda.get());
+                    // This assert is just for good measure. FORKs within FORKs is yet not supported.
+                    assert nested_early_return == false;
+
+                    // See below, no references, means we should return all fields (*).
                     if (referencesBuilder.get().isEmpty()) {
-                        needsAllFields.set(true);
-                        // Early return.
-                        return false;
+                        projectAll.set(true);
+                        // Return early, we'll be returning all references no matter what the remainder of the query is.
+                        breakEarly.set(true);
+                        return;
                     }
                     forkRefsResult.addAll(referencesBuilder.get());
                 }
 
                 forkRefsResult.removeIf(attr -> attr.name().equals(Fork.FORK_FIELD));
                 referencesBuilder.set(forkRefsResult);
-                return false;
+
+                // Return early, we've already explored all fork branches.
+                breakEarly.set(true);
+                return;
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
                 referencesBuilder.get().addAll(re.input().references());
@@ -210,13 +215,10 @@ public class FieldNameUtils {
                         .removeIf(attr -> matchByName(attr, ne.name(), keepRefs.contains(attr) || dropWildcardRefs.contains(attr)));
                 });
             }
-
-            // No early return.
-            return true;
         });
         parsed.forEachDownMayReturnEarly(processingLambda.get());
 
-        if (needsAllFields.get()) {
+        if (projectAll.get()) {
             return new PreAnalysisResult(enrichResolution, IndexResolver.ALL_FIELDS, Set.of());
         }
 

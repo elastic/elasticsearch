@@ -151,7 +151,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             if (doc % 11 == 0) {
                 iw.deleteDocuments(new Term("id", id));
             } else {
-                if (commitAfter % commitAfter == 0) {
+                if (doc % commitAfter == 0) {
                     iw.commit();
                 }
                 valuesHitCount[valueIndex]++;

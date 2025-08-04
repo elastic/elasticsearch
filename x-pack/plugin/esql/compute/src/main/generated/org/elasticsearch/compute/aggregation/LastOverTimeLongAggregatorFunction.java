@@ -100,9 +100,9 @@ public final class LastOverTimeLongAggregatorFunction implements AggregatorFunct
 
   private void addRawVector(LongVector timestampVector, LongVector valueVector) {
     state.seen(true);
-    for (int i = 0; i < timestampVector.getPositionCount(); i++) {
-      long timestampValue = timestampVector.getLong(i);
-      long valueValue = valueVector.getLong(i);
+    for (int valuesPosition = 0; valuesPosition < timestampVector.getPositionCount(); valuesPosition++) {
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      long valueValue = valueVector.getLong(valuesPosition);
       LastOverTimeLongAggregator.combine(state, timestampValue, valueValue);
     }
   }
@@ -110,12 +110,12 @@ public final class LastOverTimeLongAggregatorFunction implements AggregatorFunct
   private void addRawVector(LongVector timestampVector, LongVector valueVector,
       BooleanVector mask) {
     state.seen(true);
-    for (int i = 0; i < timestampVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < timestampVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      long timestampValue = timestampVector.getLong(i);
-      long valueValue = valueVector.getLong(i);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      long valueValue = valueVector.getLong(valuesPosition);
       LastOverTimeLongAggregator.combine(state, timestampValue, valueValue);
     }
   }

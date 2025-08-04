@@ -106,7 +106,6 @@ public class AggregatorImplementer {
             requireName("combine"),
             requireArgsStartsWith(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"))
         );
-
         this.aggParams = combine.getParameters().stream().skip(1).map(AggregationParameter::create).toList();
 
         this.createParameters = init.getParameters()
@@ -344,10 +343,13 @@ public class AggregatorImplementer {
             builder.addStatement("state.seen(true)");
         }
 
-        builder.beginControlFlow("for (int i = 0; i < $L.getPositionCount(); i++)", aggParams.getFirst().vectorName());
+        builder.beginControlFlow(
+            "for (int valuesPosition = 0; valuesPosition < $L.getPositionCount(); valuesPosition++)",
+            aggParams.getFirst().vectorName()
+        );
         {
             if (masked) {
-                builder.beginControlFlow("if (mask.getBoolean(i) == false)").addStatement("continue").endControlFlow();
+                builder.beginControlFlow("if (mask.getBoolean(valuesPosition) == false)").addStatement("continue").endControlFlow();
             }
             for (AggregationParameter p : aggParams) {
                 p.read(builder, true);
@@ -420,11 +422,14 @@ public class AggregatorImplementer {
         return builder.build();
     }
 
-    private MethodSpec.Builder initAddRaw(boolean isVector, boolean masked) {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder(isVector ? "addRawVector" : "addRawBlock");
+    private MethodSpec.Builder initAddRaw(boolean valuesAreVector, boolean masked) {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder(valuesAreVector ? "addRawVector" : "addRawBlock");
         builder.addModifiers(Modifier.PRIVATE);
         for (AggregationParameter p : aggParams) {
-            builder.addParameter(isVector ? vectorType(p.type) : blockType(p.type), isVector ? p.vectorName() : p.blockName());
+            builder.addParameter(
+                valuesAreVector ? vectorType(p.type) : blockType(p.type),
+                valuesAreVector ? p.vectorName() : p.blockName()
+            );
         }
         if (masked) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
@@ -440,7 +445,7 @@ public class AggregatorImplementer {
 
     private void combineRawInput(MethodSpec.Builder builder) {
         TypeName returnType = TypeName.get(combine.getReturnType());
-        warningsBlock(builder, () -> { invokeCombineRawInput(returnType, builder); });
+        warningsBlock(builder, () -> invokeCombineRawInput(returnType, builder));
     }
 
     private void invokeCombineRawInput(TypeName returnType, MethodSpec.Builder builder) {
@@ -451,9 +456,11 @@ public class AggregatorImplementer {
             params.add(returnType);
             params.add(declarationType);
             params.add(returnType);
-        } else {
+        } else if (returnType == TypeName.VOID) {
             pattern.append("$T.combine(state");
             params.add(declarationType);
+        } else {
+            throw new IllegalArgumentException("combine must return void or a primitive");
         }
         for (AggregationParameter p : aggParams) {
             pattern.append(", $L");
@@ -753,7 +760,7 @@ public class AggregatorImplementer {
             params.add(vector ? vectorName() : blockName());
             params.add(readMethod());
             if (vector) {
-                pattern.append("i");
+                pattern.append("valuesPosition");
             } else {
                 pattern.append("$L");
                 params.add(offsetName());

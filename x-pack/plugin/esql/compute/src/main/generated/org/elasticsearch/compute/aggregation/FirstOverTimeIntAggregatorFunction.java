@@ -102,21 +102,21 @@ public final class FirstOverTimeIntAggregatorFunction implements AggregatorFunct
 
   private void addRawVector(LongVector timestampVector, IntVector valueVector) {
     state.seen(true);
-    for (int i = 0; i < timestampVector.getPositionCount(); i++) {
-      long timestampValue = timestampVector.getLong(i);
-      int valueValue = valueVector.getInt(i);
+    for (int valuesPosition = 0; valuesPosition < timestampVector.getPositionCount(); valuesPosition++) {
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      int valueValue = valueVector.getInt(valuesPosition);
       FirstOverTimeIntAggregator.combine(state, timestampValue, valueValue);
     }
   }
 
   private void addRawVector(LongVector timestampVector, IntVector valueVector, BooleanVector mask) {
     state.seen(true);
-    for (int i = 0; i < timestampVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < timestampVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      long timestampValue = timestampVector.getLong(i);
-      int valueValue = valueVector.getInt(i);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      int valueValue = valueVector.getInt(valuesPosition);
       FirstOverTimeIntAggregator.combine(state, timestampValue, valueValue);
     }
   }

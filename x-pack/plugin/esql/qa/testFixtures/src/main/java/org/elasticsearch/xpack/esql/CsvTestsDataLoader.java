@@ -308,7 +308,7 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, true, true, (restClient, indexName, indexMapping, indexSettings) -> {
+            loadDataSetIntoEs(client, true, true, false, (restClient, indexName, indexMapping, indexSettings) -> {
                 // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                 StringBuilder jsonBody = new StringBuilder("{");
                 if (indexSettings != null && indexSettings.isEmpty() == false) {
@@ -328,12 +328,10 @@ public class CsvTestsDataLoader {
     }
 
     public static Set<TestDataset> availableDatasetsForEs(
-        RestClient client,
         boolean supportsIndexModeLookup,
-        boolean supportsSourceFieldMapping
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled
     ) throws IOException {
-        boolean inferenceEnabled = clusterHasSparseEmbeddingInferenceEndpoint(client);
-
         Set<TestDataset> testDataSets = new HashSet<>();
 
         for (TestDataset dataset : CSV_DATASET_MAP.values()) {
@@ -363,12 +361,17 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
-    public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, boolean supportsSourceFieldMapping)
-        throws IOException {
+    public static void loadDataSetIntoEs(
+        RestClient client,
+        boolean supportsIndexModeLookup,
+        boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled
+    ) throws IOException {
         loadDataSetIntoEs(
             client,
             supportsIndexModeLookup,
             supportsSourceFieldMapping,
+            inferenceEnabled,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -379,12 +382,13 @@ public class CsvTestsDataLoader {
         RestClient client,
         boolean supportsIndexModeLookup,
         boolean supportsSourceFieldMapping,
+        boolean inferenceEnabled,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup, supportsSourceFieldMapping)) {
+        for (var dataset : availableDatasetsForEs(supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }

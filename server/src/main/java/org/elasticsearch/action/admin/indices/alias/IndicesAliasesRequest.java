@@ -286,7 +286,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             isHidden = in.readOptionalBoolean();
             originalAliases = in.readStringArray();
             mustExist = in.readOptionalBoolean();
-            // TODO: NOCOMMIT: protect with transport version
+            // TODO: protect with transport version
             destination = in.readOptionalString();
         }
 
@@ -303,7 +303,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalBoolean(isHidden);
             out.writeStringArray(originalAliases);
             out.writeOptionalBoolean(mustExist);
-            // TODO: NOCOMMIT: protect with transport version
+            // TODO: protect with transport version
             out.writeOptionalString(destination);
         }
 

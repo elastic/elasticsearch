@@ -340,3 +340,24 @@ top level fails:
                 buckets_path:
                   b: b
                 script: params.b + 12
+
+---
+invalid parent aggregation:
+  - do:
+      catch: /Expected a multi bucket aggregation but got \[InternalFilter\] for aggregation \[d\]/
+      search:
+        body:
+          aggs:
+            a:
+              filter:
+                term:
+                  a: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  bucket_script:
+                    buckets_path:
+                      b: b
+                    script: params.b + 12

@@ -52,7 +52,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-// TODO: Only allow CCS when ccs_minimize_roundtrips=true
 // TODO: Add flag to perform inference again during remote cluster coordinator rewrite
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
@@ -252,6 +251,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             throw new IllegalStateException(
                 "Rewriting on the coordinator node requires a query rewrite context with non-null resolved indices"
             );
+        } else if (resolvedIndices.getRemoteClusterIndices().isEmpty() == false) {
+            if (queryRewriteContext.isCcsMinimizeRoundtrips() != true) {
+                throw new IllegalArgumentException(NAME + " query supports CCS only when ccs_minimize_roundtrips=true");
+            }
         }
 
         Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);

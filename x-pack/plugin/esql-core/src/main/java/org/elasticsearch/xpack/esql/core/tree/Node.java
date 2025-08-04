@@ -92,7 +92,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     public void forEachDown(Consumer<? super T> action) {
         boolean result = forEachDownMayReturnEarly((p, breakFlag) -> { action.accept(p); });
-        // We should be breaking early here...
+        // We should not be breaking early here...
         assert result == false;
     }
 

@@ -74,17 +74,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         declareStandardFields(PARSER);
     }
 
-    private static Supplier<ModelRegistry> MODEL_REGISTRY_SUPPLIER = () -> null;
-
-    public static void setModelRegistrySupplier(Supplier<ModelRegistry> supplier) {
-        MODEL_REGISTRY_SUPPLIER = supplier;
-    }
-
     private final String fieldName;
     private final String query;
     private final EmbeddingsProvider embeddingsProvider;
     private final boolean noInferenceResults;
     private final Boolean lenient;
+
+    private Supplier<ModelRegistry> modelRegistrySupplier = () -> null;
 
     public SemanticQueryBuilder(String fieldName, String query) {
         this(fieldName, query, null);
@@ -126,6 +122,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
     }
 
+    public void setModelRegistrySupplier(Supplier<ModelRegistry> supplier) {
+        modelRegistrySupplier = supplier;
+    }
+
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
@@ -150,6 +150,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.embeddingsProvider = embeddingsProvider;
         this.noInferenceResults = noInferenceResults;
         this.lenient = other.lenient;
+        this.modelRegistrySupplier = other.modelRegistrySupplier;
     }
 
     @Override
@@ -208,7 +209,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
-            ModelRegistry modelRegistry = MODEL_REGISTRY_SUPPLIER.get();
+            ModelRegistry modelRegistry = modelRegistrySupplier.get();
             if (modelRegistry == null) {
                 throw new IllegalStateException("Model registry has not been set");
             }
@@ -272,7 +273,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
         boolean modified = false;
         if (queryRewriteContext.hasAsyncActions() == false) {
-            ModelRegistry modelRegistry = MODEL_REGISTRY_SUPPLIER.get();
+            ModelRegistry modelRegistry = modelRegistrySupplier.get();
             if (modelRegistry == null) {
                 throw new IllegalStateException("Model registry has not been set");
             }

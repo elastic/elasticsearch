@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -104,8 +105,12 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
         String localIndex = (String) testClusterInfo.get("local.index");
         String remoteIndex = (String) testClusterInfo.get("remote.index");
 
+        ModelRegistry modelRegistry = cluster(LOCAL_CLUSTER).getCurrentMasterNodeInstance(ModelRegistry.class);
+        SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder(INFERENCE_FIELD, "foo");
+        queryBuilder.setModelRegistrySupplier(() -> modelRegistry);
+
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
-        searchRequest.source(new SearchSourceBuilder().query(new SemanticQueryBuilder(INFERENCE_FIELD, "foo")).size(10));
+        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).size(10));
         searchRequest.setCcsMinimizeRoundtrips(true);
 
         assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
@@ -155,12 +160,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
     private Map<String, Object> setupTwoClusters(String[] localIndices, String[] remoteIndices) throws IOException {
         final String localInferenceId = "local_inference_id";
         final String remoteInferenceId = "remote_inference_id";
-
-        // TODO: Resolve bug where remote model registry overwrites local model registry in SemanticQueryBuilder
         createInferenceEndpoint(client(LOCAL_CLUSTER), TaskType.TEXT_EMBEDDING, localInferenceId, TEXT_EMBEDDING_SERVICE_SETTINGS_1);
-        createInferenceEndpoint(client(LOCAL_CLUSTER), TaskType.TEXT_EMBEDDING, remoteInferenceId, TEXT_EMBEDDING_SERVICE_SETTINGS_2);
-
-        createInferenceEndpoint(client(REMOTE_CLUSTER), TaskType.TEXT_EMBEDDING, localInferenceId, TEXT_EMBEDDING_SERVICE_SETTINGS_1);
         createInferenceEndpoint(client(REMOTE_CLUSTER), TaskType.TEXT_EMBEDDING, remoteInferenceId, TEXT_EMBEDDING_SERVICE_SETTINGS_2);
 
         int numShardsLocal = randomIntBetween(2, 10);

@@ -52,7 +52,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-// TODO: Add flag to perform inference again during remote cluster coordinator rewrite
+// TODO: Remove noInferenceResults
 
 public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuilder> {
     public static final String NAME = "semantic";
@@ -242,7 +242,9 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
-        if (embeddingsProvider != null || noInferenceResults) {
+        // Check that we are performing a coordinator node rewrite
+        // TODO: Clean up how we perform this check
+        if (queryRewriteContext.getClass() != QueryRewriteContext.class) {
             return this;
         }
 
@@ -257,54 +259,65 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
             }
         }
 
-        Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
-        MapEmbeddingsProvider mapEmbeddingsProvider = new MapEmbeddingsProvider();
+        MapEmbeddingsProvider currentEmbeddingsProvider;
+        if (embeddingsProvider != null) {
+            if (embeddingsProvider instanceof MapEmbeddingsProvider mapEmbeddingsProvider) {
+                currentEmbeddingsProvider = mapEmbeddingsProvider;
+            } else {
+                throw new IllegalStateException("Current embeddings provider should be a MapEmbeddingsProvider");
+            }
+        } else {
+            currentEmbeddingsProvider = new MapEmbeddingsProvider();
+        }
 
-        // The inference ID set can be empty if either the field name or index name(s) are invalid (or both).
-        // If this happens, we set the "no inference results" flag to true so the rewrite process can continue.
-        // Invalid index names will be handled in the transport layer, when the query is sent to the shard.
-        // Invalid field names will be handled when the query is re-written on the shard, where we have access to the index mappings.
-        boolean noInferenceResults = inferenceIds.isEmpty();
-
-        for (String inferenceId : inferenceIds) {
-            InferenceAction.Request inferenceRequest = new InferenceAction.Request(
-                TaskType.ANY,
-                inferenceId,
-                null,
-                null,
-                null,
-                List.of(query),
-                Map.of(),
-                InputType.INTERNAL_SEARCH,
-                null,
-                false
-            );
-
+        boolean modified = false;
+        if (queryRewriteContext.hasAsyncActions() == false) {
             ModelRegistry modelRegistry = MODEL_REGISTRY_SUPPLIER.get();
             if (modelRegistry == null) {
                 throw new IllegalStateException("Model registry has not been set");
             }
 
-            MinimalServiceSettings serviceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
-            InferenceEndpointKey inferenceEndpointKey = new InferenceEndpointKey(inferenceId, serviceSettings);
-            queryRewriteContext.registerAsyncAction(
-                (client, listener) -> executeAsyncWithOrigin(
-                    client,
-                    ML_ORIGIN,
-                    InferenceAction.INSTANCE,
-                    inferenceRequest,
-                    listener.delegateFailureAndWrap((l, inferenceResponse) -> {
-                        mapEmbeddingsProvider.addEmbeddings(
-                            inferenceEndpointKey,
-                            validateAndConvertInferenceResults(inferenceResponse.getResults(), fieldName, inferenceId)
-                        );
-                        l.onResponse(null);
-                    })
-                )
-            );
+            Set<String> inferenceIds = getInferenceIdsForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
+            for (String inferenceId : inferenceIds) {
+                MinimalServiceSettings serviceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
+                InferenceEndpointKey inferenceEndpointKey = new InferenceEndpointKey(inferenceId, serviceSettings);
+
+                if (currentEmbeddingsProvider.getEmbeddings(inferenceEndpointKey) == null) {
+                    InferenceAction.Request inferenceRequest = new InferenceAction.Request(
+                        TaskType.ANY,
+                        inferenceId,
+                        null,
+                        null,
+                        null,
+                        List.of(query),
+                        Map.of(),
+                        InputType.INTERNAL_SEARCH,
+                        null,
+                        false
+                    );
+
+                    queryRewriteContext.registerAsyncAction(
+                        (client, listener) -> executeAsyncWithOrigin(
+                            client,
+                            ML_ORIGIN,
+                            InferenceAction.INSTANCE,
+                            inferenceRequest,
+                            listener.delegateFailureAndWrap((l, inferenceResponse) -> {
+                                currentEmbeddingsProvider.addEmbeddings(
+                                    inferenceEndpointKey,
+                                    validateAndConvertInferenceResults(inferenceResponse.getResults(), fieldName, inferenceId)
+                                );
+                                l.onResponse(null);
+                            })
+                        )
+                    );
+
+                    modified = true;
+                }
+            }
         }
 
-        return new SemanticQueryBuilder(this, noInferenceResults ? null : mapEmbeddingsProvider, noInferenceResults);
+        return modified ? new SemanticQueryBuilder(this, currentEmbeddingsProvider, false) : this;
     }
 
     private static InferenceResults validateAndConvertInferenceResults(

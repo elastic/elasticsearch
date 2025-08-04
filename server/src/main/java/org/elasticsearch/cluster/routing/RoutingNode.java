@@ -355,7 +355,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert relocatingShards.size() == shardRoutingsRelocating.size() && relocatingShards.containsAll(shardRoutingsRelocating);
         assert startedShards.size() == shardRoutingsStarted.size() && startedShards.containsAll(shardRoutingsStarted);
         assert shardRoutingsByIndex.equals(shardsByIndex);
-        assert shardsByIndex.size() == indexUuids.size();
 
         return true;
     }

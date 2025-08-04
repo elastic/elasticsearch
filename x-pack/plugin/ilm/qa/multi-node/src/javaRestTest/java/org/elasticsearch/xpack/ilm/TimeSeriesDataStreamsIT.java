@@ -246,6 +246,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
             assertNull(settings.get("index.frozen"));
         }, 30, TimeUnit.SECONDS);
+
     }
 
     public void checkForceMergeAction(String codec) throws Exception {

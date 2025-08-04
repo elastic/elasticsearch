@@ -197,7 +197,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             return new FallbackSyntheticSourceBlockLoader(
                 new GeometriesFallbackSyntheticSourceReader(),
                 name(),
-                blContext.indexSettings().getIndexVersionCreated()
+                IgnoredSourceFieldMapper.ignoredFieldsLoader(blContext.indexSettings().getIndexVersionCreated())
             ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {

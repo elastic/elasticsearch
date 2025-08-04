@@ -26,7 +26,6 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -275,58 +274,72 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public enum IgnoredFieldsLoader {
         NO_IGNORED_SOURCE {
             @Override
-            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadIgnoredFields(
+            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
                 SourceFilter filter,
-                LeafStoredFieldLoader storedFieldLoader,
-                Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders
+                Map<String, List<Object>> storedFields
+            ) {
+                return Map.of();
+            }
+
+            @Override
+            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadSingleIgnoredField(
+                Set<String> fieldPaths,
+                Map<String, List<Object>> storedFields
             ) {
                 return Map.of();
             }
         },
         SINGLE_IGNORED_SOURCE {
             @Override
-            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadIgnoredFields(
+            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
                 SourceFilter filter,
-                LeafStoredFieldLoader storedFieldLoader,
-                Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders
+                Map<String, List<Object>> storedFields
             ) {
                 Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
-                for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
-                    SourceLoader.SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
-                    if (loader != null) {
-                        loader.load(e.getValue());
-                    }
-                    if (IgnoredSourceFieldMapper.NAME.equals(e.getKey())) {
-                        for (Object value : e.getValue()) {
-                            if (objectsWithIgnoredFields == null) {
-                                objectsWithIgnoredFields = new HashMap<>();
-                            }
-                            IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
-                            if (filter != null
-                                && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
-                                // This path is filtered by the include/exclude rules
-                                continue;
-                            }
-                            objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
+                List<Object> storedValues = storedFields.get(IgnoredSourceFieldMapper.NAME);
+                if (storedValues != null) {
+                    for (Object value : storedValues) {
+                        if (objectsWithIgnoredFields == null) {
+                            objectsWithIgnoredFields = new HashMap<>();
                         }
+                        IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                        if (filter != null
+                            && filter.isPathFiltered(nameValue.name(), XContentDataHelper.isEncodedObject(nameValue.value()))) {
+                            // This path is filtered by the include/exclude rules
+                            continue;
+                        }
+                        objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
                     }
                 }
                 return objectsWithIgnoredFields;
             }
+
+            @Override
+            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadSingleIgnoredField(
+                Set<String> fieldPaths,
+                Map<String, List<Object>> storedFields
+            ) {
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
+                var ignoredSource = storedFields.get(IgnoredSourceFieldMapper.NAME);
+                if (ignoredSource != null) {
+                    for (Object value : ignoredSource) {
+                        IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                        if (fieldPaths.contains(nameValue.name())) {
+                            valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
+                        }
+                    }
+                }
+                return valuesForFieldAndParents;
+            }
         },
         PER_FIELD_IGNORED_SOURCE {
             @Override
-            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadIgnoredFields(
+            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
                 SourceFilter filter,
-                LeafStoredFieldLoader storedFieldLoader,
-                Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders
+                Map<String, List<Object>> storedFields
             ) {
                 Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
-                for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
-                    SourceLoader.SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
-                    if (loader != null) {
-                        loader.load(e.getValue());
-                    }
+                for (Map.Entry<String, List<Object>> e : storedFields.entrySet()) {
                     if (e.getKey().startsWith(IgnoredSourceFieldMapper.NAME)) {
                         assert e.getValue().size() == 1;
 
@@ -348,12 +361,42 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                 }
                 return objectsWithIgnoredFields;
             }
+
+            @Override
+            public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadSingleIgnoredField(
+                Set<String> fieldPaths,
+                Map<String, List<Object>> storedFields
+            ) {
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = new HashMap<>();
+                for (var parentPath : fieldPaths) {
+                    var ignoredSource = storedFields.get(IgnoredSourceFieldMapper.ignoredFieldName(parentPath));
+                    if (ignoredSource == null) {
+                        continue;
+                    }
+                    assert ignoredSource.size() == 1;
+
+                    List<IgnoredSourceFieldMapper.NameValue> nameValues = IgnoredSourceFieldMapper.decodeMulti(
+                        (BytesRef) ignoredSource.getFirst()
+                    );
+
+                    for (var nameValue : nameValues) {
+                        assert fieldPaths.contains(nameValue.name());
+                        valuesForFieldAndParents.computeIfAbsent(nameValue.name(), k -> new ArrayList<>()).add(nameValue);
+                    }
+                }
+
+                return valuesForFieldAndParents;
+            }
         };
 
-        public abstract Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadIgnoredFields(
+        public abstract Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
             SourceFilter filter,
-            LeafStoredFieldLoader storedFieldLoader,
-            Map<String, SourceLoader.SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders
+            Map<String, List<Object>> storedFields
+        );
+
+        public abstract Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadSingleIgnoredField(
+            Set<String> fieldPaths,
+            Map<String, List<Object>> storedFields
         );
     }
 

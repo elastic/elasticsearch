@@ -219,11 +219,17 @@ public interface SourceLoader {
 
             @Override
             public void write(LeafStoredFieldLoader storedFieldLoader, int docId, XContentBuilder b) throws IOException {
+                for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
+                    SourceLoader.SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
+                    if (loader != null) {
+                        loader.load(e.getValue());
+                    }
+                }
+
                 // Maps the names of existing objects to lists of ignored fields they contain.
-                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = ignoredFieldsLoader.loadIgnoredFields(
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = ignoredFieldsLoader.loadAllIgnoredFields(
                     filter,
-                    storedFieldLoader,
-                    storedFieldLoaders
+                    storedFieldLoader.storedFields()
                 );
 
                 if (objectsWithIgnoredFields != null) {

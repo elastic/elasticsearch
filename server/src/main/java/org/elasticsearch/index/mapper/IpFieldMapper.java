@@ -518,7 +518,11 @@ public class IpFieldMapper extends FieldMapper {
                 }
             };
 
-            return new FallbackSyntheticSourceBlockLoader(reader, name(), blContext.indexSettings().getIndexVersionCreated()) {
+            return new FallbackSyntheticSourceBlockLoader(
+                reader,
+                name(),
+                IgnoredSourceFieldMapper.ignoredFieldsLoader(blContext.indexSettings().getIndexVersionCreated())
+            ) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
                     return factory.bytesRefs(expectedCount);

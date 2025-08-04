@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -383,7 +384,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
-                    blContext.indexSettings().getIndexVersionCreated()
+                    IgnoredSourceFieldMapper.ignoredFieldsLoader(blContext.indexSettings().getIndexVersionCreated())
                 ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {

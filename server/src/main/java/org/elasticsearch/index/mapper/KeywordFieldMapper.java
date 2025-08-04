@@ -805,7 +805,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new FallbackSyntheticSourceBlockLoader(
                     fallbackSyntheticSourceBlockLoaderReader(),
                     name(),
-                    blContext.indexSettings().getIndexVersionCreated()
+                    IgnoredSourceFieldMapper.ignoredFieldsLoader(blContext.indexSettings().getIndexVersionCreated())
                 ) {
                     @Override
                     public Builder builder(BlockFactory factory, int expectedCount) {

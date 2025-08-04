@@ -51,6 +51,7 @@ public class CompletionOperatorRequestIterator implements BulkInferenceRequestIt
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
+
         return inferenceRequest(promptReader.readPrompt(currentPos++));
     }
 

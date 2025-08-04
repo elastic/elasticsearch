@@ -141,7 +141,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         double cutoff_affinity = 0.3; // minimum affinity score for a segment to be considered
         double higher_affinity = 0.7; // min affinity for increasing nProbe
-        double lower_affinity = 0.6 ; // max affinity for decreasing nProbe
+        double lower_affinity = 0.6; // max affinity for decreasing nProbe
 
         int max_adjustment = 20;
 

@@ -54,8 +54,11 @@ public final class ExceptionsHelper {
     }
 
     public static ElasticsearchException convertToElastic(Exception e) {
-        if (e instanceof ElasticsearchException) {
-            return (ElasticsearchException) e;
+        if (e instanceof ElasticsearchException ese) {
+            return ese;
+        }
+        if (getInnerMostCause(e) instanceof ElasticsearchException ese) {
+            return ese;
         }
         return new ElasticsearchException(e);
     }
@@ -73,6 +76,24 @@ public final class ExceptionsHelper {
             }
         }
         return RestStatus.INTERNAL_SERVER_ERROR;
+    }
+
+    /**
+     * Unwraps while the throwable has a cause and the cause is not the same as the throwable itself.
+     * If you are wanting to unwrap an {@link ElasticsearchWrapperException} use {@link #unwrapCause(Throwable)} instead.
+     * @param t Throwable to unwrap
+     * @return the innermost cause of the given throwable, or the throwable itself if it has no cause
+     */
+    private static Throwable getInnerMostCause(Throwable t) {
+        int counter = 0;
+        Throwable result = t;
+        while (t.getCause() != null && t.getCause() != result) {
+            if (counter++ > 10) {
+                return result;
+            }
+            result = result.getCause();
+        }
+        return result;
     }
 
     public static Throwable unwrapCause(Throwable t) {

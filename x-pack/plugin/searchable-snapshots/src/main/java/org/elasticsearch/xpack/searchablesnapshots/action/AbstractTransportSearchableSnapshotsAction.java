@@ -92,7 +92,7 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
     protected ShardsIterator shards(ClusterState state, Request request, String[] concreteIndices) {
         final List<String> searchableSnapshotIndices = new ArrayList<>();
         for (String concreteIndex : concreteIndices) {
-            IndexMetadata indexMetaData = state.metadata().index(concreteIndex);
+            IndexMetadata indexMetaData = state.metadata().getProject().index(concreteIndex);
             if (indexMetaData != null) {
                 if (indexMetaData.isSearchableSnapshot()) {
                     searchableSnapshotIndices.add(concreteIndex);

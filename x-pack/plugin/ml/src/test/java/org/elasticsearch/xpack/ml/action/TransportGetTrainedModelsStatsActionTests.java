@@ -12,7 +12,11 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +25,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
@@ -82,7 +88,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 Map<String, Processor.Factory> processorFactories,
                 String tag,
                 String description,
-                Map<String, Object> config
+                Map<String, Object> config,
+                ProjectId projectId
             ) {
                 return new NotInferenceProcessor();
             }
@@ -145,7 +152,14 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             Collections.singletonList(SKINNY_INGEST_PLUGIN),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.alwaysThrow(),
+            new FeatureService(List.of()) {
+                @Override
+                public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                    return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                }
+            }
         );
     }
 
@@ -154,9 +168,24 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             buildNodeStats(
                 new IngestStats.Stats(2, 2, 3, 4),
                 Arrays.asList(
-                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(0, 0, 3, 1), new IngestStats.ByteStats(789, 0)),
-                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1), new IngestStats.ByteStats(123, 123)),
-                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1), new IngestStats.ByteStats(1234, 5678))
+                    new IngestStats.PipelineStat(
+                        ProjectId.DEFAULT,
+                        "pipeline1",
+                        new IngestStats.Stats(0, 0, 3, 1),
+                        new IngestStats.ByteStats(789, 0)
+                    ),
+                    new IngestStats.PipelineStat(
+                        ProjectId.DEFAULT,
+                        "pipeline2",
+                        new IngestStats.Stats(1, 1, 0, 1),
+                        new IngestStats.ByteStats(123, 123)
+                    ),
+                    new IngestStats.PipelineStat(
+                        ProjectId.DEFAULT,
+                        "pipeline3",
+                        new IngestStats.Stats(2, 1, 1, 1),
+                        new IngestStats.ByteStats(1234, 5678)
+                    )
                 ),
                 Arrays.asList(
                     Arrays.asList(
@@ -178,9 +207,24 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
             buildNodeStats(
                 new IngestStats.Stats(15, 5, 3, 4),
                 Arrays.asList(
-                    new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 3, 1), new IngestStats.ByteStats(5678, 123456)),
-                    new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(1, 1, 0, 1), new IngestStats.ByteStats(111, 222)),
-                    new IngestStats.PipelineStat("pipeline3", new IngestStats.Stats(2, 1, 1, 1), new IngestStats.ByteStats(555, 777))
+                    new IngestStats.PipelineStat(
+                        ProjectId.DEFAULT,
+                        "pipeline1",
+                        new IngestStats.Stats(10, 1, 3, 1),
+                        new IngestStats.ByteStats(5678, 123456)
+                    ),
+                    new IngestStats.PipelineStat(
+                        ProjectId.DEFAULT,
+                        "pipeline2",
+                        new IngestStats.Stats(1, 1, 0, 1),
+                        new IngestStats.ByteStats(111, 222)
+                    ),
+                    new IngestStats.PipelineStat(
+                        ProjectId.DEFAULT,
+                        "pipeline3",
+                        new IngestStats.Stats(2, 1, 1, 1),
+                        new IngestStats.ByteStats(555, 777)
+                    )
                 ),
                 Arrays.asList(
                     Arrays.asList(
@@ -216,13 +260,21 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         IngestStats expectedStatsModel1 = new IngestStats(
             new IngestStats.Stats(10, 1, 6, 2),
             Collections.singletonList(
-                new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2), new IngestStats.ByteStats(6467, 123456))
+                new IngestStats.PipelineStat(
+                    ProjectId.DEFAULT,
+                    "pipeline1",
+                    new IngestStats.Stats(10, 1, 6, 2),
+                    new IngestStats.ByteStats(6467, 123456)
+                )
             ),
-            Collections.singletonMap(
-                "pipeline1",
-                Arrays.asList(
-                    new IngestStats.ProcessorStat("inference", "inference", new IngestStats.Stats(120, 12, 0, 1)),
-                    new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+            Map.of(
+                ProjectId.DEFAULT,
+                Collections.singletonMap(
+                    "pipeline1",
+                    Arrays.asList(
+                        new IngestStats.ProcessorStat("inference", "inference", new IngestStats.Stats(120, 12, 0, 1)),
+                        new IngestStats.ProcessorStat("grok", "grok", new IngestStats.Stats(10, 1, 0, 0))
+                    )
                 )
             )
         );
@@ -230,10 +282,20 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         IngestStats expectedStatsModel2 = new IngestStats(
             new IngestStats.Stats(12, 3, 6, 4),
             Arrays.asList(
-                new IngestStats.PipelineStat("pipeline1", new IngestStats.Stats(10, 1, 6, 2), new IngestStats.ByteStats(6467, 123456)),
-                new IngestStats.PipelineStat("pipeline2", new IngestStats.Stats(2, 2, 0, 2), new IngestStats.ByteStats(234, 345))
+                new IngestStats.PipelineStat(
+                    ProjectId.DEFAULT,
+                    "pipeline1",
+                    new IngestStats.Stats(10, 1, 6, 2),
+                    new IngestStats.ByteStats(6467, 123456)
+                ),
+                new IngestStats.PipelineStat(
+                    ProjectId.DEFAULT,
+                    "pipeline2",
+                    new IngestStats.Stats(2, 2, 0, 2),
+                    new IngestStats.ByteStats(234, 345)
+                )
             ),
-            new HashMap<>() {
+            Map.of(ProjectId.DEFAULT, new HashMap<>() {
                 {
                     put(
                         "pipeline2",
@@ -250,7 +312,7 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                         )
                     );
                 }
-            }
+            })
         );
 
         assertThat(ingestStatsMap, hasEntry("trained_model_1", expectedStatsModel1));
@@ -266,7 +328,10 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
         IngestStats ingestStats = new IngestStats(
             overallStats,
             pipelineNames,
-            IntStream.range(0, pipelineids.size()).boxed().collect(Collectors.toMap(pipelineids::get, processorStats::get))
+            Map.of(
+                ProjectId.DEFAULT,
+                IntStream.range(0, pipelineids.size()).boxed().collect(Collectors.toMap(pipelineids::get, processorStats::get))
+            )
         );
         return new NodeStats(
             mock(DiscoveryNode.class),

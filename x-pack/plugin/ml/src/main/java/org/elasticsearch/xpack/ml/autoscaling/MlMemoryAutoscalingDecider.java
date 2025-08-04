@@ -851,7 +851,7 @@ class MlMemoryAutoscalingDecider {
      */
     Optional<NativeMemoryCapacity> calculateFutureAvailableCapacity(Collection<DiscoveryNode> mlNodes, ClusterState clusterState) {
         return calculateFutureAvailableCapacity(
-            clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE),
+            clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE),
             mlNodes.stream()
                 .map(node -> nodeLoadDetector.detectNodeLoad(clusterState, node, maxOpenJobs, maxMachineMemoryPercent, useAuto))
                 .toList()

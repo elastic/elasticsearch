@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.tasks.Task;
@@ -43,7 +43,7 @@ public class TransportStopILMActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         Task task = new Task(
             randomLong(),

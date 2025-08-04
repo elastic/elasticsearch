@@ -13,7 +13,6 @@ import fixture.azure.MockAzureBlobStore;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
-import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -42,6 +41,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
@@ -73,6 +74,7 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 
     protected static final String DEFAULT_ACCOUNT_NAME = "account";
@@ -242,11 +244,12 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     private static class AzureHTTPStatsCollectorHandler extends HttpStatsCollectorHandler {
 
         private AzureHTTPStatsCollectorHandler(HttpHandler delegate) {
-            super(delegate);
+            super(delegate, Arrays.stream(AzureBlobStore.Operation.values()).map(AzureBlobStore.Operation::getKey).toArray(String[]::new));
         }
 
         @Override
-        protected void maybeTrack(String request, Headers headers) {
+        protected void maybeTrack(HttpExchange exchange) {
+            final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
             if (GET_BLOB_PATTERN.test(request)) {
                 trackRequest("GetBlob");
             } else if (Regex.simpleMatch("HEAD /*/*/*", request)) {

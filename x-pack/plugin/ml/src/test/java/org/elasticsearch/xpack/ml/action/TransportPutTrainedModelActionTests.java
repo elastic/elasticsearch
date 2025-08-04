@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -365,10 +366,10 @@ public class TransportPutTrainedModelActionTests extends ESTestCase {
             threadPool,
             null,
             mockFilters,
-            null,
             mockClient,
             null,
-            null
+            null,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
     }
 

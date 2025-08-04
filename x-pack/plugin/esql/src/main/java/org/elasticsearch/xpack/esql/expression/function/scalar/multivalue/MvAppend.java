@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -38,6 +39,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCounters;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
@@ -65,7 +67,8 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "long",
             "unsigned_long",
             "version" },
-        description = "Concatenates values of two multi-value fields."
+        description = "Concatenates values of two multi-value fields.",
+        examples = { @Example(file = "date", tag = "mv_append_date") }
     )
     public MvAppend(
         Source source,
@@ -135,14 +138,14 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isType(field1, DataType::isRepresentable, sourceText(), FIRST, "representable");
+        TypeResolution resolution = isRepresentableExceptCounters(field1, sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
         dataType = field1.dataType().noText();
         if (dataType == DataType.NULL) {
             dataType = field2.dataType().noText();
-            return isType(field2, DataType::isRepresentable, sourceText(), SECOND, "representable");
+            return isRepresentableExceptCounters(field2, sourceText(), SECOND);
         }
         return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.typeName());
     }

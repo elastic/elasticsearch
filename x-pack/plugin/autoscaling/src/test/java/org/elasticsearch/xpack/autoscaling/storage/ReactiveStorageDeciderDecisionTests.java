@@ -386,7 +386,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private Set<IndexMetadata> allIndices() {
-        return new HashSet<>(state.metadata().getIndices().values());
+        return new HashSet<>(state.metadata().getProject().indices().values());
     }
 
     private ClusterState moveToCold(Set<IndexMetadata> candidates) {

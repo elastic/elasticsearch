@@ -165,7 +165,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
             nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, () -> featureMetadataConfig.getAsPath());
 
             // Enable parallel execution for these tests since each test gets its own cluster
-            task.setMaxParallelForks(task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2);
+            task.setMaxParallelForks(Math.max(1, task.getProject().getGradle().getStartParameter().getMaxWorkerCount() / 2));
             nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
@@ -198,6 +198,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
+                    if (reasonForUsageProvided(args) == false) {
+                        throw new IllegalArgumentException(
+                            "Reason for using `usesDefaultDistribution` required.\nUse usesDefaultDistribution(\"reason why default distro is required here\")."
+                        );
+                    }
                     task.dependsOn(defaultDistro);
                     registerDistributionInputs(task, defaultDistro);
 
@@ -211,6 +216,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     nonInputSystemProperties.systemProperty(TESTS_FEATURES_METADATA_PATH, defaultDistroFeatureMetadataConfig::getAsPath);
 
                     return null;
+                }
+
+                private static boolean reasonForUsageProvided(Object[] args) {
+                    return args.length == 1 && args[0] instanceof String && ((String) args[0]).isBlank() == false;
                 }
             });
 

@@ -154,9 +154,11 @@ if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("limit
 
 The above code checks the request's compatible version and if the request has the parameter in question. In this case the deprecation warning is not automatic and requires the developer to manually log the warning. `request.param` is also required since it consumes the value as to avoid the error of unconsumed parameters.
 
-### Testing
+### Testing Backwards Compatibility
 
-The primary means of testing compatibility is via the prior major version's YAML REST tests. The build system will download the latest prior version of the YAML rest tests and execute them against the current cluster version. Prior to execution the tests will be transformed by injecting the correct headers to enable compatibility as well as other custom changes to the tests to allow the tests to pass. These customizations are configured via the build.gradle and happen just prior to test execution. Since the compatibility tests are manipulated version of the tests stored in Github (via the past major version), it is important to find the local (on disk) version for troubleshooting compatibility tests.
+The primary means of testing compatibility is via the prior major version's YAML REST tests. The build system will download the latest prior version of the YAML rest tests and execute them against the current cluster version. For example if you are testing main versioned as 9.0.0 the build system will download the yaml tests in the 8.x branch and execute those against the current cluster version for 9.0.0.
+
+Prior to execution the tests will be transformed by injecting the correct headers to enable compatibility as well as other custom changes to the tests to allow the tests to pass. These customizations are configured via the build.gradle and happen just prior to test execution. Since the compatibility tests are manipulated version of the tests stored in Github (via the past major version), it is important to find the local (on disk) version for troubleshooting compatibility tests.
 
 The tests are wired into the `check` task, so that is the easiest way to test locally prior to committing.  More specifically the task is called `yamlRestCompatTest`. These behave nearly identical to it's non-compat `yamlRestTest` task. The only variance is that the tests are sourced from the prior version branch and the tests go through a transformation phase before execution. The transformation task is `yamlRestCompatTestTransform`.
 
@@ -169,6 +171,36 @@ For example:
 Since these are a variation of backward compatibility testing, the entire suite of compatibility tests will be skipped anytime the backward compatibility testing is disabled. Since the source code for these tests live in a branch of code, disabling a specific test should be done via the transformation task configuration in build.gradle (i.e. `yamlRestCompatTestTransform`).
 
 In some cases the prior version of the YAML REST tests are not sufficient to fully test changes. This can happen when the prior version has insufficient test coverage. In those cases, you can simply add more testing to the prior version or you can add custom REST tests that will run along side of the other compatibility tests. These custom tests can be found in the `yamlRestCompatTest` sourceset. Custom REST tests for compatibility will not be modified prior to execution, so the correct headers need to be manually added.
+
+#### Breaking Changes
+
+It is possible to be in a state where you have intentionally made a breaking change and the compatibility tests will fail irrespective of checks for `skip` or `requires` cluster or test features in the current version such as 9.0.0. In this state, assuming the breaking changes are reasonable and agreed upon by the breaking change committee, the correct behavior is to skip the test in the `build.gradle` in 9.0.0. For example, if you make a breaking change that causes the `range/20_synthetic_source/Date range` to break then this test can be disabled temporarily in this file `rest-api-spec/build.gradle` like within this snippet:
+
+```groovy
+tasks.named("yamlRestCompatTestTransform").configure({task ->
+    task.skipTest("range/20_synthetic_source/Date range", "date range breaking change causes tests to produce incorrect values for compatibility")
+    task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
+    task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+    task.skipTestsByFilePattern("indices.create/synthetic_source*.yml", "@UpdateForV9 -> tests do not pass after bumping API version to 9 [ES-9597]")
+})
+```
+
+When skipping a test temporarily in 9.0.0, we have to implement the proper `skip` and `requires` conditions to previous branches, such as 8.latest. After these conditions are implemented in 8.latest, you can re-enable the test in 9.0.0 by removing the `skipTest` condition.
+
+The team implementing the changes can decide how to clean up or modify tests based on how breaking changes were backported. e.g.:
+
+In 8.latest:
+
+* Add `skip` / `requires` conditions to existing tests that check the old behavior. This prevents those tests from failing during backward compatibility or upgrade testing from 8.latest to 9.0.0
+
+In 9.0.0:
+
+* Add `requires` conditions for new tests that validate the updated API or output format
+* Add `skip` conditions for older tests that would break in 9.0.0
+
+#### Test Features
+
+Both cluster and test features exist. Cluster features are meant for new capability and test features can specifically be used to gate and manage `skip` and `requires` yaml test operations.  For more information, see [Versioning.md](docs/internal/Versioning.md#cluster-features). When backporting and using these features they can not overlap in name and must be consistent when backported so that clusters built with these features are compatible.
 
 ### Developer's workflow
 

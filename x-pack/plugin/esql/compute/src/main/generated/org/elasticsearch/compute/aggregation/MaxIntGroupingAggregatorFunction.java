@@ -13,6 +13,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -55,7 +57,7 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
@@ -65,7 +67,12 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
       }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valuesBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
 
@@ -81,7 +88,12 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
     }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
-      public void add(int positionOffset, IntBlock groupIds) {
+      public void add(int positionOffset, IntArrayBlock groupIds) {
+        addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void add(int positionOffset, IntBigArrayBlock groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
 
@@ -96,39 +108,15 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      if (values.isNull(groupPosition + positionOffset)) {
-        continue;
-      }
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), values.getInt(v)));
-      }
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), values.getInt(groupPosition + positionOffset)));
-    }
-  }
-
-  private void addRawInput(int positionOffset, IntBlock groups, IntBlock values) {
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
@@ -138,7 +126,7 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -153,8 +141,116 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector max = ((IntBlock) maxUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert max.getPositionCount() == seen.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (seen.getBoolean(groupPosition + positionOffset)) {
+          state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), max.getInt(groupPosition + positionOffset)));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+        for (int v = valuesStart; v < valuesEnd; v++) {
+          state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), values.getInt(v)));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), values.getInt(groupPosition + positionOffset)));
+      }
+    }
+  }
+
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector max = ((IntBlock) maxUncast).asVector();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert max.getPositionCount() == seen.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        if (seen.getBoolean(groupPosition + positionOffset)) {
+          state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), max.getInt(groupPosition + positionOffset)));
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int groupId = groups.getInt(groupPosition);
+      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
+      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
+      for (int v = valuesStart; v < valuesEnd; v++) {
+        state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), values.getInt(v)));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int groupId = groups.getInt(groupPosition);
+      state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), values.getInt(groupPosition + positionOffset)));
+    }
   }
 
   @Override
@@ -181,15 +277,8 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    IntArrayState inState = ((MaxIntGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    if (inState.hasValue(position)) {
-      state.set(groupId, MaxIntAggregator.combine(state.getOrDefault(groupId), inState.get(position)));
-    }
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -199,8 +288,8 @@ public final class MaxIntGroupingAggregatorFunction implements GroupingAggregato
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      DriverContext driverContext) {
-    blocks[offset] = state.toValuesBlock(selected, driverContext);
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = state.toValuesBlock(selected, ctx.driverContext());
   }
 
   @Override

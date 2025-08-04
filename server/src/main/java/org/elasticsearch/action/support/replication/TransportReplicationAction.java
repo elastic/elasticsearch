@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -45,6 +47,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -60,6 +63,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 import org.elasticsearch.transport.TransportChannel;
@@ -72,6 +76,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -80,7 +85,7 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * Base class for requests that should be executed on a primary copy followed by replica copies.
  * Subclasses can resolve the target shard and provide implementation for primary and replica operations.
- *
+ * <p>
  * The action samples cluster state on the receiving node to reroute to node with primary copy and on the
  * primary node to validate request before primary operation followed by sampling state again for resolving
  * nodes with replica copies to perform replication.
@@ -331,7 +336,7 @@ public abstract class TransportReplicationAction<
         return TransportRequestOptions.EMPTY;
     }
 
-    private ClusterBlockException blockExceptions(final ClusterState state, final String indexName) {
+    private ClusterBlockException blockExceptions(final ClusterState state, final ProjectId projectId, final String indexName) {
         ClusterBlockLevel globalBlockLevel = globalBlockLevel();
         if (globalBlockLevel != null) {
             ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel);
@@ -341,7 +346,7 @@ public abstract class TransportReplicationAction<
         }
         ClusterBlockLevel indexBlockLevel = indexBlockLevel();
         if (indexBlockLevel != null) {
-            ClusterBlockException blockException = state.blocks().indexBlockedException(indexBlockLevel, indexName);
+            ClusterBlockException blockException = state.blocks().indexBlockedException(projectId, indexBlockLevel, indexName);
             if (blockException != null) {
                 return blockException;
             }
@@ -453,9 +458,10 @@ public abstract class TransportReplicationAction<
         void runWithPrimaryShardReference(final PrimaryShardReference primaryShardReference) {
             try {
                 final ClusterState clusterState = clusterService.state();
-                final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(primaryShardReference.routingEntry().index());
+                final Index index = primaryShardReference.routingEntry().index();
+                final ProjectId projectId = clusterState.metadata().projectFor(index).id();
 
-                final ClusterBlockException blockException = blockExceptions(clusterState, indexMetadata.getIndex().getName());
+                final ClusterBlockException blockException = blockExceptions(clusterState, projectId, index.getName());
                 if (blockException != null) {
                     logger.trace("cluster is blocked, action failed on primary", blockException);
                     throw blockException;
@@ -788,7 +794,7 @@ public abstract class TransportReplicationAction<
      * Responsible for routing and retrying failed operations on the primary.
      * The actual primary operation is done in {@link ReplicationOperation} on the
      * node with primary copy.
-     *
+     * <p>
      * Resolves index and shard id for the request before routing it to target node
      */
     final class ReroutePhase extends AbstractRunnable {
@@ -823,7 +829,11 @@ public abstract class TransportReplicationAction<
         protected void doRun() {
             setPhase(task, "routing");
             final ClusterState state = observer.setAndGetObservedState();
-            final ClusterBlockException blockException = blockExceptions(state, request.shardId().getIndexName());
+            final Optional<ProjectMetadata> project = state.metadata().lookupProject(request.shardId().getIndex());
+
+            final ClusterBlockException blockException = project.map(
+                projectMetadata -> blockExceptions(state, projectMetadata.id(), request.shardId().getIndexName())
+            ).orElse(null);
             if (blockException != null) {
                 if (blockException.retryable()) {
                     logger.trace("cluster is blocked, scheduling a retry", blockException);
@@ -832,7 +842,7 @@ public abstract class TransportReplicationAction<
                     finishAsFailed(blockException);
                 }
             } else {
-                final IndexMetadata indexMetadata = state.metadata().index(request.shardId().getIndex());
+                final IndexMetadata indexMetadata = project.map(p -> p.index(request.shardId().getIndex())).orElse(null);
                 if (indexMetadata == null) {
                     // ensure that the cluster state on the node is at least as high as the node that decided that the index was there
                     if (state.version() < request.routedBasedOnClusterVersion()) {
@@ -874,7 +884,7 @@ public abstract class TransportReplicationAction<
                 assert request.waitForActiveShards() != ActiveShardCount.DEFAULT
                     : "request waitForActiveShards must be set in resolveRequest";
 
-                final ShardRouting primary = state.getRoutingTable().shardRoutingTable(request.shardId()).primaryShard();
+                final ShardRouting primary = state.routingTable(project.get().id()).shardRoutingTable(request.shardId()).primaryShard();
                 if (primary.active() == false) {
                     logger.trace(
                         "primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], "
@@ -1214,7 +1224,6 @@ public abstract class TransportReplicationAction<
         private final long globalCheckpoint;
 
         ReplicaResponse(StreamInput in) throws IOException {
-            super(in);
             localCheckpoint = in.readZLong();
             globalCheckpoint = in.readZLong();
         }
@@ -1323,12 +1332,16 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/
-    public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest
+    /**
+     * a wrapper class to encapsulate a request when being sent to a specific allocation id
+     **/
+    public static class ConcreteShardRequest<R extends TransportRequest> extends AbstractTransportRequest
         implements
             RawIndexingDataTransportRequest {
 
-        /** {@link AllocationId#getId()} of the shard this request is sent to **/
+        /**
+         * {@link AllocationId#getId()} of the shard this request is sent to
+         **/
         private final String targetAllocationID;
         private final long primaryTerm;
         private final R request;
@@ -1338,7 +1351,7 @@ public abstract class TransportReplicationAction<
         // is only true if sentFromLocalReroute is true.
         private final boolean localRerouteInitiatedByNodeClient;
 
-        public ConcreteShardRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
+        public ConcreteShardRequest(Reader<R> requestReader, StreamInput in) throws IOException {
             targetAllocationID = in.readString();
             primaryTerm = in.readVLong();
             sentFromLocalReroute = false;
@@ -1452,7 +1465,7 @@ public abstract class TransportReplicationAction<
         private final long globalCheckpoint;
         private final long maxSeqNoOfUpdatesOrDeletes;
 
-        public ConcreteReplicaRequest(Writeable.Reader<R> requestReader, StreamInput in) throws IOException {
+        public ConcreteReplicaRequest(Reader<R> requestReader, StreamInput in) throws IOException {
             super(requestReader, in);
             globalCheckpoint = in.readZLong();
             maxSeqNoOfUpdatesOrDeletes = in.readZLong();

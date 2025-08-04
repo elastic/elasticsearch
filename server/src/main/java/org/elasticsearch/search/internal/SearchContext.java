@@ -11,11 +11,13 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -39,6 +41,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -55,8 +58,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class encapsulates the state needed to execute a search. It holds a reference to the
@@ -70,13 +71,16 @@ public abstract class SearchContext implements Releasable {
     public static final int TRACK_TOTAL_HITS_DISABLED = -1;
     public static final int DEFAULT_TRACK_TOTAL_HITS_UP_TO = 10000;
 
-    protected final List<Releasable> releasables = new CopyOnWriteArrayList<>();
-
-    private final AtomicBoolean closed = new AtomicBoolean(false);
+    protected final SubscribableListener<Void> closeFuture = new SubscribableListener<>();
 
     {
         if (Assertions.ENABLED) {
-            releasables.add(LeakTracker.wrap(() -> { assert closed.get(); }));
+            closeFuture.addListener(ActionListener.releasing(LeakTracker.wrap(new Releasable() {
+                @Override
+                public void close() {
+                    // empty instance that will actually get GC'ed so that the leak tracker works
+                }
+            })));
         }
     }
     private InnerHitsContext innerHitsContext;
@@ -108,9 +112,11 @@ public abstract class SearchContext implements Releasable {
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) {
-            Releasables.close(releasables);
-        }
+        closeFuture.onResponse(null);
+    }
+
+    public final boolean isClosed() {
+        return closeFuture.isDone();
     }
 
     /**
@@ -370,11 +376,36 @@ public abstract class SearchContext implements Releasable {
     public abstract Profilers getProfilers();
 
     /**
+     * The circuit breaker used to account for the search operation.
+     */
+    public abstract CircuitBreaker circuitBreaker();
+
+    /**
+     * Return the amount of memory to buffer locally before accounting for it in the breaker.
+     */
+    public abstract long memAccountingBufferSize();
+
+    /**
+     * Checks if the accumulated bytes are greater than the buffer size and if so, checks the available memory in the parent breaker
+     * (the real memory breaker).
+     * @param locallyAccumulatedBytes the number of bytes accumulated locally
+     * @param label the label to use in the breaker
+     * @return true if the real memory breaker is called and false otherwise
+     */
+    public final boolean checkRealMemoryCB(int locallyAccumulatedBytes, String label) {
+        if (locallyAccumulatedBytes >= memAccountingBufferSize()) {
+            circuitBreaker().addEstimateBytesAndMaybeBreak(0, label);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
-        assert closed.get() == false;
-        releasables.add(releasable);
+        assert closeFuture.isDone() == false;
+        closeFuture.addListener(ActionListener.releasing(releasable));
     }
 
     /**
@@ -415,7 +446,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Build something to load source {@code _source}.
      */
-    public abstract SourceLoader newSourceLoader();
+    public abstract SourceLoader newSourceLoader(@Nullable SourceFilter sourceFilter);
 
     public abstract IdLoader newIdLoader();
 }

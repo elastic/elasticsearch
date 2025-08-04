@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
@@ -522,11 +523,12 @@ public class LdapRealmTests extends LdapTestCase {
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
-        when(mockSecurityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(mockSecurityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
-        when(mockSecurityIndex.defensiveCopy()).thenReturn(mockSecurityIndex);
-        when(mockSecurityIndex.indexExists()).thenReturn(true);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(mockSecurityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.isIndexUpToDate()).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
 
         Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);
@@ -535,7 +537,8 @@ public class LdapRealmTests extends LdapTestCase {
             defaultGlobalSettings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(
             defaultGlobalSettings,

@@ -446,16 +446,11 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalHistogram(
-            getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            order,
-            minDocCount,
-            emptyBucketInfo,
-            format,
-            keyed,
-            getMetadata()
-        );
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
+        return new InternalHistogram(getName(), buckets, order, minDocCount, emptyBucketInfo, format, keyed, getMetadata());
     }
 
     @Override

@@ -476,6 +476,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         restTestExecutionContext.clear();
+        // Prepare the stash so that ${_project_id_prefix_} is expanded as needed in some assertions:
+        restTestExecutionContext.stash().stashValue("_project_id_prefix_", activeProjectPrefix());
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {

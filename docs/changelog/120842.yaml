@@ -1,5 +1,0 @@
-pr: 120842
-summary: Remove Elastic Inference Service feature flag and deprecated setting
-area: Inference
-type: enhancement
-issues: []

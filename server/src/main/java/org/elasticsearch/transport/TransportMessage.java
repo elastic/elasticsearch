@@ -9,37 +9,15 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 
-import java.net.InetSocketAddress;
-
 public abstract class TransportMessage implements Writeable, RefCounted {
-
-    @Nullable // set by the transport service on inbound messages; unset on outbound messages
-    private InetSocketAddress remoteAddress;
-
-    public void remoteAddress(InetSocketAddress remoteAddress) {
-        this.remoteAddress = remoteAddress;
-    }
-
-    @Nullable // set by the transport service on inbound messages; unset on outbound messages
-    public InetSocketAddress remoteAddress() {
-        return remoteAddress;
-    }
 
     /**
      * Constructs a new empty transport message
      */
     public TransportMessage() {}
-
-    /**
-     * Constructs a new transport message with the data from the {@link StreamInput}. This is
-     * currently a no-op
-     */
-    public TransportMessage(StreamInput in) {}
 
     @Override
     public void incRef() {

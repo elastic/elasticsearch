@@ -66,7 +66,11 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockRequest;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockRequestBuilder;
+import org.elasticsearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
+import org.elasticsearch.action.admin.indices.readonly.TransportRemoveIndexBlockAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
@@ -219,6 +223,19 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(TransportAddIndexBlockAction.TYPE, request, listener);
     }
 
+    public RemoveIndexBlockRequestBuilder prepareRemoveBlock(
+        TimeValue masterTimeout,
+        TimeValue ackTimeout,
+        APIBlock block,
+        String... indices
+    ) {
+        return new RemoveIndexBlockRequestBuilder(this, masterTimeout, ackTimeout, block, indices);
+    }
+
+    public void removeBlock(RemoveIndexBlockRequest request, ActionListener<RemoveIndexBlockResponse> listener) {
+        execute(TransportRemoveIndexBlockAction.TYPE, request, listener);
+    }
+
     public OpenIndexRequestBuilder prepareOpen(String... indices) {
         return new OpenIndexRequestBuilder(this, indices);
     }
@@ -325,8 +342,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(TransportIndicesAliasesAction.TYPE, request, listener);
     }
 
-    public IndicesAliasesRequestBuilder prepareAliases() {
-        return new IndicesAliasesRequestBuilder(this);
+    public IndicesAliasesRequestBuilder prepareAliases(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        return new IndicesAliasesRequestBuilder(this, masterNodeTimeout, ackTimeout);
     }
 
     public ActionFuture<GetAliasesResponse> getAliases(GetAliasesRequest request) {

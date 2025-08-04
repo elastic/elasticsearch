@@ -205,13 +205,13 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public Index[] getIndices(ClusterState state) {
-        return state.metadata().indices().values().stream().map(IndexMetadata::getIndex).toList().toArray(Index.EMPTY_ARRAY);
+        return state.metadata().getProject().indices().values().stream().map(IndexMetadata::getIndex).toList().toArray(Index.EMPTY_ARRAY);
     }
 
     private ClusterState createClusterStateForReplicaUpdate(int nodesInCluster, int shardsPerNode, String group) {
         DiscoveryNodes nodes = createDiscoveryNodes(nodesInCluster, group);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
-        state = addOpenedIndex(randomAlphaOfLengthBetween(5, 15), shardsPerNode, nodesInCluster - 2, state);
+        state = addOpenedIndex(Metadata.DEFAULT_PROJECT_ID, randomAlphaOfLengthBetween(5, 15), shardsPerNode, nodesInCluster - 2, state);
         if (group.equals(ShardLimitValidator.FROZEN_GROUP)) {
             state = ClusterState.builder(state).metadata(freezeMetadata(Metadata.builder(state.metadata()), state.metadata())).build();
         }
@@ -262,8 +262,14 @@ public class ShardLimitValidatorTests extends ESTestCase {
         DiscoveryNodes nodes = createDiscoveryNodes(nodesInCluster, group);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
-        state = addOpenedIndex(randomAlphaOfLengthBetween(5, 15), openIndexShards, openIndexReplicas, state);
-        state = addClosedIndex(randomAlphaOfLengthBetween(5, 15), closedIndexShards, closedIndexReplicas, state);
+        state = addOpenedIndex(Metadata.DEFAULT_PROJECT_ID, randomAlphaOfLengthBetween(5, 15), openIndexShards, openIndexReplicas, state);
+        state = addClosedIndex(
+            Metadata.DEFAULT_PROJECT_ID,
+            randomAlphaOfLengthBetween(5, 15),
+            closedIndexShards,
+            closedIndexReplicas,
+            state
+        );
 
         final Metadata.Builder metadata = Metadata.builder(state.metadata());
         if (randomBoolean()) {
@@ -302,7 +308,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     private static Metadata.Builder freezeMetadata(Metadata.Builder builder, Metadata metadata) {
-        metadata.indices()
+        metadata.getProject()
+            .indices()
             .values()
             .stream()
             .map(

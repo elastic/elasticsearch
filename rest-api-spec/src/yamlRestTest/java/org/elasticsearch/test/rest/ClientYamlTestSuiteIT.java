@@ -36,8 +36,11 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("data-streams")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
-        .feature(FeatureFlag.INDEX_RECOVERY_USE_SYNTHETIC_SOURCE)
         .feature(FeatureFlag.DOC_VALUES_SKIPPER)
+        .feature(FeatureFlag.USE_LUCENE101_POSTINGS_FORMAT)
+        .feature(FeatureFlag.IVF_FORMAT)
+        .feature(FeatureFlag.SYNTHETIC_VECTORS)
+        .feature(FeatureFlag.RERANK_SNIPPETS)
         .build();
 
     public ClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

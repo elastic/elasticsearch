@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -175,7 +176,8 @@ public final class RerouteProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             List<DataStreamValueSource> type;
             try {

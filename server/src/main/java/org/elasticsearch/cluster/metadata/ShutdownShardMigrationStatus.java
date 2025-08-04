@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Strings;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
@@ -32,7 +32,6 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObjec
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 
 public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXContentObject {
-    private static final TransportVersion ALLOCATION_DECISION_ADDED_VERSION = TransportVersions.V_7_16_0;
 
     public static final String NODE_ALLOCATION_DECISION_KEY = "node_allocation_decision";
 
@@ -141,11 +140,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
             this.shardsRemaining = in.readLong();
         }
         this.explanation = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
-            this.allocationDecision = in.readOptionalWriteable(ShardAllocationDecision::new);
-        } else {
-            this.allocationDecision = null;
-        }
+        this.allocationDecision = in.readOptionalWriteable(ShardAllocationDecision::new);
     }
 
     public long getShardsRemaining() {
@@ -170,7 +165,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
             startObject(),
             chunk((builder, p) -> buildHeader(builder)),
             Objects.nonNull(allocationDecision)
-                ? Iterators.concat(startObject(NODE_ALLOCATION_DECISION_KEY), allocationDecision.toXContentChunked(params), endObject())
+                ? ChunkedToXContentHelper.object(NODE_ALLOCATION_DECISION_KEY, allocationDecision.toXContentChunked(params))
                 : Collections.emptyIterator(),
             endObject()
         );
@@ -202,9 +197,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ChunkedToXConten
             out.writeLong(shardsRemaining);
         }
         out.writeOptionalString(explanation);
-        if (out.getTransportVersion().onOrAfter(ALLOCATION_DECISION_ADDED_VERSION)) {
-            out.writeOptionalWriteable(allocationDecision);
-        }
+        out.writeOptionalWriteable(allocationDecision);
     }
 
     @Override

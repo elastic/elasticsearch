@@ -1,6 +1,0 @@
-pr: 120974
-summary: Tweak `copy_to` handling in synthetic `_source` to account for nested objects
-area: Mapping
-type: bug
-issues:
- - 120831

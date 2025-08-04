@@ -89,7 +89,7 @@ _id:keyword | my_field:text
 ;
 
 statsWithCount
-required_capability: semantic_text_aggregations
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | STATS result = COUNT(st_version)
@@ -100,7 +100,7 @@ result:long
 ;
 
 statsWithCountDistinct
-required_capability: semantic_text_aggregations
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | STATS result = COUNT_DISTINCT(st_version)
@@ -111,7 +111,7 @@ result:long
 ;
 
 statsWithValues
-required_capability: semantic_text_aggregations
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | STATS result = VALUES(st_version)
@@ -123,7 +123,7 @@ result:keyword
 ;
 
 statsWithMin
-required_capability: semantic_text_aggregations
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | STATS result = min(st_version)
@@ -134,7 +134,7 @@ result:keyword
 ;
 
 statsWithMax
-required_capability: semantic_text_aggregations
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | STATS result = max(st_version)
@@ -145,7 +145,7 @@ result:keyword
 ;
 
 statsWithTop
-required_capability: semantic_text_aggregations
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | STATS result = top(st_version, 2, "asc")
@@ -156,7 +156,7 @@ result:keyword
 ;
 
 statsWithGrouping
-required_capability: semantic_text_aggregations
+required_capability: semantic_text_field_caps
 
 FROM semantic_text METADATA _id
 | STATS COUNT(*) BY st_version

@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.network.InetAddresses;
@@ -49,7 +50,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -127,7 +128,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @Override
@@ -764,7 +771,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
             }
         }, topLevelAgg -> {
-            final Global global = (Global) topLevelAgg;
+            final SingleBucketAggregation global = (SingleBucketAggregation) topLevelAgg;
             assertNotNull(global);
             assertEquals("global", global.getName());
             assertEquals(numDocs * 2, global.getDocCount());

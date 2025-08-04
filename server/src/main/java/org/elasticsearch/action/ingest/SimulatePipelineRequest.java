@@ -9,8 +9,9 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -37,8 +39,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
-public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
+public class SimulatePipelineRequest extends LegacyActionRequest implements ToXContentObject {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
@@ -130,6 +133,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
     static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
 
     static Parsed parseWithPipelineId(
+        ProjectId projectId,
         String pipelineId,
         Map<String, Object> config,
         boolean verbose,
@@ -139,7 +143,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         if (pipelineId == null) {
             throw new IllegalArgumentException("param [pipeline] is null");
         }
-        Pipeline pipeline = ingestService.getPipeline(pipelineId);
+        Pipeline pipeline = ingestService.getPipeline(projectId, pipelineId);
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
         }
@@ -147,14 +151,22 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    static Parsed parse(Map<String, Object> config, boolean verbose, IngestService ingestService, RestApiVersion restApiVersion)
-        throws Exception {
+    static Parsed parse(
+        ProjectId projectId,
+        Map<String, Object> config,
+        boolean verbose,
+        IngestService ingestService,
+        RestApiVersion restApiVersion,
+        Predicate<NodeFeature> hasFeature
+    ) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
         Pipeline pipeline = Pipeline.create(
             SIMULATED_PIPELINE_ID,
             pipelineConfig,
             ingestService.getProcessorFactories(),
-            ingestService.getScriptService()
+            ingestService.getScriptService(),
+            projectId,
+            hasFeature
         );
         List<IngestDocument> ingestDocumentList = parseDocs(config, restApiVersion);
         return new Parsed(pipeline, ingestDocumentList, verbose);

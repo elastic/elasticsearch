@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,6 +24,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class PutAnalyticsCollectionAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/put";

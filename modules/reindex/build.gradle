@@ -44,9 +44,6 @@ dependencies {
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
-
-  internalClusterTestImplementation project(':modules:lang-painless')
-  internalClusterTestImplementation project(':modules:lang-painless:spi')
 }
 
 restResources {
@@ -54,6 +51,18 @@ restResources {
     include '_common', 'cluster', 'nodes', 'indices', 'index', 'get', 'search', 'mget', 'count',
                 'update_by_query', 'delete_by_query', 'reindex_rethrottle', 'tasks', 'reindex', 'put_script', 'bulk', 'info'
   }
+}
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -159,11 +168,11 @@ if (OS.current() == OS.WINDOWS) {
 
     tasks.named("javaRestTest").configure {
       dependsOn fixture
-        systemProperty "tests.fromOld", "true"
-        /* Use a closure on the string to delay evaluation until right before we
-         * run the integration tests so that we can be sure that the file is
-         * ready. */
-        nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
+      systemProperty "tests.fromOld", "true"
+      /* Use a closure on the string to delay evaluation until right before we
+       * run the integration tests so that we can be sure that the file is
+       * ready. */
+      nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
     }
   }
 }

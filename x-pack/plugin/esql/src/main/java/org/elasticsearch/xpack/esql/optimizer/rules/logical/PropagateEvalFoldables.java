@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -26,23 +25,7 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
-        var collectRefs = new AttributeMap<Expression>();
-
-        java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.resolve(r, r);
-
-        // collect aliases bottom-up
-        plan.forEachExpressionUp(Alias.class, a -> {
-            var c = a.child();
-            boolean shouldCollect = c.foldable();
-            // try to resolve the expression based on an existing foldables
-            if (shouldCollect == false) {
-                c = c.transformUp(ReferenceAttribute.class, replaceReference);
-                shouldCollect = c.foldable();
-            }
-            if (shouldCollect) {
-                collectRefs.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
-            }
-        });
+        AttributeMap<Expression> collectRefs = RuleUtils.foldableReferences(plan, ctx);
         if (collectRefs.isEmpty()) {
             return plan;
         }
@@ -52,7 +35,7 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
             // TODO: also allow aggregates once aggs on constants are supported.
             // C.f. https://github.com/elastic/elasticsearch/issues/100634
             if (p instanceof Filter || p instanceof Eval) {
-                p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                p = p.transformExpressionsOnly(ReferenceAttribute.class, r -> collectRefs.resolve(r, r));
             }
             return p;
         });

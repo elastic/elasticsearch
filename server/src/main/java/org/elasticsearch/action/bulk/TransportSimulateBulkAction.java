@@ -17,16 +17,16 @@ import org.elasticsearch.action.admin.indices.template.post.TransportSimulateInd
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.SimulateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -69,6 +69,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -98,6 +99,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         IndicesService indicesService,
         NamedXContentRegistry xContentRegistry,
         IndexSettingProviders indexSettingProviders
@@ -112,6 +114,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             ingestService,
             indexingPressure,
             systemIndices,
+            projectResolver,
             threadPool::relativeTimeInNanos
         );
         this.indicesService = indicesService;
@@ -191,37 +194,20 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             XContentMeteringParserDecorator.NOOP
         );
 
-        ClusterState state = clusterService.state();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
         Exception mappingValidationException = null;
         Collection<String> ignoredFields = List.of();
-        IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(request.index());
+        IndexAbstraction indexAbstraction = project.getIndicesLookup().get(request.index());
         try {
-            if (indexAbstraction != null
-                && componentTemplateSubstitutions.isEmpty()
-                && indexTemplateSubstitutions.isEmpty()
-                && mappingAddition.isEmpty()) {
+            if (indexAbstraction != null && componentTemplateSubstitutions.isEmpty() && indexTemplateSubstitutions.isEmpty()) {
                 /*
-                 * In this case the index exists and we don't have any component template overrides. So we can just use withTempIndexService
-                 * to do the mapping validation, using all the existing logic for validation.
+                 * In this case the index exists and we don't have any template overrides. So we can just merge the mappingAddition (which
+                 * might not exist) into the existing index mapping.
                  */
-                IndexMetadata imd = state.metadata().getIndexSafe(indexAbstraction.getWriteIndex(request, state.metadata()));
-                indicesService.withTempIndexService(imd, indexService -> {
-                    indexService.mapperService().updateMapping(null, imd);
-                    return IndexShard.prepareIndex(
-                        indexService.mapperService(),
-                        sourceToParse,
-                        SequenceNumbers.UNASSIGNED_SEQ_NO,
-                        -1,
-                        -1,
-                        VersionType.INTERNAL,
-                        Engine.Operation.Origin.PRIMARY,
-                        Long.MIN_VALUE,
-                        false,
-                        request.ifSeqNo(),
-                        request.ifPrimaryTerm(),
-                        0
-                    );
-                });
+                IndexMetadata imd = project.getIndexSafe(indexAbstraction.getWriteIndex(request, project));
+                CompressedXContent mappings = Optional.ofNullable(imd.mapping()).map(MappingMetadata::source).orElse(null);
+                CompressedXContent mergedMappings = mappingAddition == null ? null : mergeMappings(mappings, mappingAddition);
+                ignoredFields = validateUpdatedMappingsFromIndexMetadata(imd, mergedMappings, request, sourceToParse);
             } else {
                 /*
                  * The index did not exist, or we have component template substitutions, so we put together the mappings from existing
@@ -230,8 +216,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                  * path for when the index does not exist). And it does not deal with system indices since we do not intend for users to
                  * simulate writing to system indices.
                  */
-                ClusterState.Builder simulatedClusterStateBuilder = new ClusterState.Builder(state);
-                Metadata.Builder simulatedMetadata = Metadata.builder(state.metadata());
+                ProjectMetadata.Builder simulatedProjectMetadataBuilder = ProjectMetadata.builder(project);
                 if (indexAbstraction != null) {
                     /*
                      * We remove the index or data stream from the cluster state so that we are forced to fall back to the templates to get
@@ -240,8 +225,8 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     String indexRequest = request.index();
                     assert indexRequest != null : "Index requests cannot be null in a simulate bulk call";
                     if (indexRequest != null) {
-                        simulatedMetadata.remove(indexRequest);
-                        simulatedMetadata.removeDataStream(indexRequest);
+                        simulatedProjectMetadataBuilder.remove(indexRequest);
+                        simulatedProjectMetadataBuilder.removeDataStream(indexRequest);
                     }
                 }
                 if (componentTemplateSubstitutions.isEmpty() == false) {
@@ -250,19 +235,19 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                      * existing one is replaced.
                      */
                     Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
-                    updatedComponentTemplates.putAll(state.metadata().componentTemplates());
+                    updatedComponentTemplates.putAll(project.componentTemplates());
                     updatedComponentTemplates.putAll(componentTemplateSubstitutions);
-                    simulatedMetadata.componentTemplates(updatedComponentTemplates);
+                    simulatedProjectMetadataBuilder.componentTemplates(updatedComponentTemplates);
                 }
                 if (indexTemplateSubstitutions.isEmpty() == false) {
                     Map<String, ComposableIndexTemplate> updatedIndexTemplates = new HashMap<>();
-                    updatedIndexTemplates.putAll(state.metadata().templatesV2());
+                    updatedIndexTemplates.putAll(project.templatesV2());
                     updatedIndexTemplates.putAll(indexTemplateSubstitutions);
-                    simulatedMetadata.indexTemplates(updatedIndexTemplates);
+                    simulatedProjectMetadataBuilder.indexTemplates(updatedIndexTemplates);
                 }
-                ClusterState simulatedState = simulatedClusterStateBuilder.metadata(simulatedMetadata).build();
+                ProjectMetadata simulatedProjectMetadata = simulatedProjectMetadataBuilder.build();
 
-                String matchingTemplate = findV2Template(simulatedState.metadata(), request.index(), false);
+                String matchingTemplate = findV2Template(simulatedProjectMetadata, request.index(), false);
                 if (matchingTemplate != null) {
                     /*
                      * The index matches a v2 template (including possibly one or more of the substitutions passed in). So we use this
@@ -271,7 +256,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     final Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
                         matchingTemplate,
                         request.index(),
-                        simulatedState,
+                        simulatedProjectMetadata,
                         isDataStreamsLifecycleOnlyMode(clusterService.getSettings()),
                         xContentRegistry,
                         indicesService,
@@ -282,7 +267,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                     CompressedXContent mergedMappings = mergeMappings(mappings, mappingAddition);
                     ignoredFields = validateUpdatedMappings(mappings, mergedMappings, request, sourceToParse);
                 } else {
-                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(simulatedState.metadata(), request.index(), false);
+                    List<IndexTemplateMetadata> matchingTemplates = findV1Templates(simulatedProjectMetadata, request.index(), false);
                     if (matchingTemplates.isEmpty() == false) {
                         /*
                          * The index matches v1 mappings. These are not compatible with component_template_substitutions or
@@ -294,15 +279,6 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                             xContentRegistry
                         );
                         final CompressedXContent combinedMappings = mergeMappings(new CompressedXContent(mappingsMap), mappingAddition);
-                        ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
-                    } else if (indexAbstraction != null && mappingAddition.isEmpty() == false) {
-                        /*
-                         * The index matched no templates of any kind, including the substitutions. But it might have a mapping. So we
-                         * merge in the mapping addition if it exists, and validate.
-                         */
-                        MappingMetadata mappingFromIndex = clusterService.state().metadata().index(indexAbstraction.getName()).mapping();
-                        CompressedXContent currentIndexCompressedXContent = mappingFromIndex == null ? null : mappingFromIndex.source();
-                        CompressedXContent combinedMappings = mergeMappings(currentIndexCompressedXContent, mappingAddition);
                         ignoredFields = validateUpdatedMappings(null, combinedMappings, request, sourceToParse);
                     } else {
                         /*
@@ -331,9 +307,6 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
         IndexRequest request,
         SourceToParse sourceToParse
     ) throws IOException {
-        if (updatedMappings == null) {
-            return List.of(); // no validation to do
-        }
         Settings dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -345,8 +318,20 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             originalIndexMetadataBuilder.putMapping(new MappingMetadata(originalMappings));
         }
         final IndexMetadata originalIndexMetadata = originalIndexMetadataBuilder.build();
+        return validateUpdatedMappingsFromIndexMetadata(originalIndexMetadata, updatedMappings, request, sourceToParse);
+    }
+
+    private Collection<String> validateUpdatedMappingsFromIndexMetadata(
+        IndexMetadata originalIndexMetadata,
+        @Nullable CompressedXContent updatedMappings,
+        IndexRequest request,
+        SourceToParse sourceToParse
+    ) throws IOException {
+        if (updatedMappings == null) {
+            return List.of(); // no validation to do
+        }
         final IndexMetadata updatedIndexMetadata = IndexMetadata.builder(request.index())
-            .settings(dummySettings)
+            .settings(originalIndexMetadata.getSettings())
             .putMapping(new MappingMetadata(updatedMappings))
             .build();
         Engine.Index result = indicesService.withTempIndexService(originalIndexMetadata, indexService -> {
@@ -411,7 +396,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
     }
 
     @Override
-    protected Boolean resolveFailureStore(String indexName, Metadata metadata, long epochMillis) {
+    protected Boolean resolveFailureStore(String indexName, ProjectMetadata metadata, long epochMillis) {
         // A simulate bulk request should not change any persistent state in the system, so we never write to the failure store
         return null;
     }

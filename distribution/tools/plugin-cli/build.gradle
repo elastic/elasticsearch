@@ -24,7 +24,8 @@ dependencies {
   compileOnly project(":libs:cli")
   implementation project(":libs:plugin-api")
   implementation project(":libs:plugin-scanner")
-  // TODO: asm is picked up from the plugin scanner, we should consolidate so it is not defined twice
+  implementation project(":libs:entitlement")
+  // TODO: asm is picked up from the plugin scanner and entitlements, we should consolidate so it is not defined twice
   implementation 'org.ow2.asm:asm:9.7.1'
   implementation 'org.ow2.asm:asm-tree:9.7.1'
 

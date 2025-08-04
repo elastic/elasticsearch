@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.hamcrest.Matcher;
 
@@ -57,10 +58,15 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     protected abstract String expectedDescriptionOfAggregator();
 
-    protected abstract void assertSimpleOutput(List<Block> input, Block result);
+    /**
+     * Assert that the result is correct given the input.
+     * @param input the input pages build by {@link #simpleInput}
+     * @param result the result of running {@link #aggregatorFunction()}
+     */
+    protected abstract void assertSimpleOutput(List<Page> input, Block result);
 
     @Override
-    protected Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+    protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
         return simpleWithMode(mode, Function.identity());
     }
 
@@ -98,7 +104,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertThat(results.get(0).getPositionCount(), equalTo(1));
 
         Block result = results.get(0).getBlock(0);
-        assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), result);
+        assertSimpleOutput(input, result);
     }
 
     public final void testIgnoresNulls() {
@@ -110,13 +116,11 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
 
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new NullInsertingSourceOperator(new CannedSourceOperator(input.iterator()), blockFactory),
                 List.of(simple().get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);

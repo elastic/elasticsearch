@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -43,9 +45,12 @@ public class StYMin extends UnaryScalarFunction {
 
     @FunctionInfo(
         returnType = "double",
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = "Extracts the minimum value of the `y` coordinates from the supplied geometry.\n"
             + "If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the minimum `latitude` value.",
-        examples = @Example(file = "spatial_shapes", tag = "st_x_y_min_max")
+        examples = @Example(file = "spatial_shapes", tag = "st_x_y_min_max"),
+        depthOffset = 1  // So this appears as a subsection of ST_ENVELOPE
     )
     public StYMin(
         Source source,
@@ -76,9 +81,9 @@ public class StYMin extends UnaryScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
-            return new StYMinFromWKBGeoEvaluator.Factory(toEvaluator.apply(field()), source());
+            return new StYMinFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
         }
-        return new StYMinFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
+        return new StYMinFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

@@ -104,7 +104,7 @@ public class AllocationDeciders {
     }
 
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
         return withDecidersCheckingShardIgnoredNodes(
             allocation,
             shardRouting,
@@ -205,7 +205,7 @@ public class AllocationDeciders {
         BiFunction<String, Decision, String> logMessageCreator
     ) {
         if (debugMode == RoutingAllocation.DebugMode.OFF) {
-            var result = Decision.YES;
+            Decision result = Decision.YES;
             for (AllocationDecider decider : deciders) {
                 var decision = deciderAction.apply(decider);
                 if (decision.type() == Decision.Type.NO) {

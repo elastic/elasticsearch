@@ -19,7 +19,6 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
@@ -581,7 +580,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "0" : "1"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 2L : 3L));
-                Filter filter = tag.getAggregations().get("filter");
+                SingleBucketAggregation filter = tag.getAggregations().get("filter");
                 assertThat(filter, notNullValue());
                 assertThat(filter.getDocCount(), equalTo(asc ? 2L : 3L));
 
@@ -624,10 +623,10 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 assertThat(tag, notNullValue());
                 assertThat(tag.getKeyAsString(), equalTo(asc ? "1" : "0"));
                 assertThat(tag.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter1 = tag.getAggregations().get("filter1");
+                SingleBucketAggregation filter1 = tag.getAggregations().get("filter1");
                 assertThat(filter1, notNullValue());
                 assertThat(filter1.getDocCount(), equalTo(asc ? 3L : 2L));
-                Filter filter2 = filter1.getAggregations().get("filter2");
+                SingleBucketAggregation filter2 = filter1.getAggregations().get("filter2");
                 assertThat(filter2, notNullValue());
                 assertThat(filter2.getDocCount(), equalTo(asc ? 3L : 2L));
                 Max max = filter2.getAggregations().get("max");

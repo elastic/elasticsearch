@@ -11,7 +11,7 @@ tags:
 # Build args passed to Dockerfile ARGs
 args:
   BASE_IMAGE: "redhat/ubi/ubi9"
-  BASE_TAG: "9.5"
+  BASE_TAG: "9.6"
 # Docker image labels
 labels:
   org.opencontainers.image.title: "elasticsearch"
@@ -47,7 +47,7 @@ maintainers:
   - name: "Mark Vieira"
     email: "mark.vieira@elastic.co"
     username: "mark-vieira"
-  - name: "Rene Gröschke"
+  - name: "Rene Groeschke"
     email: "rene.groschke@elastic.co"
     username: "breskeby"
   - email: "klepal_alexander@bah.com"

@@ -85,6 +85,25 @@ usually after each new minor release, to collapse the transport versions
 for the previous minor release. An example of such an operation can be found
 [here](https://github.com/elastic/elasticsearch/pull/104937).
 
+#### Tips
+
+- We collapse versions only on the `main` branch.
+- Use [TransportVersions.csv](../../server/src/main/resources/org/elasticsearch/TransportVersions.csv) as your guide.
+- For each release version listed in that file with a corresponding `INITIAL_ELASTICSEARCH_` entry corresponding to that version,
+  - change the prefix to `V_`
+  - replace all intervening entries since the previous patch `V_` entry with the new `V_` entry
+  - look at all uses of the new `V_` entry and look for dead code that can be deleted
+
+For example, if there's a version `1.2.3` in the CSV file,
+and `TransportVersions.java` has an entry called `INITIAL_ELASTICSEARCH_1_2_3`,
+then:
+- rename it to `V_1_2_3`,
+- replace any other intervening symbols between `V_1_2_2` and `V_1_2_3` with `V_1_2_3` itself, and
+- look through all the uses of the new `V_1_2_3` symbol; if any contain dead code, simplify it.
+
+When in doubt, you can always leave the code as-is.
+This is an optional cleanup step that is never required for correctness.
+
 ### Minimum compatibility versions
 
 The transport version used between two nodes is determined by the initial handshake

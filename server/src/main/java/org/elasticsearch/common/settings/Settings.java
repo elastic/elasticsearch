@@ -79,6 +79,7 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 public final class Settings implements ToXContentFragment, Writeable, Diffable<Settings> {
 
     public static final Settings EMPTY = new Settings(Map.of(), null);
+    public static final Diff<Settings> EMPTY_DIFF = new SettingsDiff(DiffableUtils.emptyDiff());
 
     public static final String FLAT_SETTINGS_PARAM = "flat_settings";
 
@@ -291,21 +292,25 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     }
 
     /**
-     * Returns the values for settings that match the given glob pattern.
-     * A single glob is supported.
+     * Returns the values for the given settings pattern.
      *
-     * @param settingGlob setting name containing a glob
-     * @return zero or more values for any settings in this settings object that match the glob pattern
+     * Either a concrete setting name, or a pattern containing a single glob is supported.
+     *
+     * @param settingPattern name of a setting or a setting name pattern containing a glob
+     * @return zero or more values for any settings in this settings object that match the given pattern
      */
-    public Stream<String> getGlobValues(String settingGlob) {
-        int globIndex = settingGlob.indexOf(".*.");
+    public Stream<String> getValues(String settingPattern) {
+        int globIndex = settingPattern.indexOf(".*.");
+        Stream<String> settingNames;
         if (globIndex == -1) {
-            throw new IllegalArgumentException("Pattern [" + settingGlob + "] does not contain a glob [*]");
+            settingNames = Stream.of(settingPattern);
+        } else {
+            String prefix = settingPattern.substring(0, globIndex + 1);
+            String suffix = settingPattern.substring(globIndex + 2);
+            Settings subSettings = getByPrefix(prefix);
+            settingNames = subSettings.names().stream().map(k -> prefix + k + suffix);
         }
-        String prefix = settingGlob.substring(0, globIndex + 1);
-        String suffix = settingGlob.substring(globIndex + 2);
-        Settings subSettings = getByPrefix(prefix);
-        return subSettings.names().stream().map(k -> k + suffix).map(subSettings::get).filter(Objects::nonNull);
+        return settingNames.map(this::getAsList).flatMap(List::stream).filter(Objects::nonNull);
     }
 
     /**
@@ -870,6 +875,27 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
         keys = newKeySet;
         return newKeySet;
+    }
+
+    /*
+     * This method merges the given newSettings into this Settings, returning either a new Settings object or this if the newSettings are
+     * empty. If any values are null in newSettings, those keys are removed from the returned object.
+     */
+    public Settings merge(Settings newSettings) {
+        Objects.requireNonNull(newSettings);
+        if (Settings.EMPTY.equals(newSettings)) {
+            return this;
+        }
+        Settings.Builder builder = Settings.builder().put(this);
+        for (String key : newSettings.keySet()) {
+            String rawValue = newSettings.get(key);
+            if (rawValue == null) {
+                builder.remove(key);
+            } else {
+                builder.put(key, rawValue);
+            }
+        }
+        return builder.build();
     }
 
     /**

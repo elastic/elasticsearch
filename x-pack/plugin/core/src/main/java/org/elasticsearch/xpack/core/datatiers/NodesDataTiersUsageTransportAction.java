@@ -35,7 +35,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -124,7 +124,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
             .map(routing -> routing.index().getName())
             .collect(Collectors.toSet());
         for (String indexName : localIndices) {
-            IndexMetadata indexMetadata = metadata.index(indexName);
+            IndexMetadata indexMetadata = metadata.getProject().index(indexName);
             if (indexMetadata == null) {
                 continue;
             }
@@ -171,7 +171,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);

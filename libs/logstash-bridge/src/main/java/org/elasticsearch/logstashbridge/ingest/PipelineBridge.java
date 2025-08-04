@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.logstashbridge.ingest;
 
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
@@ -15,19 +16,29 @@ import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public class PipelineBridge extends StableBridgeAPI.Proxy<Pipeline> {
-    public static PipelineBridge wrap(final Pipeline pipeline) {
+/**
+ * An external bridge for {@link Pipeline}
+ */
+public class PipelineBridge extends StableBridgeAPI.ProxyInternal<Pipeline> {
+    public static PipelineBridge fromInternal(final Pipeline pipeline) {
         return new PipelineBridge(pipeline);
     }
 
+    @FixForMultiProject(description = "should we pass a non-null project ID here?")
     public static PipelineBridge create(
         String id,
         Map<String, Object> config,
         Map<String, ProcessorBridge.Factory> processorFactories,
         ScriptServiceBridge scriptServiceBridge
     ) throws Exception {
-        return wrap(
-            Pipeline.create(id, config, StableBridgeAPI.unwrap(processorFactories), StableBridgeAPI.unwrapNullable(scriptServiceBridge))
+        return fromInternal(
+            Pipeline.create(
+                id,
+                config,
+                StableBridgeAPI.toInternal(processorFactories),
+                StableBridgeAPI.toInternalNullable(scriptServiceBridge),
+                null
+            )
         );
     }
 
@@ -36,13 +47,13 @@ public class PipelineBridge extends StableBridgeAPI.Proxy<Pipeline> {
     }
 
     public String getId() {
-        return delegate.getId();
+        return internalDelegate.getId();
     }
 
     public void execute(final IngestDocumentBridge ingestDocumentBridge, final BiConsumer<IngestDocumentBridge, Exception> handler) {
-        this.delegate.execute(
-            StableBridgeAPI.unwrapNullable(ingestDocumentBridge),
-            (unwrapped, e) -> handler.accept(IngestDocumentBridge.wrap(unwrapped), e)
+        this.internalDelegate.execute(
+            StableBridgeAPI.toInternalNullable(ingestDocumentBridge),
+            (ingestDocument, e) -> handler.accept(IngestDocumentBridge.fromInternalNullable(ingestDocument), e)
         );
     }
 }

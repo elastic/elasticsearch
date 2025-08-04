@@ -449,6 +449,6 @@ public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<Combi
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_13_0;
+        return TransportVersions.ZERO;
     }
 }

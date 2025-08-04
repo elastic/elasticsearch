@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -30,6 +31,8 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  * before and after further data indexing.
  */
 public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
+
+    private static final String SYNTHETIC_SOURCE_FEATURE = "gte_v8.12.0";
 
     private static final String BULK1 = """
                     {"index": {"_id": "1"}}
@@ -82,14 +85,26 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testDenseVectorMappingUpdateOnOldCluster() throws IOException {
-        if (getOldClusterTestVersion().after(Version.V_8_7_0.toString())) {
+        if (oldClusterHasFeature("gte_v8.7.1")) {
             String indexName = "test_index";
             if (isOldCluster()) {
                 Request createIndex = new Request("PUT", "/" + indexName);
-                XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
-                    .startObject()
-                    .startObject("mappings")
-                    .startObject("properties")
+                boolean useSyntheticSource = randomBoolean() && oldClusterHasFeature(SYNTHETIC_SOURCE_FEATURE);
+
+                boolean useIndexSetting = SourceFieldMapper.onOrAfterDeprecateModeVersion(getOldClusterIndexVersion());
+                XContentBuilder payload = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+                if (useSyntheticSource) {
+                    if (useIndexSetting) {
+                        payload.startObject("settings").field("index.mapping.source.mode", "synthetic").endObject();
+                    }
+                }
+                payload.startObject("mappings");
+                if (useIndexSetting == false) {
+                    payload.startObject("_source");
+                    payload.field("mode", "synthetic");
+                    payload.endObject();
+                }
+                payload.startObject("properties")
                     .startObject("embedding")
                     .field("type", "dense_vector")
                     .field("index", "true")
@@ -104,7 +119,7 @@ public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
                     .endObject()
                     .endObject()
                     .endObject();
-                createIndex.setJsonEntity(Strings.toString(mappings));
+                createIndex.setJsonEntity(Strings.toString(payload));
                 client().performRequest(createIndex);
                 Request index = new Request("POST", "/" + indexName + "/_bulk/");
                 index.addParameter("refresh", "true");

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.ltr;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -42,12 +43,14 @@ import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class LearningToRankServiceTests extends ESTestCase {
     public static final String GOOD_MODEL = "inference-entity-id";
@@ -185,7 +188,10 @@ public class LearningToRankServiceTests extends ESTestCase {
     }
 
     private ModelLoadingService mockModelLoadingService() {
-        return mock(ModelLoadingService.class);
+        ModelLoadingService modelLoadingService = mock(ModelLoadingService.class);
+        when(modelLoadingService.getModelId(anyString())).thenAnswer(i -> i.getArgument(0));
+
+        return modelLoadingService;
     }
 
     @SuppressWarnings("unchecked")
@@ -242,6 +248,12 @@ public class LearningToRankServiceTests extends ESTestCase {
 
     private ScriptService getTestScriptService() {
         ScriptEngine scriptEngine = new MustacheScriptEngine(Settings.EMPTY);
-        return new ScriptService(Settings.EMPTY, Map.of(DEFAULT_TEMPLATE_LANG, scriptEngine), ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            Map.of(DEFAULT_TEMPLATE_LANG, scriptEngine),
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 }

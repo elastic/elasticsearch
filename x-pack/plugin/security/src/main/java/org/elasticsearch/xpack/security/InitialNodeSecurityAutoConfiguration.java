@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.bootstrap.ConsoleLoader;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -85,7 +86,7 @@ public class InitialNodeSecurityAutoConfiguration {
         }
         // if enrollment is enabled, we assume (and document this assumption) that the node is auto-configured in a specific way
         // wrt to TLS and cluster formation
-        securityIndexManager.onStateRecovered(securityIndexState -> {
+        securityIndexManager.whenProjectStateAvailable(Metadata.DEFAULT_PROJECT_ID, securityIndexState -> {
             if (false == securityIndexState.indexExists()) {
                 // a starting node with {@code ENROLLMENT_ENABLED} set to true, and with no .security index,
                 // must be the initial node of a cluster (starting for the first time and forming a cluster by itself)

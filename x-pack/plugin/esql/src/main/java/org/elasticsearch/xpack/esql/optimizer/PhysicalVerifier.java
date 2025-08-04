@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.capabilities.PostPhysicalOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -17,31 +17,30 @@ import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.Set;
-
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 /** Physical plan verifier. */
-public final class PhysicalVerifier {
+public final class PhysicalVerifier extends PostOptimizationPhasePlanVerifier<PhysicalPlan> {
 
     public static final PhysicalVerifier INSTANCE = new PhysicalVerifier();
 
     private PhysicalVerifier() {}
 
-    /** Verifies the physical plan. */
-    public Collection<Failure> verify(PhysicalPlan plan) {
-        Set<Failure> failures = new LinkedHashSet<>();
-        Failures depFailures = new Failures();
-
-        // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
-        var enriches = plan.collectFirstChildren(EnrichExec.class::isInstance);
-        if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
-            return failures;
+    @Override
+    boolean skipVerification(PhysicalPlan optimizedPlan, boolean skipRemoteEnrichVerification) {
+        if (skipRemoteEnrichVerification) {
+            // AwaitsFix https://github.com/elastic/elasticsearch/issues/118531
+            var enriches = optimizedPlan.collectFirstChildren(EnrichExec.class::isInstance);
+            if (enriches.isEmpty() == false && ((EnrichExec) enriches.get(0)).mode() == Enrich.Mode.REMOTE) {
+                return true;
+            }
         }
+        return false;
+    }
 
-        plan.forEachDown(p -> {
+    @Override
+    void checkPlanConsistency(PhysicalPlan optimizedPlan, Failures failures, Failures depFailures) {
+        optimizedPlan.forEachDown(p -> {
             if (p instanceof FieldExtractExec fieldExtractExec) {
                 Attribute sourceAttribute = fieldExtractExec.sourceAttribute();
                 if (sourceAttribute == null) {
@@ -56,12 +55,17 @@ public final class PhysicalVerifier {
                 }
             }
             PlanConsistencyChecker.checkPlan(p, depFailures);
+
+            if (failures.hasFailures() == false) {
+                if (p instanceof PostPhysicalOptimizationVerificationAware va) {
+                    va.postPhysicalOptimizationVerification(failures);
+                }
+                p.forEachExpression(ex -> {
+                    if (ex instanceof PostPhysicalOptimizationVerificationAware va) {
+                        va.postPhysicalOptimizationVerification(failures);
+                    }
+                });
+            }
         });
-
-        if (depFailures.hasFailures()) {
-            throw new IllegalStateException(depFailures.toString());
-        }
-
-        return failures;
     }
 }

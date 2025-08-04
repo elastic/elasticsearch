@@ -46,6 +46,10 @@ public record ReindexDataStreamPersistentTaskState(
         this(in.readOptionalInt(), in.readOptionalInt(), in.readOptionalLong());
     }
 
+    public boolean isComplete() {
+        return completionTime != null;
+    }
+
     @Override
     public String getWriteableName() {
         return NAME;

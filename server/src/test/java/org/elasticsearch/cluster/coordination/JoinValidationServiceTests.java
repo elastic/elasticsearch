@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -124,7 +125,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                                 public void doRun() {
                                     handleResponse(requestId, switch (action) {
                                         case JoinValidationService.JOIN_VALIDATE_ACTION_NAME, JoinHelper.JOIN_PING_ACTION_NAME ->
-                                            TransportResponse.Empty.INSTANCE;
+                                            ActionResponse.Empty.INSTANCE;
                                         case TransportService.HANDSHAKE_ACTION_NAME -> new TransportService.HandshakeResponse(
                                             Version.CURRENT,
                                             Build.current().hash(),
@@ -402,12 +403,12 @@ public class JoinValidationServiceTests extends ESTestCase {
             .metadata(Metadata.builder().generateClusterUuidIfNeeded())
             .build();
 
-        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        final var future = new PlainActionFuture<ActionResponse.Empty>();
         transportService.sendRequest(
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
             serializeClusterState(otherClusterState),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
+            new ActionListenerResponseHandler<>(future, in -> ActionResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 
@@ -470,12 +471,12 @@ public class JoinValidationServiceTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        final var future = new PlainActionFuture<ActionResponse.Empty>();
         transportService.sendRequest(
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
             serializeClusterState(stateForValidation),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
+            new ActionListenerResponseHandler<>(future, in -> ActionResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
 
@@ -495,7 +496,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                 assertSame(node, joiningNode);
                 assertEquals(JoinHelper.JOIN_PING_ACTION_NAME, action);
                 assertTrue(pingSeen.compareAndSet(false, true));
-                handleResponse(requestId, TransportResponse.Empty.INSTANCE);
+                handleResponse(requestId, ActionResponse.Empty.INSTANCE);
             }
         };
         final var masterTransportService = masterTransport.createTransportService(

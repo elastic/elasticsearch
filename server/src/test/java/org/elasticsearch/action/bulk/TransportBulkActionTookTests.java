@@ -21,16 +21,21 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -51,6 +56,7 @@ import org.junit.BeforeClass;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -111,7 +117,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
         IndexNameExpressionResolver resolver = new Resolver();
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
 
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             @SuppressWarnings("unchecked")
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -222,11 +228,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     static class Resolver extends IndexNameExpressionResolver {
         Resolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
             return request.indices();
         }
     }
@@ -252,9 +258,16 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 indexNameExpressionResolver,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 relativeTimeProvider,
                 FailureStoreMetrics.NOOP,
-                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                new FeatureService(List.of()) {
+                    @Override
+                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                    }
+                }
             );
         }
     }

@@ -60,8 +60,8 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject().index("test1"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -177,8 +177,8 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject().index("test1"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -297,7 +297,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -378,7 +378,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         RoutingTable updatedRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterState.routingTable()
-        ).addAsNew(updatedMetadata.index("test1")).build();
+        ).addAsNew(updatedMetadata.getProject().index("test1")).build();
         clusterState = ClusterState.builder(clusterState).metadata(updatedMetadata).routingTable(updatedRoutingTable).build();
 
         assertThat(clusterState.routingTable().index("test1").size(), equalTo(3));
@@ -449,7 +449,8 @@ public class IndexBalanceTests extends ESAllocationTestCase {
 
         final var allocationService = createAllocationService(settings);
         assertCriticalWarnings(
-            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
 
         assertTrue(

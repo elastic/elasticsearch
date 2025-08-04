@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -22,6 +23,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -173,11 +175,16 @@ public class DesiredBalanceReconciler {
         private boolean allocateUnassignedInvariant() {
             assert routingNodes.unassigned().isEmpty();
 
-            final var shardCounts = allocation.metadata().stream().filter(indexMetadata ->
-            // skip any pre-7.2 closed indices which have no routing table entries at all
-            indexMetadata.getCreationVersion().onOrAfter(IndexVersions.V_7_2_0)
-                || indexMetadata.getState() == IndexMetadata.State.OPEN
-                || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
+            final var shardCounts = allocation.metadata()
+                .projects()
+                .values()
+                .stream()
+                .flatMap(ProjectMetadata::stream)
+                .filter(indexMetadata ->
+                // skip any pre-7.2 closed indices which have no routing table entries at all
+                indexMetadata.getCreationVersion().onOrAfter(IndexVersions.V_7_2_0)
+                    || indexMetadata.getState() == IndexMetadata.State.OPEN
+                    || MetadataIndexStateService.isIndexVerifiedBeforeClosed(indexMetadata))
                 .flatMap(
                     indexMetadata -> IntStream.range(0, indexMetadata.getNumberOfShards())
                         .mapToObj(

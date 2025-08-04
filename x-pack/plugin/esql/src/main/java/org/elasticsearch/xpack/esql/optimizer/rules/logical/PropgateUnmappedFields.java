@@ -27,12 +27,13 @@ public class PropgateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
         if (logicalPlan instanceof EsRelation) {
             return logicalPlan;
         }
-        var unmappedFields = new AttributeSet();
+        var unmappedFieldsBuilder = AttributeSet.builder();
         logicalPlan.forEachExpressionDown(FieldAttribute.class, fa -> {
             if (fa.field() instanceof PotentiallyUnmappedKeywordEsField) {
-                unmappedFields.add(fa);
+                unmappedFieldsBuilder.add(fa);
             }
         });
+        var unmappedFields = unmappedFieldsBuilder.build();
         return unmappedFields.isEmpty()
             ? logicalPlan
             : logicalPlan.transformUp(

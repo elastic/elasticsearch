@@ -1,0 +1,140 @@
+---
+"Random":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:   { text: "foo bar", uuid: 1234}
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body: { text: "high bar", uuid: 5678 }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { text: "raise bar", uuid: 9012 }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { text: "raise hands", uuid: 3456 }
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 10
+          query:
+            "function_score": {
+              "query": {
+                "match": {
+                  "text": "bar"
+                }
+              },
+              "random_score": {
+                "seed": 10,
+                "field": "_seq_no"
+              }
+            }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 10
+          query:
+            "function_score": {
+              "query": {
+                "match": {
+                  "text": "bar"
+                }
+              },
+              "random_score": {
+                "seed": 10,
+                "field": "uuid"
+              }
+            }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 2 }
+
+---
+"No field only runs on 9.x":
+  - requires:
+      cluster_features: [ "gte_v9.0.0" ]
+      reason: "empty field works seamlessly (relying on _seqno since 9.x)"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body: { text: "foo bar", uuid: 1234 }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body: { text: "high bar", uuid: 5678 }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { text: "raise bar", uuid: 9012 }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { text: "raise hands", uuid: 3456 }
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+  - do:
+      search:
+        index: test
+        body:
+          size: 10
+          query:
+            "function_score": {
+              "query": {
+                "match": {
+                  "text": "bar"
+                }
+              },
+              "random_score": {
+                "seed": 10
+              }
+            }
+  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 2 }

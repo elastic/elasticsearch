@@ -532,15 +532,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalAutoDateHistogram(
-            getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            targetBuckets,
-            bucketInfo,
-            format,
-            getMetadata(),
-            bucketInnerInterval
-        );
+        final List<Bucket> buckets = new ArrayList<>(this.buckets);
+        for (int i = 0; i < buckets.size(); i++) {
+            buckets.set(i, buckets.get(i).finalizeSampling(samplingContext));
+        }
+        return new InternalAutoDateHistogram(getName(), buckets, targetBuckets, bucketInfo, format, getMetadata(), bucketInnerInterval);
     }
 
     private BucketReduceResult maybeMergeConsecutiveBuckets(BucketReduceResult current, AggregationReduceContext reduceContext) {

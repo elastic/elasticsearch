@@ -55,7 +55,7 @@ In this step, you load the data that you later use to create embeddings from.
 
 Use the `msmarco-passagetest2019-top1000` data set, which is a subset of the MS MARCO Passage Ranking data set. It consists of 200 queries, each accompanied by a list of relevant text passages. All unique passages, along with their IDs, have been extracted from that data set and compiled into a https://github.com/elastic/stack-docs/blob/main/docs/en/stack/ml/nlp/data/msmarco-passagetest2019-unique.tsv[tsv file].
 
-Download the file and upload it to your cluster using the {kibana-ref}/connect-to-elasticsearch.html#upload-data-kibana[Data Visualizer] in the {ml-app} UI. After your data is analyzed, click **Override settings**. Under **Edit field names**, assign `id` to the first column and `content` to the second. Click **Apply**, then **Import**. Name the index `test-data`, and click **Import**. After the upload is complete, you will see an index named `test-data` with 182,469 documents.
+Download the file and upload it to your cluster using the [Data Visualizer](docs-content://manage-data/ingest/upload-data-files.md) in the {ml-app} UI. After your data is analyzed, click **Override settings**. Under **Edit field names**, assign `id` to the first column and `content` to the second. Click **Apply**, then **Import**. Name the index `test-data`, and click **Import**. After the upload is complete, you will see an index named `test-data` with 182,469 documents.
 
 [discrete]
 [[hybrid-search-reindex-data]]

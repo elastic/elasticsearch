@@ -23,13 +23,18 @@ public class LeafQueryTests extends ESTestCase {
         }
 
         @Override
-        public QueryBuilder asBuilder() {
+        protected QueryBuilder asBuilder() {
             return null;
         }
 
         @Override
         protected String innerToString() {
             return "";
+        }
+
+        @Override
+        public boolean containsPlan() {
+            return false;
         }
     }
 

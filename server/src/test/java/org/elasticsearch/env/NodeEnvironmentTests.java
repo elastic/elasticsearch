@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
@@ -43,7 +42,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -539,8 +537,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    @AwaitsFix(bugUrl = "test won't work until we remove and bump minimum index versions")
     public void testIndexCompatibilityChecks() throws IOException {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
 
@@ -551,7 +547,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                     env.nodeId(),
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(
@@ -584,9 +581,9 @@ public class NodeEnvironmentTests extends ESTestCase {
                     containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion() + "]"),
                     containsString(
                         "Revert this node to version ["
-                            + (previousNodeVersion.major == Version.CURRENT.major
-                                ? Version.CURRENT.minimumCompatibilityVersion()
-                                : previousNodeVersion)
+                            + (previousNodeVersion.onOrAfter(Version.CURRENT.minimumCompatibilityVersion())
+                                ? previousNodeVersion
+                                : Version.CURRENT.minimumCompatibilityVersion())
                             + "]"
                     )
                 )
@@ -641,29 +638,37 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testGetBestDowngradeVersion() {
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.0"))
+        int prev = Version.CURRENT.minimumCompatibilityVersion().major;
+        int last = Version.CURRENT.minimumCompatibilityVersion().minor;
+        int old = prev - 1;
+
+        assumeTrue("The current compatibility rules are active only from 8.x onward", prev >= 7);
+        assertEquals(Version.CURRENT.major - 1, prev);
+
+        assertEquals(
+            "From an old major, recommend prev.last",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(old + ".0.0")),
+            BuildVersion.fromString(prev + "." + last + ".0")
         );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.5")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.5"))
+
+        if (last >= 1) {
+            assertEquals(
+                "From an old minor of the previous major, recommend prev.last",
+                NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + (last - 1) + ".0")),
+                BuildVersion.fromString(prev + "." + last + ".0")
+            );
+        }
+
+        assertEquals(
+            "From an old patch of prev.last, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(prev + "." + last + ".1")),
+            BuildVersion.fromString(prev + "." + last + ".1")
         );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.18.12")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.12"))
-        );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.19.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.19.0"))
-        );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("8.17.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.0"))
-        );
-        assertThat(
-            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString("7.17.0")),
-            Matchers.equalTo(BuildVersion.fromString("8.18.0"))
+
+        assertEquals(
+            "From the first version of this major, return that version itself",
+            NodeEnvironment.getBestDowngradeVersion(BuildVersion.fromString(Version.CURRENT.major + ".0.0")),
+            BuildVersion.fromString(Version.CURRENT.major + ".0.0")
         );
     }
 

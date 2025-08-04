@@ -23,6 +23,7 @@ import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -38,7 +39,6 @@ import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -54,11 +54,18 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
     private static final String ESQL_TEST_EXECUTOR = "esql_test_executor";
 
-    protected abstract Operator.OperatorFactory simpleWithMode(AggregatorMode mode);
+    protected abstract Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode);
+
+    /**
+     * Calls {@link #simpleWithMode(SimpleOptions, AggregatorMode)} with the default options.
+     */
+    protected final Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
+        return simpleWithMode(SimpleOptions.DEFAULT, mode);
+    }
 
     @Override
-    protected final Operator.OperatorFactory simple() {
-        return simpleWithMode(AggregatorMode.SINGLE);
+    protected final Operator.OperatorFactory simple(SimpleOptions options) {
+        return simpleWithMode(options, AggregatorMode.SINGLE);
     }
 
     public final void testInitialFinal() {
@@ -67,13 +74,11 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = new ArrayList<>();
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
                 List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext), simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
-                new TestResultPageSinkOperator(page -> results.add(page)),
-                () -> {}
+                new TestResultPageSinkOperator(page -> results.add(page))
             )
         ) {
             runDriver(d);
@@ -89,13 +94,11 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         List<Page> partials = oneDriverPerPage(input, () -> List.of(simpleWithMode(AggregatorMode.INITIAL).get(driverContext)));
         List<Page> results = new ArrayList<>();
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(partials.iterator()),
                 List.of(simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);
@@ -111,8 +114,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         List<Page> results = new ArrayList<>();
 
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(input.iterator()),
                 List.of(
@@ -120,8 +122,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(AggregatorMode.INTERMEDIATE).get(driverContext),
                     simpleWithMode(AggregatorMode.FINAL).get(driverContext)
                 ),
-                new TestResultPageSinkOperator(page -> results.add(page)),
-                () -> {}
+                new TestResultPageSinkOperator(page -> results.add(page))
             )
         ) {
             runDriver(d);
@@ -144,13 +145,11 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
 
         List<Page> results = new ArrayList<>();
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(intermediates.iterator()),
                 List.of(simpleWithMode(AggregatorMode.FINAL).get(driverContext)),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);
@@ -239,8 +238,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
         for (List<Page> pages : splitInput) {
             DriverContext driver1Context = driverContext();
             drivers.add(
-                new Driver(
-                    "test",
+                TestDriverFactory.create(
                     driver1Context,
                     new CannedSourceOperator(pages.iterator()),
                     List.of(
@@ -250,15 +248,13 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                         simpleWithMode(AggregatorMode.INTERMEDIATE).get(driver1Context),
                         intermediateOperatorItr.next()
                     ),
-                    new ExchangeSinkOperator(sinkExchanger.createExchangeSink(() -> {}), Function.identity()),
-                    () -> {}
+                    new ExchangeSinkOperator(sinkExchanger.createExchangeSink(() -> {}))
                 )
             );
         }
         DriverContext driver2Context = driverContext();
         drivers.add(
-            new Driver(
-                "test",
+            TestDriverFactory.create(
                 driver2Context,
                 new ExchangeSourceOperator(sourceExchanger.createExchangeSource()),
                 List.of(
@@ -268,8 +264,7 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
                     simpleWithMode(AggregatorMode.FINAL).get(driver2Context),
                     intermediateOperatorItr.next()
                 ),
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         );
         assert intermediateOperatorItr.hasNext() == false;

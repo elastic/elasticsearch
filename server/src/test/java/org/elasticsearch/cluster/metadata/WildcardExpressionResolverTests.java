@@ -10,8 +10,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.index.IndexVersion;
@@ -39,16 +37,15 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     private static final Predicate<String> NONE = name -> false;
 
     public void testConvertWildcardsJustIndicesTests() {
-        Metadata.Builder mdBuilder = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(indexBuilder("testXXX"))
             .put(indexBuilder("testXYY"))
             .put(indexBuilder("testYYY"))
-            .put(indexBuilder("kuku"));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
+            .put(indexBuilder("kuku"))
+            .build();
         IndicesOptions indicesOptions = randomFrom(IndicesOptions.strictExpandOpen(), IndicesOptions.lenientExpandOpen());
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             indicesOptions,
             SystemIndexAccessLevel.NONE
         );
@@ -71,17 +68,16 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testConvertWildcardsOpenClosedIndicesTests() {
-        Metadata.Builder mdBuilder = Metadata.builder()
+        final ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(indexBuilder("testXXX").state(State.OPEN))
             .put(indexBuilder("testXXY").state(State.OPEN))
             .put(indexBuilder("testXYY").state(State.CLOSE))
             .put(indexBuilder("testYYY").state(State.OPEN))
             .put(indexBuilder("testYYX").state(State.CLOSE))
-            .put(indexBuilder("kuku").state(State.OPEN));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
+            .put(indexBuilder("kuku").state(State.OPEN))
+            .build();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             IndicesOptions.fromOptions(true, true, true, true),
             SystemIndexAccessLevel.NONE
         );
@@ -90,7 +86,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             equalTo(resolvedExpressionsSet("testXXX", "testXXY", "testXYY"))
         );
         context = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             IndicesOptions.fromOptions(true, true, false, true),
             SystemIndexAccessLevel.NONE
         );
@@ -99,7 +95,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             equalTo(resolvedExpressionsSet("testXYY"))
         );
         context = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             IndicesOptions.fromOptions(true, true, true, false),
             SystemIndexAccessLevel.NONE
         );
@@ -111,18 +107,16 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
     // issue #13334
     public void testMultipleWildcards() {
-        Metadata.Builder mdBuilder = Metadata.builder()
+        final ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(indexBuilder("testXXX"))
             .put(indexBuilder("testXXY"))
             .put(indexBuilder("testXYY"))
             .put(indexBuilder("testYYY"))
             .put(indexBuilder("kuku"))
-            .put(indexBuilder("kukuYYY"));
-
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
+            .put(indexBuilder("kukuYYY"))
+            .build();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             IndicesOptions.lenientExpandOpen(),
             SystemIndexAccessLevel.NONE
         );
@@ -153,15 +147,14 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testAll() {
-        Metadata.Builder mdBuilder = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(indexBuilder("testXXX"))
             .put(indexBuilder("testXYY"))
-            .put(indexBuilder("testYYY"));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
+            .put(indexBuilder("testYYY"))
+            .build();
         {
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state,
+                project,
                 IndicesOptions.lenientExpandOpen(),
                 SystemIndexAccessLevel.NONE
             );
@@ -173,7 +166,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         {
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state,
+                project,
                 IndicesOptions.builder(IndicesOptions.lenientExpandOpen())
                     .gatekeeperOptions(
                         IndicesOptions.GatekeeperOptions.builder(IndicesOptions.lenientExpandOpen().gatekeeperOptions())
@@ -193,17 +186,15 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     public void testAllAliases() {
         {
             // hidden index with hidden alias should not be returned
-            Metadata.Builder mdBuilder = Metadata.builder()
+            final ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(
                     indexBuilder("index-hidden-alias", true) // index hidden
                         .state(State.OPEN)
                         .putAlias(AliasMetadata.builder("alias-hidden").isHidden(true)) // alias hidden
-                );
-
-            ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
+                )
+                .build();
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state,
+                project,
                 IndicesOptions.lenientExpandOpen(), // don't include hidden
                 SystemIndexAccessLevel.NONE
             );
@@ -212,17 +203,15 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         {
             // hidden index with visible alias should be returned
-            Metadata.Builder mdBuilder = Metadata.builder()
+            final ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(
                     indexBuilder("index-visible-alias", true) // index hidden
                         .state(State.OPEN)
                         .putAlias(AliasMetadata.builder("alias-visible").isHidden(false)) // alias visible
-                );
-
-            ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
+                )
+                .build();
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state,
+                project,
                 IndicesOptions.lenientExpandOpen(), // don't include hidden
                 SystemIndexAccessLevel.NONE
             );
@@ -253,7 +242,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
 
         {
             // visible data streams should be returned by _all even show backing indices are hidden
-            Metadata.Builder mdBuilder = Metadata.builder()
+            final ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(firstBackingIndexMetadata, true)
                 .put(firstFailureIndexMetadata, true)
                 .put(
@@ -262,12 +251,10 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                         List.of(firstBackingIndexMetadata.getIndex()),
                         List.of(firstFailureIndexMetadata.getIndex())
                     )
-                );
-
-            ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
+                )
+                .build();
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state,
+                project,
                 indicesAndAliasesOptions,
                 false,
                 false,
@@ -296,15 +283,13 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 .setHidden(true)
                 .build();
 
-            Metadata.Builder mdBuilder = Metadata.builder()
+            final ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
                 .put(firstBackingIndexMetadata, true)
                 .put(firstFailureIndexMetadata, true)
-                .put(dataStream);
-
-            ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
-
+                .put(dataStream)
+                .build();
             IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
-                state,
+                project,
                 indicesAndAliasesOptions,
                 false,
                 false,
@@ -320,7 +305,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testResolveEmpty() {
-        Metadata.Builder mdBuilder = Metadata.builder()
+        final ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(
                 indexBuilder("index_open").state(State.OPEN)
                     .putAlias(AliasMetadata.builder("alias_open"))
@@ -350,8 +335,8 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 indexBuilder(".dot_index_hidden_closed", true).state(State.CLOSE)
                     .putAlias(AliasMetadata.builder("alias_closed"))
                     .putAlias(AliasMetadata.builder("alias_hidden").isHidden(true))
-            );
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+            )
+            .build();
         IndicesOptions onlyOpenIndicesAndAliasesDisallowNoIndicesOption = IndicesOptions.fromOptions(
             randomBoolean(),
             false,
@@ -364,7 +349,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             randomBoolean()
         );
         IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             onlyOpenIndicesAndAliasesDisallowNoIndicesOption,
             randomFrom(SystemIndexAccessLevel.values())
         );
@@ -386,7 +371,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             randomBoolean()
         );
         indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             closedAndHiddenIndicesAndAliasesDisallowNoIndicesOption,
             randomFrom(SystemIndexAccessLevel.values())
         );
@@ -397,12 +382,12 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testResolveAliases() {
-        Metadata.Builder mdBuilder = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(indexBuilder("foo_foo").state(State.OPEN))
             .put(indexBuilder("bar_bar").state(State.OPEN))
             .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
-            .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+            .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
+            .build();
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
         IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(
@@ -416,21 +401,21 @@ public class WildcardExpressionResolverTests extends ESTestCase {
             false
         );
         IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             indicesAndAliasesOptions,
             SystemIndexAccessLevel.NONE
         );
         // ignoreAliases option is set, WildcardExpressionResolver throws error when
         IndicesOptions skipAliasesIndicesOptions = IndicesOptions.fromOptions(true, true, true, false, true, false, true, false);
         IndexNameExpressionResolver.Context skipAliasesLenientContext = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             skipAliasesIndicesOptions,
             SystemIndexAccessLevel.NONE
         );
         // ignoreAliases option is set, WildcardExpressionResolver resolves the provided expressions only against the defined indices
         IndicesOptions errorOnAliasIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
         IndexNameExpressionResolver.Context skipAliasesStrictContext = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             errorOnAliasIndicesOptions,
             SystemIndexAccessLevel.NONE
         );
@@ -500,7 +485,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         IndexMetadata firstFailureIndexMetadata = createFailureStore(dataStreamName, 1, epochMillis).build();
         IndexMetadata secondFailureIndexMetadata = createFailureStore(dataStreamName, 2, epochMillis).build();
 
-        Metadata.Builder mdBuilder = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(indexBuilder("foo_foo").state(State.OPEN))
             .put(indexBuilder("bar_bar").state(State.OPEN))
             .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
@@ -515,9 +500,8 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                     List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex()),
                     List.of(firstFailureIndexMetadata.getIndex(), secondFailureIndexMetadata.getIndex())
                 )
-            );
-
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+            )
+            .build();
 
         {
             IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(
@@ -531,7 +515,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false
             );
             IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
-                state,
+                project,
                 indicesAndAliasesOptions,
                 SystemIndexAccessLevel.NONE
             );
@@ -572,7 +556,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false
             );
             IndexNameExpressionResolver.Context indicesAliasesAndDataStreamsContext = new IndexNameExpressionResolver.Context(
-                state,
+                project,
                 indicesAndAliasesOptions,
                 false,
                 false,
@@ -629,7 +613,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false
             );
             IndexNameExpressionResolver.Context indicesAliasesDataStreamsAndHiddenIndices = new IndexNameExpressionResolver.Context(
-                state,
+                project,
                 indicesAliasesAndExpandHiddenOptions,
                 false,
                 false,
@@ -713,18 +697,18 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     }
 
     public void testMatchesConcreteIndicesWildcardAndAliases() {
-        Metadata.Builder mdBuilder = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault())
             .put(indexBuilder("foo_foo").state(State.OPEN))
             .put(indexBuilder("bar_bar").state(State.OPEN))
             .put(indexBuilder("foo_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
-            .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+            .put(indexBuilder("bar_index").state(State.OPEN).putAlias(AliasMetadata.builder("foo_alias")))
+            .build();
 
         // when ignoreAliases option is not set, WildcardExpressionResolver resolves the provided
         // expressions against the defined indices and aliases
         IndicesOptions indicesAndAliasesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, false, false);
         IndexNameExpressionResolver.Context indicesAndAliasesContext = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             indicesAndAliasesOptions,
             SystemIndexAccessLevel.NONE
         );
@@ -733,7 +717,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
         // only against the defined indices
         IndicesOptions onlyIndicesOptions = IndicesOptions.fromOptions(false, false, true, false, true, false, true, false);
         IndexNameExpressionResolver.Context onlyIndicesContext = new IndexNameExpressionResolver.Context(
-            state,
+            project,
             onlyIndicesOptions,
             SystemIndexAccessLevel.NONE
         );

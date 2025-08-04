@@ -12,7 +12,9 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,7 +29,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class TransformMetadata implements Metadata.Custom {
+public class TransformMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "transform";
     public static final ParseField RESET_MODE = new ParseField("reset_mode");
     public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
@@ -77,7 +79,7 @@ public class TransformMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new TransformMetadata.TransformMetadataDiff((TransformMetadata) previousState, this);
     }
 
@@ -106,7 +108,7 @@ public class TransformMetadata implements Metadata.Custom {
         );
     }
 
-    public static class TransformMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class TransformMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final boolean resetMode;
         final boolean upgradeMode;
@@ -131,7 +133,7 @@ public class TransformMetadata implements Metadata.Custom {
          * @return The new transform metadata.
          */
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new TransformMetadata(resetMode, upgradeMode);
         }
 
@@ -209,12 +211,34 @@ public class TransformMetadata implements Metadata.Custom {
         }
     }
 
+    /**
+     * @deprecated use {@link #transformMetadata(ClusterState, ProjectId)}
+     */
+    @Deprecated(forRemoval = true)
     public static TransformMetadata getTransformMetadata(ClusterState state) {
-        TransformMetadata TransformMetadata = (state == null) ? null : state.getMetadata().custom(TYPE);
+        TransformMetadata TransformMetadata = (state == null) ? null : state.metadata().getSingleProjectCustom(TYPE);
         if (TransformMetadata == null) {
             return EMPTY_METADATA;
         }
         return TransformMetadata;
+    }
+
+    public static TransformMetadata transformMetadata(@Nullable ClusterState state, @Nullable ProjectId projectId) {
+        if (state == null || projectId == null) {
+            return EMPTY_METADATA;
+        }
+        return transformMetadata(state.projectState(projectId));
+    }
+
+    public static TransformMetadata transformMetadata(@Nullable ProjectState projectState) {
+        if (projectState == null) {
+            return EMPTY_METADATA;
+        }
+        TransformMetadata transformMetadata = projectState.metadata().custom(TYPE);
+        if (transformMetadata == null) {
+            return EMPTY_METADATA;
+        }
+        return transformMetadata;
     }
 
     public static boolean upgradeMode(ClusterState state) {

@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.fs;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -75,6 +76,7 @@ public class FsRepository extends BlobStoreRepository {
      * Constructs a shared file system repository.
      */
     public FsRepository(
+        ProjectId projectId,
         RepositoryMetadata metadata,
         Environment environment,
         NamedXContentRegistry namedXContentRegistry,
@@ -82,7 +84,7 @@ public class FsRepository extends BlobStoreRepository {
         BigArrays bigArrays,
         RecoverySettings recoverySettings
     ) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {

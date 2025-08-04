@@ -31,6 +31,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
@@ -196,6 +197,25 @@ public class GoogleCloudStorageClientSettings {
         return proxy;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        GoogleCloudStorageClientSettings that = (GoogleCloudStorageClientSettings) o;
+        return Objects.equals(credential, that.credential)
+            && Objects.equals(endpoint, that.endpoint)
+            && Objects.equals(projectId, that.projectId)
+            && Objects.equals(connectTimeout, that.connectTimeout)
+            && Objects.equals(readTimeout, that.readTimeout)
+            && Objects.equals(applicationName, that.applicationName)
+            && Objects.equals(tokenUri, that.tokenUri)
+            && Objects.equals(proxy, that.proxy);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName, tokenUri, proxy);
+    }
+
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
         final Map<String, GoogleCloudStorageClientSettings> clients = new HashMap<>();
         for (final String clientName : settings.getGroups(PREFIX).keySet()) {
@@ -255,14 +275,12 @@ public class GoogleCloudStorageClientSettings {
             }
             try (InputStream credStream = credentialsFileSetting.get(settings)) {
                 final Collection<String> scopes = Collections.singleton(StorageScopes.DEVSTORAGE_FULL_CONTROL);
-                return SocketAccess.doPrivilegedIOException(() -> {
-                    NetHttpTransport netHttpTransport = new NetHttpTransport.Builder().setProxy(proxy).build();
-                    final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream, () -> netHttpTransport);
-                    if (credentials.createScopedRequired()) {
-                        return (ServiceAccountCredentials) credentials.createScoped(scopes);
-                    }
-                    return credentials;
-                });
+                NetHttpTransport netHttpTransport = new NetHttpTransport.Builder().setProxy(proxy).build();
+                final ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(credStream, () -> netHttpTransport);
+                if (credentials.createScopedRequired()) {
+                    return (ServiceAccountCredentials) credentials.createScoped(scopes);
+                }
+                return credentials;
             }
         } catch (final Exception e) {
             throw new IllegalArgumentException("failed to load GCS client credentials from [" + credentialsFileSetting.getKey() + "]", e);

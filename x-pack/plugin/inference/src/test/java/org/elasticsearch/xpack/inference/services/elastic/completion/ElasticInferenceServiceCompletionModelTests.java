@@ -29,7 +29,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
             new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            ElasticInferenceServiceComponents.withNoRevokeDelay("url")
+            ElasticInferenceServiceComponents.of("url")
         );
 
         var request = new UnifiedCompletionRequest(

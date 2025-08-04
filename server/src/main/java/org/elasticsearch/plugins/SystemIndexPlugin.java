@@ -12,6 +12,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
@@ -40,14 +41,14 @@ import java.util.Map;
  * <p>A SystemIndexPlugin may also specify “associated indices,” which hold plugin state in user space. These indices are not managed or
  * protected, but they are included in snapshots of the feature.
  *
- * <p>An implementation of SystemIndexPlugin may override {@link #cleanUpFeature(ClusterService, Client, ActionListener)} in order to
- * provide a “factory reset” of the plugin state. This can be useful for testing. The default method will simply retrieve a list of
- * system and associated indices and delete them.
+ * <p>An implementation of SystemIndexPlugin may override {@link #cleanUpFeature(ClusterService, ProjectResolver, Client, ActionListener)}
+ * in order to provide a “factory reset” of the plugin state. This can be useful for testing. The default method will simply retrieve a list
+ * of system and associated indices and delete them.
  *
  * <p>An implementation may also override {@link #prepareForIndicesMigration(ClusterService, Client, ActionListener)}  and
  * {@link #indicesMigrationComplete(Map, ClusterService, Client, ActionListener)}  in order to take special action before and after a
  * feature migration, which will temporarily block access to system indices. For example, a plugin might want to enter a safe mode and
- * reject certain requests while the migration is in progress. See {@link org.elasticsearch.upgrades.SystemIndexMigrationExecutor} for
+ * reject certain requests while the migration is in progress. See org.elasticsearch.upgrades.SystemIndexMigrationExecutor for
  * more details.
  *
  * <p>After plugins are loaded, the {@link SystemIndices} class will provide the rest of the system with access to the feature's
@@ -94,21 +95,24 @@ public interface SystemIndexPlugin extends ActionPlugin {
     /**
      * Cleans up the state of the feature by deleting system indices and associated indices.
      * Override to do more for cleanup (e.g. cancelling tasks).
+     *
      * @param clusterService Cluster service to provide cluster state
+     * @param projectResolver Project resolver
      * @param client A client, for executing actions
      * @param listener Listener for post-cleanup result
      */
     default void cleanUpFeature(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         Client client,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
     ) {
-
         SystemIndices.Feature.cleanUpFeature(
             getSystemIndexDescriptors(clusterService.getSettings()),
             getAssociatedIndexDescriptors(),
             getFeatureName(),
             clusterService,
+            projectResolver,
             client,
             listener
         );

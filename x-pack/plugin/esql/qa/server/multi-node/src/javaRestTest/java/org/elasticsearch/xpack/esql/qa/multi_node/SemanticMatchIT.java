@@ -17,7 +17,9 @@ import org.junit.ClassRule;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class SemanticMatchIT extends SemanticMatchTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> spec.plugin("inference-service-test"));
+    public static ElasticsearchCluster cluster = Clusters.testCluster(
+        spec -> spec.module("x-pack-inference").plugin("inference-service-test")
+    );
 
     @Override
     protected String getTestRestCluster() {

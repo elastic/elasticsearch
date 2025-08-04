@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -25,6 +26,9 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * Specialized type of join where the source of the left and right plans are the same. The plans themselves can contain different nodes
@@ -53,15 +57,8 @@ public class InlineJoin extends Join {
     }
 
     /**
-     * Replaces the stubbed source with the actual source.
-     */
-    public static LogicalPlan replaceStub(LogicalPlan source, LogicalPlan stubbed) {
-        return stubbed.transformUp(StubRelation.class, stubRelation -> source);
-    }
-
-    /**
      * TODO: perform better planning
-     * Keep the join in place or replace it with a projection in case no grouping is necessary.
+     * Keep the join in place or replace it with an Eval in case no grouping is necessary.
      */
     public static LogicalPlan inlineData(InlineJoin target, LocalRelation data) {
         if (target.config().matchFields().isEmpty()) {
@@ -76,6 +73,70 @@ public class InlineJoin extends Join {
         } else {
             return target.replaceRight(data);
         }
+    }
+
+    /**
+     * Replaces the stubbed source with the actual source.
+     * NOTE: this will replace all {@link StubRelation}s found with the source and the method is meant to be used to replace one node only
+     * when being called on a plan that has only ONE StubRelation in it.
+     */
+    public static LogicalPlan replaceStub(LogicalPlan source, LogicalPlan stubbed) {
+        // here we could have used stubbed.transformUp(StubRelation.class, stubRelation -> source)
+        // but transformUp skips changing a node if its transformed variant is equal to its original variant.
+        // A StubRelation can contain in its output ReferenceAttributes which do not use NameIds for equality, but only names and
+        // two ReferenceAttributes with the same name are equal and the transformation will not be applied.
+        return stubbed.transformUp(UnaryPlan.class, up -> {
+            if (up.child() instanceof StubRelation) {
+                return up.replaceChild(source);
+            }
+            return up;
+        });
+    }
+
+    /**
+     * @param stubReplacedSubPlan - the completed / "destubbed" right-hand side of the bottommost InlineJoin in the plan. For example:
+     *                            Aggregate[[],[MAX(x{r}#99,true[BOOLEAN]) AS y#102]]
+     *                            \_Limit[1000[INTEGER],false]
+     *                              \_LocalRelation[[x{r}#99],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     * @param originalSubPlan - the original (unchanged) right-hand side of the bottommost InlineJoin in the plan. For example:
+     *                        Aggregate[[],[MAX(x{r}#99,true[BOOLEAN]) AS y#102]]
+     *                        \_StubRelation[[x{r}#99]]]
+     */
+    public record LogicalPlanTuple(LogicalPlan stubReplacedSubPlan, LogicalPlan originalSubPlan) {}
+
+    /**
+     * Finds the "first" (closest to the source command or bottom up in the tree) {@link InlineJoin}, replaces the {@link StubRelation}
+     * of the right-hand side with left-hand side's source and returns a tuple.
+     *
+     * Original optimized plan:
+     * Limit[1000[INTEGER],true]
+     * \_InlineJoin[LEFT,[],[],[]]
+     *   |_Limit[1000[INTEGER],false]
+     *   | \_LocalRelation[[x{r}#99],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     *   \_Aggregate[[],[MAX(x{r}#99,true[BOOLEAN]) AS y#102]]
+     *     \_StubRelation[[x{r}#99]]
+     *
+     * Takes the right hand side:
+     * Aggregate[[],[MAX(x{r}#99,true[BOOLEAN]) AS y#102]]
+     * \_StubRelation[[x{r}#99]]]
+     *
+     * And uses the left-hand side's source as its source:
+     * Aggregate[[],[MAX(x{r}#99,true[BOOLEAN]) AS y#102]]
+     * \_Limit[1000[INTEGER],false]
+     *   \_LocalRelation[[x{r}#99],[IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]]]
+     */
+    public static LogicalPlanTuple firstSubPlan(LogicalPlan optimizedPlan) {
+        Holder<LogicalPlanTuple> subPlan = new Holder<>();
+        // Collect the first inlinejoin (bottom up in the tree)
+        optimizedPlan.forEachUp(InlineJoin.class, ij -> {
+            // extract the right side of the plan and replace its source
+            if (subPlan.get() == null && ij.right().anyMatch(p -> p instanceof StubRelation)) {
+                var p = replaceStub(ij.left(), ij.right());
+                p.setOptimized();
+                subPlan.set(new LogicalPlanTuple(p, ij.right()));
+            }
+        });
+        return subPlan.get();
     }
 
     public InlineJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig config) {
@@ -128,5 +189,22 @@ public class InlineJoin extends Join {
     @Override
     public Join replaceChildren(LogicalPlan left, LogicalPlan right) {
         return new InlineJoin(source(), left, right, config());
+    }
+
+    @Override
+    public List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
+        JoinType joinType = config().type();
+        List<Attribute> output;
+        if (LEFT.equals(joinType)) {
+            List<Attribute> leftOutputWithoutKeys = left.stream().filter(attr -> config().leftFields().contains(attr) == false).toList();
+            List<Attribute> rightWithAppendedKeys = new ArrayList<>(right);
+            rightWithAppendedKeys.removeAll(config().rightFields());
+            rightWithAppendedKeys.addAll(config().leftFields());
+
+            output = mergeOutputAttributes(rightWithAppendedKeys, leftOutputWithoutKeys);
+        } else {
+            throw new IllegalArgumentException(joinType.joinName() + " unsupported");
+        }
+        return output;
     }
 }

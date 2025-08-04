@@ -20,7 +20,6 @@ import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.ParsingException;
@@ -44,6 +43,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -114,10 +114,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
             SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            ActionListener.respondAndRelease(
-                l,
-                new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
-            );
+            ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
         }
 
         @Override

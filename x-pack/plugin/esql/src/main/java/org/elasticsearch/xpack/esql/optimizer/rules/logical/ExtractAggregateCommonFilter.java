@@ -67,12 +67,6 @@ public final class ExtractAggregateCommonFilter extends OptimizerRules.Optimizer
         }
 
         // build the new agg on top of extracted filter
-        return new Aggregate(
-            aggregate.source(),
-            new Filter(aggregate.source(), aggregate.child(), common.v1()),
-            aggregate.aggregateType(),
-            aggregate.groupings(),
-            newAggs
-        );
+        return aggregate.with(new Filter(aggregate.source(), aggregate.child(), common.v1()), aggregate.groupings(), newAggs);
     }
 }

@@ -243,7 +243,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     }
 
     private boolean systemIndexPrimaryShardActiveAndAssignedToLocalNode(final ClusterState state) {
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSystem() && systemIndexDescriptor.matchesIndexPattern(indexMetadata.getIndex().getName())) {
                 final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
                 if (indexRoutingTable == null || indexRoutingTable.shard(0) == null) {
@@ -259,7 +259,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     }
 
     private static boolean hasSearchableSnapshotWith(final ClusterState state, final String snapshotId, final String indexId) {
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (Objects.equals(snapshotId, SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))
@@ -277,7 +277,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     private static Map<String, Set<String>> listSearchableSnapshots(final ClusterState state) {
         Map<String, Set<String>> snapshots = null;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (snapshots == null) {
@@ -316,12 +316,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             final ClusterState state = event.state();
 
             for (Index deletedIndex : event.indicesDeleted()) {
-                final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
-                assert indexMetadata != null || state.metadata().indexGraveyard().containsIndex(deletedIndex)
+                final IndexMetadata indexMetadata = event.previousState().metadata().getProject().index(deletedIndex);
+                assert indexMetadata != null || state.metadata().getProject().indexGraveyard().containsIndex(deletedIndex)
                     : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     if (indexMetadata.isSearchableSnapshot()) {
-                        assert state.metadata().hasIndex(deletedIndex) == false;
+                        assert state.metadata().getProject().hasIndex(deletedIndex) == false;
 
                         final Settings indexSetting = indexMetadata.getSettings();
                         final String snapshotId = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSetting);

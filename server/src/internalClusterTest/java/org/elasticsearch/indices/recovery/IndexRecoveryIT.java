@@ -1764,7 +1764,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .getIndices();
                     assertThat(nodeIndicesStats.getStore().reservedSizeInBytes(), equalTo(0L));
                     assertThat(
-                        nodeIndicesStats.getShardStats(clusterState.metadata().index(indexName).getIndex())
+                        nodeIndicesStats.getShardStats(clusterState.metadata().getProject().index(indexName).getIndex())
                             .stream()
                             .flatMap(s -> Arrays.stream(s.getShards()))
                             .map(s -> s.getStats().getStore().reservedSizeInBytes())

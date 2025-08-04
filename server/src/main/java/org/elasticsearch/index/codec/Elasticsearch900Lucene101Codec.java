@@ -17,9 +17,9 @@ import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.codecs.lucene101.Lucene101PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
@@ -27,6 +27,8 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  * stored fields with ZSTD instead of LZ4/DEFLATE. See {@link Zstd814StoredFieldsFormat}.
  */
 public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFieldInfosCodec {
+
+    static final PostingsFormat DEFAULT_POSTINGS_FORMAT = new Lucene101PostingsFormat();
 
     private final StoredFieldsFormat storedFieldsFormat;
 
@@ -39,7 +41,7 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
     };
 
     private final DocValuesFormat defaultDVFormat;
-    private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
+    private final DocValuesFormat docValuesFormat = new XPerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return Elasticsearch900Lucene101Codec.this.getDocValuesFormatForField(field);
@@ -66,7 +68,7 @@ public class Elasticsearch900Lucene101Codec extends CodecService.DeduplicateFiel
     public Elasticsearch900Lucene101Codec(Zstd814StoredFieldsFormat.Mode mode) {
         super("Elasticsearch900Lucene101", new Lucene101Codec());
         this.storedFieldsFormat = mode.getFormat();
-        this.defaultPostingsFormat = new Lucene101PostingsFormat();
+        this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();
         this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
     }

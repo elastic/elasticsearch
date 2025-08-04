@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -279,16 +280,17 @@ public class ProfileServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testGetProfileSubjectsNoIndex() throws Exception {
-        when(profileIndex.indexExists()).thenReturn(false);
+        SecurityIndexManager.IndexState projectIndex = profileIndex.forCurrentProject();
+        when(projectIndex.indexExists()).thenReturn(false);
         PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future);
         ResultsAndErrors<Map.Entry<String, Subject>> resultsAndErrors = future.get();
         assertThat(resultsAndErrors.results().size(), is(0));
         assertThat(resultsAndErrors.errors().size(), is(0));
-        when(profileIndex.indexExists()).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
         ElasticsearchException unavailableException = new ElasticsearchException("mock profile index unavailable");
-        when(profileIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
-        when(profileIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(unavailableException);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(unavailableException);
         PlainActionFuture<ResultsAndErrors<Map.Entry<String, Subject>>> future2 = new PlainActionFuture<>();
         profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future2);
         ExecutionException e = expectThrows(ExecutionException.class, () -> future2.get());
@@ -298,7 +300,7 @@ public class ProfileServiceTests extends ESTestCase {
         resultsAndErrors = future3.get();
         assertThat(resultsAndErrors.results().size(), is(0));
         assertThat(resultsAndErrors.errors().size(), is(0));
-        verify(profileIndex, never()).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        verify(projectIndex, never()).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
     }
 
     @SuppressWarnings("unchecked")
@@ -348,7 +350,8 @@ public class ProfileServiceTests extends ESTestCase {
         profileService.getProfileSubjects(allProfileUids, future);
 
         ResultsAndErrors<Map.Entry<String, Subject>> resultsAndErrors = future.get();
-        verify(profileIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        SecurityIndexManager.IndexState projectIndex = profileIndex.forCurrentProject();
+        verify(projectIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         assertThat(resultsAndErrors.errors().size(), equalTo(missingProfileUids.size()));
         resultsAndErrors.errors().forEach((uid, e) -> {
             assertThat(missingProfileUids, hasItem(uid));
@@ -1012,7 +1015,8 @@ public class ProfileServiceTests extends ESTestCase {
     }
 
     public void testUsageStatsWhenNoIndex() {
-        when(profileIndex.indexExists()).thenReturn(false);
+        SecurityIndexManager.IndexState projectIndex = profileIndex.forCurrentProject();
+        when(projectIndex.indexExists()).thenReturn(false);
         final PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         profileService.usageStats(future);
         assertThat(future.actionGet(), equalTo(Map.of("total", 0L, "enabled", 0L, "recent", 0L)));
@@ -1286,7 +1290,8 @@ public class ProfileServiceTests extends ESTestCase {
 
     public void testProfilesIndexMissingOrUnavailableWhenRetrievingProfilesOfApiKeyOwners() throws Exception {
         // profiles index missing
-        when(this.profileIndex.indexExists()).thenReturn(false);
+        SecurityIndexManager.IndexState projectIndex = profileIndex.forCurrentProject();
+        when(projectIndex.indexExists()).thenReturn(false);
         String realmName = "realmName_" + randomAlphaOfLength(8);
         String realmType = "realmType_" + randomAlphaOfLength(8);
         String username = "username_" + randomAlphaOfLength(8);
@@ -1308,9 +1313,10 @@ public class ProfileServiceTests extends ESTestCase {
         Collection<String> profileUids = listener.get();
         assertThat(profileUids, nullValue());
         // profiles index unavailable
-        when(this.profileIndex.indexExists()).thenReturn(true);
-        when(this.profileIndex.isAvailable(any())).thenReturn(false);
-        when(this.profileIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException("test unavailable"));
+        Mockito.reset(projectIndex);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(any())).thenReturn(false);
+        when(projectIndex.getUnavailableReason(any())).thenReturn(new ElasticsearchException("test unavailable"));
         listener = new PlainActionFuture<>();
         profileService.resolveProfileUidsForApiKeys(apiKeys, listener);
         PlainActionFuture<Collection<String>> finalListener = listener;

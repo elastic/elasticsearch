@@ -43,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "11.10.1"
+  alias(buildLibs.plugins.ospackage)
 }
 
 ['deb', 'rpm'].each { type ->
@@ -174,7 +174,7 @@ def commonPackageConfig(String type, String architecture) {
     } else {
       assert type == 'rpm'
       into('/usr/share/elasticsearch') {
-        from(rootProject.file('licenses')) {
+        from(layout.settingsDirectory.file('licenses').asFile) {
           include 'ELASTIC-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
         }
@@ -300,7 +300,7 @@ ospackage {
   url = 'https://www.elastic.co/'
 
   // signing setup
-  if (project.hasProperty('signing.password') && buildParams.isSnapshotBuild() == false) {
+  if (project.hasProperty('signing.password') && buildParams.snapshotBuild == false) {
     signingKeyId = project.hasProperty('signing.keyId') ? project.property('signing.keyId') : 'D88E42B4'
     signingKeyPassphrase = project.property('signing.password')
     signingKeyRingFile = project.hasProperty('signing.secretKeyRingFile') ?

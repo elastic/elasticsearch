@@ -2479,22 +2479,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) ft;
         return switch (vectorFieldType.getElementType()) {
             case BYTE -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions());
-            case FLOAT -> {
-                float[] floats = new float[vectorFieldType.getVectorDimensions()];
-                float magnitude = 0;
-                for (int i = 0; i < floats.length; i++) {
-                    float f = randomFloat();
-                    floats[i] = f;
-                    magnitude += f * f;
-                }
-                magnitude = (float) Math.sqrt(magnitude);
-                if (VectorSimilarity.DOT_PRODUCT.equals(vectorFieldType.getSimilarity())) {
-                    for (int i = 0; i < floats.length; i++) {
-                        floats[i] /= magnitude;
-                    }
-                }
-                yield floats;
-            }
+            case FLOAT -> randomNormalizedVector(vectorFieldType.getVectorDimensions());
             case BIT -> randomByteArrayOfLength(vectorFieldType.getVectorDimensions() / 8);
         };
     }

@@ -293,4 +293,30 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
         return sumQuery;
     }
+
+    @Override
+    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+        distances[0] = VectorUtil.squareDistance(query, v0);
+        distances[1] = VectorUtil.squareDistance(query, v1);
+        distances[2] = VectorUtil.squareDistance(query, v2);
+        distances[3] = VectorUtil.squareDistance(query, v3);
+    }
+
+    @Override
+    public void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        distances[0] = soarDistance(v1, c0, originalResidual, soarLambda, rnorm);
+        distances[1] = soarDistance(v1, c1, originalResidual, soarLambda, rnorm);
+        distances[2] = soarDistance(v1, c2, originalResidual, soarLambda, rnorm);
+        distances[3] = soarDistance(v1, c3, originalResidual, soarLambda, rnorm);
+    }
 }

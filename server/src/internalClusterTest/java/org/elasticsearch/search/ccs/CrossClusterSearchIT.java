@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -160,21 +159,6 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
             assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
             assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
         });
-    }
-
-    public void testCCSQueryRewrite() throws Exception {
-        Map<String, Object> testClusterInfo = setupTwoClusters();
-        String localIndex = (String) testClusterInfo.get("local.index");
-        String remoteIndex = (String) testClusterInfo.get("remote.index");
-        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
-        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
-
-        SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
-        // searchRequest.setCcsMinimizeRoundtrips(false);
-
-        searchRequest.source(new SearchSourceBuilder().query(new MatchQueryBuilder("foo", "bar")).size(10));
-
-        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> { assertNotNull(response); });
     }
 
     // CCS with a search where the timestamp of the query cannot match so should be SUCCESSFUL with all shards skipped

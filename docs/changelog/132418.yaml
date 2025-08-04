@@ -1,0 +1,6 @@
+pr: 132418
+summary: "Precompute the `BitsetCacheKey` `hashCode,` and account for the size of\
+  \ the key"
+area: Authorization
+type: bug
+issues: []

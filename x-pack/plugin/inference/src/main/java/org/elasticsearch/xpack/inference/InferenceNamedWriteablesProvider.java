@@ -13,6 +13,7 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
@@ -185,6 +186,9 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.addAll(DeepSeekChatCompletionModel.namedWriteables());
         namedWriteables.addAll(SageMakerModel.namedWriteables());
         namedWriteables.addAll(SageMakerSchemas.namedWriteables());
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(MinimalServiceSettings.class, MinimalServiceSettings.NAME, MinimalServiceSettings::new)
+        );
 
         return namedWriteables;
     }

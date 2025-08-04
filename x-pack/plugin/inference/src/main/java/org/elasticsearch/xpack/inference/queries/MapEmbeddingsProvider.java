@@ -36,7 +36,7 @@ public class MapEmbeddingsProvider implements EmbeddingsProvider {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(embeddings);
+        out.writeMap(embeddings, StreamOutput::writeWriteable, StreamOutput::writeNamedWriteable);
     }
 
     @Override

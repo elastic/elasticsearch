@@ -73,4 +73,9 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     public Collection<MappedActionFilter> getMappedActionFilters() {
         return inferencePlugin.getMappedActionFilters();
     }
+
+    @Override
+    public void onNodeStarted() {
+        inferencePlugin.onNodeStarted();
+    }
 }

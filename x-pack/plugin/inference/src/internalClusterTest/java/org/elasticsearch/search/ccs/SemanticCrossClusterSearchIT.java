@@ -95,7 +95,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
 
         SearchRequest searchRequest = new SearchRequest(localIndex, REMOTE_CLUSTER + ":" + remoteIndex);
         searchRequest.source(new SearchSourceBuilder().query(new SemanticQueryBuilder(INFERENCE_FIELD, "foo")).size(10));
-        searchRequest.setCcsMinimizeRoundtrips(false);
+        searchRequest.setCcsMinimizeRoundtrips(true);
 
         assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
             assertNotNull(response);

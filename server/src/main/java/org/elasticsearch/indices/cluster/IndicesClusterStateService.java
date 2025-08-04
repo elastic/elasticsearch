@@ -101,6 +101,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.cluster.IndexRemovalReason.CLOSED;
@@ -709,7 +710,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     @SuppressForbidden(reason = "usage of unbatched task") // TODO add support for batching here
     private void renameIndices(ClusterChangedEvent event) {
-        if (event.metadataChanged() == false) {
+        // No need to check any renamed indices if the no metadata has changed or the node is not the master node
+        if (event.metadataChanged() == false || event.localNodeMaster() == false) {
             return;
         }
         final ClusterState state = event.state();
@@ -815,7 +817,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final Index index = indexService.getIndexSettings().getIndex();
             final Optional<ProjectMetadata> project = state.metadata().lookupProject(index);
             final IndexMetadata newIndexMetadata = project.map(proj -> proj.index(index)).orElse(null);
-            if (newIndexMetadata == null && isBeingRenamed(previousState.metadata().findIndex(index).orElse(null))) {
+            if (newIndexMetadata == null) {
+                logger.info(
+                    "--> Updating. I have {}",
+                    StreamSupport.stream(previousState.metadata().indicesAllProjects().spliterator(), false)
+                        .map(IndexMetadata::getIndex)
+                        .toList()
+                );
+            }
+            if (newIndexMetadata == null) {
+                // if (newIndexMetadata == null && isBeingRenamed(previousState.metadata().findIndex(index).orElse(null))) {
                 logger.info("--> skipping update for rename-in-progress for [{}]", index.getName());
                 continue;
             }
@@ -834,6 +845,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     reason = "mapping update failed";
                     indexService.updateMapping(currentIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
+                    logger.info("##> caught an error", e);
                     indicesService.removeIndex(
                         index,
                         FAILURE,

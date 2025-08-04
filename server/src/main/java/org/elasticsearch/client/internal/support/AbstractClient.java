@@ -79,6 +79,7 @@ import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -97,7 +98,7 @@ public abstract class AbstractClient implements Client {
     private final ThreadPool threadPool;
     private final ProjectResolver projectResolver;
     private final AdminClient admin;
-    private ProjectClient defaultProjectClient;
+    private final ProjectClient defaultProjectClient;
 
     @SuppressWarnings("this-escape")
     public AbstractClient(Settings settings, ThreadPool threadPool, ProjectResolver projectResolver) {
@@ -106,6 +107,13 @@ public abstract class AbstractClient implements Client {
         this.projectResolver = projectResolver;
         this.admin = new AdminClient(this);
         this.logger = LogManager.getLogger(this.getClass());
+        // We create a dedicated project client for the default project to avoid having to reconstruct it on every invocation.
+        // This aims to reduce the overhead of creating a project client when the client is used in a single-project context.
+        if (projectResolver.supportsMultipleProjects() == false && this instanceof ProjectClient == false) {
+            this.defaultProjectClient = new ProjectClientImpl(this, ProjectId.DEFAULT);
+        } else {
+            this.defaultProjectClient = null;
+        }
     }
 
     @Override
@@ -423,9 +431,6 @@ public abstract class AbstractClient implements Client {
         // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
         // take care of error handling.
         if (projectResolver.supportsMultipleProjects() == false && projectId.equals(projectResolver.getProjectId())) {
-            if (defaultProjectClient == null) {
-                defaultProjectClient = new ProjectClientImpl(this, ProjectId.DEFAULT);
-            }
             return defaultProjectClient;
         }
         return new ProjectClientImpl(this, projectId);
@@ -488,6 +493,13 @@ public abstract class AbstractClient implements Client {
             ActionListener<Response> listener
         ) {
             projectResolver().executeOnProject(projectId, () -> super.doExecute(action, request, listener));
+        }
+
+        @Override
+        public ProjectClient projectClient(ProjectId projectId) {
+            throw new IllegalStateException(Strings.format("""
+                Unable to create a project client for project [%s] from project client with project ID [%s],\
+                 nested project client creation is not supported""", projectId, this.projectId));
         }
     }
 }

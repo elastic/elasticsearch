@@ -67,7 +67,7 @@ public final class SampleBytesRefAggregatorFunction implements AggregatorFunctio
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     BytesRefBlock valueBlock = page.getBlock(channels.get(0));
     BytesRefVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
@@ -77,7 +77,7 @@ public final class SampleBytesRefAggregatorFunction implements AggregatorFunctio
     addRawVector(valueVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     BytesRefBlock valueBlock = page.getBlock(channels.get(0));
     BytesRefVector valueVector = valueBlock.asVector();
     if (valueVector == null) {

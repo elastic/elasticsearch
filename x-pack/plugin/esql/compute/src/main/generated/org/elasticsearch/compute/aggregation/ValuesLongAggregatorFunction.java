@@ -63,7 +63,7 @@ public final class ValuesLongAggregatorFunction implements AggregatorFunction {
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     LongBlock vBlock = page.getBlock(channels.get(0));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {
@@ -73,7 +73,7 @@ public final class ValuesLongAggregatorFunction implements AggregatorFunction {
     addRawVector(vVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     LongBlock vBlock = page.getBlock(channels.get(0));
     LongVector vVector = vBlock.asVector();
     if (vVector == null) {

@@ -304,7 +304,7 @@ public class AggregatorImplementer {
 
     private MethodSpec addRawInputExploded(boolean hasMask) {
         MethodSpec.Builder builder = MethodSpec.methodBuilder(addRawInputExplodedName(hasMask));
-        builder.addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
+        builder.addModifiers(Modifier.PRIVATE).addParameter(PAGE, "page");
         if (hasMask) {
             builder.addParameter(BOOLEAN_VECTOR, "mask");
         }

@@ -74,7 +74,7 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
     BytesRefVector wkbVector = wkbBlock.asVector();
     if (wkbVector == null) {
@@ -84,7 +84,7 @@ public final class SpatialCentroidCartesianPointSourceValuesAggregatorFunction i
     addRawVector(wkbVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     BytesRefBlock wkbBlock = page.getBlock(channels.get(0));
     BytesRefVector wkbVector = wkbBlock.asVector();
     if (wkbVector == null) {

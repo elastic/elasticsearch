@@ -73,7 +73,7 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
     BytesRefVector bytesVector = bytesBlock.asVector();
     if (bytesVector == null) {
@@ -83,7 +83,7 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
     addRawVector(bytesVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
     BytesRefVector bytesVector = bytesBlock.asVector();
     if (bytesVector == null) {

@@ -63,7 +63,7 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     BooleanBlock vBlock = page.getBlock(channels.get(0));
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {
@@ -73,7 +73,7 @@ public final class MinBooleanAggregatorFunction implements AggregatorFunction {
     addRawVector(vVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     BooleanBlock vBlock = page.getBlock(channels.get(0));
     BooleanVector vVector = vBlock.asVector();
     if (vVector == null) {

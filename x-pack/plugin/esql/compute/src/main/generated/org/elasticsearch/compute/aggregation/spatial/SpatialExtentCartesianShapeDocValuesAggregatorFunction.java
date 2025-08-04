@@ -68,7 +68,7 @@ public final class SpatialExtentCartesianShapeDocValuesAggregatorFunction implem
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
@@ -78,7 +78,7 @@ public final class SpatialExtentCartesianShapeDocValuesAggregatorFunction implem
     addRawVector(valuesVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     IntBlock valuesBlock = page.getBlock(channels.get(0));
     IntVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {

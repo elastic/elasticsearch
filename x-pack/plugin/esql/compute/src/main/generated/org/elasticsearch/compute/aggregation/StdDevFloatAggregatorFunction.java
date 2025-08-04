@@ -69,7 +69,7 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     FloatBlock valueBlock = page.getBlock(channels.get(0));
     FloatVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
@@ -79,7 +79,7 @@ public final class StdDevFloatAggregatorFunction implements AggregatorFunction {
     addRawVector(valueVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     FloatBlock valueBlock = page.getBlock(channels.get(0));
     FloatVector valueVector = valueBlock.asVector();
     if (valueVector == null) {

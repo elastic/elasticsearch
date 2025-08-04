@@ -68,7 +68,7 @@ public final class LastOverTimeIntAggregatorFunction implements AggregatorFuncti
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     LongBlock timestampBlock = page.getBlock(channels.get(0));
     IntBlock valueBlock = page.getBlock(channels.get(1));
     LongVector timestampVector = timestampBlock.asVector();
@@ -84,7 +84,7 @@ public final class LastOverTimeIntAggregatorFunction implements AggregatorFuncti
     addRawVector(timestampVector, valueVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     LongBlock timestampBlock = page.getBlock(channels.get(0));
     IntBlock valueBlock = page.getBlock(channels.get(1));
     LongVector timestampVector = timestampBlock.asVector();

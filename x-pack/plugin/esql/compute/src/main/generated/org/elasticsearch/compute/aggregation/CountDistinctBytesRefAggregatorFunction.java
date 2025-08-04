@@ -67,7 +67,7 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     BytesRefBlock vBlock = page.getBlock(channels.get(0));
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {
@@ -77,7 +77,7 @@ public final class CountDistinctBytesRefAggregatorFunction implements Aggregator
     addRawVector(vVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     BytesRefBlock vBlock = page.getBlock(channels.get(0));
     BytesRefVector vVector = vBlock.asVector();
     if (vVector == null) {

@@ -63,7 +63,7 @@ public final class ValuesIntAggregatorFunction implements AggregatorFunction {
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     IntBlock vBlock = page.getBlock(channels.get(0));
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {
@@ -73,7 +73,7 @@ public final class ValuesIntAggregatorFunction implements AggregatorFunction {
     addRawVector(vVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     IntBlock vBlock = page.getBlock(channels.get(0));
     IntVector vVector = vBlock.asVector();
     if (vVector == null) {

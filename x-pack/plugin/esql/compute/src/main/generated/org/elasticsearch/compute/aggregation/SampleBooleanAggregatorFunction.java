@@ -67,7 +67,7 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     BooleanBlock valueBlock = page.getBlock(channels.get(0));
     BooleanVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
@@ -77,7 +77,7 @@ public final class SampleBooleanAggregatorFunction implements AggregatorFunction
     addRawVector(valueVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     BooleanBlock valueBlock = page.getBlock(channels.get(0));
     BooleanVector valueVector = valueBlock.asVector();
     if (valueVector == null) {

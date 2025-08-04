@@ -68,7 +68,7 @@ public final class SampleDoubleAggregatorFunction implements AggregatorFunction 
     }
   }
 
-  public void addRawInputMasked(Page page, BooleanVector mask) {
+  private void addRawInputMasked(Page page, BooleanVector mask) {
     DoubleBlock valueBlock = page.getBlock(channels.get(0));
     DoubleVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
@@ -78,7 +78,7 @@ public final class SampleDoubleAggregatorFunction implements AggregatorFunction 
     addRawVector(valueVector, mask);
   }
 
-  public void addRawInputNotMasked(Page page) {
+  private void addRawInputNotMasked(Page page) {
     DoubleBlock valueBlock = page.getBlock(channels.get(0));
     DoubleVector valueVector = valueBlock.asVector();
     if (valueVector == null) {

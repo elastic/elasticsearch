@@ -9,7 +9,7 @@ package org.elasticsearch.compute.data.sort;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.$Type$Array;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -20,6 +20,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.time.Instant;
 import java.util.stream.IntStream;
 
 /**
@@ -27,10 +30,10 @@ import java.util.stream.IntStream;
  * See {@link BucketedSort} for more information.
  * This class is generated. Edit @{code X-BucketedSort.java.st} instead of this file.
  */
-public class $Type$BucketedSort implements Releasable {
+public class $Type$IndirectBucketedSort implements Releasable {
 
     private final BigArrays bigArrays;
-    private final SortOrder order;
+    private final Comparator<Tuple<Long, $Wrapper$>> valueComparator;
     private final int bucketSize;
     /**
      * {@code true} if the bucket is in heap mode, {@code false} if
@@ -64,17 +67,17 @@ public class $Type$BucketedSort implements Releasable {
      *     </li>
      * </ul>
      */
-    private $Type$Array values;
+    private ObjectArray<Tuple<Long, $Wrapper$>> values;
 
-    public $Type$BucketedSort(BigArrays bigArrays, SortOrder order, int bucketSize) {
+    public $Type$IndirectBucketedSort(BigArrays bigArrays, Comparator<Tuple<Long, $Wrapper$>> valueComparator, int bucketSize) {
         this.bigArrays = bigArrays;
-        this.order = order;
+        this.valueComparator = valueComparator;
         this.bucketSize = bucketSize;
         heapMode = new BitArray(0, bigArrays);
 
         boolean success = false;
         try {
-            values = bigArrays.new$Type$Array(0, false);
+            values = bigArrays.newObjectArray(0);
             success = true;
         } finally {
             if (success == false) {
@@ -89,7 +92,7 @@ public class $Type$BucketedSort implements Releasable {
      *     It may or may not be inserted in the heap, depending on if it is better than the current root.
      * </p>
      */
-    public void collect($type$ value, int bucket) {
+    public void collect(Tuple<Long, $Wrapper$> value, int bucket) {
         long rootIndex = (long) bucket * bucketSize;
         if (inHeapMode(bucket)) {
             if (betterThan(value, values.get(rootIndex))) {
@@ -103,7 +106,7 @@ public class $Type$BucketedSort implements Releasable {
         if (values.size() < requiredSize) {
             grow(bucket);
         }
-        int next = getNextGatherOffset(rootIndex);
+        long next = getNextGatherOffset(rootIndex);
         assert 0 <= next && next < bucketSize
             : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
         long index = next + rootIndex;
@@ -114,13 +117,6 @@ public class $Type$BucketedSort implements Releasable {
         } else {
             setNextGatherOffset(rootIndex, next - 1);
         }
-    }
-
-    /**
-     * The order of the sort.
-     */
-    public SortOrder getOrder() {
-        return order;
     }
 
     /**
@@ -148,7 +144,7 @@ public class $Type$BucketedSort implements Releasable {
     /**
      * Merge the values from {@code other}'s {@code otherGroupId} into {@code groupId}.
      */
-    public void merge(int groupId, $Type$BucketedSort other, int otherGroupId) {
+    public void merge(int groupId, $Type$IndirectBucketedSort other, int otherGroupId) {
         var otherBounds = other.getBucketValuesIndexes(otherGroupId);
 
         // TODO: This can be improved for heapified buckets by making use of the heap structures
@@ -160,7 +156,7 @@ public class $Type$BucketedSort implements Releasable {
     /**
      * Creates a block with the values from the {@code selected} groups.
      */
-    public Block toBlock(BlockFactory blockFactory, IntVector selected) {
+    public void toBlocks(BlockFactory blockFactory, Block[] blocks, int offset, IntVector selected) {
         // Check if the selected groups are all empty, to avoid allocating extra memory
         if (IntStream.range(0, selected.getPositionCount()).map(selected::getInt).noneMatch(bucket -> {
             var bounds = this.getBucketValuesIndexes(bucket);
@@ -168,10 +164,12 @@ public class $Type$BucketedSort implements Releasable {
 
             return size > 0;
         })) {
-            return blockFactory.newConstantNullBlock(selected.getPositionCount());
+            blocks[offset] = blockFactory.newConstantNullBlock(selected.getPositionCount());
+            blocks[offset + 1] = blockFactory.newConstantNullBlock(selected.getPositionCount());
         }
 
-        try (var builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+        try (var indirectBuilder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount());
+             var sortBuilder = blockFactory.newLongBlockBuilder(selected.getPositionCount())) {
             for (int s = 0; s < selected.getPositionCount(); s++) {
                 int bucket = selected.getInt(s);
 
@@ -180,12 +178,14 @@ public class $Type$BucketedSort implements Releasable {
                 var size = bounds.v2() - bounds.v1();
 
                 if (size == 0) {
-                    builder.appendNull();
+                    indirectBuilder.appendNull();
+                    sortBuilder.appendNull();
                     continue;
                 }
 
                 if (size == 1) {
-                    builder.append$Type$(values.get(bounds.v1()));
+                    indirectBuilder.append$Type$(values.get(rootIndex).v2());
+                    sortBuilder.appendLong(values.get(rootIndex).v1());
                     continue;
                 }
 
@@ -195,14 +195,25 @@ public class $Type$BucketedSort implements Releasable {
                 }
                 heapSort(rootIndex, (int) size);
 
-                builder.beginPositionEntry();
+                indirectBuilder.beginPositionEntry();
+                sortBuilder.beginPositionEntry();
                 for (int i = 0; i < size; i++) {
-                    builder.append$Type$(values.get(bounds.v1() + i));
+                    indirectBuilder.append$Type$(values.get(rootIndex + i).v2());
+                    sortBuilder.appendLong(values.get(rootIndex + i).v1());
                 }
-                builder.endPositionEntry();
+                indirectBuilder.endPositionEntry();
+                sortBuilder.endPositionEntry();
             }
-            return builder.build();
+            blocks[offset] = indirectBuilder.build();
+            blocks[offset + 1] = sortBuilder.build();
         }
+    }
+
+    public Block toIndirectBlock(BlockFactory blockFactory, IntVector selected) {
+        Block[] blocks = new Block[2];
+        toBlocks(blockFactory, blocks, 0, selected);
+        Releasables.close(blocks[1]);
+        return blocks[0];
     }
 
     /**
@@ -216,20 +227,16 @@ public class $Type$BucketedSort implements Releasable {
      * Get the next index that should be "gathered" for a bucket rooted
      * at {@code rootIndex}.
      */
-    private int getNextGatherOffset(long rootIndex) {
-$if(int)$
-        return values.get(rootIndex);
-$else$
-        return (int) values.get(rootIndex);
-$endif$
+    private long getNextGatherOffset(long rootIndex) {
+        return values.get(rootIndex).v1();
     }
 
     /**
      * Set the next index that should be "gathered" for a bucket rooted
      * at {@code rootIndex}.
      */
-    private void setNextGatherOffset(long rootIndex, int offset) {
-        values.set(rootIndex, offset);
+    private void setNextGatherOffset(long rootIndex, long offset) {
+        values.set(rootIndex, Tuple.tuple(offset, null));
     }
 
     /**
@@ -237,8 +244,8 @@ $endif$
      * the entry at {@code rhs}. "Better" in this means "lower" for
      * {@link SortOrder#ASC} and "higher" for {@link SortOrder#DESC}.
      */
-    private boolean betterThan($type$ lhs, $type$ rhs) {
-        return getOrder().reverseMul() * $Wrapper$.compare(lhs, rhs) < 0;
+    private boolean betterThan(Tuple<Long, $Wrapper$> lhs, Tuple<Long, $Wrapper$> rhs) {
+        return valueComparator.compare(lhs, rhs) < 0;
     }
 
     /**
@@ -306,16 +313,7 @@ $endif$
         }
     }
 
-    /**
-     * Sorts all the values in the heap using heap sort algorithm.
-     * This runs in {@code O(n log n)} time.
-     * @param rootIndex index of the start of the bucket
-     * @param heapSize Number of values that belong to the heap.
-     *                 Can be less than bucketSize.
-     *                 In such a case, the remaining values in range
-     *                 (rootIndex + heapSize, rootIndex + bucketSize)
-     *                 are *not* considered part of the heap.
-     */
+    // Heap sort algorithm for sorting the bucket contents in-place
     private void heapSort(long rootIndex, int heapSize) {
         while (heapSize > 0) {
             swap(rootIndex, rootIndex + heapSize - 1);
@@ -330,11 +328,6 @@ $endif$
      * @param rootIndex index of the start of the bucket
      * @param parent Index within the bucket of the parent to check.
      *               For example, 0 is the "root".
-     * @param heapSize Number of values that belong to the heap.
-     *                 Can be less than bucketSize.
-     *                 In such a case, the remaining values in range
-     *                 (rootIndex + heapSize, rootIndex + bucketSize)
-     *                 are *not* considered part of the heap.
      */
     private void downHeap(long rootIndex, int parent, int heapSize) {
         while (true) {

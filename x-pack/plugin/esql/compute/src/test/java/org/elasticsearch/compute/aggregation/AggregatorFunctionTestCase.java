@@ -58,7 +58,12 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     protected abstract String expectedDescriptionOfAggregator();
 
-    protected abstract void assertSimpleOutput(List<Block> input, Block result);
+    /**
+     * Assert that the result is correct given the input.
+     * @param input the input pages build by {@link #simpleInput}
+     * @param result the result of running {@link #aggregatorFunction()}
+     */
+    protected abstract void assertSimpleOutput(List<Page> input, Block result);
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
@@ -99,7 +104,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertThat(results.get(0).getPositionCount(), equalTo(1));
 
         Block result = results.get(0).getBlock(0);
-        assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), result);
+        assertSimpleOutput(input, result);
     }
 
     public final void testIgnoresNulls() {

@@ -293,10 +293,14 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         // first sort the ids list so we can check compactness and quickly lookup the highest id later
         ids.sort(Comparator.comparingInt(a -> a.id().complete()));
 
-        for (int ndx = 0; ndx < ids.size(); ++ndx) {
-            IdAndDefinition idAndDefinition = ids.get(ndx);
-            if (idAndDefinition.id().patch() != ndx) {
-                throw new IllegalStateException("Transport version base version " + base + " is missing patch version " + (base + ndx));
+        // TODO: switch this to a fully dense check once all existing transport versions have been migrated
+        IdAndDefinition previous = ids.getLast();
+        for (int ndx = ids.size() - 2; ndx >= 0; --ndx) {
+            IdAndDefinition next = ids.get(ndx);
+            // note that next and previous are reversed here because we are iterating in reverse order
+            if (previous.id().complete() - 1 != next.id().complete()) {
+                throw new IllegalStateException("Transport version base id " + base +
+                    " is missing patch ids between " + next.id() + " and " + previous.id());
             }
         }
     }

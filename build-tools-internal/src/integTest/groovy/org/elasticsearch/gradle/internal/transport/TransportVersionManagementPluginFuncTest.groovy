@@ -275,7 +275,7 @@ class TransportVersionManagementPluginFuncTest extends AbstractGradleFuncTest {
         when:
         def result = validateDefinitionsFails()
         then:
-        assertDefinitionsFailure(result, "Transport version base version 8013000 is missing patch version 8013001")
+        assertDefinitionsFailure(result, "Transport version base id 8013000 is missing patch ids between 8013000 and 8013002")
     }
 
     def "primary id must not be patch version"() {

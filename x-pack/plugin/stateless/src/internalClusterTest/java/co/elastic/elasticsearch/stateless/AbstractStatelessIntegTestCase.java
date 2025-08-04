@@ -1186,6 +1186,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".json"), projectSettingsJson);
         Files.writeString(fileSettingsService.watchedFile().resolveSibling("project-" + projectId + ".secrets.json"), projectSecretsJson);
         writeAndMoveContentAtomically(settingsJson, fileSettingsService.watchedFile());
+        ensureProcessedFileBasedSettingsVersion(newVersion);
 
         // Ensure the project exist
         assertBusy(() -> {
@@ -1195,16 +1196,6 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 equalTo(projectId.id())
             );
         });
-
-        // Ensure the latest update is processed
-        safeAwait(
-            ClusterServiceUtils.addTemporaryStateListener(
-                clusterState -> Objects.equals(
-                    clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE).version(),
-                    newVersion
-                )
-            )
-        );
 
         // TODO: Wait for the lease to be claimed. This is needed until we have ES-11206
         final var blobContainer = getCurrentMasterObjectStoreService().getClusterRootContainer();
@@ -1264,14 +1255,14 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         });
 
         // Clean up config files after project deletion
-        Files.deleteIfExists(projectSecretsPath);
-        Files.deleteIfExists(projectSettingsPath);
-        final String settingsJson = removeProjectIdFromSettingsJson(
-            settingsJsonPath,
-            reservedStateVersionCounter.incrementAndGet(),
-            projectId.id()
-        );
+        // TODO: MultiProjectFileSettingsService does not handle file deletion. Enable the commented lines when ES-12411 is resolved.
+        // Files.deleteIfExists(projectSecretsPath);
+        // Files.deleteIfExists(projectSettingsPath);
+        final long versionWithCleanup = reservedStateVersionCounter.incrementAndGet();
+        final String settingsJson = removeProjectIdFromSettingsJson(settingsJsonPath, versionWithCleanup, projectId.id());
         writeAndMoveContentAtomically(settingsJson, settingsJsonPath);
+        ensureProcessedFileBasedSettingsVersion(versionWithCleanup);
+
         // TODO: Manually clean up the project registry. Otherwise the same project cannot be recreated due to the marked_for_deletion flag.
         // This is temporary because the clean-up should happen automatically when the project config files are removed. See also ES-12411
         final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
@@ -1312,6 +1303,17 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         logger.info("--> atomically writing content [{}] to [{}]", content, targetPath);
         Files.writeString(tempFilePath, content);
         Files.move(tempFilePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    private static void ensureProcessedFileBasedSettingsVersion(long newVersion) {
+        safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                clusterState -> Objects.equals(
+                    clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE).version(),
+                    newVersion
+                )
+            )
+        );
     }
 
     private static String getRepositoryJson(RepositoryMetadata repositoryMetadata) throws IOException {

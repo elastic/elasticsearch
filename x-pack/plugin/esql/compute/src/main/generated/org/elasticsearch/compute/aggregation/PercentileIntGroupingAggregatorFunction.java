@@ -270,8 +270,8 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = PercentileIntAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = PercentileIntAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

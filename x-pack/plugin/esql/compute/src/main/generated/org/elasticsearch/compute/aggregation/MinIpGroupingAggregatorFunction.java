@@ -293,8 +293,8 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = MinIpAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = MinIpAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

@@ -2427,7 +2427,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
-                final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap(), () -> 1L);
+                final ScriptService scriptService = new ScriptService(
+                    settings,
+                    emptyMap(),
+                    emptyMap(),
+                    () -> 1L,
+                    TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+                );
 
                 final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
                 final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(

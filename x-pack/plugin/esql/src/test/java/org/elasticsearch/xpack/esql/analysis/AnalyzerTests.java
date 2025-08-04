@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.LoadMapping;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
@@ -3738,6 +3740,82 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(rerank.output(), hasItem(scoreAttribute));
             assertThat(rerank.child().output().stream().anyMatch(scoreAttribute::equals), is(true));
         }
+    }
+
+    public void testRerankInvalidQueryTypes() {
+        assertError("""
+            FROM books METADATA _score
+            | RERANK rerank_score = 42 ON title WITH { "inference_id" : "reranking-inference-id" }
+            """, "mapping-books.json", new QueryParams(), "query must be a valid string in RERANK, found [42]");
+
+        assertError("""
+            FROM books METADATA _score
+            | RERANK rerank_score = null ON title WITH { "inference_id" : "reranking-inference-id" }
+            """, "mapping-books.json", new QueryParams(), "query must be a valid string in RERANK, found [null]");
+    }
+
+    public void testRerankFieldsInvalidTypes() {
+        List<String> invalidFieldNames = List.of("date", "date_nanos", "ip", "version", "dense_vector");
+
+        for (String fieldName : invalidFieldNames) {
+            LogManager.getLogger(AnalyzerTests.class).warn("[{}]", fieldName);
+            assertError(
+                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON "
+                    + fieldName
+                    + " WITH { \"inference_id\" : \"reranking-inference-id\" }",
+                "mapping-all-types.json",
+                new QueryParams(),
+                "rerank field must be a valid string, numeric or boolean expression, found [" + fieldName + "]"
+            );
+        }
+    }
+
+    public void testRerankFieldValidTypes() {
+        List<String> validFieldNames = List.of(
+            "boolean",
+            "byte",
+            "constant_keyword-foo",
+            "double",
+            "float",
+            "half_float",
+            "scaled_float",
+            "integer",
+            "keyword",
+            "long",
+            "unsigned_long",
+            "short",
+            "text",
+            "wildcard"
+        );
+
+        for (String fieldName : validFieldNames) {
+            LogicalPlan plan = analyze(
+                "FROM books METADATA _score | RERANK rerank_score = \"test query\" ON `"
+                    + fieldName
+                    + "` WITH { \"inference_id\" : \"reranking-inference-id\" }",
+                "mapping-all-types.json"
+            );
+
+            Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
+            EsRelation relation = as(rerank.child(), EsRelation.class);
+            Attribute fieldAttribute = getAttributeByName(relation.output(), fieldName);
+            if (DataType.isString(fieldAttribute.dataType())) {
+                assertThat(rerank.rerankFields(), equalTo(List.of(alias(fieldName, fieldAttribute))));
+
+            } else {
+                assertThat(
+                    rerank.rerankFields(),
+                    equalTo(List.of(alias(fieldName, new ToString(fieldAttribute.source(), fieldAttribute))))
+                );
+            }
+        }
+    }
+
+    public void testInvalidValidRerankQuery() {
+        assertError("""
+            FROM books METADATA _score
+            | RERANK rerank_score = 42 ON title WITH { "inference_id" : "reranking-inference-id" }
+            """, "mapping-books.json", new QueryParams(), "query must be a valid string in RERANK, found [42]");
     }
 
     public void testResolveCompletionInferenceId() {

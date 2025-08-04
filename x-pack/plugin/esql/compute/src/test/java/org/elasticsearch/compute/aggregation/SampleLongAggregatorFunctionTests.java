@@ -51,8 +51,8 @@ public class SampleLongAggregatorFunctionTests extends AggregatorFunctionTestCas
     }
 
     @Override
-    public void assertSimpleOutput(List<Block> input, Block result) {
-        Set<Long> inputValues = input.stream().flatMapToLong(AggregatorFunctionTestCase::allLongs).boxed().collect(Collectors.toSet());
+    public void assertSimpleOutput(List<Page> input, Block result) {
+        Set<Long> inputValues = input.stream().flatMapToLong(p -> allLongs(p.getBlock(0))).boxed().collect(Collectors.toSet());
         Long[] resultValues = AggregatorFunctionTestCase.allLongs(result).boxed().toArray(Long[]::new);
         assertThat(resultValues, arrayWithSize(Math.min(inputValues.size(), LIMIT)));
         assertThat(inputValues, hasItems(resultValues));

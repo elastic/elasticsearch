@@ -357,8 +357,8 @@ public final class SpatialExtentGeoPointSourceValuesGroupingAggregatorFunction i
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SpatialExtentGeoPointSourceValuesAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialExtentGeoPointSourceValuesAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

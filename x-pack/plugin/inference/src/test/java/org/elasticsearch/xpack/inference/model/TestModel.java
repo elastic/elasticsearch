@@ -52,13 +52,10 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType, List<SimilarityMeasure> excludedSimilarities, int maxDimensions) {
-        var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(DenseVectorFieldMapper.ElementType.values()) : null;
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING
-            ? DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, maxDimensions)
-            : null;
-
-        SimilarityMeasure similarity = null;
         if (taskType == TaskType.TEXT_EMBEDDING) {
+            var elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+            var dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, maxDimensions);
+
             List<SimilarityMeasure> supportedSimilarities = new ArrayList<>(
                 DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType)
             );
@@ -75,17 +72,30 @@ public class TestModel extends Model {
                 );
             }
 
-            similarity = randomFrom(supportedSimilarities);
+            SimilarityMeasure similarity = randomFrom(supportedSimilarities);
+
+            return new TestModel(
+                randomAlphaOfLength(4),
+                TaskType.TEXT_EMBEDDING,
+                randomAlphaOfLength(10),
+                new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
+                new TestModel.TestTaskSettings(randomInt(3)),
+                new TestModel.TestSecretSettings(randomAlphaOfLength(4))
+            );
         }
 
-        return new TestModel(
-            randomAlphaOfLength(4),
-            taskType,
-            randomAlphaOfLength(10),
-            new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
-            new TestModel.TestTaskSettings(randomInt(3)),
-            new TestModel.TestSecretSettings(randomAlphaOfLength(4))
-        );
+        if (taskType == TaskType.SPARSE_EMBEDDING) {
+            return new TestModel(
+                randomAlphaOfLength(4),
+                TaskType.SPARSE_EMBEDDING,
+                randomAlphaOfLength(10),
+                new TestModel.TestServiceSettings(randomAlphaOfLength(4), null, null, null),
+                new TestModel.TestTaskSettings(randomInt(3)),
+                new TestModel.TestSecretSettings(randomAlphaOfLength(4))
+            );
+        }
+
+        throw new IllegalArgumentException("Unsupported task type [" + taskType + "]");
     }
 
     public TestModel(

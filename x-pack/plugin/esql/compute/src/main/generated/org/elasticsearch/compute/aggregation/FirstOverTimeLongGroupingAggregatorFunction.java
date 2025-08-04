@@ -295,8 +295,8 @@ public final class FirstOverTimeLongGroupingAggregatorFunction implements Groupi
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = FirstOverTimeLongAggregator.evaluateFinal(state, selected, evaluatorContext);
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = FirstOverTimeLongAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

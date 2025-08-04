@@ -49,6 +49,8 @@ import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DriverTests extends ESTestCase {
     /**
@@ -202,6 +204,47 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
         assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
+    }
+
+    public void testUnchangedStatus() {
+        DriverContext driverContext = driverContext();
+        List<Page> inPages = randomList(2, 100, DriverTests::randomPage);
+        List<Page> outPages = new ArrayList<>();
+
+        long startEpoch = randomNonNegativeLong();
+        long startNanos = randomLong();
+        long waitTime = randomLongBetween(10000, 100000);
+        long tickTime = randomLongBetween(10000, 100000);
+        long statusInterval = randomLongBetween(1, 10);
+
+        Driver driver = createDriver(startEpoch, startNanos, driverContext, inPages, outPages, TimeValue.timeValueNanos(statusInterval));
+
+        NowSupplier nowSupplier = new NowSupplier(startNanos, waitTime, tickTime);
+
+        int iterationsPerTick = randomIntBetween(1, 10);
+
+        for (int i = 0; i < inPages.size(); i += iterationsPerTick) {
+            DriverStatus initialStatus = driver.status();
+            long completedOperatorsHash = initialStatus.completedOperators().hashCode();
+            long activeOperatorsHash = initialStatus.activeOperators().hashCode();
+            long sleepsHash = initialStatus.sleeps().hashCode();
+
+            driver.run(TimeValue.timeValueDays(10), iterationsPerTick, nowSupplier);
+
+            DriverStatus newStatus = driver.status();
+            assertThat(newStatus, not(sameInstance(initialStatus)));
+            assertThat(
+                newStatus.completedOperators() != initialStatus.completedOperators()
+                    || newStatus.completedOperators().hashCode() == completedOperatorsHash,
+                equalTo(true)
+            );
+            assertThat(
+                newStatus.activeOperators() != initialStatus.activeOperators()
+                    || newStatus.activeOperators().hashCode() == activeOperatorsHash,
+                equalTo(true)
+            );
+            assertThat(newStatus.sleeps() != initialStatus.sleeps() || newStatus.sleeps().hashCode() == sleepsHash, equalTo(true));
+        }
     }
 
     private static Driver createDriver(

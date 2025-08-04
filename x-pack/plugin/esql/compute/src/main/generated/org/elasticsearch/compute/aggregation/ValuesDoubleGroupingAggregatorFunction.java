@@ -262,8 +262,8 @@ public final class ValuesDoubleGroupingAggregatorFunction implements GroupingAgg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = ValuesDoubleAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = ValuesDoubleAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

@@ -123,6 +123,13 @@ public class Methods {
         );
     }
 
+    static ArgumentMatcher requireArgsStartsWith(TypeMatcher... argTypes) {
+        return new ArgumentMatcher(
+            args -> args.size() >= argTypes.length && IntStream.range(0, argTypes.length).allMatch(i -> argTypes[i].test(args.get(i))),
+            Stream.of(argTypes).map(TypeMatcher::toString).collect(joining(", ")) + ", ..."
+        );
+    }
+
     record NameMatcher(Set<String> names) implements Predicate<String> {
         @Override
         public boolean test(String name) {

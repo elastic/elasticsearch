@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
@@ -157,7 +158,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
             Settings.builder().build(),
             Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> true), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
         RuntimeException exception = new RuntimeException("fail");
         TestProcessor failProcessor = new TestProcessor("fail", "test", null, exception);
@@ -242,7 +244,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> false), Map.of())
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         CompoundProcessor compoundProcessor = new CompoundProcessor(new TestProcessor(ingestDocument -> {
@@ -364,7 +367,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
             Settings.builder().build(),
             Map.of(Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> true), Map.of())),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         Pipeline pipeline1 = new Pipeline(pipelineId1, null, null, null, new CompoundProcessor(new TestProcessor(ingestDocument -> {
@@ -457,7 +461,8 @@ public class TrackingResultProcessorTests extends ESTestCase {
                 new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Map.of(scriptName, ctx -> false), Map.of())
             ),
             new HashMap<>(ScriptModule.CORE_CONTEXTS),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         Pipeline pipeline1 = new Pipeline(pipelineId1, null, null, null, new CompoundProcessor(new TestProcessor(ingestDocument -> {

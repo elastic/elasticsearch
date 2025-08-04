@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.aggregation.AggregatorState;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorState;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -117,8 +118,8 @@ abstract class CentroidPointAggregator {
         }
     }
 
-    public static Block evaluateFinal(GroupingCentroidState state, IntVector selected, DriverContext driverContext) {
-        try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
+    public static Block evaluateFinal(GroupingCentroidState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        try (BytesRefBlock.Builder builder = ctx.blockFactory().newBytesRefBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int si = selected.getInt(i);
                 if (state.hasValue(si) && si < state.xValues.size()) {

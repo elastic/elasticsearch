@@ -14,6 +14,10 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlClientException;
@@ -28,6 +32,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -53,6 +58,22 @@ public class VectorSimilarityFunctionsIT extends AbstractEsqlIntegTestCase {
         }
 
         return params;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // testDifferentDimensions fails the final driver on the coordinator, leading to cancellation of the entire request.
+            // If the exchange sink is opened on a remote node but the compute request hasn't been sent, we cannot close the exchange
+            // sink (for now).Here, we reduce the inactive sinks interval to ensure those inactive sinks are removed quickly.
+            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))
+            .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalExchangePlugin.class);
     }
 
     private final String functionName;

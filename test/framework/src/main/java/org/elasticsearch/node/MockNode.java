@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -143,10 +144,11 @@ public class MockNode extends Node {
             Settings settings,
             Map<String, ScriptEngine> engines,
             Map<String, ScriptContext<?>> contexts,
-            LongSupplier timeProvider
+            LongSupplier timeProvider,
+            ProjectResolver projectResolver
         ) {
             if (pluginsService.filterPlugins(MockScriptService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newScriptService(pluginsService, settings, engines, contexts, timeProvider);
+                return super.newScriptService(pluginsService, settings, engines, contexts, timeProvider, projectResolver);
             }
             return new MockScriptService(settings, engines, contexts);
         }

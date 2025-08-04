@@ -19,10 +19,10 @@ import java.util.Arrays;
  */
 public class HierarchicalKMeans {
 
-    static final int MAXK = 128;
-    static final int MAX_ITERATIONS_DEFAULT = 6;
-    static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
-    static final float DEFAULT_SOAR_LAMBDA = 1.0f;
+    public static final int MAXK = 128;
+    public static final int MAX_ITERATIONS_DEFAULT = 6;
+    public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
+    public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
 
     final int dimension;
     final int maxIterations;

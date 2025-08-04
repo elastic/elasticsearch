@@ -80,10 +80,16 @@ public class RerankOperatorOutputBuilder implements InferenceOperator.OutputBuil
      */
     @Override
     public void addInferenceResponse(InferenceAction.Response inferenceResponse) {
+        if (inferenceResponse == null) {
+            scoreBlockBuilder.appendNull();
+            return;
+        }
+
         Iterator<RankedDocsResults.RankedDoc> sortedRankedDocIterator = inferenceResults(inferenceResponse).getRankedDocs()
             .stream()
             .sorted(Comparator.comparingInt(RankedDocsResults.RankedDoc::index))
             .iterator();
+
         while (sortedRankedDocIterator.hasNext()) {
             scoreBlockBuilder.appendDouble(sortedRankedDocIterator.next().relevanceScore());
         }

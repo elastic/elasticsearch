@@ -271,8 +271,8 @@ public final class CountDistinctLongGroupingAggregatorFunction implements Groupi
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = CountDistinctLongAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = CountDistinctLongAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

@@ -139,7 +139,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector());
 
             // TODO: sort segments by affinity score in descending order, and cut the long tail ?
-            double[] affinityScores = segmentAffinities.stream().map(SegmentAffinity::affinityScore).mapToDouble(Double::doubleValue).toArray();
+            double[] affinityScores = segmentAffinities.stream()
+                .map(SegmentAffinity::affinityScore)
+                .mapToDouble(Double::doubleValue)
+                .toArray();
 
             // max affinity for decreasing nProbe
             double averageAffinity = Arrays.stream(affinityScores).average().orElse(Double.NaN);

@@ -489,11 +489,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
-                IndicesAccessControl indicesAccessControl = new IndicesAccessControl(
-                    true,
-                    Map.of(indexSettings().getIndex().getName(), indexAccessControl)
-                );
-                return indicesAccessControl;
+                return new IndicesAccessControl(true, Map.of(indexSettings().getIndex().getName(), indexAccessControl));
             }
         };
 

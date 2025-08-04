@@ -85,7 +85,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         esIn.close();
     }
 
-    public void testDefaultMetaFields() throws Exception {
+    public void testDefaultMetaFields() {
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
@@ -115,14 +115,14 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertThat(result.getFilter().run("some_random_regular_field"), is(false));
     }
 
-    public void testWrapReaderWhenFeatureDisabled() throws Exception {
+    public void testWrapReaderWhenFeatureDisabled() {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }
 
-    public void testWildcards() throws Exception {
+    public void testWildcards() {
         Set<String> expected = new HashSet<>(META_FIELDS);
         expected.add("field1_a");
         expected.add("field1_b");
@@ -130,7 +130,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] { "field1*" }, null)), expected, "field", "field2");
     }
 
-    public void testDotNotion() throws Exception {
+    public void testDotNotion() {
         Set<String> expected = new HashSet<>(META_FIELDS);
         expected.add("foo.bar");
         assertResolved(new FieldPermissions(fieldPermissionDef(new String[] { "foo.bar" }, null)), expected, "foo", "foo.baz", "bar.foo");
@@ -149,7 +149,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
         }
     }
 
-    public void testFieldPermissionsWithFieldExceptions() throws Exception {
+    public void testFieldPermissionsWithFieldExceptions() {
         securityIndexReaderWrapper = new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, null);
         String[] grantedFields = new String[] {};
         String[] deniedFields;

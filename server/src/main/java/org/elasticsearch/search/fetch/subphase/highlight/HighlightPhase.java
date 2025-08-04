@@ -66,6 +66,7 @@ public class HighlightPhase implements FetchSubPhase {
                 Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = fieldContext.builders;
                 for (String field : contextBuilders.keySet()) {
                     FieldHighlightContext fieldContext = contextBuilders.get(field).apply(hitContext);
+                    // TODO create this in ES|QL when processing matches
                     Highlighter highlighter = getHighlighter(fieldContext.field, fieldContext.fieldType);
                     HighlightField highlightField = highlighter.highlight(fieldContext);
                     if (highlightField != null) {

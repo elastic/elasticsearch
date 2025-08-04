@@ -77,6 +77,7 @@ public final class QueryBuilderResolver {
         public FunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
+            // TODO this needs to work with any rewriteable aware not just full text function
             LogicalPlan newPlan = plan.transformExpressionsDown(FullTextFunction.class, f -> {
                 QueryBuilder builder = f.queryBuilder(), initial = builder;
                 builder = builder == null

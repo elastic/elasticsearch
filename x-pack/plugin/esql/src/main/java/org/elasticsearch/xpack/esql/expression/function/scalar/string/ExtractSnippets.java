@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -28,7 +29,10 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.TranslationAwareExpressionQuery;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,7 +48,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * Extract snippets function, that extracts the most relevant snippets from a given input string
  */
-// TODO: Does this also need to implement TranslationAware?
+// TODO: This also needs to implement TranslationAware?
 public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgument, RewriteableAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -188,8 +192,10 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = toEvaluator.shardContexts();
         LuceneQueryEvaluator.ShardConfig[] shardConfigs = new LuceneQueryEvaluator.ShardConfig[shardContexts.size()];
+
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
+            // TODO we can probably create the highlighter here instead of in EsPhysicalOperationProviders
             shardContext.addHighlightQuery(
                 field.sourceText(),
                 str.sourceText(),
@@ -211,6 +217,11 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
         return new ExtractSnippets(source(), field, str, numSnippets, snippetLength, queryBuilder);
+    }
+
+    @Override
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(pushdownPredicates, handler);
     }
 
     Expression field() {

@@ -103,6 +103,10 @@ PUT my-index-2
 {{es}} uses the [HNSW algorithm](https://arxiv.org/abs/1603.09320) to support efficient kNN search. Like most kNN algorithms, HNSW is an approximate method that sacrifices result accuracy for improved speed.
 
 ## Accessing `dense_vector` fields in search responses
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
 By default, `dense_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
 This helps reduce response size and improve performance, especially in scenarios where vectors are used solely for similarity scoring and not required in the output.
@@ -130,6 +134,10 @@ POST my-index-2/_search
 ```
 
 ### Storage behavior and `_source`
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
 By default, `dense_vector` fields are **not stored in `_source`** on disk. This is also controlled by the index setting `index.mapping.exclude_source_vectors`.
 This setting is enabled by default for newly created indices and can only be set at index creation time.
@@ -142,10 +150,18 @@ When enabled:
 This setting is compatible with synthetic `_source`, where the entire `_source` document is reconstructed from columnar storage. In full synthetic mode, no `_source` is stored on disk, and all fields — including vectors — are rebuilt when needed.
 
 ### Rehydration and precision
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
 When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format. Internally, vectors are stored at float precision, so if they were originally indexed as higher-precision types (e.g., `double` or `long`), the rehydrated values will have reduced precision. This lossy representation is intended to save space while preserving search quality.
 
 ### Storing original vectors in `_source`
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
 If you want to preserve the original vector values exactly as they were provided, you can re-enable vector storage in `_source`:
 
@@ -337,16 +353,16 @@ $$$dense-vector-index-options$$$
 `type`
 :   (Required, string) The type of kNN algorithm to use. Can be either any of:
     * `hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) for scalable approximate kNN search. This supports all `element_type` values.
-    * `int8_hnsw` - The default index type for some float vectors: 
-        
-      * {applies_to}`stack: ga 9.1` Default for float vectors with less than 384 dimensions. 
+    * `int8_hnsw` - The default index type for some float vectors:
+
+      * {applies_to}`stack: ga 9.1` Default for float vectors with less than 384 dimensions.
       * {applies_to}`stack: ga 9.0` Default for float all vectors.
-      
+
       This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 4x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
     * `int4_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically scalar quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 8x at the cost of some accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
     * `bbq_hnsw` - This utilizes the [HNSW algorithm](https://arxiv.org/abs/1603.09320) in addition to automatically binary quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint by 32x at the cost of accuracy. See [Automatically quantize vectors for kNN search](#dense-vector-quantization).
-        
-      {applies_to}`stack: ga 9.1` `bbq_hnsw` is the default index type for float vectors with greater than or equal to 384 dimensions. 
+
+      {applies_to}`stack: ga 9.1` `bbq_hnsw` is the default index type for float vectors with greater than or equal to 384 dimensions.
     * `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
     * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports `element_type` of `float`.
     * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatically half-byte scalar quantization. Only supports `element_type` of `float`.
@@ -366,8 +382,8 @@ $$$dense-vector-index-options$$$
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
 :::::{dropdown} Properties of rescore_vector
 `oversample`
-:   (required, float) The amount to oversample the search results by. This value should be one of the following: 
-    * Greater than `1.0` and less than `10.0` 
+:   (required, float) The amount to oversample the search results by. This value should be one of the following:
+    * Greater than `1.0` and less than `10.0`
     * Exactly `0` to indicate no oversampling and rescoring should occur {applies_to}`stack: ga 9.1`
     :   The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
     :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.

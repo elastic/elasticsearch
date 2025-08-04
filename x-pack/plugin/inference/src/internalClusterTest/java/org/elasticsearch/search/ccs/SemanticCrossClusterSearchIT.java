@@ -47,6 +47,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase {
@@ -129,17 +130,18 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
             TimeValue.timeValueMinutes(2)
         );
 
-        SearchRequest searchRequest = new SearchRequest();
-        searchRequest.source(
-            new SearchSourceBuilder().query(new SemanticQueryBuilder(INFERENCE_FIELD, "foo"))
-                .pointInTimeBuilder(new PointInTimeBuilder(pitId))
-                .size(10)
-        );
+        ModelRegistry modelRegistry = cluster(LOCAL_CLUSTER).getCurrentMasterNodeInstance(ModelRegistry.class);
+        SemanticQueryBuilder queryBuilder = new SemanticQueryBuilder(INFERENCE_FIELD, "foo");
+        queryBuilder.setModelRegistrySupplier(() -> modelRegistry);
 
-        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
-            assertNotNull(response);
-            assertEquals(10, response.getHits().getHits().length);
-        });
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).pointInTimeBuilder(new PointInTimeBuilder(pitId)).size(10));
+
+        IllegalArgumentException e = assertThrows(
+            IllegalArgumentException.class,
+            () -> client(LOCAL_CLUSTER).search(searchRequest).actionGet(TEST_REQUEST_TIMEOUT)
+        );
+        assertThat(e.getMessage(), containsString("semantic query supports CCS only when ccs_minimize_roundtrips=true"));
     }
 
     public void testMatchCrossClusterSearch() throws Exception {

@@ -552,7 +552,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     timeProvider::absoluteStartMillis,
                     resolvedIndices,
                     original.pointInTimeBuilder(),
-                    original.isCcsMinimizeRoundtrips(),
+                    shouldMinimizeRoundtrips(original),
                     isExplain
                 ),
                 rewriteListener

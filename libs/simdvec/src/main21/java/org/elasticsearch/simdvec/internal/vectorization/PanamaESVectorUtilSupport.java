@@ -810,8 +810,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             for (; i < limit; i += FLOAT_SPECIES.length()) {
                 FloatVector v = FloatVector.fromArray(FLOAT_SPECIES, vector, i);
                 FloatVector xi = v.max(lowVec).min(upperVec); // clamp
-                IntVector assignment = xi.sub(lowVec).mul(invStepVec).
-                    add(0.5f).convert(VectorOperators.F2I, 0).reinterpretAsInts(); // round
+                IntVector assignment = xi.sub(lowVec).mul(invStepVec).add(0.5f).convert(VectorOperators.F2I, 0).reinterpretAsInts(); // round
                 sumQuery += assignment.reduceLanes(ADD);
                 assignment.intoArray(destination, i);
             }

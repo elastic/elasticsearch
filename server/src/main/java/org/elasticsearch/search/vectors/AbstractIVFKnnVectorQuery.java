@@ -136,41 +136,36 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector());
 
         // TODO: sort segments by affinity score in descending order, and cut the long tail ?
-
-        List<LeafReaderContext> selectedSegments = new ArrayList<>();
-
         double[] affinityScores = segmentAffinities.stream().map(SegmentAffinity::affinityScore).mapToDouble(Double::doubleValue).toArray();
 
         // max affinity for decreasing nProbe
-        double average = Arrays.stream(affinityScores).average().orElseThrow();
-        double maxAffinity = Arrays.stream(affinityScores).max().orElseThrow();
+        double average = Arrays.stream(affinityScores).average().orElse(0.0);
+        double maxAffinity = Arrays.stream(affinityScores).max().orElse(0.0);
         double lowerAffinity = (maxAffinity + average) * 0.5;
         double cutoffAffinity = lowerAffinity * 0.5; // minimum affinity score for a segment to be considered
         double affinityTreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing nProbe
         int maxAdjustments = (int) (nProbe * 1.5);
 
         Map<LeafReaderContext, Integer> segmentNProbeMap = new HashMap<>();
-        // Process segments based on their affinity scores
+        // process segments based on their affinity scores
         for (SegmentAffinity affinity : segmentAffinities) {
             double score = affinity.affinityScore();
 
-            // Skip segments with very low affinity
+            // skip segments with very low affinity
             if (score < cutoffAffinity) {
                 continue;
             }
 
-            // Adjust nProbe based on affinity score
-            // with larger affinity we increase nprobe (and viceversa)
+            // sdjust nProbe based on affinity score, with larger affinity we increase nprobe (and viceversa)
             int adjustedNProbe = adjustNProbeForSegment(score, affinityTreshold, maxAdjustments);
 
-            // Store the adjusted nProbe value for this segment
+            // store the adjusted nProbe value for this segment
             segmentNProbeMap.put(affinity.context(), adjustedNProbe);
-            selectedSegments.add(affinity.context());
         }
 
-        List<Callable<TopDocs>> tasks = new ArrayList<>(selectedSegments.size());
-        for (LeafReaderContext context : selectedSegments) {
-            tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, segmentNProbeMap.getOrDefault(context, nProbe)));
+        List<Callable<TopDocs>> tasks = new ArrayList<>(segmentNProbeMap.size());
+        for (Map.Entry<LeafReaderContext, Integer> entry : segmentNProbeMap.entrySet()) {
+            tasks.add(() -> searchLeaf(entry.getKey(), filterWeight, knnCollectorManager, entry.getValue()));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 

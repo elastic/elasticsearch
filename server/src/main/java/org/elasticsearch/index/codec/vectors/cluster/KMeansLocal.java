@@ -81,16 +81,16 @@ class KMeansLocal {
         for (float[] nextCentroid : nextCentroids) {
             Arrays.fill(nextCentroid, 0.0f);
         }
-
+        final float[] distances = new float[4];
         for (int idx = 0; idx < vectors.size(); idx++) {
             float[] vector = vectors.vectorValue(idx);
             int vectorOrd = translateOrd.apply(idx);
             final int assignment = assignments[vectorOrd];
             final int bestCentroidOffset;
             if (neighborhoods != null) {
-                bestCentroidOffset = getBestCentroidFromNeighbours(centroids, vector, assignment, neighborhoods[assignment]);
+                bestCentroidOffset = getBestCentroidFromNeighbours(centroids, vector, assignment, neighborhoods[assignment], distances);
             } else {
-                bestCentroidOffset = getBestCentroid(centroids, vector);
+                bestCentroidOffset = getBestCentroid(centroids, vector, distances);
             }
             if (assignment != bestCentroidOffset) {
                 assignments[vectorOrd] = bestCentroidOffset;
@@ -114,19 +114,49 @@ class KMeansLocal {
         return changed;
     }
 
-    private static int getBestCentroidFromNeighbours(float[][] centroids, float[] vector, int centroidIdx, NeighborHood neighborhood) {
+    private static int getBestCentroidFromNeighbours(
+        float[][] centroids,
+        float[] vector,
+        int centroidIdx,
+        NeighborHood neighborhood,
+        float[] distances
+    ) {
+        final int limit = neighborhood.neighbors.length - 3;
         int bestCentroidOffset = centroidIdx;
         assert centroidIdx >= 0 && centroidIdx < centroids.length;
         float minDsq = VectorUtil.squareDistance(vector, centroids[centroidIdx]);
-        for (int i = 0; i < neighborhood.neighbors.length; i++) {
-            int offset = neighborhood.neighbors[i];
-            // float score = neighborhood.scores[i];
-            assert offset >= 0 && offset < centroids.length : "Invalid neighbor offset: " + offset;
+        int i = 0;
+        for (; i < limit; i += 4) {
             if (minDsq < neighborhood.maxIntraDistance) {
                 // if the distance found is smaller than the maximum intra-cluster distance
                 // we don't consider it for further re-assignment
                 return bestCentroidOffset;
             }
+            ESVectorUtil.squareDistanceBulk(
+                vector,
+                centroids[neighborhood.neighbors[i]],
+                centroids[neighborhood.neighbors[i + 1]],
+                centroids[neighborhood.neighbors[i + 2]],
+                centroids[neighborhood.neighbors[i + 3]],
+                distances
+            );
+            for (int j = 0; j < distances.length; j++) {
+                float dsq = distances[j];
+                if (dsq < minDsq) {
+                    minDsq = dsq;
+                    bestCentroidOffset = neighborhood.neighbors[i + j];
+                }
+            }
+        }
+        for (; i < neighborhood.neighbors.length; i++) {
+            if (minDsq < neighborhood.maxIntraDistance) {
+                // if the distance found is smaller than the maximum intra-cluster distance
+                // we don't consider it for further re-assignment
+                return bestCentroidOffset;
+            }
+            int offset = neighborhood.neighbors[i];
+            // float score = neighborhood.scores[i];
+            assert offset >= 0 && offset < centroids.length : "Invalid neighbor offset: " + offset;
             // compute the distance to the centroid
             float dsq = VectorUtil.squareDistance(vector, centroids[offset]);
             if (dsq < minDsq) {
@@ -137,10 +167,22 @@ class KMeansLocal {
         return bestCentroidOffset;
     }
 
-    private static int getBestCentroid(float[][] centroids, float[] vector) {
+    private static int getBestCentroid(float[][] centroids, float[] vector, float[] distances) {
+        final int limit = centroids.length - 3;
         int bestCentroidOffset = 0;
         float minDsq = Float.MAX_VALUE;
-        for (int i = 0; i < centroids.length; i++) {
+        int i = 0;
+        for (; i < limit; i += 4) {
+            ESVectorUtil.squareDistanceBulk(vector, centroids[i], centroids[i + 1], centroids[i + 2], centroids[i + 3], distances);
+            for (int j = 0; j < distances.length; j++) {
+                float dsq = distances[j];
+                if (dsq < minDsq) {
+                    minDsq = dsq;
+                    bestCentroidOffset = i + j;
+                }
+            }
+        }
+        for (; i < centroids.length; i++) {
             float dsq = VectorUtil.squareDistance(vector, centroids[i]);
             if (dsq < minDsq) {
                 minDsq = dsq;
@@ -157,9 +199,20 @@ class KMeansLocal {
         for (int i = 0; i < k; i++) {
             neighborQueues[i] = new NeighborQueue(clustersPerNeighborhood, true);
         }
+        final float[] scores = new float[4];
+        final int limit = k - 3;
         for (int i = 0; i < k - 1; i++) {
-            for (int j = i + 1; j < k; j++) {
-                float dsq = VectorUtil.squareDistance(centers[i], centers[j]);
+            float[] center = centers[i];
+            int j = i + 1;
+            for (; j < limit; j += 4) {
+                ESVectorUtil.squareDistanceBulk(center, centers[j], centers[j + 1], centers[j + 2], centers[j + 3], scores);
+                for (int h = 0; h < 4; h++) {
+                    neighborQueues[j + h].insertWithOverflow(i, scores[h]);
+                    neighborQueues[i].insertWithOverflow(j + h, scores[h]);
+                }
+            }
+            for (; j < k; j++) {
+                float dsq = VectorUtil.squareDistance(center, centers[j]);
                 neighborQueues[j].insertWithOverflow(i, dsq);
                 neighborQueues[i].insertWithOverflow(j, dsq);
             }
@@ -208,6 +261,7 @@ class KMeansLocal {
         float[][] centroids = kmeansIntermediate.centroids();
 
         float[] diffs = new float[vectors.dimension()];
+        final float[] distances = new float[4];
         for (int i = 0; i < vectors.size(); i++) {
             float[] vector = vectors.vectorValue(i);
 
@@ -219,33 +273,66 @@ class KMeansLocal {
 
             if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
                 for (int j = 0; j < vectors.dimension(); j++) {
-                    float diff = vector[j] - currentCentroid[j];
-                    diffs[j] = diff;
+                    diffs[j] = vector[j] - currentCentroid[j];
                 }
             }
 
-            int bestAssignment = -1;
-            float minSoar = Float.MAX_VALUE;
-            int centroidCount = centroids.length;
-            IntToIntFunction centroidOrds = c -> c;
+            final int centroidCount;
+            final IntToIntFunction centroidOrds;
             if (neighborhoods != null) {
                 assert neighborhoods[currAssignment] != null;
                 NeighborHood neighborhood = neighborhoods[currAssignment];
                 centroidCount = neighborhood.neighbors.length;
                 centroidOrds = c -> neighborhood.neighbors[c];
+            } else {
+                centroidCount = centroids.length - 1;
+                centroidOrds = c -> c < currAssignment ? c : c + 1; // skip the current centroid
             }
-            for (int j = 0; j < centroidCount; j++) {
-                int centroidOrd = centroidOrds.apply(j);
-                if (centroidOrd == currAssignment) {
-                    continue; // skip the current assignment
-                }
-                float[] centroid = centroids[centroidOrd];
-                float soar;
+            final int limit = centroidCount - 3;
+            int bestAssignment = -1;
+            float minSoar = Float.MAX_VALUE;
+            int j = 0;
+            for (; j < limit; j += 4) {
                 if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
-                    soar = ESVectorUtil.soarDistance(vector, centroid, diffs, soarLambda, vectorCentroidDist);
+                    ESVectorUtil.soarDistanceBulk(
+                        vector,
+                        centroids[centroidOrds.apply(j)],
+                        centroids[centroidOrds.apply(j + 1)],
+                        centroids[centroidOrds.apply(j + 2)],
+                        centroids[centroidOrds.apply(j + 3)],
+                        diffs,
+                        soarLambda,
+                        vectorCentroidDist,
+                        distances
+                    );
                 } else {
                     // if the vector is very close to the centroid, we look for the second-nearest centroid
-                    soar = VectorUtil.squareDistance(vector, centroid);
+                    ESVectorUtil.squareDistanceBulk(
+                        vector,
+                        centroids[centroidOrds.apply(j)],
+                        centroids[centroidOrds.apply(j + 1)],
+                        centroids[centroidOrds.apply(j + 2)],
+                        centroids[centroidOrds.apply(j + 3)],
+                        distances
+                    );
+                }
+                for (int k = 0; k < distances.length; k++) {
+                    float soar = distances[k];
+                    if (soar < minSoar) {
+                        minSoar = soar;
+                        bestAssignment = centroidOrds.apply(j + k);
+                    }
+                }
+            }
+
+            for (; j < centroidCount; j++) {
+                int centroidOrd = centroidOrds.apply(j);
+                float soar;
+                if (vectorCentroidDist > SOAR_MIN_DISTANCE) {
+                    soar = ESVectorUtil.soarDistance(vector, centroids[centroidOrd], diffs, soarLambda, vectorCentroidDist);
+                } else {
+                    // if the vector is very close to the centroid, we look for the second-nearest centroid
+                    soar = VectorUtil.squareDistance(vector, centroids[centroidOrd]);
                 }
                 if (soar < minSoar) {
                     minSoar = soar;

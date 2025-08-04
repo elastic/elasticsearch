@@ -69,102 +69,102 @@ public final class LastOverTimeIntAggregatorFunction implements AggregatorFuncti
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    LongBlock timestampBlock = page.getBlock(channels.get(0));
-    IntBlock valueBlock = page.getBlock(channels.get(1));
-    LongVector timestampVector = timestampBlock.asVector();
-    if (timestampVector == null) {
-      addRawBlock(timestampBlock, valueBlock, mask);
-      return;
-    }
+    IntBlock valueBlock = page.getBlock(channels.get(0));
+    LongBlock timestampBlock = page.getBlock(channels.get(1));
     IntVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
-      addRawBlock(timestampBlock, valueBlock, mask);
+      addRawBlock(valueBlock, timestampBlock, mask);
       return;
     }
-    addRawVector(timestampVector, valueVector, mask);
+    LongVector timestampVector = timestampBlock.asVector();
+    if (timestampVector == null) {
+      addRawBlock(valueBlock, timestampBlock, mask);
+      return;
+    }
+    addRawVector(valueVector, timestampVector, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    LongBlock timestampBlock = page.getBlock(channels.get(0));
-    IntBlock valueBlock = page.getBlock(channels.get(1));
-    LongVector timestampVector = timestampBlock.asVector();
-    if (timestampVector == null) {
-      addRawBlock(timestampBlock, valueBlock);
-      return;
-    }
+    IntBlock valueBlock = page.getBlock(channels.get(0));
+    LongBlock timestampBlock = page.getBlock(channels.get(1));
     IntVector valueVector = valueBlock.asVector();
     if (valueVector == null) {
-      addRawBlock(timestampBlock, valueBlock);
+      addRawBlock(valueBlock, timestampBlock);
       return;
     }
-    addRawVector(timestampVector, valueVector);
+    LongVector timestampVector = timestampBlock.asVector();
+    if (timestampVector == null) {
+      addRawBlock(valueBlock, timestampBlock);
+      return;
+    }
+    addRawVector(valueVector, timestampVector);
   }
 
-  private void addRawVector(LongVector timestampVector, IntVector valueVector) {
+  private void addRawVector(IntVector valueVector, LongVector timestampVector) {
     state.seen(true);
-    for (int i = 0; i < timestampVector.getPositionCount(); i++) {
-      long timestampValue = timestampVector.getLong(i);
-      int valueValue = valueVector.getInt(i);
-      LastOverTimeIntAggregator.combine(state, timestampValue, valueValue);
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      int valueValue = valueVector.getInt(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastOverTimeIntAggregator.combine(state, valueValue, timestampValue);
     }
   }
 
-  private void addRawVector(LongVector timestampVector, IntVector valueVector, BooleanVector mask) {
+  private void addRawVector(IntVector valueVector, LongVector timestampVector, BooleanVector mask) {
     state.seen(true);
-    for (int i = 0; i < timestampVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      long timestampValue = timestampVector.getLong(i);
-      int valueValue = valueVector.getInt(i);
-      LastOverTimeIntAggregator.combine(state, timestampValue, valueValue);
+      int valueValue = valueVector.getInt(valuesPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      LastOverTimeIntAggregator.combine(state, valueValue, timestampValue);
     }
   }
 
-  private void addRawBlock(LongBlock timestampBlock, IntBlock valueBlock) {
-    for (int p = 0; p < timestampBlock.getPositionCount(); p++) {
-      if (timestampBlock.isNull(p)) {
-        continue;
-      }
+  private void addRawBlock(IntBlock valueBlock, LongBlock timestampBlock) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
       if (valueBlock.isNull(p)) {
         continue;
       }
+      if (timestampBlock.isNull(p)) {
+        continue;
+      }
       state.seen(true);
-      int timestampStart = timestampBlock.getFirstValueIndex(p);
-      int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
-      for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
-        long timestampValue = timestampBlock.getLong(timestampOffset);
-        int valueStart = valueBlock.getFirstValueIndex(p);
-        int valueEnd = valueStart + valueBlock.getValueCount(p);
-        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          int valueValue = valueBlock.getInt(valueOffset);
-          LastOverTimeIntAggregator.combine(state, timestampValue, valueValue);
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        int valueValue = valueBlock.getInt(valueOffset);
+        int timestampStart = timestampBlock.getFirstValueIndex(p);
+        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
+          long timestampValue = timestampBlock.getLong(timestampOffset);
+          LastOverTimeIntAggregator.combine(state, valueValue, timestampValue);
         }
       }
     }
   }
 
-  private void addRawBlock(LongBlock timestampBlock, IntBlock valueBlock, BooleanVector mask) {
-    for (int p = 0; p < timestampBlock.getPositionCount(); p++) {
+  private void addRawBlock(IntBlock valueBlock, LongBlock timestampBlock, BooleanVector mask) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
-        continue;
-      }
-      if (timestampBlock.isNull(p)) {
         continue;
       }
       if (valueBlock.isNull(p)) {
         continue;
       }
+      if (timestampBlock.isNull(p)) {
+        continue;
+      }
       state.seen(true);
-      int timestampStart = timestampBlock.getFirstValueIndex(p);
-      int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
-      for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
-        long timestampValue = timestampBlock.getLong(timestampOffset);
-        int valueStart = valueBlock.getFirstValueIndex(p);
-        int valueEnd = valueStart + valueBlock.getValueCount(p);
-        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
-          int valueValue = valueBlock.getInt(valueOffset);
-          LastOverTimeIntAggregator.combine(state, timestampValue, valueValue);
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        int valueValue = valueBlock.getInt(valueOffset);
+        int timestampStart = timestampBlock.getFirstValueIndex(p);
+        int timestampEnd = timestampStart + timestampBlock.getValueCount(p);
+        for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
+          long timestampValue = timestampBlock.getLong(timestampOffset);
+          LastOverTimeIntAggregator.combine(state, valueValue, timestampValue);
         }
       }
     }

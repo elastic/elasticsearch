@@ -50,9 +50,9 @@ public class FirstOverTimeLongGroupingAggregatorFunctionTests extends GroupingAg
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
         ExpectedWork work = new ExpectedWork();
         for (Page page : input) {
-            LongBlock timestamps = page.<LongBlock>getBlock(1);
-            LongBlock values = page.<LongBlock>getBlock(2);
-            for (int p = 0; p < page.getPositionCount(); p++) {
+            matchingGroups(page, group).forEach(p -> {
+                LongBlock values = page.getBlock(1);
+                LongBlock timestamps = page.getBlock(2);
                 int tsStart = timestamps.getFirstValueIndex(p);
                 int tsEnd = tsStart + timestamps.getValueCount(p);
                 for (int tsOffset = tsStart; tsOffset < tsEnd; tsOffset++) {
@@ -64,7 +64,7 @@ public class FirstOverTimeLongGroupingAggregatorFunctionTests extends GroupingAg
                         work.add(timestamp, value);
                     }
                 }
-            }
+            });
         }
         work.check(BlockUtils.toJavaObject(result, position));
     }
@@ -87,12 +87,17 @@ public class FirstOverTimeLongGroupingAggregatorFunctionTests extends GroupingAg
         }
 
         void check(Object v) {
-            if (expected.contains(v) == false) {
-                throw new AssertionError(
-                    (expected.size() == 1
+            if (expected.isEmpty()) {
+                if (v != null) {
+                    throw new AssertionError("expected null but was " + v);
+                }
+            } else {
+                if (expected.contains(v) == false) {
+                    String expectedMessage = expected.size() == 1
                         ? "expected " + expected.iterator().next()
-                        : "expected one of " + expected.stream().sorted().toList()) + " but was " + v
-                );
+                        : "expected one of " + expected.stream().sorted().toList();
+                    throw new AssertionError(expectedMessage + " but was " + v);
+                }
             }
         }
     }

@@ -114,7 +114,11 @@ public class GroupingAggregatorImplementer {
             requireName("combine"),
             combineArgs(aggState)
         );
-        this.aggParams = combine.getParameters().stream().skip(1).map(AggregationParameter::create).toList();
+        this.aggParams = combine.getParameters()
+            .stream()
+            .skip(aggState.declaredType().isPrimitive() ? 1 : 2)
+            .map(AggregationParameter::create)
+            .toList();
 
         this.createParameters = init.getParameters()
             .stream()
@@ -316,12 +320,12 @@ public class GroupingAggregatorImplementer {
         for (AggregationParameter p : aggParams) {
             builder.addStatement("$T $L = $L.asVector()", vectorType(p.type()), p.vectorName(), p.blockName());
             builder.beginControlFlow("if ($L == null)", p.vectorName());
-
-            builder.beginControlFlow("if ($L.mayHaveNulls())", p.blockName());
-            builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
-            builder.endControlFlow();
-
-            returnAddInput(builder, false);
+            {
+                builder.beginControlFlow("if ($L.mayHaveNulls())", p.blockName());
+                builder.addStatement("state.enableGroupIdTracking(seenGroupIds)");
+                builder.endControlFlow();
+                returnAddInput(builder, false);
+            }
             builder.endControlFlow();
         }
 
@@ -407,12 +411,12 @@ public class GroupingAggregatorImplementer {
 
         builder.beginControlFlow("for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++)");
         {
-            builder.addStatement("int valuesPosition = groupPosition + positionOffset");
             if (groupsIsBlock) {
-                builder.beginControlFlow("if (groups.isNull(groupPosition)");
+                builder.beginControlFlow("if (groups.isNull(groupPosition))");
                 builder.addStatement("continue");
                 builder.endControlFlow();
             }
+            builder.addStatement("int valuesPosition = groupPosition + positionOffset");
             if (valuesAreVector == false) {
                 for (AggregationParameter p : aggParams) {
                     builder.beginControlFlow("if ($L.isNull(valuesPosition))", p.blockName());
@@ -436,27 +440,34 @@ public class GroupingAggregatorImplementer {
             }
 
             if (valuesAreVector) {
+                for (AggregationParameter a : aggParams) {
+                    a.read(builder, true);
+                }
+                combineRawInput(builder);
+            } else {
                 if (aggParams.getFirst().isArray()) {
                     if (aggParams.size() > 1) {
                         throw new IllegalArgumentException("array mode not supported for multiple args");
                     }
                     String arrayType = aggParams.getFirst().type().toString().replace("[]", "");
-                    builder.addStatement("int valuesStart = values.getFirstValueIndex(valuesPosition)");
-                    builder.addStatement("int valuesEnd = valuesStart + values.getValueCount(valuesPosition)");
+                    builder.addStatement("int valuesStart = $L.getFirstValueIndex(valuesPosition)", aggParams.getFirst().blockName());
+                    builder.addStatement(
+                        "int valuesEnd = valuesStart + $L.getValueCount(valuesPosition)",
+                        aggParams.getFirst().blockName()
+                    );
                     builder.addStatement("$L[] valuesArray = new $L[valuesEnd - valuesStart]", arrayType, arrayType);
                     builder.beginControlFlow("for (int v = valuesStart; v < valuesEnd; v++)");
-                    builder.addStatement("valuesArray[v-valuesStart] = $L.get$L(v)", "values", capitalize(arrayType));
+                    builder.addStatement(
+                        "valuesArray[v-valuesStart] = $L.get$L(v)",
+                        aggParams.getFirst().blockName(),
+                        capitalize(aggParams.getFirst().arrayType())
+                    );
                     builder.endControlFlow();
                     combineRawInputForArray(builder, "valuesArray");
                 } else {
                     for (AggregationParameter p : aggParams) {
                         builder.addStatement("int $L = $L.getFirstValueIndex(valuesPosition)", p.startName(), p.blockName());
-                        builder.addStatement(
-                            "int $L = $L + $L.getValueCount(valuesPosition)",
-                            p.endName(),
-                            p.startName(),
-                            p.blockName()
-                        );
+                        builder.addStatement("int $L = $L + $L.getValueCount(valuesPosition)", p.endName(), p.startName(), p.blockName());
                         builder.beginControlFlow(
                             "for (int $L = $L; $L < $L; $L++)",
                             p.offsetName(),
@@ -471,13 +482,7 @@ public class GroupingAggregatorImplementer {
                     for (AggregationParameter a : aggParams) {
                         builder.endControlFlow();
                     }
-                    builder.endControlFlow();
                 }
-            } else {
-                for (AggregationParameter a : aggParams) {
-                    a.read(builder, true);
-                }
-                combineRawInput(builder);
             }
 
             if (groupsIsBlock) {
@@ -490,7 +495,6 @@ public class GroupingAggregatorImplementer {
 
     private void combineRawInput(MethodSpec.Builder builder) {
         TypeName returnType = TypeName.get(combine.getReturnType());
-
         warningsBlock(builder, () -> invokeCombineRawInput(returnType, builder));
     }
 

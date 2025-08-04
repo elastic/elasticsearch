@@ -29,11 +29,7 @@ public class ListRowsBlockSourceOperator extends AbstractBlockSourceOperator {
     private final List<ElementType> types;
     private final List<? extends List<?>> rows;
 
-    public ListRowsBlockSourceOperator(
-        BlockFactory blockFactory,
-        List<ElementType> types,
-        List<? extends List<?>> rows
-    ) {
+    public ListRowsBlockSourceOperator(BlockFactory blockFactory, List<ElementType> types, List<? extends List<?>> rows) {
         super(blockFactory, DEFAULT_MAX_PAGE_POSITIONS);
         this.types = types;
         this.rows = rows;
@@ -57,7 +53,7 @@ public class ListRowsBlockSourceOperator extends AbstractBlockSourceOperator {
                     }
                     if (v instanceof List<?> l) {
                         blocks[b].beginPositionEntry();
-                        for (Object listValue: l) {
+                        for (Object listValue : l) {
                             blocks[b].appendObject(listValue);
                         }
                         blocks[b].endPositionEntry();

@@ -16,11 +16,8 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 
 public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
@@ -48,12 +45,11 @@ public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunction
 
     @Override
     public void assertSimpleOutput(List<Page> input, Block result) {
-        long v = (Long) BlockUtils.toJavaObject(result, 0);
-        long expectedTimestamp = 0;
-        Set<Long> expected = new HashSet<>();
+        FirstOverTimeLongGroupingAggregatorFunctionTests.ExpectedWork work =
+            new FirstOverTimeLongGroupingAggregatorFunctionTests.ExpectedWork();
         for (Page page : input) {
-            LongBlock timestamps = page.<LongBlock>getBlock(0);
-            LongBlock values = page.<LongBlock>getBlock(1);
+            LongBlock values = page.getBlock(0);
+            LongBlock timestamps = page.getBlock(1);
             for (int p = 0; p < page.getPositionCount(); p++) {
                 int tsStart = timestamps.getFirstValueIndex(p);
                 int tsEnd = tsStart + timestamps.getValueCount(p);
@@ -63,26 +59,11 @@ public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunction
                     int vEnd = vStart + values.getValueCount(p);
                     for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
                         long value = values.getLong(vOffset);
-                        if (expected.isEmpty()) {
-                            expectedTimestamp = timestamp;
-                            expected.add(value);
-                        } else if (timestamp < expectedTimestamp) {
-                            expectedTimestamp = timestamp;
-                            expected.clear();
-                            expected.add(value);
-                        } else if (timestamp == expectedTimestamp) {
-                            expected.add(value);
-                        }
+                        work.add(timestamp, value);
                     }
                 }
             }
         }
-        if (expected.contains(v) == false) {
-            throw new AssertionError(
-                (expected.size() == 1 ? "expected " + expected.iterator().next() : "expected one of " + expected.stream().sorted().toList())
-                    + " but was "
-                    + v
-            );
-        }
+        work.check(BlockUtils.toJavaObject(result, 0));
     }
 }

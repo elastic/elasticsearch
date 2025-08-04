@@ -156,7 +156,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     protected String expectedToStringOfSimpleAggregator() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return type + "[channels=[1]]";
+        return type + "[channels=" + IntStream.range(1, inputCount() + 1).boxed().toList() + "]";
     }
 
     private SeenGroups seenGroups(List<Page> input) {
@@ -486,7 +486,12 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             } else {
                 groupBuilder.appendNull();
             }
-            List<Page> source = List.of(new Page(groupBuilder.build(), blockFactory.newConstantNullBlock(1)));
+            Block[] blocks = new Block[1 + inputCount()];
+            blocks[0] = groupBuilder.build();
+            for (int i = 1; i < blocks.length; i++) {
+                blocks[i] = blockFactory.newConstantNullBlock(1);
+            }
+            List<Page> source = List.of(new Page(blocks));
             List<Page> results = drive(operators, source.iterator(), driverContext);
 
             assertThat(results, hasSize(1));
@@ -531,17 +536,25 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         List<Page> source = new ArrayList<>(inputData.size());
         for (Page page : inputData) {
             LongVector groups = page.<LongBlock>getBlock(0).asVector();
-            Block values = page.getBlock(1);
-            Block.Builder copiedValues = values.elementType().newBlockBuilder(page.getPositionCount(), driverContext.blockFactory());
+            Block[] values = new Block[inputCount()];
+            Block.Builder[] copiedValues = new Block.Builder[inputCount()];
+            for (int b = 0; b < values.length; b++) {
+                values[b] = page.getBlock(1 + b);
+                copiedValues[b] = values[b].elementType().newBlockBuilder(page.getPositionCount(), driverContext.blockFactory());
+            }
             for (int p = 0; p < page.getPositionCount(); p++) {
                 if (groups.getLong(p) == nullGroup) {
-                    copiedValues.appendNull();
+                    for (int b = 0; b < values.length; b++) {
+                        copiedValues[b].appendNull();
+                    }
                 } else {
-                    copiedValues.copyFrom(values, p, p + 1);
+                    for (int b = 0; b < values.length; b++) {
+                        copiedValues[b].copyFrom(values[b], p, p + 1);
+                    }
                 }
             }
             Releasables.closeWhileHandlingException(values);
-            source.add(new Page(groups.asBlock(), copiedValues.build()));
+            source.add(new Page(groups.asBlock()).appendBlocks(Block.Builder.buildAll(copiedValues)));
         }
 
         List<Page> results = drive(operators, source.iterator(), driverContext);
@@ -596,30 +609,31 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         };
     }
 
-    protected static IntStream allValueOffsets(Page page, Long group) {
-        Block groupBlock = page.getBlock(0);
-        Block valueBlock = page.getBlock(1);
+    protected static IntStream matchingGroups(Page page, Long group) {
+        LongBlock groupBlock = page.getBlock(0);
         return IntStream.range(0, page.getPositionCount()).flatMap(p -> {
-            if (valueBlock.isNull(p)) {
+            if (group == null) {
+                if (groupBlock.isNull(p)) {
+                    return IntStream.of(p);
+                }
                 return IntStream.of();
             }
-            if (group == null) {
-                if (false == groupBlock.isNull(p)) {
-                    return IntStream.of();
+            int groupStart = groupBlock.getFirstValueIndex(p);
+            int groupEnd = groupStart + groupBlock.getValueCount(p);
+            for (int i = groupStart; i < groupEnd; i++) {
+                if (groupBlock.getLong(i) == group) {
+                    return IntStream.of(p);
                 }
-            } else {
-                int groupStart = groupBlock.getFirstValueIndex(p);
-                int groupEnd = groupStart + groupBlock.getValueCount(p);
-                boolean matched = false;
-                for (int i = groupStart; i < groupEnd; i++) {
-                    if (((LongBlock) groupBlock).getLong(i) == group) {
-                        matched = true;
-                        break;
-                    }
-                }
-                if (matched == false) {
-                    return IntStream.of();
-                }
+            }
+            return IntStream.of();
+        });
+    }
+
+    protected static IntStream allValueOffsets(Page page, Long group) {
+        Block valueBlock = page.getBlock(1);
+        return matchingGroups(page, group).flatMap(p -> {
+            if (valueBlock.isNull(p)) {
+                return IntStream.of();
             }
             int start = valueBlock.getFirstValueIndex(p);
             int end = start + valueBlock.getValueCount(p);

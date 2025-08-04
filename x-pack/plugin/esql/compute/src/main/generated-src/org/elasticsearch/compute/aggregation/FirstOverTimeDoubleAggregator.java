@@ -34,16 +34,14 @@ import org.elasticsearch.core.Releasables;
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator(
-    {
-        @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
+    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
 )
 public class FirstOverTimeDoubleAggregator {
     public static LongDoubleState initSingle(DriverContext driverContext) {
         return new LongDoubleState(0, 0);
     }
 
-    public static void combine(LongDoubleState current, long timestamp, double value) {
+    public static void combine(LongDoubleState current, double value, long timestamp) {
         if (timestamp < current.v1()) {
             current.v1(timestamp);
             current.v2(value);
@@ -53,7 +51,7 @@ public class FirstOverTimeDoubleAggregator {
     public static void combineIntermediate(LongDoubleState current, long timestamp, double value, boolean seen) {
         if (seen) {
             current.seen(true);
-            combine(current, timestamp, value);
+            combine(current, value, timestamp);
         }
     }
 
@@ -67,7 +65,7 @@ public class FirstOverTimeDoubleAggregator {
 
     // TODO: Since data in data_streams is sorted by `_tsid` and timestamp in descending order,
     // we can read the first encountered value for each group of `_tsid` and time bucket.
-    public static void combine(GroupingState current, int groupId, long timestamp, double value) {
+    public static void combine(GroupingState current, int groupId, double value, long timestamp) {
         current.collectValue(groupId, timestamp, value);
     }
 
@@ -108,6 +106,11 @@ public class FirstOverTimeDoubleAggregator {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
                 this.values = bigArrays.newDoubleArray(1, false);
+                /*
+                 * Enable group id tracking because we use has hasValue in the
+                 * collection itself to detect the when a value first arrives.
+                 */
+                enableGroupIdTracking(new SeenGroupIds.Empty());
                 success = true;
             } finally {
                 if (success == false) {

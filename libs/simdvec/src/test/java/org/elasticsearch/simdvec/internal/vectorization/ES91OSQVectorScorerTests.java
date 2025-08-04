@@ -44,8 +44,12 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                 final ES91OSQVectorsScorer defaultScorer = defaultProvider().newES91OSQVectorsScorer(slice, dimensions);
                 final ES91OSQVectorsScorer panamaScorer = maybePanamaProvider().newES91OSQVectorsScorer(in, dimensions);
                 for (int i = 0; i < numVectors; i++) {
+                    long filePointer = in.getFilePointer();
                     assertEquals(defaultScorer.quantizeScore(query), panamaScorer.quantizeScore(query));
                     assertEquals(in.getFilePointer(), slice.getFilePointer());
+                    in.seek(filePointer);
+                    slice.seek(filePointer);
+                    assertEquals(defaultScorer.quantizeScoreThreeUpperBit(query), panamaScorer.quantizeScoreThreeUpperBit(query));
                 }
                 assertEquals((long) length * numVectors, slice.getFilePointer());
             }
@@ -124,30 +128,26 @@ public class ES91OSQVectorScorerTests extends BaseVectorizationTests {
                             centroidDp,
                             scores2
                         );
-                        for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                            if (scores1[j] == scores2[j]) {
-                                continue;
-                            }
-                            if (scores1[j] > (maxDims * Byte.MAX_VALUE)) {
-                                float diff = Math.abs(scores1[j] - scores2[j]);
-                                assertThat(
-                                    "defaultScores: " + scores1[j] + " bulkScores: " + scores2[j],
-                                    diff / scores1[j],
-                                    lessThan(1e-5f)
-                                );
-                                assertThat(
-                                    "defaultScores: " + scores1[j] + " bulkScores: " + scores2[j],
-                                    diff / scores2[j],
-                                    lessThan(1e-5f)
-                                );
-                            } else {
-                                assertEquals(scores1[j], scores2[j], 1e-2f);
-                            }
-                        }
+                        assertScores(scores1, scores2, maxDims);
                         assertEquals(((long) (ES91OSQVectorsScorer.BULK_SIZE) * (length + 14)), slice.getFilePointer());
                         assertEquals(padding + ((long) (i + ES91OSQVectorsScorer.BULK_SIZE) * (length + 14)), in.getFilePointer());
                     }
                 }
+            }
+        }
+    }
+
+    private void assertScores(float[] scores1, float[] scores2, int maxDims) {
+        for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
+            if (scores1[j] == scores2[j]) {
+                continue;
+            }
+            if (scores1[j] > (maxDims * Byte.MAX_VALUE)) {
+                float diff = Math.abs(scores1[j] - scores2[j]);
+                assertThat("defaultScores: " + scores1[j] + " bulkScores: " + scores2[j], diff / scores1[j], lessThan(1e-5f));
+                assertThat("defaultScores: " + scores1[j] + " bulkScores: " + scores2[j], diff / scores2[j], lessThan(1e-5f));
+            } else {
+                assertEquals(scores1[j], scores2[j], 1e-2f);
             }
         }
     }

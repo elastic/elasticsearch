@@ -306,6 +306,9 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     }
 
     private static class MemorySegmentPostingsVisitor implements PostingVisitor {
+        // At the beginning, most documents will be competitive so approximating to three bits is not effective.
+        // this value indicates how many times we need to multiply KnnCollect.k() to start applying the three bits approximation.
+        static long APPROXIMATION_OFFSET = 30;
         final long quantizedByteLength;
         final IndexInput indexInput;
         final float[] target;
@@ -334,6 +337,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         final OptimizedScalarQuantizer quantizer;
         final float[] correctiveValues = new float[3];
         final long quantizedVectorByteSize;
+        int lowerBitCount;
 
         MemorySegmentPostingsVisitor(
             float[] target,
@@ -372,16 +376,57 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             return vectors;
         }
 
-        void scoreIndividually(int offset) throws IOException {
-            // score individually, first the quantized byte chunk
+        void scoreIndividuallyPartialScore(int offset, float minScore) throws IOException {
+            // read in all corrections
+            indexInput.seek(slicePos + (offset * quantizedByteLength) + (BULK_SIZE * quantizedVectorByteSize));
+            indexInput.readFloats(correctionsLower, 0, BULK_SIZE);
+            indexInput.readFloats(correctionsUpper, 0, BULK_SIZE);
             for (int j = 0; j < BULK_SIZE; j++) {
-                int doc = docIdsScratch[j + offset];
+                correctionsSum[j] = Short.toUnsignedInt(indexInput.readShort());
+            }
+            indexInput.readFloats(correctionsAdd, 0, BULK_SIZE);
+            // Now apply corrections
+            for (int j = 0; j < BULK_SIZE; j++) {
+                int doc = docIdsScratch[offset + j];
                 if (doc != -1) {
-                    indexInput.seek(slicePos + (offset * quantizedByteLength) + (j * quantizedVectorByteSize));
-                    float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
-                    scores[j] = qcDist;
+                    float maxScore = osqVectorsScorer.score(
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
+                        fieldInfo.getVectorSimilarityFunction(),
+                        centroidDp,
+                        correctionsLower[j],
+                        correctionsUpper[j],
+                        correctionsSum[j],
+                        correctionsAdd[j],
+                        scores[j] + Math.min(correctionsSum[j], lowerBitCount)
+                    );
+                    if (maxScore > minScore) {
+                        indexInput.seek(slicePos + (offset * quantizedByteLength) + (j * quantizedVectorByteSize));
+                        scores[j] += osqVectorsScorer.quantizeScoreLowerBit(quantizedQueryScratch);
+                        scores[j] = osqVectorsScorer.score(
+                            queryCorrections.lowerInterval(),
+                            queryCorrections.upperInterval(),
+                            queryCorrections.quantizedComponentSum(),
+                            queryCorrections.additionalCorrection(),
+                            fieldInfo.getVectorSimilarityFunction(),
+                            centroidDp,
+                            correctionsLower[j],
+                            correctionsUpper[j],
+                            correctionsSum[j],
+                            correctionsAdd[j],
+                            scores[j]
+                        );
+                        assert scores[j] >= minScore;
+                    } else {
+                        docIdsScratch[offset + j] = -1;
+                    }
                 }
             }
+        }
+
+        void scoreIndividuallyFullScore(int offset) throws IOException {
             // read in all corrections
             indexInput.seek(slicePos + (offset * quantizedByteLength) + (BULK_SIZE * quantizedVectorByteSize));
             indexInput.readFloats(correctionsLower, 0, BULK_SIZE);
@@ -432,18 +477,42 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 quantizeQueryIfNecessary();
                 indexInput.seek(slicePos + i * quantizedByteLength);
                 if (docsToScore < BULK_SIZE / 2) {
-                    scoreIndividually(i);
+                    if (knnCollector.visitedCount() < APPROXIMATION_OFFSET * knnCollector.k()) {
+                        for (int j = 0; j < BULK_SIZE; j++) {
+                            int doc = docIdsScratch[j + i];
+                            if (doc != -1) {
+                                indexInput.seek(slicePos + (i * quantizedByteLength) + (j * quantizedVectorByteSize));
+                                scores[j] = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
+                            }
+                        }
+                        scoreIndividuallyFullScore(i);
+                    } else {
+                        // score individually, first the quantized byte chunk
+                        for (int j = 0; j < BULK_SIZE; j++) {
+                            int doc = docIdsScratch[j + i];
+                            if (doc != -1) {
+                                indexInput.seek(slicePos + (i * quantizedByteLength) + (j * quantizedVectorByteSize));
+                                scores[j] = osqVectorsScorer.quantizeScoreThreeUpperBit(quantizedQueryScratch);
+                            }
+                        }
+                        scoreIndividuallyPartialScore(i, knnCollector.minCompetitiveSimilarity());
+                    }
                 } else {
-                    osqVectorsScorer.scoreBulk(
-                        quantizedQueryScratch,
-                        queryCorrections.lowerInterval(),
-                        queryCorrections.upperInterval(),
-                        queryCorrections.quantizedComponentSum(),
-                        queryCorrections.additionalCorrection(),
-                        fieldInfo.getVectorSimilarityFunction(),
-                        centroidDp,
-                        scores
-                    );
+                    if (knnCollector.visitedCount() < APPROXIMATION_OFFSET * knnCollector.k()) {
+                        osqVectorsScorer.scoreBulk(
+                            quantizedQueryScratch,
+                            queryCorrections.lowerInterval(),
+                            queryCorrections.upperInterval(),
+                            queryCorrections.quantizedComponentSum(),
+                            queryCorrections.additionalCorrection(),
+                            fieldInfo.getVectorSimilarityFunction(),
+                            centroidDp,
+                            scores
+                        );
+                    } else {
+                        osqVectorsScorer.quantizeScoreThreeUpperBitBulk(quantizedQueryScratch, BULK_SIZE, scores);
+                        scoreIndividuallyPartialScore(i, knnCollector.minCompetitiveSimilarity());
+                    }
                 }
                 for (int j = 0; j < BULK_SIZE; j++) {
                     int doc = docIdsScratch[i + j];
@@ -459,24 +528,61 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                 if (needsScoring.test(doc)) {
                     quantizeQueryIfNecessary();
                     indexInput.seek(slicePos + i * quantizedByteLength);
-                    float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
-                    indexInput.readFloats(correctiveValues, 0, 3);
-                    final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
-                    float score = osqVectorsScorer.score(
-                        queryCorrections.lowerInterval(),
-                        queryCorrections.upperInterval(),
-                        queryCorrections.quantizedComponentSum(),
-                        queryCorrections.additionalCorrection(),
-                        fieldInfo.getVectorSimilarityFunction(),
-                        centroidDp,
-                        correctiveValues[0],
-                        correctiveValues[1],
-                        quantizedComponentSum,
-                        correctiveValues[2],
-                        qcDist
-                    );
+                    if (knnCollector.visitedCount() < APPROXIMATION_OFFSET * knnCollector.k()) {
+                        float qcDist = osqVectorsScorer.quantizeScore(quantizedQueryScratch);
+                        indexInput.readFloats(correctiveValues, 0, 3);
+                        final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
+                        float score = osqVectorsScorer.score(
+                            queryCorrections.lowerInterval(),
+                            queryCorrections.upperInterval(),
+                            queryCorrections.quantizedComponentSum(),
+                            queryCorrections.additionalCorrection(),
+                            fieldInfo.getVectorSimilarityFunction(),
+                            centroidDp,
+                            correctiveValues[0],
+                            correctiveValues[1],
+                            quantizedComponentSum,
+                            correctiveValues[2],
+                            qcDist
+                        );
+                        knnCollector.collect(doc, score);
+                    } else {
+                        float qcDist = osqVectorsScorer.quantizeScoreThreeUpperBit(quantizedQueryScratch);
+                        indexInput.readFloats(correctiveValues, 0, 3);
+                        final int quantizedComponentSum = Short.toUnsignedInt(indexInput.readShort());
+                        float maxScore = osqVectorsScorer.score(
+                            queryCorrections.lowerInterval(),
+                            queryCorrections.upperInterval(),
+                            queryCorrections.quantizedComponentSum(),
+                            queryCorrections.additionalCorrection(),
+                            fieldInfo.getVectorSimilarityFunction(),
+                            centroidDp,
+                            correctiveValues[0],
+                            correctiveValues[1],
+                            quantizedComponentSum,
+                            correctiveValues[2],
+                            qcDist + Math.min(quantizedComponentSum, lowerBitCount)
+                        );
+                        if (maxScore > knnCollector.minCompetitiveSimilarity()) {
+                            indexInput.seek(slicePos + i * quantizedByteLength);
+                            qcDist += osqVectorsScorer.quantizeScoreLowerBit(quantizedQueryScratch);
+                            float score = osqVectorsScorer.score(
+                                queryCorrections.lowerInterval(),
+                                queryCorrections.upperInterval(),
+                                queryCorrections.quantizedComponentSum(),
+                                queryCorrections.additionalCorrection(),
+                                fieldInfo.getVectorSimilarityFunction(),
+                                centroidDp,
+                                correctiveValues[0],
+                                correctiveValues[1],
+                                quantizedComponentSum,
+                                correctiveValues[2],
+                                qcDist
+                            );
+                            knnCollector.collect(doc, score);
+                        }
+                    }
                     scoredDocs++;
-                    knnCollector.collect(doc, score);
                 }
             }
             if (scoredDocs > 0) {
@@ -492,9 +598,34 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
                     VectorUtil.l2normalize(scratch);
                 }
                 queryCorrections = quantizer.scalarQuantize(scratch, quantizationScratch, (byte) 4, centroid);
-                transposeHalfByte(quantizationScratch, quantizedQueryScratch);
+                this.lowerBitCount = transposeHalfByte(quantizationScratch, quantizedQueryScratch);
                 quantized = true;
             }
+        }
+
+        private static int transposeHalfByte(int[] q, byte[] quantQueryByte) {
+            int lowerBitCount = 0;
+            for (int i = 0; i < q.length;) {
+                assert q[i] >= 0 && q[i] <= 15;
+                int lowerByte = 0;
+                int lowerMiddleByte = 0;
+                int upperMiddleByte = 0;
+                int upperByte = 0;
+                for (int j = 7; j >= 0 && i < q.length; j--) {
+                    lowerByte |= (q[i] & 1) << j;
+                    lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
+                    upperMiddleByte |= ((q[i] >> 2) & 1) << j;
+                    upperByte |= ((q[i] >> 3) & 1) << j;
+                    i++;
+                }
+                int index = ((i + 7) / 8) - 1;
+                lowerBitCount += Integer.bitCount(lowerByte & 0xFF);
+                quantQueryByte[index] = (byte) lowerByte;
+                quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+                quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+                quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+            }
+            return lowerBitCount;
         }
     }
 

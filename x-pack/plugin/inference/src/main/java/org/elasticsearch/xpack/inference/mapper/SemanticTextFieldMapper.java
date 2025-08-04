@@ -1082,7 +1082,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     it.advance(previousParent);
                 }
 
-                return onlyTextChunks ? fetchTextChunks(source, doc, it) : fetchFullChunks(source, doc, it);
+                return onlyTextChunks ? fetchTextChunks(source, doc, it) : fetchFullField(source, doc, it);
             }
 
             private List<Object> fetchTextChunks(Source source, int doc, DocIdSetIterator it) throws IOException {
@@ -1102,7 +1102,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 return chunks;
             }
 
-            private List<Object> fetchFullChunks(Source source, int doc, DocIdSetIterator it) throws IOException {
+            private List<Object> fetchFullField(Source source, int doc, DocIdSetIterator it) throws IOException {
                 Map<String, List<SemanticTextField.Chunk>> chunkMap = new LinkedHashMap<>();
 
                 iterateChildDocs(doc, it, offset -> {

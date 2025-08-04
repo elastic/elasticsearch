@@ -411,6 +411,31 @@ PUT my-index-000004
 }
 ```
 
+To retrieve all fragments from the `semantic` highlighter in their original indexing order
+without scoring, use a `match_all` query as the `highlight_query`.
+This ensures fragments are returned in the order they appear in the document:
+
+```console
+POST test-index/_search
+{
+  "query": {
+    "ids": {
+      "values": ["1"]
+    }
+  },
+  "highlight": {
+    "fields": {
+      "my_semantic_field": {
+        "number_of_fragments": 5,        <1>
+        "highlight_query": { "match_all": {} }
+      }
+    }
+  }
+}
+```
+
+1. Returns the first 5 fragments. Increase this value to retrieve additional fragments.
+
 ### Customizing using ingest pipelines [custom-by-pipelines]
 ```{applies_to}
 stack: ga 9.0

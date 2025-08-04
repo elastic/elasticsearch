@@ -27,7 +27,6 @@ import org.apache.lucene.codecs.MultiLevelSkipListWriter;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.PostingsReaderBase;
 import org.apache.lucene.codecs.PostingsWriterBase;
-import org.apache.lucene.codecs.lucene90.blocktree.Lucene90BlockTreeTermsReader;
 import org.apache.lucene.codecs.lucene90.blocktree.Lucene90BlockTreeTermsWriter;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.SegmentReadState;
@@ -37,6 +36,8 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.ForUtil;
+import org.elasticsearch.index.codec.postings.terms.Lucene90BlockTreeTermsReader;
+import org.elasticsearch.index.codec.postings.terms.NonForkedHelper;
 
 import java.io.IOException;
 
@@ -414,7 +415,12 @@ public final class ES812PostingsFormat extends PostingsFormat {
         PostingsReaderBase postingsReader = new ES812PostingsReader(state);
         boolean success = false;
         try {
-            FieldsProducer ret = new Lucene90BlockTreeTermsReader(postingsReader, state);
+            FieldsProducer ret;
+            if (NonForkedHelper.USE_FORKED_TERMS_READER.isEnabled()) {
+                ret = new Lucene90BlockTreeTermsReader(postingsReader, state);
+            } else {
+                ret = new org.apache.lucene.codecs.lucene90.blocktree.Lucene90BlockTreeTermsReader(postingsReader, state);
+            }
             success = true;
             return ret;
         } finally {

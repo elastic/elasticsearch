@@ -279,8 +279,8 @@ public final class TopIpGroupingAggregatorFunction implements GroupingAggregator
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = TopIpAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = TopIpAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

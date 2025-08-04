@@ -1,0 +1,5 @@
+pr: 131058
+summary: Adds sparse vector index options settings to semantic_text field
+area: Search
+type: enhancement
+issues: []

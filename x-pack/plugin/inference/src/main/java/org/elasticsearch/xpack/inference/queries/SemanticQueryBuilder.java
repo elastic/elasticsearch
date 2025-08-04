@@ -209,9 +209,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 );
             }
 
-            // TODO: Check that model registry supplier has been set
+            ModelRegistry modelRegistry = MODEL_REGISTRY_SUPPLIER.get();
+            if (modelRegistry == null) {
+                throw new IllegalStateException("Model registry has not been set");
+            }
+
             String inferenceId = semanticTextFieldType.getSearchInferenceId();
-            MinimalServiceSettings serviceSettings = MODEL_REGISTRY_SUPPLIER.get().getMinimalServiceSettings(inferenceId);
+            MinimalServiceSettings serviceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
             InferenceEndpointKey inferenceEndpointKey = new InferenceEndpointKey(inferenceId, serviceSettings);
             InferenceResults inferenceResults = embeddingsProvider.getEmbeddings(inferenceEndpointKey);
 
@@ -273,8 +277,12 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 false
             );
 
-            // TODO: Check that model registry supplier has been set
-            MinimalServiceSettings serviceSettings = MODEL_REGISTRY_SUPPLIER.get().getMinimalServiceSettings(inferenceId);
+            ModelRegistry modelRegistry = MODEL_REGISTRY_SUPPLIER.get();
+            if (modelRegistry == null) {
+                throw new IllegalStateException("Model registry has not been set");
+            }
+
+            MinimalServiceSettings serviceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
             InferenceEndpointKey inferenceEndpointKey = new InferenceEndpointKey(inferenceId, serviceSettings);
             queryRewriteContext.registerAsyncAction(
                 (client, listener) -> executeAsyncWithOrigin(

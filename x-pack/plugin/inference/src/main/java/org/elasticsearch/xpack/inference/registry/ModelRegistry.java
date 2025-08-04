@@ -263,10 +263,10 @@ public class ModelRegistry implements ClusterStateListener {
 
             listener.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
         }, (e) -> {
-            logger.warn(format("Failed to load inference endpoint [%s]", inferenceEntityId), e);
+            logger.warn(format("Failed to load inference endpoint with secrets [%s]", inferenceEntityId), e);
             listener.onFailure(
                 new ElasticsearchException(
-                    format("Failed to load inference endpoint [%s], error: [%s]", inferenceEntityId, e.getMessage()),
+                    format("Failed to load inference endpoint with secrets [%s], error: [%s]", inferenceEntityId, e.getMessage()),
                     e
                 )
             );

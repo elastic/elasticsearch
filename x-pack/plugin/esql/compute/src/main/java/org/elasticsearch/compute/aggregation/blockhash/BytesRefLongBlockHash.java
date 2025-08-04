@@ -98,6 +98,23 @@ final class BytesRefLongBlockHash extends BlockHash {
     }
 
     public IntVector add(IntVector bytesHashes, LongVector longsVector) {
+        if (bytesHashes.isConstant()) {
+            boolean singleValue = true;
+            // TODO: Should we also support num_runs? Should we add a constant flag to Vector and perform this check in EVAL instead?
+            if (longsVector.isConstant() == false) {
+                long firstValue = longsVector.getLong(0);
+                for (int i = 1; i < longsVector.getPositionCount(); i++) {
+                    if (firstValue != longsVector.getLong(i)) {
+                        singleValue = false;
+                        break;
+                    }
+                }
+            }
+            if (singleValue) {
+                int singleOrd = Math.toIntExact(hashOrdToGroup(finalHash.add(bytesHashes.getInt(0), longsVector.getLong(0))));
+                return blockFactory.newConstantIntVector(singleOrd, longsVector.getPositionCount());
+            }
+        }
         int positions = bytesHashes.getPositionCount();
         final int[] ords = new int[positions];
         for (int i = 0; i < positions; i++) {

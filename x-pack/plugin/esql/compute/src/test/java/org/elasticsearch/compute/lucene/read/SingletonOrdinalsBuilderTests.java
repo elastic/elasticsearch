@@ -14,13 +14,18 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.io.IOException;
@@ -38,13 +43,13 @@ import static org.hamcrest.Matchers.hasSize;
 public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
 
     public void testReader() throws IOException {
-        testRead(blockFactory());
+        testRead(blockFactory(), randomBoolean());
     }
 
     public void testReadWithCranky() throws IOException {
         var factory = crankyBlockFactory();
         try {
-            testRead(factory);
+            testRead(factory, randomBoolean());
             // If we made it this far cranky didn't fail us!
         } catch (CircuitBreakingException e) {
             logger.info("cranky", e);
@@ -53,30 +58,59 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
         assertThat(factory.breaker().getUsed(), equalTo(0L));
     }
 
-    private void testRead(BlockFactory factory) throws IOException {
+    private void testRead(BlockFactory factory, boolean withIndexSorts) throws IOException {
         int count = 1000;
-        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+        var config = new IndexWriterConfig();
+        if (withIndexSorts) {
+            config.setIndexSort(new Sort(new SortField("f", SortField.Type.STRING)));
+        }
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
             for (int i = 0; i < count; i++) {
                 for (BytesRef v : new BytesRef[] { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d") }) {
                     indexWriter.addDocument(List.of(new SortedDocValuesField("f", v)));
                 }
             }
             Map<String, Integer> counts = new HashMap<>();
+            var keywordField = new KeywordFieldMapper.KeywordFieldType("f");
+            var blockLoader = keywordField.blockLoader(ValuesSourceReaderOperatorTests.blContext());
+            var blockFactory = new ComputeBlockLoaderFactory(factory);
             try (IndexReader reader = indexWriter.getReader()) {
                 for (LeafReaderContext ctx : reader.leaves()) {
-                    SortedDocValues docValues = ctx.reader().getSortedDocValues("f");
-                    try (SingletonOrdinalsBuilder builder = new SingletonOrdinalsBuilder(factory, docValues, ctx.reader().numDocs())) {
-                        for (int i = 0; i < ctx.reader().maxDoc(); i++) {
-                            if (ctx.reader().getLiveDocs() == null || ctx.reader().getLiveDocs().get(i)) {
-                                assertThat(docValues.advanceExact(i), equalTo(true));
-                                builder.appendOrd(docValues.ordValue());
+                    int start = 0;
+                    int numDocs = ctx.reader().numDocs();
+                    while (start < numDocs) {
+                        int end = start + randomIntBetween(1, numDocs - start);
+                        BlockLoader.Docs docs = new BlockLoader.Docs() {
+                            @Override
+                            public int count() {
+                                return end;
                             }
-                        }
-                        try (BytesRefBlock build = buildOrdinalsBuilder(builder)) {
-                            for (int i = 0; i < build.getPositionCount(); i++) {
-                                counts.merge(build.getBytesRef(i, new BytesRef()).utf8ToString(), 1, (lhs, rhs) -> lhs + rhs);
+
+                            @Override
+                            public int get(int i) {
+                                return i;
                             }
+                        };
+                        var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
+                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start)) {
+                            BytesRefBlock result = (BytesRefBlock) block;
+                            BytesRef scratch = new BytesRef();
+                            for (int i = 0; i < result.getPositionCount(); i++) {
+                                counts.merge(result.getBytesRef(i, scratch).utf8ToString(), 1, (lhs, rhs) -> lhs + rhs);
+                            }
+                            boolean singleValue = true;
+                            BytesRef first = BytesRef.deepCopyOf(result.getBytesRef(0, scratch));
+                            for (int i = 1; i < result.getPositionCount(); i++) {
+                                if (first.equals(result.getBytesRef(i, scratch)) == false) {
+                                    singleValue = false;
+                                    break;
+                                }
+                            }
+                            BytesRefVector valuesVector = result.asVector();
+                            assertNotNull(valuesVector);
+                            assertThat(valuesVector.isConstant(), equalTo(singleValue));
                         }
+                        start = end;
                     }
                 }
             }

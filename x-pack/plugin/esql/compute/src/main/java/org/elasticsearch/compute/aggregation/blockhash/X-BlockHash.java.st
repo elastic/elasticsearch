@@ -109,6 +109,11 @@ final class $Type$BlockHash extends BlockHash {
      */
     IntVector add($Type$Vector vector) {
 $if(BytesRef)$
+        if (vector.isConstant()) {
+            BytesRef v = vector.getBytesRef(0, new BytesRef());
+            int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+            return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
+        }
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {
             return addOrdinalsVector(ordinals);

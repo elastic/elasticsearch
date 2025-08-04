@@ -91,7 +91,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
     abstract CentroidIterator getCentroidIterator(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
         throws IOException;
 
-    public abstract float[] getParentCentroidsScores(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target)
+    public abstract float[] getCentroidsScores(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] target, boolean parents)
         throws IOException;
 
     private static IndexInput openDataInput(

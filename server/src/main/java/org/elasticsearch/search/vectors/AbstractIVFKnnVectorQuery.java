@@ -132,19 +132,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
         // calculate the affinity of each segment to the query vector
-        // (need information from each segment: no. of clusters, global centroid, density, whatever, ...)
+        // (need information from each segment: no. of clusters, global centroid, density, parent centroids' scores, etc.)
         List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector());
 
         // TODO: sort segments by affinity score in descending order, and cut the long tail ?
-        
-        // with larger affinity we increase nprobe (and viceversa)
-        // also sort segments by affinity and eventually filter out the long tail
+
         List<LeafReaderContext> selectedSegments = new ArrayList<>();
 
-        // TODO : are these magic numbers ?
-        double cutoff_affinity = 0.01; // minimum affinity score for a segment to be considered
-        double higher_affinity = 0.6; // min affinity for increasing nProbe
-        double lower_affinity = 0.6; // max affinity for decreasing nProbe
+        double cutoff_affinity = 0.3; // minimum affinity score for a segment to be considered
+        double higher_affinity = 0.7; // min affinity for increasing nProbe
+        double lower_affinity = 0.6 ; // max affinity for decreasing nProbe
+
         int max_adjustment = 20;
 
         Map<LeafReaderContext, Integer> segmentNProbeMap = new HashMap<>();
@@ -244,15 +242,18 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     int numCentroids = reader.getNumCentroids(fieldInfo);
                     double centroidDensity = (double) numCentroids / leafReader.numDocs();
 
-                    if (numCentroids > 64) {
-                        float[] parentCentroidsScores = reader.getParentCentroidsScores(
+                    // include some centroids' scores
+                    if (numCentroids > 32) {
+                        float[] centroidScores = reader.getCentroidsScores(
                             fieldInfo,
                             numCentroids,
                             reader.getIvfCentroids(fieldInfo),
-                            queryVector
+                            queryVector,
+                            numCentroids > 64
                         );
-                        Arrays.sort(parentCentroidsScores);
-                        globalCentroidScore = (parentCentroidsScores[0] + parentCentroidsScores[1] + globalCentroidScore) / 3;
+                        Arrays.sort(centroidScores);
+                        globalCentroidScore = (globalCentroidScore + centroidScores[centroidScores.length - 1]
+                            + centroidScores[centroidScores.length - 2]) / 3;
                     }
 
                     double affinityScore = globalCentroidScore * (1 + centroidDensity);

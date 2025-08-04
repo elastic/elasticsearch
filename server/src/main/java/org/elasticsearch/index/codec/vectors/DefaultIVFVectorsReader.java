@@ -87,7 +87,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
     }
 
     @Override
-    public float[] getParentCentroidsScores(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery)
+    public float[] getCentroidsScores(FieldInfo fieldInfo, int numCentroids, IndexInput centroids, float[] targetQuery, boolean parents)
         throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
         final float globalCentroidDp = fieldEntry.globalCentroidDp();
@@ -109,11 +109,11 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
         }
         final ES92Int7VectorsScorer scorer = ESVectorUtil.getES92Int7VectorsScorer(centroids, fieldInfo.getVectorDimension());
         centroids.seek(0L);
-        // score the parents
+        // final scores
         final float[] scores = new float[ES92Int7VectorsScorer.BULK_SIZE];
 
         int numParents = centroids.readVInt();
-        if (numParents > 0) {
+        if (parents && numParents > 0) {
             final NeighborQueue parentsQueue = new NeighborQueue(numParents, true);
             final int maxChildrenSize = centroids.readVInt();
             final NeighborQueue currentParentQueue = new NeighborQueue(maxChildrenSize, true);
@@ -122,6 +122,19 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             score(
                 parentsQueue,
                 numParents,
+                0,
+                scorer,
+                quantizedQuery,
+                queryParams,
+                globalCentroidDp,
+                fieldInfo.getVectorSimilarityFunction(),
+                scores
+            );
+        } else {
+            final NeighborQueue neighborQueue = new NeighborQueue(numCentroids, true);
+            score(
+                neighborQueue,
+                numCentroids,
                 0,
                 scorer,
                 quantizedQuery,

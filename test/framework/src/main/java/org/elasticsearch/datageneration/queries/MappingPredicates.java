@@ -41,15 +41,11 @@ public class MappingPredicates {
     }
 
     public List<String> getNestedPathPrefixes(String fullPath) {
-        return getPathMapping(fullPath).stream()
-            .filter(pm -> "nested".equals(pm.mapping().get("type")))
-            .map(PathMapping::path)
-            .toList();
+        return getPathMapping(fullPath).stream().filter(pm -> "nested".equals(pm.mapping().get("type"))).map(PathMapping::path).toList();
     }
 
     public boolean inNestedContext(String fullPath) {
-        return getPathMapping(fullPath).stream()
-            .anyMatch(pm -> "nested".equals(pm.mapping().get("type")));
+        return getPathMapping(fullPath).stream().anyMatch(pm -> "nested".equals(pm.mapping().get("type")));
     }
 
     @SuppressWarnings("unchecked")

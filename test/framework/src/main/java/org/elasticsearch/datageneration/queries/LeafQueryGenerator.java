@@ -51,10 +51,7 @@ public interface LeafQueryGenerator {
                     return List.of();
                 }
             }
-            return List.of(
-                QueryBuilders.termQuery(path, value),
-                QueryBuilders.matchQuery(path, value)
-            );
+            return List.of(QueryBuilders.termQuery(path, value), QueryBuilders.matchQuery(path, value));
         }
     }
 
@@ -78,10 +75,7 @@ public interface LeafQueryGenerator {
                 }
             }
 
-            return List.of(
-                QueryBuilders.matchQuery(path, value),
-                QueryBuilders.matchPhraseQuery(path, value)
-            );
+            return List.of(QueryBuilders.matchQuery(path, value), QueryBuilders.matchPhraseQuery(path, value));
         }
     }
 
@@ -94,10 +88,7 @@ public interface LeafQueryGenerator {
                 return List.of(QueryBuilders.matchQuery(path, value));
             }
 
-            return List.of(
-                QueryBuilders.matchQuery(path, value),
-                QueryBuilders.matchPhraseQuery(path, value)
-            );
+            return List.of(QueryBuilders.matchQuery(path, value), QueryBuilders.matchPhraseQuery(path, value));
         }
     }
 

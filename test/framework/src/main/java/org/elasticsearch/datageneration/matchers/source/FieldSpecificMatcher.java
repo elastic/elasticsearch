@@ -610,7 +610,7 @@ interface FieldSpecificMatcher {
         private final XContentBuilder expectedMappings;
         private final Settings.Builder expectedSettings;
 
-        MatchOnlyTextMatcher (
+        MatchOnlyTextMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
@@ -637,7 +637,7 @@ interface FieldSpecificMatcher {
             if (actualNormalized.equals(expectedNormalized)) {
                 return MatchResult.match();
             }
-//
+            //
             var multiFields = (Map<String, Object>) getMappingParameter("fields", actualMapping, expectedMapping);
             if (multiFields != null) {
                 var keywordMatcher = new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
@@ -668,7 +668,6 @@ interface FieldSpecificMatcher {
             return values.stream().filter(Objects::nonNull).collect(Collectors.toSet());
         }
     }
-
 
     class TextMatcher implements FieldSpecificMatcher {
         private final XContentBuilder actualMappings;

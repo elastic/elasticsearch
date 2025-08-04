@@ -285,9 +285,20 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             final int minLength = tsdbValuesProducer.mergeStats.minLength();
             final int maxLength = tsdbValuesProducer.mergeStats.maxLength();
 
+            BinaryDocValues values = valuesProducer.getBinary(field);
+            var sampler = new ReservoirSampler();
+
+            // Iteration 1: minLength, maxLength, numDocs, sample
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                BytesRef v = values.binaryValue();
+                sampler.processLine(v.bytes, v.offset, v.length);
+            }
+
+            // Build encoder from sample
+            FSST.SymbolTable symbolTable = FSST.SymbolTable.buildSymbolTable(sampler.getSample());
+
             assert numDocsWithField <= maxDoc;
 
-            BinaryDocValues values = valuesProducer.getBinary(field);
             long start = data.getFilePointer();
             meta.writeLong(start); // dataOffset
 
@@ -297,22 +308,24 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 if (numDocsWithField > 0 && numDocsWithField < maxDoc) {
                     disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                 }
-
                 assert maxLength >= minLength;
-                if (maxLength > minLength) {
-                    offsetsAccumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField);
+                offsetsAccumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField);
+                CompressedOffsetWriter offsetWriter = new CompressedOffsetWriter(offsetsAccumulator);
+
+                values = valuesProducer.getBinary(field);
+                try (var bulkCompressor = new BulkCompressBufferer(data, symbolTable, offsetWriter)) {
+                    // Iteration 2: compress lines
+                    for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                        BytesRef v = values.binaryValue();
+                        bulkCompressor.addLine(v.bytes, v.offset, v.length);
+                        if (disiAccumulator != null) {
+                            disiAccumulator.addDocId(doc);
+                        }
+                    }
                 }
 
-                for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
-                    BytesRef v = values.binaryValue();
-                    data.writeBytes(v.bytes, v.offset, v.length);
-                    if (disiAccumulator != null) {
-                        disiAccumulator.addDocId(doc);
-                    }
-                    if (offsetsAccumulator != null) {
-                        offsetsAccumulator.addDoc(v.length);
-                    }
-                }
+                // Write metadata
+                assert numDocsWithField <= maxDoc;
                 meta.writeLong(data.getFilePointer() - start); // dataLength
 
                 if (numDocsWithField == 0) {
@@ -337,8 +350,23 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 meta.writeInt(numDocsWithField);
                 meta.writeInt(minLength);
                 meta.writeInt(maxLength);
-                if (offsetsAccumulator != null) {
+
+                int minCompressedLength = offsetWriter.minCompressedLength;
+                int maxCompressedLength = offsetWriter.maxCompressedLength;
+
+                // add compression fields
+                meta.writeInt(minCompressedLength);
+                meta.writeInt(maxCompressedLength);
+                byte[] compressedSymbolTable = symbolTable.exportToBytes();
+                meta.writeBytes(compressedSymbolTable, compressedSymbolTable.length);
+
+                if (maxCompressedLength > minCompressedLength) {
+                    start = data.getFilePointer();
+                    meta.writeLong(start);
+                    meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
+                    // copy
                     offsetsAccumulator.build(meta, data);
+                    meta.writeLong(data.getFilePointer() - start);
                 }
             } finally {
                 IOUtils.close(disiAccumulator, offsetsAccumulator);

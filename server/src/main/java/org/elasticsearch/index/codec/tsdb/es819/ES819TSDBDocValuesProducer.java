@@ -41,6 +41,7 @@ import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.compress.fsst.FSST;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 
@@ -1458,6 +1459,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         long addressesOffset;
         long addressesLength;
         DirectMonotonicReader.Meta addressesMeta;
+
+        // FSST
+        int minCompressedLength;
+        int maxCompressedLength;
+        FSST.Decoder decoder;
     }
 
     static class SortedNumericEntry extends NumericEntry {

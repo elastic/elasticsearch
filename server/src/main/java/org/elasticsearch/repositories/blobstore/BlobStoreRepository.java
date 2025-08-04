@@ -130,6 +130,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -373,7 +374,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         METADATA_NAME_FORMAT,
         (repoName, parser) -> ProjectMetadata.Builder.fromXContent(parser),
         projectMetadata -> ChunkedToXContent.wrapAsToXContent(
-            params -> Iterators.concat(Iterators.single((builder, ignored) -> builder.field("id", projectMetadata.id())))
+            params -> Iterators.concat(
+                Iterators.single((ToXContent) (builder, p) -> builder.field("id", projectMetadata.id())),
+                projectMetadata.toXContentChunked(params)
+            )
         )
     );
 

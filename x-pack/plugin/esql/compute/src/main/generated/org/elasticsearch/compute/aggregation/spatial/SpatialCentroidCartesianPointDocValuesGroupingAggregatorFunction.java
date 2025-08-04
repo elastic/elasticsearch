@@ -65,7 +65,7 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
   }
 
   @Override
-  public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
+  public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
     LongBlock valuesBlock = page.getBlock(channels.get(0));
     LongVector valuesVector = valuesBlock.asVector();
@@ -118,16 +118,13 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
 
   private void addRawInput(int positionOffset, IntArrayBlock groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
@@ -151,7 +148,36 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock values) {
+  @Override
+  public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block xValUncast = page.getBlock(channels.get(0));
+    if (xValUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector xVal = ((DoubleBlock) xValUncast).asVector();
+    Block xDelUncast = page.getBlock(channels.get(1));
+    if (xDelUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector xDel = ((DoubleBlock) xDelUncast).asVector();
+    Block yValUncast = page.getBlock(channels.get(2));
+    if (yValUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector yVal = ((DoubleBlock) yValUncast).asVector();
+    Block yDelUncast = page.getBlock(channels.get(3));
+    if (yDelUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
+    Block countUncast = page.getBlock(channels.get(4));
+    if (countUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector count = ((LongBlock) countUncast).asVector();
+    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == count.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -160,9 +186,20 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        if (values.isNull(groupPosition + positionOffset)) {
-          continue;
-        }
+        SpatialCentroidCartesianPointDocValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, LongBlock values) {
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
@@ -186,12 +223,55 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
     }
   }
 
+  @Override
+  public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
+    state.enableGroupIdTracking(new SeenGroupIds.Empty());
+    assert channels.size() == intermediateBlockCount();
+    Block xValUncast = page.getBlock(channels.get(0));
+    if (xValUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector xVal = ((DoubleBlock) xValUncast).asVector();
+    Block xDelUncast = page.getBlock(channels.get(1));
+    if (xDelUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector xDel = ((DoubleBlock) xDelUncast).asVector();
+    Block yValUncast = page.getBlock(channels.get(2));
+    if (yValUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector yVal = ((DoubleBlock) yValUncast).asVector();
+    Block yDelUncast = page.getBlock(channels.get(3));
+    if (yDelUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
+    Block countUncast = page.getBlock(channels.get(4));
+    if (countUncast.areAllValuesNull()) {
+      return;
+    }
+    LongVector count = ((LongBlock) countUncast).asVector();
+    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount() && xVal.getPositionCount() == count.getPositionCount();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        SpatialCentroidCartesianPointDocValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      }
+    }
+  }
+
   private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
+      int groupId = groups.getInt(groupPosition);
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
@@ -205,11 +285,6 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
       int groupId = groups.getInt(groupPosition);
       SpatialCentroidCartesianPointDocValuesAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
-  }
-
-  @Override
-  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
-    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -249,13 +324,8 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
   }
 
   @Override
-  public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-    if (input.getClass() != getClass()) {
-      throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
-    }
-    CentroidPointAggregator.GroupingCentroidState inState = ((SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunction) input).state;
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    SpatialCentroidCartesianPointDocValuesAggregator.combineStates(state, groupId, inState, position);
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override
@@ -265,8 +335,8 @@ public final class SpatialCentroidCartesianPointDocValuesGroupingAggregatorFunct
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SpatialCentroidCartesianPointDocValuesAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SpatialCentroidCartesianPointDocValuesAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -57,6 +59,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -141,10 +144,11 @@ public class MockNode extends Node {
             Settings settings,
             Map<String, ScriptEngine> engines,
             Map<String, ScriptContext<?>> contexts,
-            LongSupplier timeProvider
+            LongSupplier timeProvider,
+            ProjectResolver projectResolver
         ) {
             if (pluginsService.filterPlugins(MockScriptService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newScriptService(pluginsService, settings, engines, contexts, timeProvider);
+                return super.newScriptService(pluginsService, settings, engines, contexts, timeProvider, projectResolver);
             }
             return new MockScriptService(settings, engines, contexts);
         }
@@ -254,16 +258,7 @@ public class MockNode extends Node {
         final Path configPath,
         final boolean forbidPrivateIndexSettings
     ) {
-        this(
-            InternalSettingsPreparer.prepareEnvironment(
-                Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
-                Collections.emptyMap(),
-                configPath,
-                () -> "mock_ node"
-            ),
-            classpathPlugins,
-            forbidPrivateIndexSettings
-        );
+        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings);
     }
 
     private MockNode(
@@ -280,6 +275,26 @@ public class MockNode extends Node {
         }, forbidPrivateIndexSettings));
 
         this.classpathPlugins = classpathPlugins;
+    }
+
+    private static Environment prepareEnvironment(final Settings settings, final Path configPath) {
+        TestEntitlementBootstrap.registerNodeBaseDirs(settings, configPath);
+        return InternalSettingsPreparer.prepareEnvironment(
+            Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
+            Collections.emptyMap(),
+            configPath,
+            () -> "mock_ node"
+        );
+    }
+
+    @Override
+    public synchronized boolean awaitClose(long timeout, TimeUnit timeUnit) throws InterruptedException {
+        try {
+            return super.awaitClose(timeout, timeUnit);
+        } finally {
+            // wipePendingDataDirectories requires entitlement delegation to work due to this using FileSystemUtils ES-10920
+            // TestEntitlementBootstrap.unregisterNodeBaseDirs(settings(), getEnvironment().configDir());
+        }
     }
 
     /**

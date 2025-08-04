@@ -35,9 +35,11 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -295,23 +297,33 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
      * retaining the originating cluster and restructing pages for routing, which might be complicated.
      */
     private static void checkRemoteEnrich(LogicalPlan plan, Failures failures) {
-        boolean[] agg = { false };
-        boolean[] enrichCoord = { false };
+        // First look for remote ENRICH, and then look at its children. Going over the whole plan once is trickier as remote ENRICHs can be
+        // in separate FORK branches which are valid by themselves.
+        plan.forEachUp(Enrich.class, enrich -> checkForPlansForbiddenBeforeRemoteEnrich(enrich, failures));
+    }
 
-        plan.forEachUp(UnaryPlan.class, u -> {
+    /**
+     * For a given remote {@link Enrich}, check if there are any forbidden plans upstream.
+     */
+    private static void checkForPlansForbiddenBeforeRemoteEnrich(Enrich enrich, Failures failures) {
+        if (enrich.mode != Mode.REMOTE) {
+            return;
+        }
+
+        Set<String> badCommands = new HashSet<>();
+
+        enrich.forEachUp(LogicalPlan.class, u -> {
             if (u instanceof Aggregate) {
-                agg[0] = true;
-            } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
-                enrichCoord[0] = true;
-            }
-            if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                if (agg[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
-                }
-                if (enrichCoord[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after another ENRICH with coordinator policy"));
-                }
+                badCommands.add("STATS");
+            } else if (u instanceof Enrich upstreamEnrich && upstreamEnrich.mode() == Enrich.Mode.COORDINATOR) {
+                badCommands.add("another ENRICH with coordinator policy");
+            } else if (u instanceof LookupJoin) {
+                badCommands.add("LOOKUP JOIN");
+            } else if (u instanceof Fork) {
+                badCommands.add("FORK");
             }
         });
+
+        badCommands.forEach(c -> failures.add(fail(enrich, "ENRICH with remote policy can't be executed after " + c)));
     }
 }

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.license.LicenseSettings;
@@ -22,7 +23,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.InferenceIndex;
@@ -31,12 +35,10 @@ import org.elasticsearch.xpack.inference.InferenceSecretsIndex;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestInferenceServicePlugin;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
-import org.junit.After;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,7 +52,7 @@ public class InferenceIndicesIT extends ESIntegTestCase {
     private static final String CONFIG_ROUTER = "config";
     private static final String SECRETS_ROUTER = "secrets";
 
-    private static final Map<String, Object> BBQ_COMPATIBLE_SERVICE_SETTINGS = Map.of(
+    private static final Map<String, Object> TEST_SERVICE_SETTINGS = Map.of(
         "model",
         "my_model",
         "dimensions",
@@ -60,8 +62,6 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         "api_key",
         "my_api_key"
     );
-
-    private final Map<String, TaskType> inferenceIds = new HashMap<>();
 
     public static class LocalStateIndexSettingsInferencePlugin extends LocalStateCompositeXPackPlugin {
         private final InferencePlugin inferencePlugin;
@@ -107,20 +107,6 @@ public class InferenceIndicesIT extends ESIntegTestCase {
 
     }
 
-    @After
-    public void cleanUp() {
-        // for (var entry : inferenceIds.entrySet()) {
-        // assertAcked(
-        // safeGet(
-        // client().execute(
-        // DeleteInferenceEndpointAction.INSTANCE,
-        // new DeleteInferenceEndpointAction.Request(entry.getKey(), entry.getValue(), true, false)
-        // )
-        // )
-        // );
-        // }
-    }
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder().put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
@@ -132,22 +118,18 @@ public class InferenceIndicesIT extends ESIntegTestCase {
     }
 
     public void testRetrievingInferenceEndpoint_ThrowsException_WhenIndexNodeIsNotAvailable() throws Exception {
-        final Settings configIndexNodeAttributes = Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, CONFIG_ROUTER).build();
+        final var configIndexNodeAttributes = Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, CONFIG_ROUTER).build();
 
         internalCluster().startMasterOnlyNode(configIndexNodeAttributes);
-        final String configIndexDataNodes = internalCluster().startDataOnlyNode(configIndexNodeAttributes);
+        final var configIndexDataNodes = internalCluster().startDataOnlyNode(configIndexNodeAttributes);
 
         internalCluster().startDataOnlyNode(Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, SECRETS_ROUTER).build());
 
-        final String inferenceId = "test-index-id";
-        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
+        final var inferenceId = "test-index-id";
+        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, TEST_SERVICE_SETTINGS);
 
         // Ensure the inference indices are created and we can retrieve the inference endpoint
-        GetInferenceModelAction.Request getInferenceEndpointRequest = new GetInferenceModelAction.Request(
-            inferenceId,
-            TaskType.TEXT_EMBEDDING,
-            true
-        );
+        var getInferenceEndpointRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.TEXT_EMBEDDING, true);
         var responseFuture = client().execute(GetInferenceModelAction.INSTANCE, getInferenceEndpointRequest);
         assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getEndpoints().get(0).getInferenceEntityId(), equalTo(inferenceId));
 
@@ -163,48 +145,59 @@ public class InferenceIndicesIT extends ESIntegTestCase {
     }
 
     public void testRetrievingInferenceEndpoint_ThrowsException_WhenSecretsIndexNodeIsNotAvailable() throws Exception {
-        final Settings configIndexNodeAttributes = Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, CONFIG_ROUTER).build();
+        final var configIndexNodeAttributes = Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, CONFIG_ROUTER).build();
         internalCluster().startMasterOnlyNode(configIndexNodeAttributes);
         internalCluster().startDataOnlyNode(configIndexNodeAttributes);
 
-        String secretIndexDataNodes = internalCluster().startDataOnlyNode(
+        var secretIndexDataNodes = internalCluster().startDataOnlyNode(
             Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, SECRETS_ROUTER).build()
         );
 
-        final String inferenceId = "test-secrets-index-id";
-        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
+        final var inferenceId = "test-secrets-index-id";
+        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, TEST_SERVICE_SETTINGS);
 
         // Ensure the inference indices are created and we can retrieve the inference endpoint
-        GetInferenceModelAction.Request getInferenceEndpointRequest = new GetInferenceModelAction.Request(
-            inferenceId,
-            TaskType.TEXT_EMBEDDING,
-            true
-        );
+        var getInferenceEndpointRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.TEXT_EMBEDDING, true);
         var responseFuture = client().execute(GetInferenceModelAction.INSTANCE, getInferenceEndpointRequest);
         assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getEndpoints().get(0).getInferenceEntityId(), equalTo(inferenceId));
 
         // stop the node that holds the inference secrets index
         internalCluster().stopNode(secretIndexDataNodes);
 
-        // We should not be able to create a new inference endpoint because the secrets index is not available
-        final String inferenceIdFailing = "test-secrets-index-id2";
-        var responseFailureFuture = createInferenceEndpointAsync(
-            TaskType.TEXT_EMBEDDING,
-            inferenceIdFailing,
-            BBQ_COMPATIBLE_SERVICE_SETTINGS
-        );
-        var exception = expectThrows(SearchPhaseExecutionException.class, () -> responseFailureFuture.actionGet(TEST_REQUEST_TIMEOUT));
+        var proxyResponse = sendInferenceProxyRequest(inferenceId);
+        var exception = expectThrows(SearchPhaseExecutionException.class, () -> proxyResponse.actionGet(TEST_REQUEST_TIMEOUT));
 
-        assertThat(exception.toString(), containsString("all shards failed"));
+        assertThat(exception.toString(), containsString("shards failure"));
         assertThat(exception.toString(), containsString("Node not connected"));
-        assertThat(exception.toString(), containsString(".inference-secrets"));
+        assertThat(exception.toString(), containsString(".secrets-inference"));
+    }
+
+    private ActionFuture<InferenceAction.Response> sendInferenceProxyRequest(String inferenceId) throws IOException {
+        final BytesReference content;
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            builder.field("input", List.of("test input"));
+            builder.endObject();
+
+            content = BytesReference.bytes(builder);
+        }
+
+        var inferenceRequest = new InferenceActionProxy.Request(
+            TaskType.TEXT_EMBEDDING,
+            inferenceId,
+            content,
+            XContentType.JSON,
+            TimeValue.THIRTY_SECONDS,
+            false,
+            InferenceContext.EMPTY_INSTANCE
+        );
+
+        return client().execute(InferenceActionProxy.INSTANCE, inferenceRequest);
     }
 
     private void createInferenceEndpoint(TaskType taskType, String inferenceId, Map<String, Object> serviceSettings) throws IOException {
         var responseFuture = createInferenceEndpointAsync(taskType, inferenceId, serviceSettings);
         assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getModel().getInferenceEntityId(), equalTo(inferenceId));
-
-        inferenceIds.put(inferenceId, taskType);
     }
 
     private ActionFuture<PutInferenceModelAction.Response> createInferenceEndpointAsync(
@@ -212,30 +205,17 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         String inferenceId,
         Map<String, Object> serviceSettings
     ) throws IOException {
-        final String service = switch (taskType) {
-            case TEXT_EMBEDDING -> TestDenseInferenceServiceExtension.TestInferenceService.NAME;
-            case SPARSE_EMBEDDING -> TestSparseInferenceServiceExtension.TestInferenceService.NAME;
-            default -> throw new IllegalArgumentException("Unhandled task type [" + taskType + "]");
-        };
-
         final BytesReference content;
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
-            builder.field("service", service);
+            builder.field("service", TestDenseInferenceServiceExtension.TestInferenceService.NAME);
             builder.field("service_settings", serviceSettings);
             builder.endObject();
 
             content = BytesReference.bytes(builder);
         }
 
-        PutInferenceModelAction.Request request = new PutInferenceModelAction.Request(
-            taskType,
-            inferenceId,
-            content,
-            XContentType.JSON,
-            TEST_REQUEST_TIMEOUT
-        );
-
+        var request = new PutInferenceModelAction.Request(taskType, inferenceId, content, XContentType.JSON, TEST_REQUEST_TIMEOUT);
         return client().execute(PutInferenceModelAction.INSTANCE, request);
     }
 }

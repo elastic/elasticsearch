@@ -268,8 +268,8 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = TopIntAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = TopIntAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

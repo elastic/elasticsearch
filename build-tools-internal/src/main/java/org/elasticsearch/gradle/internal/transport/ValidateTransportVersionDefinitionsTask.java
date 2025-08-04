@@ -299,8 +299,9 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
             IdAndDefinition next = ids.get(ndx);
             // note that next and previous are reversed here because we are iterating in reverse order
             if (previous.id().complete() - 1 != next.id().complete()) {
-                throw new IllegalStateException("Transport version base id " + base +
-                    " is missing patch ids between " + next.id() + " and " + previous.id());
+                throw new IllegalStateException(
+                    "Transport version base id " + base + " is missing patch ids between " + next.id() + " and " + previous.id()
+                );
             }
         }
     }

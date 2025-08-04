@@ -61,6 +61,7 @@ import static java.util.stream.IntStream.range;
 import static org.elasticsearch.compute.test.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 
 /**
  * Shared tests for testing grouped aggregations.
@@ -96,7 +97,13 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     }
 
     protected List<Integer> channels(AggregatorMode mode) {
-        return mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
+        return mode.isInputPartial()
+            ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList()
+            : range(1, inputCount() + 1).boxed().toList();
+    }
+
+    protected int inputCount() {
+        return 1;
     }
 
     private Operator.OperatorFactory simpleWithMode(

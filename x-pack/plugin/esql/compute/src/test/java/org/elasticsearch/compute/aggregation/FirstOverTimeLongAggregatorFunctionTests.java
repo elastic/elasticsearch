@@ -19,6 +19,7 @@ import org.elasticsearch.core.Tuple;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 
 public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
@@ -26,7 +27,7 @@ public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunction
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new TupleLongLongBlockSourceOperator(
             blockFactory,
-            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLong(), randomLong()))
+            IntStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLong(), randomLong()))
         );
     }
 

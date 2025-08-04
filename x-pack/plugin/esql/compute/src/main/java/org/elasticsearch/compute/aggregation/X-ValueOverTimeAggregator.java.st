@@ -36,8 +36,7 @@ import org.elasticsearch.core.Releasables;
 @GroupingAggregator(
     {
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "$TYPE$_BLOCK"),
-        @IntermediateState(name = "seen", type = "BOOLEAN_BLOCK") }
+        @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
 )
 public class $Occurrence$OverTime$Type$Aggregator {
     public static Long$Type$State initSingle(DriverContext driverContext) {
@@ -77,9 +76,9 @@ public class $Occurrence$OverTime$Type$Aggregator {
         int groupId,
         LongBlock timestamps,
         $Type$Block values,
-        BooleanBlock seen, // NOCOMMIT use me
         int otherPosition
     ) {
+        // NOCOMMIT use seen?!
         int valueCount = values.getValueCount(otherPosition);
         if (valueCount > 0) {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));

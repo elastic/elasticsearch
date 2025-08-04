@@ -10,7 +10,6 @@ import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
@@ -28,8 +27,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class LastOverTimeIntGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.INT),
-      new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("values", ElementType.INT)  );
 
   private final LastOverTimeIntAggregator.GroupingState state;
 
@@ -164,12 +162,7 @@ public final class LastOverTimeIntGroupingAggregatorFunction implements Grouping
       return;
     }
     IntBlock values = (IntBlock) valuesUncast;
-    Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanBlock seen = (BooleanBlock) seenUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == seen.getPositionCount();
+    assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -178,7 +171,7 @@ public final class LastOverTimeIntGroupingAggregatorFunction implements Grouping
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        LastOverTimeIntAggregator.combineIntermediate(state, groupId, timestamps, values, seen, groupPosition + positionOffset);
+        LastOverTimeIntAggregator.combineIntermediate(state, groupId, timestamps, values, groupPosition + positionOffset);
       }
     }
   }
@@ -232,12 +225,7 @@ public final class LastOverTimeIntGroupingAggregatorFunction implements Grouping
       return;
     }
     IntBlock values = (IntBlock) valuesUncast;
-    Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanBlock seen = (BooleanBlock) seenUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == seen.getPositionCount();
+    assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -246,7 +234,7 @@ public final class LastOverTimeIntGroupingAggregatorFunction implements Grouping
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        LastOverTimeIntAggregator.combineIntermediate(state, groupId, timestamps, values, seen, groupPosition + positionOffset);
+        LastOverTimeIntAggregator.combineIntermediate(state, groupId, timestamps, values, groupPosition + positionOffset);
       }
     }
   }
@@ -289,15 +277,10 @@ public final class LastOverTimeIntGroupingAggregatorFunction implements Grouping
       return;
     }
     IntBlock values = (IntBlock) valuesUncast;
-    Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanBlock seen = (BooleanBlock) seenUncast;
-    assert timestamps.getPositionCount() == values.getPositionCount() && timestamps.getPositionCount() == seen.getPositionCount();
+    assert timestamps.getPositionCount() == values.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      LastOverTimeIntAggregator.combineIntermediate(state, groupId, timestamps, values, seen, groupPosition + positionOffset);
+      LastOverTimeIntAggregator.combineIntermediate(state, groupId, timestamps, values, groupPosition + positionOffset);
     }
   }
 

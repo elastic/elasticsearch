@@ -70,17 +70,14 @@ class KMeansLocal {
         FloatVectorValues vectors,
         IntToIntFunction translateOrd,
         float[][] centroids,
-        float[][] nextCentroids,
+        int[] centroidCounts,
         int[] assignments,
         NeighborHood[] neighborhoods
     ) throws IOException {
         boolean changed = false;
         int dim = vectors.dimension();
-        int[] centroidCounts = new int[centroids.length];
+        Arrays.fill(centroidCounts, 0);
 
-        for (float[] nextCentroid : nextCentroids) {
-            Arrays.fill(nextCentroid, 0.0f);
-        }
         final float[] distances = new float[4];
         for (int idx = 0; idx < vectors.size(); idx++) {
             float[] vector = vectors.vectorValue(idx);
@@ -97,16 +94,32 @@ class KMeansLocal {
                 changed = true;
             }
             centroidCounts[bestCentroidOffset]++;
-            for (int d = 0; d < dim; d++) {
-                nextCentroids[bestCentroidOffset][d] += vector[d];
-            }
         }
 
-        for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
-            if (centroidCounts[clusterIdx] > 0) {
-                float countF = (float) centroidCounts[clusterIdx];
-                for (int d = 0; d < dim; d++) {
-                    centroids[clusterIdx][d] = nextCentroids[clusterIdx][d] / countF;
+        if (changed) {
+            for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
+                if (centroidCounts[clusterIdx] > 0) {
+                    Arrays.fill(centroids[clusterIdx], 0.0f);
+                }
+            }
+
+            for (int idx = 0; idx < vectors.size(); idx++) {
+                final int assignment = assignments[translateOrd.apply(idx)];
+                if (centroidCounts[assignment] > 0) {
+                    float[] vector = vectors.vectorValue(idx);
+                    float[] centroid = centroids[assignment];
+                    for (int d = 0; d < dim; d++) {
+                        centroid[d] += vector[d];
+                    }
+                }
+            }
+
+            for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
+                if (centroidCounts[clusterIdx] > 0) {
+                    float countF = (float) centroidCounts[clusterIdx];
+                    for (int d = 0; d < dim; d++) {
+                        centroids[clusterIdx][d] /= countF;
+                    }
                 }
             }
         }
@@ -420,17 +433,17 @@ class KMeansLocal {
         }
 
         assert assignments.length == n;
-        float[][] nextCentroids = new float[centroids.length][vectors.dimension()];
+        int[] centroidCounts = new int[centroids.length];
         for (int i = 0; i < maxIterations; i++) {
             // This is potentially sampled, so we need to translate ordinals
-            if (stepLloyd(sampledVectors, translateOrd, centroids, nextCentroids, assignments, neighborhoods) == false) {
+            if (stepLloyd(sampledVectors, translateOrd, centroids, centroidCounts, assignments, neighborhoods) == false) {
                 break;
             }
         }
         // If we were sampled, do a once over the full set of vectors to finalize the centroids
         if (sampleSize < n || maxIterations == 0) {
             // No ordinal translation needed here, we are using the full set of vectors
-            stepLloyd(vectors, i -> i, centroids, nextCentroids, assignments, neighborhoods);
+            stepLloyd(vectors, i -> i, centroids, centroidCounts, assignments, neighborhoods);
         }
     }
 

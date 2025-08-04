@@ -16,6 +16,7 @@ import org.apache.lucene.index.StoredFields;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -53,6 +54,27 @@ public abstract class StoredFieldLoader {
             return StoredFieldLoader.empty();
         }
         return create(spec.requiresSource(), spec.requiredStoredFields());
+    }
+
+    /**
+     * Crates a new StoredFieldLaoader using a BlockLoader.FieldsSpec
+     */
+    public static StoredFieldLoader fromSpec(BlockLoader.FieldsSpec spec, boolean forceSequentialReader) {
+        if (spec.noRequirements()) {
+            return StoredFieldLoader.empty();
+        }
+
+        // TODO
+        // if (IgnoredSourceFieldLoader.supports(spec)) {
+        // return new IgnoredSourceFieldLoader(spec);
+        // }
+
+        StoredFieldsSpec mergedSpec = spec.storedFieldsSpec().merge(spec.ignoredFieldsSpec().requiredStoredFields());
+        if (forceSequentialReader) {
+            return fromSpecSequential(mergedSpec);
+        } else {
+            return fromSpec(mergedSpec);
+        }
     }
 
     public static StoredFieldLoader create(boolean loadSource, Set<String> fields) {

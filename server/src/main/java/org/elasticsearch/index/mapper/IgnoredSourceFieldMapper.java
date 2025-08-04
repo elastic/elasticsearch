@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -288,6 +289,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             ) {
                 return Map.of();
             }
+
+            @Override
+            public Set<String> requiredStoredFields(String fieldName) {
+                return Set.of();
+            }
         },
         SINGLE_IGNORED_SOURCE {
             @Override
@@ -330,6 +336,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
                     }
                 }
                 return valuesForFieldAndParents;
+            }
+
+            @Override
+            public Set<String> requiredStoredFields(String fieldName) {
+                return Set.of(IgnoredSourceFieldMapper.NAME);
             }
         },
         PER_FIELD_IGNORED_SOURCE {
@@ -387,6 +398,14 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
 
                 return valuesForFieldAndParents;
             }
+
+            @Override
+            public Set<String> requiredStoredFields(String fieldName) {
+                return FallbackSyntheticSourceBlockLoader.splitIntoFieldPaths(fieldName)
+                    .stream()
+                    .map(IgnoredSourceFieldMapper::ignoredFieldName)
+                    .collect(Collectors.toSet());
+            }
         };
 
         public abstract Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
@@ -398,6 +417,11 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             Set<String> fieldPaths,
             Map<String, List<Object>> storedFields
         );
+
+        /**
+         * Get the set of stored fields needed to retrieve the value for fieldName
+         */
+        public abstract Set<String> requiredStoredFields(String fieldName);
     }
 
     public IgnoredSourceFormat ignoredSourceFormat() {

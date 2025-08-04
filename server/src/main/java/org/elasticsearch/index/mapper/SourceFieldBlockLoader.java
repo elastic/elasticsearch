@@ -14,7 +14,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  * Load {@code _source} into blocks.
@@ -36,8 +35,8 @@ public final class SourceFieldBlockLoader implements BlockLoader {
     }
 
     @Override
-    public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return new StoredFieldsSpec(true, false, Set.of());
+    public FieldsSpec rowStrideFieldSpec() {
+        return new FieldsSpec(StoredFieldsSpec.NEEDS_SOURCE, IgnoredFieldsSpec.NONE);
     }
 
     @Override

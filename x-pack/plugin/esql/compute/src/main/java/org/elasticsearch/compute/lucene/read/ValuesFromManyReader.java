@@ -173,23 +173,23 @@ class ValuesFromManyReader extends ValuesReader {
     }
 
     private void fieldsMoved(LeafReaderContext ctx, int shard) throws IOException {
-        StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
+        BlockLoader.FieldsSpec fieldsSpec = BlockLoader.FieldsSpec.NO_REQUIREMENTS;
         for (int f = 0; f < operator.fields.length; f++) {
             ValuesSourceReaderOperator.FieldWork field = operator.fields[f];
             rowStride[f] = field.rowStride(ctx);
-            storedFieldsSpec = storedFieldsSpec.merge(field.loader.rowStrideStoredFieldSpec());
+            fieldsSpec = fieldsSpec.merge(field.loader.rowStrideFieldSpec());
         }
         SourceLoader sourceLoader = null;
-        if (storedFieldsSpec.requiresSource()) {
+        if (fieldsSpec.storedFieldsSpec().requiresSource()) {
             sourceLoader = operator.shardContexts.get(shard).newSourceLoader().get();
-            storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
+            fieldsSpec = fieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
         storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-            StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(ctx, null),
+            StoredFieldLoader.fromSpec(fieldsSpec, false).getLoader(ctx, null),
             sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
         );
-        if (false == storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-            operator.trackStoredFields(storedFieldsSpec, false);
+        if (false == fieldsSpec.equals(BlockLoader.FieldsSpec.NO_REQUIREMENTS)) {
+            operator.trackStoredFields(fieldsSpec, false);
         }
     }
 }

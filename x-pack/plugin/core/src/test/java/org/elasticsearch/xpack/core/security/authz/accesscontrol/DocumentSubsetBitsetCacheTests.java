@@ -524,26 +524,13 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         });
     }
 
-    private static final class TestIndexContext implements Closeable {
-        private final Directory directory;
-        private final IndexWriter indexWriter;
-        private final DirectoryReader directoryReader;
-        private final SearchExecutionContext searchExecutionContext;
-        private final LeafReaderContext leafReaderContext;
-
-        private TestIndexContext(
-            Directory directory,
-            IndexWriter indexWriter,
-            DirectoryReader directoryReader,
-            SearchExecutionContext searchExecutionContext,
-            LeafReaderContext leafReaderContext
-        ) {
-            this.directory = directory;
-            this.indexWriter = indexWriter;
-            this.directoryReader = directoryReader;
-            this.searchExecutionContext = searchExecutionContext;
-            this.leafReaderContext = leafReaderContext;
-        }
+    private record TestIndexContext(
+        Directory directory,
+        IndexWriter indexWriter,
+        DirectoryReader directoryReader,
+        SearchExecutionContext searchExecutionContext,
+        LeafReaderContext leafReaderContext
+    ) implements Closeable {
 
         @Override
         public void close() throws IOException {

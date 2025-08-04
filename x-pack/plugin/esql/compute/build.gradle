@@ -78,6 +78,7 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
     "boolean" : Name == "Boolean" ? "true" : "",
     "BytesRef": Name == "BytesRef" ? "true" : "",
     "Ip"      : Name == "Ip" ? "true" : "",
+    "Tuple"   : Name.startsWith("Tuple") ? "true" : "",
   ]
 }
 
@@ -107,6 +108,10 @@ tasks.named('stringTemplates').configure {
     "BytesRefHash"
   )
   var ipProperties = prop("Ip", "BytesRef", "BytesRef", "", "BYTES_REF", "16", "", "")
+  var tupleLongIntProperties = prop("TupleLongInt", "Int", "Tuple<Long, Integer>", "Integer", "OBJECT", "Long.BYTES + Integer.BYTES", "ObjectArray<Tuple<Long, Integer>>", "")
+  var tupleLongFloatProperties = prop("TupleLongFloat", "Float", "Tuple<Long, Float>", "Float", "OBJECT", "Long.BYTES + Float.BYTES", "ObjectArray<Tuple<Long, Float>>", "")
+  var tupleLongLongProperties = prop("TupleLongLong", "Long", "Tuple<Long, Long>", "Long", "OBJECT", "2 * Long.BYTES", "ObjectArray<Tuple<Long, Long>>", "")
+  var tupleLongDoubleProperties = prop("TupleLongDouble", "Double", "Tuple<Long, Double>", "Double", "OBJECT", "Long.BYTES + Double.BYTES", "ObjectArray<Tuple<Long, Double>>", "")
 
   // primitive vectors
   File vectorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/X-Vector.java.st")
@@ -651,6 +656,28 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/ValuesBytesRefAggregator.java"
   }
 
+  File sparklineAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-SparklineAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineDoubleAggregator.java"
+  }
+
   File stdDevAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-StdDevAggregator.java.st")
   template {
     it.properties = intProperties
@@ -893,6 +920,26 @@ tasks.named('stringTemplates').configure {
     it.properties = doubleProperties
     it.inputFile = bucketedSortInputFile
     it.outputFile = "org/elasticsearch/compute/data/sort/DoubleBucketedSort.java"
+  }
+  template {
+    it.properties = tupleLongIntProperties
+    it.inputFile = bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/TupleLongIntBucketedSort.java"
+  }
+  template {
+    it.properties = tupleLongLongProperties
+    it.inputFile = bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/TupleLongLongBucketedSort.java"
+  }
+  template {
+    it.properties = tupleLongFloatProperties
+    it.inputFile = bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/TupleLongFloatBucketedSort.java"
+  }
+  template {
+    it.properties = tupleLongDoubleProperties
+    it.inputFile = bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/TupleLongDoubleBucketedSort.java"
   }
 
   File enrichResultBuilderInput = file("src/main/java/org/elasticsearch/compute/operator/lookup/X-EnrichResultBuilder.java.st")

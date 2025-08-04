@@ -6013,6 +6013,205 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         );
     }
 
+    /*
+     * TopN[[Order[emp_no{f}#8,DESC,FIRST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#8 > 1000[INTEGER]]
+     *   \_InlineJoin[LEFT,[emp_no{f}#8],[emp_no{f}#8],[emp_no{r}#8]]
+     *     |_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     *     \_Project[[avg{r}#5, emp_no{f}#8]]
+     *       \_Eval[[$$SUM$avg$0{r$}#19 / $$COUNT$avg$1{r$}#20 AS avg#5]]
+     *         \_Aggregate[[emp_no{f}#8],[SUM(salary{f}#13,true[BOOLEAN]) AS $$SUM$avg$0#19, COUNT(salary{f}#13,true[BOOLEAN]) AS $$COUNT$
+     *              avg$1#20, emp_no{f}#8]]
+     *           \_StubRelation[[_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, gender{f}#10, hire_date{f}#15, job{f}#16, job.raw{f}#17,
+     *                  languages{f}#11, last_name{f}#12, long_noidx{f}#18, salary{f}#13]]
+     */
+    public void testInlinestatsAfterSort() {
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | INLINESTATS avg = AVG(salary) BY emp_no
+            | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINESTATS (which masks the issue the test tests)
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.order().size(), is(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        assertThat(Expressions.name(order.child()), equalTo("emp_no"));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
+
+        var filter = as(topN.child(), Filter.class);
+        var filterCondition = as(filter.condition(), GreaterThan.class);
+        assertThat(Expressions.name(filterCondition.left()), equalTo("emp_no"));
+        assertThat(filterCondition.right().fold(FoldContext.small()), equalTo(1000));
+
+        var inlineJoin = as(filter.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
+        // Left
+        var relation = as(inlineJoin.left(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("test")));
+        // Right
+        var project = as(inlineJoin.right(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
+        var agg = as(eval.child(), Aggregate.class);
+        assertMap(Expressions.names(agg.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "emp_no")));
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
+     * TopN[[Order[emp_no{f}#18,DESC,FIRST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#18 > 1000[INTEGER]]
+     *   \_InlineJoin[LEFT,[emp_no{f}#18],[emp_no{f}#18],[emp_no{r}#18]]
+     *     |_EsqlProject[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27,
+     *          languages{r}#29, last_name{f}#22 AS lName#12, long_noidx{f}#28, salary{f}#23, msg{r}#5, salaryK{r}#9]]
+     *     | \_Eval[[salary{f}#23 / 1000[INTEGER] AS salaryK#9]]
+     *     |   \_Dissect[first_name{f}#19,Parser[pattern=%{msg}, appendSeparator=,
+     *              parser=org.elasticsearch.dissect.DissectParser@2aa687d7],[msg{r}#5]]
+     *     |     \_Sample[0.1[DOUBLE]]
+     *     |       \_MvExpand[languages{f}#21,languages{r}#29]
+     *     |         \_EsRelation[test][_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, ..]
+     *     \_Project[[avg{r}#15, emp_no{f}#18]]
+     *       \_Eval[[$$SUM$avg$0{r$}#30 / $$COUNT$avg$1{r$}#31 AS avg#15]]
+     *         \_Aggregate[[emp_no{f}#18],[SUM(salary{f}#23,true[BOOLEAN]) AS $$SUM$avg$0#30, COUNT(salary{f}#23,true[BOOLEAN]) AS
+     *               $$COUNT$avg$1#31, emp_no{f}#18]]
+     *           \_StubRelation[[_meta_field{f}#24, emp_no{f}#18, first_name{f}#19, gender{f}#20, hire_date{f}#25, job{f}#26, job.raw{f}#27,
+     *                  anguages{r}#29, lName{r}#12, long_noidx{f}#28, salary{f}#23, msg{r}#5, salaryK{r}#9]]
+     */
+    public void testInlinestatsAfterSortAndSortAgnostic() {
+        var query = """
+            FROM employees
+            | SORT emp_no DESC
+            | MV_EXPAND languages
+            | SAMPLE .1
+            | DISSECT first_name "%{msg}"
+            | EVAL salaryK = salary / 1000
+            | RENAME last_name AS lName
+            | INLINESTATS avg = AVG(salary) BY emp_no
+            | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINESTATS (which masks the issue the test tests)
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.order().size(), is(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.FIRST));
+        var field = as(order.child(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("emp_no"));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
+
+        var filter = as(topN.child(), Filter.class);
+        var filterCondition = as(filter.condition(), GreaterThan.class);
+        assertThat(Expressions.name(filterCondition.left()), equalTo("emp_no"));
+        assertThat(filterCondition.right().fold(FoldContext.small()), equalTo(1000));
+
+        var inlineJoin = as(filter.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
+        // Left
+        var esqlProject = as(inlineJoin.left(), EsqlProject.class);
+
+        var eval = as(esqlProject.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("salaryK")));
+
+        var dissect = as(eval.child(), Dissect.class);
+        assertThat(dissect.parser().pattern(), is("%{msg}"));
+        assertThat(Expressions.name(dissect.input()), is("first_name"));
+
+        var sample = as(dissect.child(), Sample.class);
+        assertThat(sample.probability().fold(FoldContext.small()), equalTo(0.1));
+
+        var mvExpand = as(sample.child(), MvExpand.class);
+        assertThat(Expressions.name(mvExpand.target()), is("languages"));
+
+        var esRelation = as(mvExpand.child(), EsRelation.class);
+
+        // Right
+        var project = as(inlineJoin.right(), Project.class);
+        eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
+        var agg = as(eval.child(), Aggregate.class);
+        assertMap(Expressions.names(agg.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "emp_no")));
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
+     * TopN[[Order[salary{f}#18,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#13 > 1000[INTEGER]]
+     *   \_InlineJoin[LEFT,[emp_no{f}#13],[emp_no{f}#13],[emp_no{r}#13]]
+     *     |_InlineJoin[LEFT,[languages{f}#16],[languages{f}#16],[languages{r}#16]]
+     *     | |_EsRelation[test][_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, ..]
+     *     | \_Aggregate[[languages{f}#16],[MIN(salary{f}#18,true[BOOLEAN]) AS min#5, languages{f}#16]]
+     *     |   \_StubRelation[[_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, gender{f}#15, hire_date{f}#20, job{f}#21, job.raw{f}#22,
+     *              languages{f}#16, last_name{f}#17, long_noidx{f}#23, salary{f}#18]]
+     *     \_Project[[avg{r}#10, emp_no{f}#13]]
+     *       \_Eval[[$$SUM$avg$0{r$}#24 / $$COUNT$avg$1{r$}#25 AS avg#10]]
+     *         \_Aggregate[[emp_no{f}#13],[SUM(salary{f}#18,true[BOOLEAN]) AS $$SUM$avg$0#24, COUNT(salary{f}#18,true[BOOLEAN]) AS
+     *               $$COUNT$avg$1#25, emp_no{f}#13]]
+     *           \_StubRelation[[_meta_field{f}#19, emp_no{f}#13, first_name{f}#14, gender{f}#15, hire_date{f}#20, job{f}#21, job.raw{f}#22,
+     *                  ast_name{f}#17, long_noidx{f}#23, salary{f}#18, min{r}#5, languages{f}#16]]
+     */
+    public void testInlinestatsAfterSortDoubled() {
+        var query = """
+            FROM employees
+            | SORT emp_no DESC // going to be dropped
+            | INLINESTATS min = MIN(salary) BY languages
+            | SORT salary ASC
+            | INLINESTATS avg = AVG(salary) BY emp_no
+            | WHERE emp_no > 1000 // to avoid an existing issue with LIMIT injection past INLINESTATS (which masks the issue the test tests)
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var topN = as(plan, TopN.class);
+        assertThat(topN.order().size(), is(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        var field = as(order.child(), FieldAttribute.class);
+        assertThat(field.name(), equalTo("salary"));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(1000));
+
+        var filter = as(topN.child(), Filter.class);
+        var filterCondition = as(filter.condition(), GreaterThan.class);
+        assertThat(Expressions.name(filterCondition.left()), equalTo("emp_no"));
+        assertThat(filterCondition.right().fold(FoldContext.small()), equalTo(1000));
+
+        var inlineJoin = as(filter.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("emp_no")));
+        // outer left
+        var inlineJoinLeft = as(inlineJoin.left(), InlineJoin.class);
+        // inner left
+        var relation = as(inlineJoinLeft.left(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("test")));
+        // inner right
+        var agg = as(inlineJoinLeft.right(), Aggregate.class);
+        var groupings = agg.groupings();
+        assertThat(groupings.size(), is(1));
+        var fieldAttribute = as(groupings.get(0), FieldAttribute.class);
+        assertThat(fieldAttribute.name(), is("languages"));
+        var aggs = agg.aggregates();
+        assertThat(aggs.get(0).toString(), is("MIN(salary) AS min#5"));
+        var stub = as(agg.child(), StubRelation.class);
+        // outer right
+        var project = as(inlineJoin.right(), Project.class);
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
+        agg = as(eval.child(), Aggregate.class);
+        assertMap(Expressions.names(agg.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "emp_no")));
+        stub = as(agg.child(), StubRelation.class);
+    }
+
     /**
      * Expects
      *

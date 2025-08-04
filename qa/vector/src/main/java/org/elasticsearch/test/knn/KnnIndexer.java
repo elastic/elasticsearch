@@ -206,6 +206,9 @@ class KnnIndexer {
         long elapsed = System.nanoTime() - start;
         logger.debug("Indexing took {} ms for {} docs", TimeUnit.NANOSECONDS.toMillis(elapsed), numDocs);
         result.indexTimeMS = TimeUnit.NANOSECONDS.toMillis(elapsed);
+
+        // report numDocsIndexed here in case we have less than the total numDocs
+        result.numDocs = numDocsIndexed.get();
     }
 
     void forceMerge(KnnIndexTester.Results results) throws Exception {

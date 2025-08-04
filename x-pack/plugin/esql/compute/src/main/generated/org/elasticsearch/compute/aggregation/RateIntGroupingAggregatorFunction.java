@@ -330,8 +330,8 @@ public final class RateIntGroupingAggregatorFunction implements GroupingAggregat
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = RateIntAggregator.evaluateFinal(state, selected, evaluatorContext);
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = RateIntAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

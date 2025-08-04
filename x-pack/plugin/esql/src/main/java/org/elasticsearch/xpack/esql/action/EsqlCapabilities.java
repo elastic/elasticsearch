@@ -962,7 +962,7 @@ public class EsqlCapabilities {
         /**
          * Support for RERANK command
          */
-        RERANK(Build.current().isSnapshot()),
+        RERANK,
 
         /**
          * Support for COMPLETION command

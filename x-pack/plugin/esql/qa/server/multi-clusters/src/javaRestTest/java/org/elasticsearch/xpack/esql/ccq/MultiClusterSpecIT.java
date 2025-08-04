@@ -80,7 +80,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     private static RestClient remoteClusterClient;
     private static DataLocation dataLocation = null;
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertTrue("Not enough specs found " + urls, urls.size() > 0);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.inference.completion;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
@@ -16,6 +15,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.esql.inference.InferenceOperatorTestCase;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,9 +27,16 @@ import static org.hamcrest.Matchers.hasSize;
 public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompletionResults> {
     private static final String SIMPLE_INFERENCE_ID = "test_completion";
 
+    private int inputChannel;
+
+    @Before
+    public void initCompletionChannels() {
+        inputChannel = between(0, inputsCount - 1);
+    }
+
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new CompletionOperator.Factory(mockedSimpleInferenceRunner(), SIMPLE_INFERENCE_ID, evaluatorFactory(0));
+        return new CompletionOperator.Factory(mockedInferenceService(), SIMPLE_INFERENCE_ID, evaluatorFactory(inputChannel));
     }
 
     @Override
@@ -54,26 +61,20 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
     }
 
     private void assertCompletionResults(Page inputPage, Page resultPage) {
-        BytesRefBlock inputBlock = resultPage.getBlock(0);
+        BytesRefBlock inputBlock = resultPage.getBlock(inputChannel);
         BytesRefBlock resultBlock = resultPage.getBlock(inputPage.getBlockCount());
 
-        BytesRef scratch = new BytesRef();
-        StringBuilder inputBuilder = new StringBuilder();
+        BlockStringReader blockReader = new InferenceOperatorTestCase.BlockStringReader();
 
         for (int curPos = 0; curPos < inputPage.getPositionCount(); curPos++) {
-            inputBuilder.setLength(0);
-            int valueIndex = inputBlock.getFirstValueIndex(curPos);
-            while (valueIndex < inputBlock.getFirstValueIndex(curPos) + inputBlock.getValueCount(curPos)) {
-                scratch = inputBlock.getBytesRef(valueIndex, scratch);
-                inputBuilder.append(scratch.utf8ToString());
-                if (valueIndex < inputBlock.getValueCount(curPos) - 1) {
-                    inputBuilder.append("\n");
-                }
-                valueIndex++;
+            if (inputBlock.isNull(curPos)) {
+                assertThat(resultBlock.isNull(curPos), equalTo(true));
+            } else {
+                assertThat(
+                    blockReader.readString(resultBlock, curPos),
+                    equalTo(blockReader.readString(inputBlock, curPos).toUpperCase(java.util.Locale.ROOT))
+                );
             }
-            scratch = resultBlock.getBytesRef(resultBlock.getFirstValueIndex(curPos), scratch);
-
-            assertThat(scratch.utf8ToString(), equalTo(inputBuilder.toString().toUpperCase(Locale.ROOT)));
         }
     }
 

@@ -283,7 +283,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (queryRewriteInterceptor != null) {
             var rewritten = queryRewriteInterceptor.interceptAndRewrite(queryRewriteContext, this);
             if (rewritten != this) {
-                return new InterceptedQueryBuilderWrapper(rewritten, this);
+                return new InterceptedQueryBuilderWrapper(rewritten);
             }
         }
 

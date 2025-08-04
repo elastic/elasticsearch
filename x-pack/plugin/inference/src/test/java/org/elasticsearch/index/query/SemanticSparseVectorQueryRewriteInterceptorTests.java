@@ -108,8 +108,8 @@ public class SemanticSparseVectorQueryRewriteInterceptorTests extends ESTestCase
         assertEquals(original.boost(), intercepted.boost(), 0.0f);
         assertEquals(original.queryName(), intercepted.queryName());
 
-        assertTrue(intercepted.rewritten instanceof NestedQueryBuilder);
-        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.rewritten;
+        assertTrue(intercepted.queryBuilder instanceof NestedQueryBuilder);
+        NestedQueryBuilder nestedQueryBuilder = (NestedQueryBuilder) intercepted.queryBuilder;
         assertEquals(SemanticTextField.getChunksFieldName(FIELD_NAME), nestedQueryBuilder.path());
         assertEquals(original.boost(), nestedQueryBuilder.boost(), 0.0f);
         assertEquals(original.queryName(), nestedQueryBuilder.queryName());

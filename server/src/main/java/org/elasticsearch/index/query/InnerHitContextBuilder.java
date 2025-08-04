@@ -68,7 +68,7 @@ public abstract class InnerHitContextBuilder {
             ((AbstractQueryBuilder<?>) query).extractInnerHitBuilders(innerHitBuilders);
         } else if (query instanceof InterceptedQueryBuilderWrapper interceptedQuery) {
             // Unwrap an intercepted query here
-            extractInnerHits(interceptedQuery.rewritten, innerHitBuilders);
+            extractInnerHits(interceptedQuery.queryBuilder, innerHitBuilders);
         } else {
             throw new IllegalStateException(
                 "provided query builder [" + query.getClass() + "] class should inherit from AbstractQueryBuilder, but it doesn't"

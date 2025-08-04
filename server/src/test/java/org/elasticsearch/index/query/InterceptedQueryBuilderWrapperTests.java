@@ -36,10 +36,7 @@ public class InterceptedQueryBuilderWrapperTests extends ESTestCase {
 
     public void testQueryNameReturnsWrappedQueryBuilder() {
         MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
-        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(
-            matchAllQueryBuilder,
-            matchAllQueryBuilder
-        );
+        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(matchAllQueryBuilder);
         String queryName = randomAlphaOfLengthBetween(5, 10);
         QueryBuilder namedQuery = interceptedQueryBuilderWrapper.queryName(queryName);
         assertTrue(namedQuery instanceof InterceptedQueryBuilderWrapper);
@@ -48,10 +45,7 @@ public class InterceptedQueryBuilderWrapperTests extends ESTestCase {
 
     public void testQueryBoostReturnsWrappedQueryBuilder() {
         MatchAllQueryBuilder matchAllQueryBuilder = new MatchAllQueryBuilder();
-        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(
-            matchAllQueryBuilder,
-            matchAllQueryBuilder
-        );
+        InterceptedQueryBuilderWrapper interceptedQueryBuilderWrapper = new InterceptedQueryBuilderWrapper(matchAllQueryBuilder);
         float boost = randomFloat();
         QueryBuilder boostedQuery = interceptedQueryBuilderWrapper.boost(boost);
         assertTrue(boostedQuery instanceof InterceptedQueryBuilderWrapper);
@@ -71,8 +65,8 @@ public class InterceptedQueryBuilderWrapperTests extends ESTestCase {
         MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder("field", "value");
         rewritten = matchQueryBuilder.rewrite(context);
         assertTrue(rewritten instanceof InterceptedQueryBuilderWrapper);
-        assertTrue(((InterceptedQueryBuilderWrapper) rewritten).rewritten instanceof MatchQueryBuilder);
-        MatchQueryBuilder rewrittenMatchQueryBuilder = (MatchQueryBuilder) ((InterceptedQueryBuilderWrapper) rewritten).rewritten;
+        assertTrue(((InterceptedQueryBuilderWrapper) rewritten).queryBuilder instanceof MatchQueryBuilder);
+        MatchQueryBuilder rewrittenMatchQueryBuilder = (MatchQueryBuilder) ((InterceptedQueryBuilderWrapper) rewritten).queryBuilder;
         assertEquals("intercepted", rewrittenMatchQueryBuilder.value());
 
         // An additional rewrite on an already intercepted query returns the same query

@@ -22,19 +22,13 @@ import java.util.Objects;
  * Wrapper for instances of {@link QueryBuilder} that have been intercepted using the {@link QueryRewriteInterceptor} to
  * break out of the rewrite phase. These instances are unwrapped on serialization.
  */
-public class InterceptedQueryBuilderWrapper implements QueryBuilder {
+class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
-    protected final QueryBuilder original;
-    protected final QueryBuilder rewritten;
+    protected final QueryBuilder queryBuilder;
 
-    InterceptedQueryBuilderWrapper(QueryBuilder rewritten, QueryBuilder original) {
+    InterceptedQueryBuilderWrapper(QueryBuilder queryBuilder) {
         super();
-        this.original = original;
-        this.rewritten = rewritten;
-    }
-
-    public QueryBuilder getOriginal() {
-        return original;
+        this.queryBuilder = queryBuilder;
     }
 
     @Override
@@ -42,8 +36,8 @@ public class InterceptedQueryBuilderWrapper implements QueryBuilder {
         QueryRewriteInterceptor queryRewriteInterceptor = queryRewriteContext.getQueryRewriteInterceptor();
         try {
             queryRewriteContext.setQueryRewriteInterceptor(null);
-            QueryBuilder rewritten = this.rewritten.rewrite(queryRewriteContext);
-            return rewritten != this.rewritten ? new InterceptedQueryBuilderWrapper(rewritten, original) : this;
+            QueryBuilder rewritten = queryBuilder.rewrite(queryRewriteContext);
+            return rewritten != queryBuilder ? new InterceptedQueryBuilderWrapper(rewritten) : this;
         } finally {
             queryRewriteContext.setQueryRewriteInterceptor(queryRewriteInterceptor);
         }
@@ -51,54 +45,54 @@ public class InterceptedQueryBuilderWrapper implements QueryBuilder {
 
     @Override
     public String getWriteableName() {
-        return rewritten.getWriteableName();
+        return queryBuilder.getWriteableName();
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return rewritten.getMinimalSupportedVersion();
+        return queryBuilder.getMinimalSupportedVersion();
     }
 
     @Override
     public Query toQuery(SearchExecutionContext context) throws IOException {
-        return rewritten.toQuery(context);
+        return queryBuilder.toQuery(context);
     }
 
     @Override
     public QueryBuilder queryName(String queryName) {
-        rewritten.queryName(queryName);
+        queryBuilder.queryName(queryName);
         return this;
     }
 
     @Override
     public String queryName() {
-        return rewritten.queryName();
+        return queryBuilder.queryName();
     }
 
     @Override
     public float boost() {
-        return rewritten.boost();
+        return queryBuilder.boost();
     }
 
     @Override
     public QueryBuilder boost(float boost) {
-        rewritten.boost(boost);
+        queryBuilder.boost(boost);
         return this;
     }
 
     @Override
     public String getName() {
-        return rewritten.getName();
+        return queryBuilder.getName();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        rewritten.writeTo(out);
+        queryBuilder.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return rewritten.toXContent(builder, params);
+        return queryBuilder.toXContent(builder, params);
     }
 
     @Override
@@ -106,11 +100,11 @@ public class InterceptedQueryBuilderWrapper implements QueryBuilder {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InterceptedQueryBuilderWrapper that = (InterceptedQueryBuilderWrapper) o;
-        return Objects.equals(original, that.original) && Objects.equals(rewritten, that.rewritten);
+        return Objects.equals(queryBuilder, that.queryBuilder);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(original, rewritten);
+        return Objects.hashCode(queryBuilder);
     }
 }

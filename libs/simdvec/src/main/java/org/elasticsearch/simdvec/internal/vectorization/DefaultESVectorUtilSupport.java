@@ -80,10 +80,11 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float dbb = 0;
         float dax = 0;
         float dbx = 0;
+        float invPmOnes = 1f / (points - 1f);
         for (int i = 0; i < target.length; ++i) {
             float v = target[i];
             float k = quantize[i];
-            float s = k / (points - 1);
+            float s = k * invPmOnes;
             float ms = 1f - s;
             daa = fma(ms, ms, daa);
             dab = fma(ms, s, dab);

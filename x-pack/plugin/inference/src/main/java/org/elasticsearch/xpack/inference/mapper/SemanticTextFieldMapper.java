@@ -143,6 +143,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_INDEX_OPTIONS_WITH_DEFAULTS = new NodeFeature(
         "semantic_text.index_options_with_defaults"
     );
+    public static final NodeFeature SEMANTIC_TEXT_SPARSE_VECTOR_INDEX_OPTIONS = new NodeFeature(
+        "semantic_text.sparse_vector_index_options"
+    );
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -458,8 +461,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 );
             }
 
-            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
+            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR) {
+                if (modelSettings.taskType() != SPARSE_EMBEDDING) {
+                    throw new IllegalArgumentException(
+                        "Invalid task type for index options, required ["
+                            + SPARSE_EMBEDDING
+                            + "] but was ["
+                            + modelSettings.taskType()
+                            + "]"
+                    );
+                }
+                return;
+            }
 
+            if (indexOptions.type() == SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR) {
                 if (modelSettings.taskType() != TEXT_EMBEDDING) {
                     throw new IllegalArgumentException(
                         "Invalid task type for index options, required [" + TEXT_EMBEDDING + "] but was [" + modelSettings.taskType() + "]"
@@ -471,7 +486,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
                 denseVectorIndexOptions.validate(modelSettings.elementType(), dims, true);
             }
-
         }
 
         /**
@@ -1169,9 +1183,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         boolean useLegacyFormat
     ) {
         return switch (modelSettings.taskType()) {
-            case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD, indexVersionCreated, false).setStored(
-                useLegacyFormat == false
-            );
+            case SPARSE_EMBEDDING -> {
+                SparseVectorFieldMapper.Builder sparseVectorMapperBuilder = new SparseVectorFieldMapper.Builder(
+                    CHUNKED_EMBEDDINGS_FIELD,
+                    indexVersionCreated,
+                    false
+                ).setStored(useLegacyFormat == false);
+
+                configureSparseVectorMapperBuilder(indexVersionCreated, sparseVectorMapperBuilder, indexOptions);
+
+                yield sparseVectorMapperBuilder;
+            }
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
@@ -1179,50 +1201,68 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     false
                 );
 
-                SimilarityMeasure similarity = modelSettings.similarity();
-                if (similarity != null) {
-                    switch (similarity) {
-                        case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
-                        case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
-                        case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
-                        default -> throw new IllegalArgumentException(
-                            "Unknown similarity measure in model_settings [" + similarity.name() + "]"
-                        );
-                    }
-                }
-                denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
-                denseVectorMapperBuilder.elementType(modelSettings.elementType());
-                // Here is where we persist index_options. If they are specified by the user, we will use those index_options,
-                // otherwise we will determine if we can set default index options. If we can't, we won't persist any index_options
-                // and the field will use the defaults for the dense_vector field.
-                if (indexOptions != null) {
-                    DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
-                        (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
-                    denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
-                    denseVectorIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), true);
-                } else {
-                    DenseVectorFieldMapper.DenseVectorIndexOptions defaultIndexOptions = defaultDenseVectorIndexOptions(
-                        indexVersionCreated,
-                        modelSettings
-                    );
-                    if (defaultIndexOptions != null) {
-                        denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
-                    }
-                }
-
-                boolean hasUserSpecifiedIndexOptions = indexOptions != null;
-                DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = hasUserSpecifiedIndexOptions
-                    ? (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions()
-                    : defaultDenseVectorIndexOptions(indexVersionCreated, modelSettings);
-
-                if (denseVectorIndexOptions != null) {
-                    denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
-                }
+                configureDenseVectorMapperBuilder(indexVersionCreated, denseVectorMapperBuilder, modelSettings, indexOptions);
 
                 yield denseVectorMapperBuilder;
             }
             default -> throw new IllegalArgumentException("Invalid task_type in model_settings [" + modelSettings.taskType().name() + "]");
         };
+    }
+
+    private static void configureSparseVectorMapperBuilder(
+        IndexVersion indexVersionCreated,
+        SparseVectorFieldMapper.Builder sparseVectorMapperBuilder,
+        SemanticTextIndexOptions indexOptions
+    ) {
+        if (indexOptions != null) {
+            SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions =
+                (SparseVectorFieldMapper.SparseVectorIndexOptions) indexOptions.indexOptions();
+
+            sparseVectorMapperBuilder.setIndexOptions(sparseVectorIndexOptions);
+        } else {
+            SparseVectorFieldMapper.SparseVectorIndexOptions defaultIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions
+                .getDefaultIndexOptions(indexVersionCreated);
+            if (defaultIndexOptions != null) {
+                sparseVectorMapperBuilder.setIndexOptions(defaultIndexOptions);
+            }
+        }
+    }
+
+    private static void configureDenseVectorMapperBuilder(
+        IndexVersion indexVersionCreated,
+        DenseVectorFieldMapper.Builder denseVectorMapperBuilder,
+        MinimalServiceSettings modelSettings,
+        SemanticTextIndexOptions indexOptions
+    ) {
+        SimilarityMeasure similarity = modelSettings.similarity();
+        if (similarity != null) {
+            switch (similarity) {
+                case COSINE -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.COSINE);
+                case DOT_PRODUCT -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.DOT_PRODUCT);
+                case L2_NORM -> denseVectorMapperBuilder.similarity(DenseVectorFieldMapper.VectorSimilarity.L2_NORM);
+                default -> throw new IllegalArgumentException("Unknown similarity measure in model_settings [" + similarity.name() + "]");
+            }
+        }
+
+        denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
+        denseVectorMapperBuilder.elementType(modelSettings.elementType());
+        // Here is where we persist index_options. If they are specified by the user, we will use those index_options,
+        // otherwise we will determine if we can set default index options. If we can't, we won't persist any index_options
+        // and the field will use the defaults for the dense_vector field.
+        if (indexOptions != null) {
+            DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions =
+                (DenseVectorFieldMapper.DenseVectorIndexOptions) indexOptions.indexOptions();
+            denseVectorMapperBuilder.indexOptions(denseVectorIndexOptions);
+            denseVectorIndexOptions.validate(modelSettings.elementType(), modelSettings.dimensions(), true);
+        } else {
+            DenseVectorFieldMapper.DenseVectorIndexOptions defaultIndexOptions = defaultDenseVectorIndexOptions(
+                indexVersionCreated,
+                modelSettings
+            );
+            if (defaultIndexOptions != null) {
+                denseVectorMapperBuilder.indexOptions(defaultIndexOptions);
+            }
+        }
     }
 
     static DenseVectorFieldMapper.DenseVectorIndexOptions defaultDenseVectorIndexOptions(
@@ -1259,23 +1299,30 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     static SemanticTextIndexOptions defaultIndexOptions(IndexVersion indexVersionCreated, MinimalServiceSettings modelSettings) {
-
         if (modelSettings == null) {
             return null;
         }
 
-        SemanticTextIndexOptions defaultIndexOptions = null;
         if (modelSettings.taskType() == TaskType.TEXT_EMBEDDING) {
             DenseVectorFieldMapper.DenseVectorIndexOptions denseVectorIndexOptions = defaultDenseVectorIndexOptions(
                 indexVersionCreated,
                 modelSettings
             );
-            defaultIndexOptions = denseVectorIndexOptions == null
+            return denseVectorIndexOptions == null
                 ? null
                 : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.DENSE_VECTOR, denseVectorIndexOptions);
         }
 
-        return defaultIndexOptions;
+        if (modelSettings.taskType() == SPARSE_EMBEDDING) {
+            SparseVectorFieldMapper.SparseVectorIndexOptions sparseVectorIndexOptions = SparseVectorFieldMapper.SparseVectorIndexOptions
+                .getDefaultIndexOptions(indexVersionCreated);
+
+            return sparseVectorIndexOptions == null
+                ? null
+                : new SemanticTextIndexOptions(SemanticTextIndexOptions.SupportedIndexOptions.SPARSE_VECTOR, sparseVectorIndexOptions);
+        }
+
+        return null;
     }
 
     private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {

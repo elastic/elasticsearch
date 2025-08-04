@@ -7,15 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package geoip;
+package org.elasticsearch.ingest.geoip;
 
 import fixture.geoip.GeoIpHttpFixture;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.ingest.geoip.GeoIpDownloader;
-import org.elasticsearch.ingest.geoip.GeoIpDownloaderTaskExecutor;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;

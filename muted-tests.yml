@@ -413,15 +413,6 @@ tests:
 - class: org.elasticsearch.test.rest.yaml.RcsCcsCommonYamlTestSuiteIT
   method: test {p0=search/110_field_collapsing/field collapsing, inner_hits and maxConcurrentGroupRequests}
   issue: https://github.com/elastic/elasticsearch/issues/131348
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testSimilarityBetweenConstantVectors {functionName=v_cosine similarityFunction=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/131361
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testDifferentDimensions {functionName=v_cosine similarityFunction=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/131362
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testSimilarityBetweenConstantVectorAndField {functionName=v_cosine similarityFunction=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/131363
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/delete_expired_data/Test delete expired data with body parameters}
   issue: https://github.com/elastic/elasticsearch/issues/131364
@@ -485,9 +476,6 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
   method: testUpdates
   issue: https://github.com/elastic/elasticsearch/issues/131795
-- class: org.elasticsearch.xpack.esql.vector.VectorSimilarityFunctionsIT
-  method: testDifferentDimensions {functionName=v_dot_product similarityFunction=DOT_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/131845
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/131964
@@ -503,9 +491,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=update/100_synthetic_source/keyword}
   issue: https://github.com/elastic/elasticsearch/issues/132110
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=transform/transforms_crud/Test transform where source query is invalid}
-  issue: https://github.com/elastic/elasticsearch/issues/132111
 - class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
   method: testRelocationWhileForceMerging
   issue: https://github.com/elastic/elasticsearch/issues/131789
@@ -548,6 +533,24 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
   method: testTermsQuery
   issue: https://github.com/elastic/elasticsearch/issues/132337
+- class: org.elasticsearch.search.suggest.phrase.PhraseSuggesterIT
+  method: testPhraseSuggestionWithNgramOnlyAnalyzerThrowsException
+  issue: https://github.com/elastic/elasticsearch/issues/132347
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryIT
+  method: testBadAsyncId
+  issue: https://github.com/elastic/elasticsearch/issues/132353
+- class: org.elasticsearch.search.routing.SearchReplicaSelectionIT
+  method: testNodeSelection
+  issue: https://github.com/elastic/elasticsearch/issues/132354
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedLogsDbChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/132376
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusLogsDbReindexedIntoStandardModeChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/132377
+- class: org.elasticsearch.xpack.logsdb.qa.LogsDbVersusReindexedIntoStoredSourceChallengeRestIT
+  method: testRandomQueries
+  issue: https://github.com/elastic/elasticsearch/issues/132378
 
 # Examples:
 #

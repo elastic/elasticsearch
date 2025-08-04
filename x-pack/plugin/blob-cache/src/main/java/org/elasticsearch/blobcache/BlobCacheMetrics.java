@@ -27,9 +27,11 @@ public class BlobCacheMetrics {
     public static final String CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY = "source";
     public static final String LUCENE_FILE_EXTENSION_ATTRIBUTE_KEY = "file_extension";
     public static final String NON_LUCENE_EXTENSION_TO_RECORD = "other";
+    public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
+    private final LongCounter totalEvictedCount;
     private final LongHistogram cacheMissLoadTimes;
     private final DoubleHistogram cachePopulationThroughput;
     private final LongCounter cachePopulationBytes;
@@ -47,7 +49,11 @@ public class BlobCacheMetrics {
         /**
          * When the data we need is not in the cache
          */
-        CacheMiss
+        CacheMiss,
+        /**
+         * When data is prefetched upon new commit notifications
+         */
+        PreFetchingNewCommit
     }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
@@ -60,6 +66,11 @@ public class BlobCacheMetrics {
             meterRegistry.registerLongCounter(
                 "es.blob_cache.count_of_evicted_used_regions.total",
                 "The number of times a cache entry was evicted where the frequency was not zero",
+                "entries"
+            ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL,
+                "The number of times a cache entry was evicted, irrespective of the frequency",
                 "entries"
             ),
             meterRegistry.registerLongHistogram(
@@ -88,6 +99,7 @@ public class BlobCacheMetrics {
     BlobCacheMetrics(
         LongCounter cacheMissCounter,
         LongCounter evictedCountNonZeroFrequency,
+        LongCounter totalEvictedCount,
         LongHistogram cacheMissLoadTimes,
         DoubleHistogram cachePopulationThroughput,
         LongCounter cachePopulationBytes,
@@ -95,6 +107,7 @@ public class BlobCacheMetrics {
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
+        this.totalEvictedCount = totalEvictedCount;
         this.cacheMissLoadTimes = cacheMissLoadTimes;
         this.cachePopulationThroughput = cachePopulationThroughput;
         this.cachePopulationBytes = cachePopulationBytes;
@@ -109,6 +122,10 @@ public class BlobCacheMetrics {
 
     public LongCounter getEvictedCountNonZeroFrequency() {
         return evictedCountNonZeroFrequency;
+    }
+
+    public LongCounter getTotalEvictedCount() {
+        return totalEvictedCount;
     }
 
     public LongHistogram getCacheMissLoadTimes() {

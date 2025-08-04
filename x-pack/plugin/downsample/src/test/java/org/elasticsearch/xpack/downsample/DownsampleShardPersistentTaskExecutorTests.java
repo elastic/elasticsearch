@@ -96,7 +96,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY
         );
-        var result = executor.getAssignment(params, Set.of(node), clusterState);
+        var result = executor.getAssignment(params, Set.of(node), clusterState, projectId);
         assertThat(result.getExecutorNode(), equalTo(node.getId()));
     }
 
@@ -128,7 +128,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY
         );
-        var result = executor.getAssignment(params, Set.of(node), clusterState);
+        var result = executor.getAssignment(params, Set.of(node), clusterState, projectId);
         assertThat(result.getExecutorNode(), equalTo(node.getId()));
         assertThat(result.getExplanation(), equalTo("a node to fail and stop this persistent task"));
     }
@@ -144,16 +144,14 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
         var searchNode = newNode(Set.of(DiscoveryNodeRole.SEARCH_ROLE));
         var indexNode = newNode(Set.of(DiscoveryNodeRole.INDEX_ROLE));
         var shardId = new ShardId(backingIndex, 0);
+        ShardRouting indexOnlyShard = shardRoutingBuilder(shardId, indexNode.getId(), true, STARTED).withRecoverySource(null)
+            .withRole(ShardRouting.Role.INDEX_ONLY)
+            .build();
         var clusterState = ClusterState.builder(initialClusterState)
             .nodes(new DiscoveryNodes.Builder().add(indexNode).add(searchNode).build())
             .putRoutingTable(
                 projectId,
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(backingIndex)
-                            .addShard(shardRoutingBuilder(shardId, indexNode.getId(), true, STARTED).withRecoverySource(null).build())
-                    )
-                    .build()
+                RoutingTable.builder().add(IndexRoutingTable.builder(backingIndex).addShard(indexOnlyShard)).build()
             )
             .build();
 
@@ -167,7 +165,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
             Strings.EMPTY_ARRAY,
             Strings.EMPTY_ARRAY
         );
-        var result = executor.getAssignment(params, Set.of(indexNode, searchNode), clusterState);
+        var result = executor.getAssignment(params, Set.of(indexNode, searchNode), clusterState, projectId);
         assertThat(result.getExecutorNode(), nullValue());
 
         // Assign a copy of the shard to a search node
@@ -177,7 +175,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
                 RoutingTable.builder()
                     .add(
                         IndexRoutingTable.builder(backingIndex)
-                            .addShard(shardRoutingBuilder(shardId, indexNode.getId(), true, STARTED).withRecoverySource(null).build())
+                            .addShard(indexOnlyShard)
                             .addShard(
                                 shardRoutingBuilder(shardId, searchNode.getId(), false, STARTED).withRecoverySource(null)
                                     .withRole(ShardRouting.Role.SEARCH_ONLY)
@@ -187,7 +185,7 @@ public class DownsampleShardPersistentTaskExecutorTests extends ESTestCase {
                     .build()
             )
             .build();
-        result = executor.getAssignment(params, Set.of(indexNode, searchNode), clusterState);
+        result = executor.getAssignment(params, Set.of(indexNode, searchNode), clusterState, projectId);
         assertThat(result.getExecutorNode(), equalTo(searchNode.getId()));
     }
 

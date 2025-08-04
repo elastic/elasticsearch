@@ -63,8 +63,6 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
     public record Factory(ShardConfig[] shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            // TODO: Is it possible to add the highlight query here, rather than in ExtractSnippets? Would require ShardConfig having access
-            // to context
             return new HighlighterExpressionEvaluator(context.blockFactory(), shardConfigs);
         }
     }

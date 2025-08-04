@@ -7,16 +7,17 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.lucene.HighlighterExpressionEvaluator;
 import org.elasticsearch.compute.lucene.LuceneQueryEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.index.query.InterceptedQueryBuilderWrapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
@@ -48,8 +48,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 /**
  * Extract snippets function, that extracts the most relevant snippets from a given input string
  */
-// TODO: This also needs to implement TranslationAware?
-public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgument, RewriteableAware {
+public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgument, RewriteableAware, TranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ExtractSnippets",
@@ -196,6 +195,7 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
         int i = 0;
         for (EsPhysicalOperationProviders.ShardContext shardContext : shardContexts) {
             // TODO we can probably create the highlighter here instead of in EsPhysicalOperationProviders
+
             shardContext.addHighlightQuery(
                 field.sourceText(),
                 str.sourceText(),
@@ -206,7 +206,6 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
             shardConfigs[i++] = new LuceneQueryEvaluator.ShardConfig(shardContext.toQuery(queryBuilder), shardContext.searcher());
         }
         return new HighlighterExpressionEvaluator.Factory(shardConfigs);
-
     }
 
     @Override
@@ -220,8 +219,16 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
     }
 
     @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return Translatable.YES;
+    }
+
+    @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
-        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(pushdownPredicates, handler);
+        if (queryBuilder != null) {
+            return new TranslationAwareExpressionQuery(source(), queryBuilder);
+        }
+        throw new IllegalStateException("Missing queryBuilder");
     }
 
     Expression field() {
@@ -242,8 +249,6 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
 
     @Override
     public boolean equals(Object o) {
-        // Match does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
-        // ignore options when comparing two Match functions
         if (o == null || getClass() != o.getClass()) return false;
         ExtractSnippets extractSnippets = (ExtractSnippets) o;
         return Objects.equals(field(), extractSnippets.field())

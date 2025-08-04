@@ -13,7 +13,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.xpack.esql.core.util.Holder;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.ExtractSnippets;
+import org.elasticsearch.xpack.esql.capabilities.RewriteableAware;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -38,8 +40,11 @@ public final class QueryBuilderResolver {
     public static void resolveQueryBuilders(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
         var hasRewriteableAwareFunctions = plan.anyMatch(p -> {
             Holder<Boolean> hasRewriteable = new Holder<>(false);
-            p.forEachExpression(FullTextFunction.class, unused -> hasRewriteable.set(true));
-            p.forEachExpression(ExtractSnippets.class, unused -> hasRewriteable.set(true));
+            p.forEachExpression(expr -> {
+                if (expr instanceof RewriteableAware) {
+                    hasRewriteable.set(true);
+                }
+            });
             return hasRewriteable.get();
         });
         if (hasRewriteableAwareFunctions) {
@@ -77,20 +82,23 @@ public final class QueryBuilderResolver {
         public FunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
-            // TODO this needs to work with any rewriteable aware not just full text function
-            LogicalPlan newPlan = plan.transformExpressionsDown(FullTextFunction.class, f -> {
-                QueryBuilder builder = f.queryBuilder(), initial = builder;
-                builder = builder == null
-                    ? f.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
-                    : builder;
-                try {
-                    builder = builder.rewrite(ctx);
-                } catch (IOException e) {
-                    exceptionHolder.setIfAbsent(e);
+            LogicalPlan newPlan = plan.transformExpressionsDown(Expression.class, expr -> {
+                Expression finalExpression = expr;
+                if (expr instanceof RewriteableAware rewriteableAware && expr instanceof TranslationAware translationAware) {
+                    QueryBuilder builder = rewriteableAware.queryBuilder(), initial = builder;
+                    builder = builder == null
+                        ? translationAware.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder()
+                        : builder;
+                    try {
+                        builder = builder.rewrite(ctx);
+                    } catch (IOException e) {
+                        exceptionHolder.setIfAbsent(e);
+                    }
+                    var rewritten = builder != initial;
+                    updated.set(updated.get() || rewritten);
+                    finalExpression = rewritten ? rewriteableAware.replaceQueryBuilder(builder) : finalExpression;
                 }
-                var rewritten = builder != initial;
-                updated.set(updated.get() || rewritten);
-                return rewritten ? f.replaceQueryBuilder(builder) : f;
+                return finalExpression;
             });
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();

@@ -52,7 +52,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalDouble;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.COSINE;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
@@ -139,11 +141,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         List<LeafReaderContext> selectedSegments = new ArrayList<>();
 
-        double cutoff_affinity = 0.3; // minimum affinity score for a segment to be considered
-        double higher_affinity = 0.7; // min affinity for increasing nProbe
-        double lower_affinity = 0.6 ; // max affinity for decreasing nProbe
+        double[] affinityScores = segmentAffinities.stream().map(SegmentAffinity::affinityScore).mapToDouble(Double::doubleValue).toArray();
 
-        int max_adjustment = 20;
+        // max affinity for decreasing nProbe
+        double average = Arrays.stream(affinityScores).average().orElseThrow();
+        double maxAffinity = Arrays.stream(affinityScores).max().orElseThrow();
+        double lowerAffinity = (maxAffinity + average) * 0.5;
+        double cutoffAffinity = lowerAffinity * 0.5; // minimum affinity score for a segment to be considered
+        double affinityTreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing nProbe
+        int maxAdjustments = (int) (nProbe * 1.5);
 
         Map<LeafReaderContext, Integer> segmentNProbeMap = new HashMap<>();
         // Process segments based on their affinity scores
@@ -151,13 +157,13 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             double score = affinity.affinityScore();
 
             // Skip segments with very low affinity
-            if (score < cutoff_affinity) {
+            if (score < cutoffAffinity) {
                 continue;
             }
 
             // Adjust nProbe based on affinity score
             // with larger affinity we increase nprobe (and viceversa)
-            int adjustedNProbe = adjustNProbeForSegment(score, higher_affinity, lower_affinity, max_adjustment);
+            int adjustedNProbe = adjustNProbeForSegment(score, affinityTreshold, maxAdjustments);
 
             // Store the adjusted nProbe value for this segment
             segmentNProbeMap.put(affinity.context(), adjustedNProbe);
@@ -179,19 +185,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
-    private int adjustNProbeForSegment(double affinityScore, double highThreshold, double lowThreshold, int maxAdjustment) {
+    private int adjustNProbeForSegment(double affinityScore, double affinityTreshold, int maxAdjustment) {
         int baseNProbe = this.nProbe;
 
-        // For very high affinity scores, increase nProbe
-        if (affinityScore >= highThreshold) {
-            int adjustment = (int) Math.ceil((affinityScore - highThreshold) * maxAdjustment);
+        // for high affinity scores, increase nProbe
+        if (affinityScore > affinityTreshold) {
+            int adjustment = (int) Math.ceil((affinityScore - affinityTreshold) * maxAdjustment);
             return Math.min(baseNProbe * adjustment, baseNProbe + maxAdjustment);
         }
 
-        // For low affinity scores, decrease nProbe
-        if (affinityScore <= lowThreshold) {
-            int adjustment = (int) Math.ceil((lowThreshold - affinityScore) * maxAdjustment);
-            return Math.max(baseNProbe / 3, 1); // Ensure nProbe doesn't go below 1
+        // for low affinity scores, decrease nProbe
+        if (affinityScore <= affinityTreshold) {
+            //int adjustment = (int) Math.ceil((affinityTreshold - affinityScore) * maxAdjustment);
+            return Math.max(baseNProbe / 3, 1);
         }
 
         return baseNProbe;
@@ -233,30 +239,36 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                         VectorUtil.l2normalize(queryVector);
                     }
                     // similarity between query vector and global centroid, higher is better
-                    float globalCentroidScore = similarityFunction.compare(queryVector, globalCentroid);
+                    float centroidsScore = similarityFunction.compare(queryVector, globalCentroid);
                     if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                        globalCentroidScore = VectorUtil.scaleMaxInnerProductScore(globalCentroidScore);
+                        centroidsScore = VectorUtil.scaleMaxInnerProductScore(centroidsScore);
                     }
 
                     // clusters per vector (< 1), higher is better (better coverage)
                     int numCentroids = reader.getNumCentroids(fieldInfo);
                     double centroidDensity = (double) numCentroids / leafReader.numDocs();
 
-                    // include some centroids' scores
-                    if (numCentroids > 32) {
+                    // with larger clusters, global centroid might not be a good representative,
+                    // so we want to include "some" centroids' scores for higher quality estimate
+                    if (numCentroids > 64) {
                         float[] centroidScores = reader.getCentroidsScores(
                             fieldInfo,
                             numCentroids,
                             reader.getIvfCentroids(fieldInfo),
                             queryVector,
-                            numCentroids > 64
+                            numCentroids > 128
                         );
                         Arrays.sort(centroidScores);
-                        globalCentroidScore = (globalCentroidScore + centroidScores[centroidScores.length - 1]
-                            + centroidScores[centroidScores.length - 2]) / 3;
+                        float first = centroidScores[centroidScores.length - 1];
+                        float second = centroidScores[centroidScores.length - 2];
+                        if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
+                            first = VectorUtil.scaleMaxInnerProductScore(first);
+                            second = VectorUtil.scaleMaxInnerProductScore(second);
+                        }
+                        centroidsScore = (centroidsScore + first + second) / 3;
                     }
 
-                    double affinityScore = globalCentroidScore * (1 + centroidDensity);
+                    double affinityScore = centroidsScore * (1 + centroidDensity);
 
                     segmentAffinities.add(new SegmentAffinity(context, affinityScore));
                 } else {

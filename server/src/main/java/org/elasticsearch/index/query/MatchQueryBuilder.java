@@ -366,16 +366,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
-        if (resolvedIndices != null) {
-            return this;
-        } else {
-            return super.doRewrite(queryRewriteContext);
-        }
-    }
-
-    @Override
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         if (fuzziness != null || lenient) {
             // Term queries can be neither fuzzy nor lenient, so don't rewrite under these conditions

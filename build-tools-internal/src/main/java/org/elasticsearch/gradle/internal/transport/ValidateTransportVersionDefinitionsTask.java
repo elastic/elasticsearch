@@ -244,7 +244,7 @@ public abstract class ValidateTransportVersionDefinitionsTask extends DefaultTas
         if (existingResources.contains(relativePath) == false) {
             return null;
         }
-        String content = gitCommand("show", "main:" + relativePath);
+        String content = gitCommand("show", "main:" + relativePath).strip();
         return parser.apply(relativePath, content);
     }
 

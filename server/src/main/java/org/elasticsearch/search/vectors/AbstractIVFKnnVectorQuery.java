@@ -194,7 +194,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         // for low affinity scores, decrease nProbe
         if (affinityScore <= affinityTreshold) {
-            //int adjustment = (int) Math.ceil((affinityTreshold - affinityScore) * maxAdjustment);
+            // int adjustment = (int) Math.ceil((affinityTreshold - affinityScore) * maxAdjustment);
             return Math.max(baseNProbe / 3, 1);
         }
 

@@ -25,7 +25,7 @@ public interface LeafQueryGenerator {
      * @param type the type to build a query for
      * @return a generator that can build queries for this type
      */
-    static LeafQueryGenerator buildForType(String type, MappingPredicates mappingContextHelper) {
+    static LeafQueryGenerator buildForType(String type, MappingPredicates mappingPredicates) {
         LeafQueryGenerator noQueries = (Map<String, Object> fieldMapping, String path, Object value) -> List.of();
 
         FieldType fieldType = FieldType.tryParse(type);
@@ -37,7 +37,7 @@ public interface LeafQueryGenerator {
             case KEYWORD -> new KeywordQueryGenerator();
             case WILDCARD -> new WildcardQueryGenerator();
             case TEXT -> new TextQueryGenerator();
-            case MATCH_ONLY_TEXT -> new MatchOnlyTextQueryGenerator(mappingContextHelper);
+            case MATCH_ONLY_TEXT -> new MatchOnlyTextQueryGenerator(mappingPredicates);
             default -> noQueries;
         };
     }

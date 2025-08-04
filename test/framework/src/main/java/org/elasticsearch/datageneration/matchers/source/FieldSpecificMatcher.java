@@ -604,71 +604,6 @@ interface FieldSpecificMatcher {
         }
     }
 
-    class MatchOnlyTextMatcher implements FieldSpecificMatcher {
-        private final XContentBuilder actualMappings;
-        private final Settings.Builder actualSettings;
-        private final XContentBuilder expectedMappings;
-        private final Settings.Builder expectedSettings;
-
-        MatchOnlyTextMatcher(
-            XContentBuilder actualMappings,
-            Settings.Builder actualSettings,
-            XContentBuilder expectedMappings,
-            Settings.Builder expectedSettings
-        ) {
-            this.actualMappings = actualMappings;
-            this.actualSettings = actualSettings;
-            this.expectedMappings = expectedMappings;
-            this.expectedSettings = expectedSettings;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public MatchResult match(
-            List<Object> actual,
-            List<Object> expected,
-            Map<String, Object> actualMapping,
-            Map<String, Object> expectedMapping
-        ) {
-            var expectedNormalized = normalize(expected);
-            var actualNormalized = normalize(actual);
-
-            // Match simply as match_only_text first.
-            if (actualNormalized.equals(expectedNormalized)) {
-                return MatchResult.match();
-            }
-            //
-            var multiFields = (Map<String, Object>) getMappingParameter("fields", actualMapping, expectedMapping);
-            if (multiFields != null) {
-                var keywordMatcher = new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
-
-                var keywordFieldMapping = (Map<String, Object>) multiFields.get("subfield_keyword");
-                var keywordMatchResult = keywordMatcher.match(actual, expected, keywordFieldMapping, keywordFieldMapping);
-                if (keywordMatchResult.isMatch()) {
-                    return MatchResult.match();
-                }
-            }
-
-            return MatchResult.noMatch(
-                formatErrorMessage(
-                    actualMappings,
-                    actualSettings,
-                    expectedMappings,
-                    expectedSettings,
-                    "Values of type [match_only_text] don't match, " + prettyPrintCollections(actual, expected)
-                )
-            );
-        }
-
-        private Set<Object> normalize(List<Object> values) {
-            if (values == null) {
-                return Set.of();
-            }
-
-            return values.stream().filter(Objects::nonNull).collect(Collectors.toSet());
-        }
-    }
-
     class TextMatcher implements FieldSpecificMatcher {
         private final XContentBuilder actualMappings;
         private final Settings.Builder actualSettings;
@@ -685,6 +620,10 @@ interface FieldSpecificMatcher {
             this.actualSettings = actualSettings;
             this.expectedMappings = expectedMappings;
             this.expectedSettings = expectedSettings;
+        }
+
+        public String type() {
+            return "text";
         }
 
         @Override
@@ -722,7 +661,7 @@ interface FieldSpecificMatcher {
                     actualSettings,
                     expectedMappings,
                     expectedSettings,
-                    "Values of type [text] don't match, " + prettyPrintCollections(actual, expected)
+                    "Values of type [" + type() + "] don't match, " + prettyPrintCollections(actual, expected)
                 )
             );
         }
@@ -733,6 +672,22 @@ interface FieldSpecificMatcher {
             }
 
             return values.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        }
+    }
+
+    class MatchOnlyTextMatcher extends TextMatcher {
+        MatchOnlyTextMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super(actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        public String type() {
+            return "match_only_text";
         }
     }
 

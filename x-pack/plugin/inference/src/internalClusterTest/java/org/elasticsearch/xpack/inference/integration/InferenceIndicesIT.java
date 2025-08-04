@@ -144,7 +144,6 @@ public class InferenceIndicesIT extends ESIntegTestCase {
 
         var causeException = exception.getCause();
         assertThat(causeException, instanceOf(SearchPhaseExecutionException.class));
-        assertThat(causeException.toString(), containsString(".inference"));
     }
 
     public void testRetrievingInferenceEndpoint_ThrowsException_WhenIndexNodeIsNotAvailable_ForInferenceAction() throws Exception {

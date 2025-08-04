@@ -2286,49 +2286,4 @@ public class ClusterStateTests extends ESTestCase {
         assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).templates(), hasKey("template"));
         assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).indices(), hasKey("index"));
     }
-
-    public void testCombinedReservedMetadataSerialization() throws IOException {
-        ClusterState clusterState = ClusterState.builder(buildClusterState())
-            .putCustom(
-                ProjectStateRegistry.TYPE,
-                ProjectStateRegistry.builder()
-                    .putReservedStateMetadata(
-                        ProjectId.DEFAULT,
-                        ReservedStateMetadata.builder("file_settings")
-                            .putHandler(
-                                new ReservedStateHandlerMetadata("settings", Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey()))
-                            )
-                            .build()
-                    )
-                    .build()
-            )
-            .build();
-
-        TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.setTransportVersion(oldVersion);
-        clusterState.writeTo(out);
-
-        // check it deserializes ok
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
-        NamedWriteableAwareStreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry);
-        in.setTransportVersion(oldVersion);
-        ClusterState deserialisedClusterState = ClusterState.readFrom(in, null);
-
-        // check it matches the original object
-        Metadata deserializedMetadata = deserialisedClusterState.metadata();
-        assertThat(deserializedMetadata.projects(), aMapWithSize(1));
-        assertThat(deserializedMetadata.projects(), hasKey(ProjectId.DEFAULT));
-
-        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).templates(), hasKey("template"));
-        assertThat(deserializedMetadata.getProject(ProjectId.DEFAULT).indices(), hasKey("index"));
-
-        assertThat(deserializedMetadata.reservedStateMetadata(), hasKey("file_settings"));
-        ReservedStateMetadata fileSettings = deserializedMetadata.reservedStateMetadata().get("file_settings");
-        assertThat(fileSettings.handlers(), aMapWithSize(1));
-        assertThat(fileSettings.handlers(), hasKey("settings"));
-        ReservedStateHandlerMetadata settingsHandlerMetadata = fileSettings.handlers().get("settings");
-        assertThat(settingsHandlerMetadata.keys(), equalTo(Set.of(PROJECT_SETTING.getKey(), PROJECT_SETTING2.getKey())));
-    }
 }

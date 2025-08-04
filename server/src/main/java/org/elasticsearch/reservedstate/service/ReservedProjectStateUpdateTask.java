@@ -82,7 +82,7 @@ public class ReservedProjectStateUpdateTask extends ReservedStateUpdateTask<Rese
                 ProjectStateRegistry.TYPE,
                 ProjectStateRegistry.builder(updatedProjectStateRegistry).putReservedStateMetadata(projectId, result.v2()).build()
             )
-            .putProjectMetadata(ProjectMetadata.builder(updatedProjectMetadata))
+            .putProjectMetadata(updatedProjectMetadata)
             .build();
     }
 }

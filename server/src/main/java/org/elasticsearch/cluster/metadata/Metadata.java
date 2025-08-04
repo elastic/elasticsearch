@@ -706,14 +706,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
     @Override
     public Diff<Metadata> diff(Metadata previousState) {
-        return diff(previousState, DiffableUtils.emptyDiff());
-    }
-
-    public Diff<Metadata> diff(
-        Metadata previousState,
-        MapDiff<String, ReservedStateMetadata, Map<String, ReservedStateMetadata>> singleProjectReservedStateMetadata
-    ) {
-        return new MetadataDiff(previousState, this, singleProjectReservedStateMetadata);
+        return new MetadataDiff(previousState, this);
     }
 
     public static Diff<Metadata> readDiffFrom(StreamInput in) throws IOException {
@@ -852,10 +845,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         private final Settings persistentSettings;
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
         private final ProjectMetadata.ProjectMetadataDiff singleProject;
-        private final DiffableUtils.MapDiff<
-            String,
-            ReservedStateMetadata,
-            Map<String, ReservedStateMetadata>> singleProjectReservedStateMetadata;
 
         private final MapDiff<ProjectId, ProjectMetadata, Map<ProjectId, ProjectMetadata>> multiProject;
         private final MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>> clusterCustoms;
@@ -875,8 +864,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         MetadataDiff(
             Metadata before,
-            Metadata after,
-            MapDiff<String, ReservedStateMetadata, Map<String, ReservedStateMetadata>> singleProjectReservedState
+            Metadata after
         ) {
             this.empty = before == after;
             this.fromNodeBeforeMultiProjectsSupport = false; // diff on this node, always after multi-projects, even when disabled
@@ -889,11 +877,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             if (before.isSingleProject() && after.isSingleProject()) {
                 // single-project, just handle the project metadata diff itself
                 singleProject = after.getSingleProject().diff(before.getSingleProject());
-                singleProjectReservedStateMetadata = singleProjectReservedState;
                 multiProject = null;
             } else {
                 singleProject = null;
-                singleProjectReservedStateMetadata = null;
                 multiProject = DiffableUtils.diff(before.projectMetadata, after.projectMetadata, ProjectId.PROJECT_ID_SERIALIZER);
             }
 
@@ -1000,7 +986,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 );
 
                 singleProject = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms);
-                singleProjectReservedStateMetadata = DiffableUtils.emptyDiff();
                 multiProject = null;
             } else {
                 fromNodeBeforeMultiProjectsSupport = false;
@@ -1017,7 +1002,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 );
 
                 singleProject = null;
-                singleProjectReservedStateMetadata = null;
                 multiProject = DiffableUtils.readJdkMapDiff(
                     in,
                     ProjectId.PROJECT_ID_SERIALIZER,
@@ -1068,7 +1052,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 singleProject.indices().writeTo(out);
                 singleProject.templates().writeTo(out);
                 buildUnifiedCustomDiff().writeTo(out);
-                buildUnifiedReservedStateMetadataDiff().writeTo(out);
+                reservedStateMetadata.writeTo(out);
             } else {
                 clusterCustoms.writeTo(out);
                 reservedStateMetadata.writeTo(out);
@@ -1112,15 +1096,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     BWC_CUSTOM_VALUE_SERIALIZER
                 );
             }
-        }
-
-        private Diff<Map<String, ReservedStateMetadata>> buildUnifiedReservedStateMetadataDiff() {
-            return DiffableUtils.merge(
-                reservedStateMetadata,
-                singleProjectReservedStateMetadata,
-                DiffableUtils.getStringKeySerializer(),
-                RESERVED_DIFF_VALUE_READER
-            );
         }
 
         @Override
@@ -1288,10 +1263,6 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeTo(out, Collections.emptyMap());
-    }
-
-    public void writeTo(StreamOutput out, Map<String, ReservedStateMetadata> singleProjectReservedStateMetadata) throws IOException {
         out.writeLong(version);
         out.writeString(clusterUUID);
         out.writeBoolean(clusterUUIDCommitted);
@@ -1328,12 +1299,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             );
             VersionedNamedWriteable.writeVersionedWriteables(out, combinedCustoms);
 
-            List<ReservedStateMetadata> combinedMetadata = new ArrayList<>(
-                reservedStateMetadata.size() + singleProjectReservedStateMetadata.size()
-            );
-            combinedMetadata.addAll(reservedStateMetadata.values());
-            combinedMetadata.addAll(singleProjectReservedStateMetadata.values());
-            out.writeCollection(combinedMetadata);
+            out.writeCollection(reservedStateMetadata.values());
         } else {
             VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
 

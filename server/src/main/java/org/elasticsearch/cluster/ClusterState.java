@@ -24,10 +24,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.project.ProjectStateRegistry;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -75,7 +73,6 @@ import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
@@ -1319,13 +1316,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         clusterName.writeTo(out);
         out.writeLong(version);
         out.writeString(stateUUID);
-        if (out.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
-            Map<String, ReservedStateMetadata> singleProjectReservedState = ProjectStateRegistry.get(this)
-                .reservedStateMetadata(Metadata.DEFAULT_PROJECT_ID);
-            metadata.writeTo(out, singleProjectReservedState);
-        } else {
-            metadata.writeTo(out);
-        }
+        metadata.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
             routingTable.writeTo(out);
         } else {
@@ -1375,31 +1366,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             );
             features = after.clusterFeatures.diff(before.clusterFeatures);
 
-            metadata = getMetadataDiff(before, after);
+            metadata = after.metadata.diff(before.metadata);
             blocks = after.blocks.diff(before.blocks);
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-        }
-
-        @FixForMultiProject
-        private Diff<Metadata> getMetadataDiff(ClusterState before, ClusterState after) {
-            final Diff<Metadata> metadata;
-            ProjectStateRegistry projectStateRegistry = ProjectStateRegistry.get(after);
-            if (projectStateRegistry.size() == 1 && projectStateRegistry.hasProject(Metadata.DEFAULT_PROJECT_ID)) {
-                Map<String, ReservedStateMetadata> reservedStateMetadataBefore = ProjectStateRegistry.get(before)
-                    .reservedStateMetadata(DEFAULT_PROJECT_ID);
-                Map<String, ReservedStateMetadata> reservedStateMetadataAfter = projectStateRegistry.reservedStateMetadata(
-                    DEFAULT_PROJECT_ID
-                );
-                DiffableUtils.MapDiff<String, ReservedStateMetadata, Map<String, ReservedStateMetadata>> diff = DiffableUtils.diff(
-                    reservedStateMetadataBefore,
-                    reservedStateMetadataAfter,
-                    DiffableUtils.getStringKeySerializer()
-                );
-                metadata = after.metadata.diff(before.metadata, diff);
-            } else {
-                metadata = after.metadata.diff(before.metadata);
-            }
-            return metadata;
         }
 
         ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {

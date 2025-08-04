@@ -17,7 +17,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -49,7 +48,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
     public record ShardConfig(Query query, IndexSearcher searcher) {}
 
     private final BlockFactory blockFactory;
-    private final ShardConfig[] shards;
+    protected final ShardConfig[] shards;
 
     private final List<ShardState> perShardState;
 
@@ -266,8 +265,11 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
                     min,
                     max,
                     scoreBuilder,
+                    ctx,
                     LuceneQueryEvaluator.this::appendNoMatch,
-                    LuceneQueryEvaluator.this::appendMatch
+                    (builder, scorer1, docId, ctc, query) ->
+                        LuceneQueryEvaluator.this.appendMatch(builder, scorer1, docId, ctx, query),
+                    weight.getQuery()
                 )
             ) {
                 bulkScorer.score(collector, ctx.reader().getLiveDocs(), min, max + 1);
@@ -308,17 +310,22 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
 
         private void scoreSingleDocWithScorer(T builder, int doc) throws IOException {
             if (scorer.iterator().docID() == doc) {
-                appendMatch(builder, scorer);
+                appendMatch(builder, scorer, doc, ctx, weight.getQuery());
             } else if (scorer.iterator().docID() > doc) {
                 appendNoMatch(builder);
             } else {
                 if (scorer.iterator().advance(doc) == doc) {
-                    appendMatch(builder, scorer);
+                    appendMatch(builder, scorer, doc, ctx, weight.getQuery());
                 } else {
                     appendNoMatch(builder);
                 }
             }
         }
+    }
+
+    @FunctionalInterface
+    public interface MatchAppender<T, U, E extends Exception> {
+        void accept(T t, U u, int docId, LeafReaderContext leafReaderContext, Query query) throws E;
     }
 
     /**
@@ -329,8 +336,10 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
     static class DenseCollector<U extends Vector.Builder> implements LeafCollector, Releasable {
         private final U scoreBuilder;
         private final int max;
+        private final LeafReaderContext leafReaderContext;
         private final Consumer<U> appendNoMatch;
-        private final CheckedBiConsumer<U, Scorable, IOException> appendMatch;
+        private final MatchAppender<U, Scorable, IOException> appendMatch;
+        private final Query query;
 
         private Scorable scorer;
         int next;
@@ -339,14 +348,17 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
             int min,
             int max,
             U scoreBuilder,
+            LeafReaderContext leafReaderContext,
             Consumer<U> appendNoMatch,
-            CheckedBiConsumer<U, Scorable, IOException> appendMatch
+            MatchAppender<U, Scorable, IOException> appendMatch, Query query
         ) {
             this.scoreBuilder = scoreBuilder;
             this.max = max;
             next = min;
+            this.leafReaderContext = leafReaderContext;
             this.appendNoMatch = appendNoMatch;
             this.appendMatch = appendMatch;
+            this.query = query;
         }
 
         @Override
@@ -359,7 +371,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
             while (next++ < doc) {
                 appendNoMatch.accept(scoreBuilder);
             }
-            appendMatch.accept(scoreBuilder, scorer);
+            appendMatch.accept(scoreBuilder, scorer, doc, leafReaderContext, query);
         }
 
         public Vector build() {
@@ -397,7 +409,7 @@ public abstract class LuceneQueryEvaluator<T extends Vector.Builder> implements 
     /**
      * Appends a matching result to a builder created by @link createVectorBuilder}
      */
-    protected abstract void appendMatch(T builder, Scorable scorer) throws IOException;
+    protected abstract void appendMatch(T builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query) throws IOException;
 
     /**
      * Appends a non matching result to a builder created by @link createVectorBuilder}

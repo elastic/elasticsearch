@@ -40,7 +40,7 @@ public class SearchHighlightContext {
         private final String field;
         private final FieldOptions fieldOptions;
 
-        Field(String field, FieldOptions fieldOptions) {
+        public Field(String field, FieldOptions fieldOptions) {
             assert field != null;
             assert fieldOptions != null;
             this.field = field;
@@ -185,16 +185,16 @@ public class SearchHighlightContext {
             return options;
         }
 
-        static class Builder {
+        public static class Builder {
 
             private final FieldOptions fieldOptions = new FieldOptions();
 
-            Builder fragmentCharSize(int fragmentCharSize) {
+            public Builder fragmentCharSize(int fragmentCharSize) {
                 fieldOptions.fragmentCharSize = fragmentCharSize;
                 return this;
             }
 
-            Builder numberOfFragments(int numberOfFragments) {
+            public Builder numberOfFragments(int numberOfFragments) {
                 fieldOptions.numberOfFragments = numberOfFragments;
                 return this;
             }
@@ -294,7 +294,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            FieldOptions build() {
+            public FieldOptions build() {
                 return fieldOptions;
             }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -17,6 +18,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.index.mapper.IdLoader;
 
 import java.io.IOException;
 
@@ -60,7 +62,8 @@ public class LuceneQueryExpressionEvaluator extends LuceneQueryEvaluator<Boolean
     }
 
     @Override
-    protected void appendMatch(BooleanVector.Builder builder, Scorable scorer) throws IOException {
+    protected void appendMatch(BooleanVector.Builder builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
+        throws IOException {
         builder.appendBoolean(true);
     }
 

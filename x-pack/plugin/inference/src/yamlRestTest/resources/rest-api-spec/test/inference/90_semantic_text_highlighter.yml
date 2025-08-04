@@ -674,8 +674,8 @@ setup:
 ---
 "Retrieve chunks with the fields api":
   - requires:
-      cluster_features: "semantic_text.match_all_highlighter"
-      reason: semantic text field supports match_all query with semantic highlighter, effective from 8.19 and 9.1.0.
+      cluster_features: "semantic_text.fields_chunks_format"
+      reason: semantic text field supports retrieving chunks through fields API in 9.2.0.
 
   - do:
       indices.create:

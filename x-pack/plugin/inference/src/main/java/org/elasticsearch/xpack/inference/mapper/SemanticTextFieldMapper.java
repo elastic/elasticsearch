@@ -868,7 +868,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null && "chunks".equals(format) == false) {
                 throw new IllegalArgumentException(
-                    "Unknow format [" + format + "] for field [" + name() + "], only [chunks] is supported."
+                    "Unknown format [" + format + "] for field [" + name() + "], only [chunks] is supported."
                 );
             }
             if (format != null) {

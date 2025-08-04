@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -70,7 +71,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         whenClusterStateWithUUID(clusterUUID);
 
         final RoutingTable routingTable = mock(RoutingTable.class);
-        when(clusterState.routingTable()).thenReturn(routingTable);
+        when(clusterState.routingTable(any())).thenReturn(routingTable);
 
         final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         final MonitoringDoc.Node node = randomMonitoringNode(random());

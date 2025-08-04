@@ -1887,14 +1887,17 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                     throw new IllegalStateException("Multirow values require exactly 1 element to be a literal, got " + values.size());
                 }
 
-                return new Literal(Source.synthetic(name), stringToBytesRef(values.get(0), type), type);
+                return new Literal(Source.synthetic(name), convertLiterals(values.get(0), type), type);
             }
-            return new Literal(Source.synthetic(name), stringToBytesRef(data, type), type);
+            return new Literal(Source.synthetic(name), convertLiterals(data, type), type);
         }
 
-        private Object stringToBytesRef(Object o, DataType type) {
+        private Object convertLiterals(Object o, DataType type) {
             if ((type == DataType.KEYWORD || type == DataType.TEXT) && o instanceof String s) {
                 return BytesRefs.toBytesRef(s);
+            }
+            if (type == DataType.UNSIGNED_LONG && o instanceof BigInteger bi) {
+                return NumericUtils.asLongUnsigned(bi);
             }
             return o;
         }

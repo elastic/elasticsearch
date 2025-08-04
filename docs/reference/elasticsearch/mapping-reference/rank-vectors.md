@@ -109,6 +109,10 @@ $$$rank-vectors-element-type$$$
 :   (Optional, integer) Number of vector dimensions. Can’t exceed `4096`. If `dims` is not specified, it will be set to the length of the first vector added to the field.
 
 ## Accessing `dense_vector` fields in search responses
+```{applies_to}
+stack: ga 9.2
+serverless: ga
+```
 
 By default, `dense_vector` fields are **not included in `_source`** in responses from the `_search`, `_msearch`, `_get`, and `_mget` APIs.
 This helps reduce response size and improve performance, especially in scenarios where vectors are used solely for similarity scoring and not required in the output.

@@ -134,10 +134,6 @@ POST my-index-2/_search
 ```
 
 ### Storage behavior and `_source`
-```{applies_to}
-stack: ga 9.2
-serverless: ga
-```
 
 By default, `dense_vector` fields are **not stored in `_source`** on disk. This is also controlled by the index setting `index.mapping.exclude_source_vectors`.
 This setting is enabled by default for newly created indices and can only be set at index creation time.
@@ -150,18 +146,10 @@ When enabled:
 This setting is compatible with synthetic `_source`, where the entire `_source` document is reconstructed from columnar storage. In full synthetic mode, no `_source` is stored on disk, and all fields — including vectors — are rebuilt when needed.
 
 ### Rehydration and precision
-```{applies_to}
-stack: ga 9.2
-serverless: ga
-```
 
 When vector values are rehydrated (e.g., for reindex, recovery, or explicit `_source` requests), they are restored from their internal format. Internally, vectors are stored at float precision, so if they were originally indexed as higher-precision types (e.g., `double` or `long`), the rehydrated values will have reduced precision. This lossy representation is intended to save space while preserving search quality.
 
 ### Storing original vectors in `_source`
-```{applies_to}
-stack: ga 9.2
-serverless: ga
-```
 
 If you want to preserve the original vector values exactly as they were provided, you can re-enable vector storage in `_source`:
 

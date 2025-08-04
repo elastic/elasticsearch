@@ -871,7 +871,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 filter,
                 () -> mapper.mapping().syntheticFieldLoader(filter),
                 SourceFieldMetrics.NOOP,
-                mapper.mapping().ignoredFieldsLoader()
+                mapper.mapping().ignoredSourceFormat()
             );
             var sourceLeafLoader = sourceLoader.leaf(getOnlyLeafReader(reader), docIds);
             var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields())

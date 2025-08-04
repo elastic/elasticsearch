@@ -40,17 +40,17 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     private final Reader<?> reader;
     private final String fieldName;
     private final Set<String> fieldPaths;
-    private final IgnoredSourceFieldMapper.IgnoredFieldsLoader ignoredFieldsLoader;
+    private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
     protected FallbackSyntheticSourceBlockLoader(
         Reader<?> reader,
         String fieldName,
-        IgnoredSourceFieldMapper.IgnoredFieldsLoader ignoredFieldsLoader
+        IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
     ) {
-        assert ignoredFieldsLoader != IgnoredSourceFieldMapper.IgnoredFieldsLoader.NO_IGNORED_SOURCE;
+        assert ignoredSourceFormat != IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
         this.reader = reader;
         this.fieldName = fieldName;
-        this.ignoredFieldsLoader = ignoredFieldsLoader;
+        this.ignoredSourceFormat = ignoredSourceFormat;
         this.fieldPaths = splitIntoFieldPaths(fieldName);
     }
 
@@ -61,13 +61,13 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new IgnoredSourceRowStrideReader<>(fieldName, fieldPaths, reader, ignoredFieldsLoader);
+        return new IgnoredSourceRowStrideReader<>(fieldName, fieldPaths, reader, ignoredSourceFormat);
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
         Set<String> ignoredFieldNames;
-        if (ignoredFieldsLoader == IgnoredSourceFieldMapper.IgnoredFieldsLoader.PER_FIELD_IGNORED_SOURCE) {
+        if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE) {
             ignoredFieldNames = fieldPaths.stream().map(IgnoredSourceFieldMapper::ignoredFieldName).collect(Collectors.toSet());
         } else {
             ignoredFieldNames = Set.of(IgnoredSourceFieldMapper.NAME);
@@ -105,23 +105,23 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         private final String fieldName;
         private final Set<String> fieldPaths;
         private final Reader<T> reader;
-        private final IgnoredSourceFieldMapper.IgnoredFieldsLoader ignoredFieldsLoader;
+        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
         IgnoredSourceRowStrideReader(
             String fieldName,
             Set<String> fieldPaths,
             Reader<T> reader,
-            IgnoredSourceFieldMapper.IgnoredFieldsLoader ignoredFieldsLoader
+            IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
         ) {
             this.fieldName = fieldName;
             this.fieldPaths = fieldPaths;
             this.reader = reader;
-            this.ignoredFieldsLoader = ignoredFieldsLoader;
+            this.ignoredSourceFormat = ignoredSourceFormat;
         }
 
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = ignoredFieldsLoader.loadSingleIgnoredField(
+            Map<String, List<IgnoredSourceFieldMapper.NameValue>> valuesForFieldAndParents = ignoredSourceFormat.loadSingleIgnoredField(
                 fieldPaths,
                 storedFields.storedFields()
             );

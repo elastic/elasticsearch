@@ -271,7 +271,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         return fieldsToLoadForSyntheticSource;
     }
 
-    public enum IgnoredFieldsLoader {
+    public enum IgnoredSourceFormat {
         NO_IGNORED_SOURCE {
             @Override
             public Map<String, List<IgnoredSourceFieldMapper.NameValue>> loadAllIgnoredFields(
@@ -400,14 +400,14 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         );
     }
 
-    public IgnoredFieldsLoader ignoredFieldsLoader() {
-        return ignoredFieldsLoader(indexSettings.getIndexVersionCreated());
+    public IgnoredSourceFormat ignoredSourceFormat() {
+        return ignoredSourceFormat(indexSettings.getIndexVersionCreated());
     }
 
-    public static IgnoredFieldsLoader ignoredFieldsLoader(IndexVersion indexCreatedVersion) {
+    public static IgnoredSourceFormat ignoredSourceFormat(IndexVersion indexCreatedVersion) {
         return indexCreatedVersion.onOrAfter(IndexVersions.IGNORED_SOURCE_FIELDS_PER_ENTRY)
-            ? IgnoredFieldsLoader.PER_FIELD_IGNORED_SOURCE
-            : IgnoredFieldsLoader.SINGLE_IGNORED_SOURCE;
+            ? IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE
+            : IgnoredSourceFormat.SINGLE_IGNORED_SOURCE;
     }
 
     @Override

@@ -48,6 +48,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -130,42 +131,54 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         KnnCollectorManager knnCollectorManager = getKnnCollectorManager(numCands, indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
+        List<Callable<TopDocs>> tasks;
+        if (leafReaderContexts.isEmpty() == false) {
 
-        // calculate the affinity of each segment to the query vector
-        // (need information from each segment: no. of clusters, global centroid, density, parent centroids' scores, etc.)
-        List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector());
+            // calculate the affinity of each segment to the query vector
+            // (need information from each segment: no. of clusters, global centroid, density, parent centroids' scores, etc.)
+            List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector());
 
-        // TODO: sort segments by affinity score in descending order, and cut the long tail ?
-        double[] affinityScores = segmentAffinities.stream().map(SegmentAffinity::affinityScore).mapToDouble(Double::doubleValue).toArray();
+            // TODO: sort segments by affinity score in descending order, and cut the long tail ?
+            double[] affinityScores = segmentAffinities.stream().map(SegmentAffinity::affinityScore).mapToDouble(Double::doubleValue).toArray();
 
-        // max affinity for decreasing nProbe
-        double average = Arrays.stream(affinityScores).average().orElse(0.0);
-        double maxAffinity = Arrays.stream(affinityScores).max().orElse(0.0);
-        double lowerAffinity = (maxAffinity + average) * 0.5;
-        double cutoffAffinity = lowerAffinity * 0.5; // minimum affinity score for a segment to be considered
-        double affinityTreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing nProbe
-        int maxAdjustments = (int) (nProbe * 1.5);
+            // max affinity for decreasing nProbe
+            double averageAffinity = Arrays.stream(affinityScores).average().orElse(Double.NaN);
+            double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
+            double lowerAffinity = (maxAffinity + averageAffinity) * 0.5;
+            double cutoffAffinity = lowerAffinity * 0.5; // minimum affinity score for a segment to be considered
+            double affinityTreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing nProbe
+            int maxAdjustments = (int) (nProbe * 1.5);
 
-        Map<LeafReaderContext, Integer> segmentNProbeMap = new HashMap<>();
-        // process segments based on their affinity scores
-        for (SegmentAffinity affinity : segmentAffinities) {
-            double score = affinity.affinityScore();
+            if (Double.isNaN(maxAffinity) || Double.isNaN(averageAffinity)) {
+                tasks = new ArrayList<>(leafReaderContexts.size());
+                for (LeafReaderContext context : leafReaderContexts) {
+                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, nProbe));
+                }
+            } else {
+                Map<LeafReaderContext, Integer> segmentNProbeMap = new HashMap<>();
+                // process segments based on their affinity scores
+                for (SegmentAffinity affinity : segmentAffinities) {
+                    double score = affinity.affinityScore();
 
-            // skip segments with very low affinity
-            if (score < cutoffAffinity) {
-                continue;
+                    // skip segments with very low affinity
+                    if (score < cutoffAffinity) {
+                        continue;
+                    }
+
+                    // adjust nProbe based on affinity score, with larger affinity we increase nprobe (and viceversa)
+                    int adjustedNProbe = adjustNProbeForSegment(score, affinityTreshold, maxAdjustments);
+
+                    // store the adjusted nProbe value for this segment
+                    segmentNProbeMap.put(affinity.context(), adjustedNProbe);
+                }
+
+                tasks = new ArrayList<>(segmentNProbeMap.size());
+                for (Map.Entry<LeafReaderContext, Integer> entry : segmentNProbeMap.entrySet()) {
+                    tasks.add(() -> searchLeaf(entry.getKey(), filterWeight, knnCollectorManager, entry.getValue()));
+                }
             }
-
-            // sdjust nProbe based on affinity score, with larger affinity we increase nprobe (and viceversa)
-            int adjustedNProbe = adjustNProbeForSegment(score, affinityTreshold, maxAdjustments);
-
-            // store the adjusted nProbe value for this segment
-            segmentNProbeMap.put(affinity.context(), adjustedNProbe);
-        }
-
-        List<Callable<TopDocs>> tasks = new ArrayList<>(segmentNProbeMap.size());
-        for (Map.Entry<LeafReaderContext, Integer> entry : segmentNProbeMap.entrySet()) {
-            tasks.add(() -> searchLeaf(entry.getKey(), filterWeight, knnCollectorManager, entry.getValue()));
+        } else {
+            tasks = Collections.emptyList();
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
 

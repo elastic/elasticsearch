@@ -220,7 +220,7 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
         private final BlockLoader[] loaders;
         private final boolean[] dimensions;
         private final Block.Builder[] builders;
-        private final StoredFieldsSpec storedFieldsSpec;
+        private final BlockLoader.FieldsSpec fieldsSpec;
         private final SourceLoader sourceLoader;
 
         ShardLevelFieldsReader(
@@ -235,23 +235,23 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
             this.segments = new SegmentLevelFieldsReader[indexReader.leaves().size()];
             this.loaders = new BlockLoader[fields.size()];
             this.builders = new Block.Builder[loaders.length];
-            StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
+            BlockLoader.FieldsSpec fieldsSpec = BlockLoader.FieldsSpec.NO_REQUIREMENTS;
             for (int i = 0; i < fields.size(); i++) {
                 BlockLoader loader = fields.get(i).blockLoader().apply(shardIndex);
-                storedFieldsSpec = storedFieldsSpec.merge(loader.rowStrideStoredFieldSpec());
+                fieldsSpec = fieldsSpec.merge(loader.rowStrideFieldSpec());
                 loaders[i] = loader;
             }
             for (int i = 0; i < indexReader.leaves().size(); i++) {
                 LeafReaderContext leafReaderContext = indexReader.leaves().get(i);
                 segments[i] = new SegmentLevelFieldsReader(leafReaderContext, loaders);
             }
-            if (storedFieldsSpec.requiresSource()) {
+            if (fieldsSpec.storedFieldsSpec().requiresSource()) {
                 sourceLoader = shardContext.newSourceLoader();
-                storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
+                fieldsSpec = fieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
             } else {
                 sourceLoader = null;
             }
-            this.storedFieldsSpec = storedFieldsSpec;
+            this.fieldsSpec = fieldsSpec;
             this.dimensions = new boolean[fields.size()];
             for (int i = 0; i < fields.size(); i++) {
                 final var mappedFieldType = shardContext.fieldType(fields.get(i).name());
@@ -274,7 +274,7 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
                 }
             }
             for (SegmentLevelFieldsReader segment : segments) {
-                segment.reinitializeIfNeeded(sourceLoader, storedFieldsSpec);
+                segment.reinitializeIfNeeded(sourceLoader, fieldsSpec);
             }
         }
 
@@ -329,7 +329,7 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
             this.rowStride = new BlockLoader.RowStrideReader[loaders.length];
         }
 
-        private void reinitializeIfNeeded(SourceLoader sourceLoader, StoredFieldsSpec storedFieldsSpec) throws IOException {
+        private void reinitializeIfNeeded(SourceLoader sourceLoader, BlockLoader.FieldsSpec fieldsSpec) throws IOException {
             final Thread currentThread = Thread.currentThread();
             if (loadedThread != currentThread) {
                 loadedThread = currentThread;
@@ -337,7 +337,7 @@ public class TimeSeriesExtractFieldOperator extends AbstractPageMappingOperator 
                     rowStride[f] = loaders[f].rowStrideReader(leafContext);
                 }
                 storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
-                    StoredFieldLoader.fromSpec(storedFieldsSpec).getLoader(leafContext, null),
+                    StoredFieldLoader.fromSpec(fieldsSpec, false).getLoader(leafContext, null),
                     sourceLoader != null ? sourceLoader.leaf(leafContext.reader(), null) : null
                 );
             }

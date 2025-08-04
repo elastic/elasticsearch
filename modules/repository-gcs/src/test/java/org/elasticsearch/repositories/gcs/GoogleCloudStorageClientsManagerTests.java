@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.ProjectSecrets;
 import org.elasticsearch.common.settings.SecureClusterStateSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.repositories.gcs.GoogleCloudStorageService.GoogleCloudStorageClientsManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;

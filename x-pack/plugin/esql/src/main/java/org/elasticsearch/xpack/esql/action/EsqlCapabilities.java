@@ -1518,7 +1518,10 @@ public class EsqlCapabilities {
          */
         TS_COMMAND_V0(),
 
-        ;
+        /**
+         * Support for sparkline function.
+         */
+        SPARKLINE;
 
         private final boolean enabled;
 

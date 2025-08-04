@@ -81,6 +81,26 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
   ]
 }
 
+def propWithoutExtra(prop1) {
+  def res = [ "hasExtra": "" ]
+  for ( e in prop1 ) {
+    res.put(e.key, e.value)
+    res.put("Extra" + e.key, "")
+  }
+  return res
+}
+
+def propWithExtra(prop1, prop2) {
+  def res = [ "hasExtra": "true" ]
+  for ( e in prop1 ) {
+    res.put(e.key, e.value)
+  }
+  for ( e in prop2 ) {
+    res.put("Extra" + e.key, e.value)
+  }
+  return res
+}
+
 def addOccurrence(props, Occurrence) {
   def newProps = props.collectEntries { [(it.key): it.value] }
   newProps["Occurrence"] = Occurrence
@@ -651,6 +671,28 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/ValuesBytesRefAggregator.java"
   }
 
+  File sparklineAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-SparklineAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineDoubleAggregator.java"
+  }
+
   File stdDevAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-StdDevAggregator.java.st")
   template {
     it.properties = intProperties
@@ -875,24 +917,44 @@ tasks.named('stringTemplates').configure {
 
   File bucketedSortInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/data/sort/X-BucketedSort.java.st")
   template {
-    it.properties = intProperties
+    it.properties = propWithoutExtra(intProperties)
     it.inputFile = bucketedSortInputFile
     it.outputFile = "org/elasticsearch/compute/data/sort/IntBucketedSort.java"
   }
   template {
-    it.properties = longProperties
+    it.properties = propWithoutExtra(longProperties)
     it.inputFile = bucketedSortInputFile
     it.outputFile = "org/elasticsearch/compute/data/sort/LongBucketedSort.java"
   }
   template {
-    it.properties = floatProperties
+    it.properties = propWithoutExtra(floatProperties)
     it.inputFile = bucketedSortInputFile
     it.outputFile = "org/elasticsearch/compute/data/sort/FloatBucketedSort.java"
   }
   template {
-    it.properties = doubleProperties
+    it.properties = propWithoutExtra(doubleProperties)
     it.inputFile = bucketedSortInputFile
     it.outputFile = "org/elasticsearch/compute/data/sort/DoubleBucketedSort.java"
+  }
+  template {
+    it.properties = propWithExtra(longProperties, intProperties)
+    it.inputFile = bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/LongIntBucketedSort.java"
+  }
+  template {
+    it.properties = propWithExtra(longProperties, longProperties)
+    it.inputFile = bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/LongLongBucketedSort.java"
+  }
+  template {
+    it.properties = propWithExtra(longProperties, floatProperties)
+    it.inputFile = bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/LongFloatBucketedSort.java"
+  }
+  template {
+    it.properties = propWithExtra(longProperties, doubleProperties)
+    it.inputFile = bucketedSortInputFile
+    it.outputFile = "org/elasticsearch/compute/data/sort/LongDoubleBucketedSort.java"
   }
 
   File enrichResultBuilderInput = file("src/main/java/org/elasticsearch/compute/operator/lookup/X-EnrichResultBuilder.java.st")

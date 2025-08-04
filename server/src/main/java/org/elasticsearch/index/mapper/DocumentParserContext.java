@@ -14,6 +14,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -115,6 +116,11 @@ public abstract class DocumentParserContext {
         @Override
         public boolean isImmediateParentAnArray() {
             return in.isImmediateParentAnArray();
+        }
+
+        @Override
+        public BytesRef getTsid() {
+            return in.getTsid();
         }
     }
 
@@ -265,7 +271,7 @@ public abstract class DocumentParserContext {
             null,
             null,
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(mappingParserContext.getIndexSettings().seqNoIndexOptions()),
-            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings()),
+            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings(), source),
             parent,
             dynamic,
             new HashSet<>(),
@@ -870,6 +876,9 @@ public abstract class DocumentParserContext {
     public abstract LuceneDocument doc();
 
     protected abstract void addDoc(LuceneDocument doc);
+
+    @Nullable
+    public abstract BytesRef getTsid();
 
     /**
      * Find a dynamic mapping template for the given field and its matching type

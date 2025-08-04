@@ -394,7 +394,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
+        return new SourceToParse(id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates, null);
     }
 
     /**

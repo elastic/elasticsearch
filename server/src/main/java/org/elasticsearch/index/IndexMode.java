@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -113,7 +114,7 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
+        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
             return RoutingFields.Noop.INSTANCE;
         }
 
@@ -146,13 +147,17 @@ public enum IndexMode {
                     throw new IllegalArgumentException(error(unsupported));
                 }
             }
-            checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
+            Setting<List<String>> routingPath = IndexMetadata.INDEX_ROUTING_PATH;
+            if (isEmpty(settings, routingPath) && isEmpty(settings, IndexMetadata.INDEX_DIMENSIONS)) {
+                // index.dimensions is a private setting that only gets populated for data streams.
+                // We don't include it in the error message to not confuse users that are manually creating time series indices
+                // which is the only case where this error can occur.
+                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + routingPath.getKey() + "]");
+            }
         }
 
-        private static void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
-            if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
-            }
+        private static boolean isEmpty(Map<Setting<?>, Object> settings, Setting<List<String>> setting) {
+            return Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting));
         }
 
         private static String error(Setting<?> unsupported) {
@@ -213,7 +218,11 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
+        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
+            if (source.tsid() != null) {
+                // If the source already has a _tsid field, we don't need to extract routing from the source.
+                return RoutingFields.Noop.INSTANCE;
+            }
             IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
             return new RoutingPathFields(routing.builder());
         }
@@ -295,7 +304,7 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
+        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
             return RoutingFields.Noop.INSTANCE;
         }
 
@@ -376,7 +385,7 @@ public enum IndexMode {
         }
 
         @Override
-        public RoutingFields buildRoutingFields(IndexSettings settings) {
+        public RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source) {
             return RoutingFields.Noop.INSTANCE;
         }
 
@@ -460,6 +469,7 @@ public enum IndexMode {
                 IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING,
                 IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING,
                 IndexMetadata.INDEX_ROUTING_PATH,
+                IndexMetadata.INDEX_DIMENSIONS,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.TIME_SERIES_START_TIME,
                 IndexSettings.TIME_SERIES_END_TIME
@@ -536,7 +546,7 @@ public enum IndexMode {
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
      */
-    public abstract RoutingFields buildRoutingFields(IndexSettings settings);
+    public abstract RoutingFields buildRoutingFields(IndexSettings settings, SourceToParse source);
 
     /**
      * @return Whether timestamps should be validated for being withing the time range of an index.

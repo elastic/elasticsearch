@@ -249,19 +249,27 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModelWithSecrets(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
-        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+        ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
                 var maybeDefault = defaultConfigIds.get(inferenceEntityId);
                 if (maybeDefault != null) {
                     getDefaultConfig(true, maybeDefault, listener);
                 } else {
-                    delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
+                    listener.onFailure(inferenceNotFoundException(inferenceEntityId));
                 }
                 return;
             }
 
-            delegate.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
+            listener.onResponse(unparsedModelFromMap(createModelConfigMap(searchResponse.getHits(), inferenceEntityId)));
+        }, (e) -> {
+            logger.warn(format("Failed to load inference endpoint [%s]", inferenceEntityId), e);
+            listener.onFailure(
+                new ElasticsearchException(
+                    format("Failed to load inference endpoint [%s], error: [%s]", inferenceEntityId, e.getMessage()),
+                    e
+                )
+            );
         });
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);
@@ -281,21 +289,29 @@ public class ModelRegistry implements ClusterStateListener {
      * @param listener Model listener
      */
     public void getModel(String inferenceEntityId, ActionListener<UnparsedModel> listener) {
-        ActionListener<SearchResponse> searchListener = listener.delegateFailureAndWrap((delegate, searchResponse) -> {
+        ActionListener<SearchResponse> searchListener = ActionListener.wrap((searchResponse) -> {
             // There should be a hit for the configurations
             if (searchResponse.getHits().getHits().length == 0) {
                 var maybeDefault = defaultConfigIds.get(inferenceEntityId);
                 if (maybeDefault != null) {
                     getDefaultConfig(true, maybeDefault, listener);
                 } else {
-                    delegate.onFailure(inferenceNotFoundException(inferenceEntityId));
+                    listener.onFailure(inferenceNotFoundException(inferenceEntityId));
                 }
                 return;
             }
 
             var modelConfigs = parseHitsAsModels(searchResponse.getHits()).stream().map(ModelRegistry::unparsedModelFromMap).toList();
             assert modelConfigs.size() == 1;
-            delegate.onResponse(modelConfigs.get(0));
+            listener.onResponse(modelConfigs.get(0));
+        }, e -> {
+            logger.warn(format("Failed to load inference endpoint [%s]", inferenceEntityId), e);
+            listener.onFailure(
+                new ElasticsearchException(
+                    format("Failed to load inference endpoint [%s], error: [%s]", inferenceEntityId, e.getMessage()),
+                    e
+                )
+            );
         });
 
         QueryBuilder queryBuilder = documentIdQuery(inferenceEntityId);

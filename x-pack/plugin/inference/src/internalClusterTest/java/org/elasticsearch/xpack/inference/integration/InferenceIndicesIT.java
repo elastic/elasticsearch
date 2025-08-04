@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,6 +45,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class InferenceIndicesIT extends ESIntegTestCase {
@@ -137,11 +139,40 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         internalCluster().stopNode(configIndexDataNodes);
 
         var responseFailureFuture = client().execute(GetInferenceModelAction.INSTANCE, getInferenceEndpointRequest);
-        var exception = expectThrows(SearchPhaseExecutionException.class, () -> responseFailureFuture.actionGet(TEST_REQUEST_TIMEOUT));
+        var exception = expectThrows(ElasticsearchException.class, () -> responseFailureFuture.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(exception.toString(), containsString("Failed to load inference endpoint [test-index-id]"));
 
-        assertThat(exception.toString(), containsString("all shards failed"));
-        assertThat(exception.toString(), containsString("Node not connected"));
-        assertThat(exception.toString(), containsString(".inference"));
+        var causeException = exception.getCause();
+        assertThat(causeException, instanceOf(SearchPhaseExecutionException.class));
+        assertThat(causeException.toString(), containsString(".inference"));
+    }
+
+    public void testRetrievingInferenceEndpoint_ThrowsException_WhenIndexNodeIsNotAvailable_ForInferenceAction() throws Exception {
+        final var configIndexNodeAttributes = Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, CONFIG_ROUTER).build();
+
+        internalCluster().startMasterOnlyNode(configIndexNodeAttributes);
+        final var configIndexDataNodes = internalCluster().startDataOnlyNode(configIndexNodeAttributes);
+
+        internalCluster().startDataOnlyNode(Settings.builder().put(INDEX_ROUTER_ATTRIBUTE, SECRETS_ROUTER).build());
+
+        final var inferenceId = "test-index-id-2";
+        createInferenceEndpoint(TaskType.TEXT_EMBEDDING, inferenceId, TEST_SERVICE_SETTINGS);
+
+        // Ensure the inference indices are created and we can retrieve the inference endpoint
+        var getInferenceEndpointRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.TEXT_EMBEDDING, true);
+        var responseFuture = client().execute(GetInferenceModelAction.INSTANCE, getInferenceEndpointRequest);
+        assertThat(responseFuture.actionGet(TEST_REQUEST_TIMEOUT).getEndpoints().get(0).getInferenceEntityId(), equalTo(inferenceId));
+
+        // stop the node that holds the inference index
+        internalCluster().stopNode(configIndexDataNodes);
+
+        var proxyResponse = sendInferenceProxyRequest(inferenceId);
+        var exception = expectThrows(ElasticsearchException.class, () -> proxyResponse.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(exception.toString(), containsString("Failed to load inference endpoint [test-index-id-2]"));
+
+        var causeException = exception.getCause();
+        assertThat(causeException, instanceOf(SearchPhaseExecutionException.class));
+        assertThat(causeException.toString(), containsString(".inference"));
     }
 
     public void testRetrievingInferenceEndpoint_ThrowsException_WhenSecretsIndexNodeIsNotAvailable() throws Exception {
@@ -165,11 +196,14 @@ public class InferenceIndicesIT extends ESIntegTestCase {
         internalCluster().stopNode(secretIndexDataNodes);
 
         var proxyResponse = sendInferenceProxyRequest(inferenceId);
-        var exception = expectThrows(SearchPhaseExecutionException.class, () -> proxyResponse.actionGet(TEST_REQUEST_TIMEOUT));
 
-        assertThat(exception.toString(), containsString("shards failure"));
-        assertThat(exception.toString(), containsString("Node not connected"));
-        assertThat(exception.toString(), containsString(".secrets-inference"));
+        var exception = expectThrows(ElasticsearchException.class, () -> proxyResponse.actionGet(TEST_REQUEST_TIMEOUT));
+        assertThat(exception.toString(), containsString("Failed to load inference endpoint [test-secrets-index-id]"));
+
+        var causeException = exception.getCause();
+
+        assertThat(causeException, instanceOf(SearchPhaseExecutionException.class));
+        assertThat(causeException.toString(), containsString(".secrets-inference"));
     }
 
     private ActionFuture<InferenceAction.Response> sendInferenceProxyRequest(String inferenceId) throws IOException {

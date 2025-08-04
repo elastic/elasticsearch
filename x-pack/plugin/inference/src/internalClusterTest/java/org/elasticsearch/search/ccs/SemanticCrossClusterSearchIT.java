@@ -52,11 +52,22 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
     private static final String REMOTE_CLUSTER = "cluster_a";
     private static final String INFERENCE_FIELD = "inference_field";
 
-    private static final Map<String, Object> BBQ_COMPATIBLE_SERVICE_SETTINGS = Map.of(
+    private static final Map<String, Object> TEXT_EMBEDDING_SERVICE_SETTINGS_1 = Map.of(
         "model",
         "my_model",
         "dimensions",
         256,
+        "similarity",
+        "cosine",
+        "api_key",
+        "my_api_key"
+    );
+
+    private static final Map<String, Object> TEXT_EMBEDDING_SERVICE_SETTINGS_2 = Map.of(
+        "model",
+        "my_model",
+        "dimensions",
+        384,
         "similarity",
         "cosine",
         "api_key",
@@ -142,9 +153,15 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
     }
 
     private Map<String, Object> setupTwoClusters(String[] localIndices, String[] remoteIndices) throws IOException {
-        final String inferenceId = "test_inference_id";
-        createInferenceEndpoint(client(LOCAL_CLUSTER), TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
-        createInferenceEndpoint(client(REMOTE_CLUSTER), TaskType.TEXT_EMBEDDING, inferenceId, BBQ_COMPATIBLE_SERVICE_SETTINGS);
+        final String localInferenceId = "local_inference_id";
+        final String remoteInferenceId = "remote_inference_id";
+
+        // TODO: Resolve bug where remote model registry overwrites local model registry in SemanticQueryBuilder
+        createInferenceEndpoint(client(LOCAL_CLUSTER), TaskType.TEXT_EMBEDDING, localInferenceId, TEXT_EMBEDDING_SERVICE_SETTINGS_1);
+        createInferenceEndpoint(client(LOCAL_CLUSTER), TaskType.TEXT_EMBEDDING, remoteInferenceId, TEXT_EMBEDDING_SERVICE_SETTINGS_2);
+
+        createInferenceEndpoint(client(REMOTE_CLUSTER), TaskType.TEXT_EMBEDDING, localInferenceId, TEXT_EMBEDDING_SERVICE_SETTINGS_1);
+        createInferenceEndpoint(client(REMOTE_CLUSTER), TaskType.TEXT_EMBEDDING, remoteInferenceId, TEXT_EMBEDDING_SERVICE_SETTINGS_2);
 
         int numShardsLocal = randomIntBetween(2, 10);
         Settings localSettings = indexSettings(numShardsLocal, randomIntBetween(0, 1)).build();
@@ -154,7 +171,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                     .indices()
                     .prepareCreate(localIndex)
                     .setSettings(localSettings)
-                    .setMapping(INFERENCE_FIELD, "type=semantic_text,inference_id=" + inferenceId)
+                    .setMapping(INFERENCE_FIELD, "type=semantic_text,inference_id=" + localInferenceId)
             );
             indexDocs(client(LOCAL_CLUSTER), localIndex);
         }
@@ -168,7 +185,7 @@ public class SemanticCrossClusterSearchIT extends AbstractMultiClustersTestCase 
                     .indices()
                     .prepareCreate(remoteIndex)
                     .setSettings(indexSettings(numShardsRemote, randomIntBetween(0, 1)))
-                    .setMapping(INFERENCE_FIELD, "type=semantic_text,inference_id=" + inferenceId)
+                    .setMapping(INFERENCE_FIELD, "type=semantic_text,inference_id=" + remoteInferenceId)
             );
             assertFalse(
                 client(REMOTE_CLUSTER).admin()

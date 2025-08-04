@@ -606,6 +606,28 @@ tasks.named('stringTemplates').configure {
     it.outputFile = "org/elasticsearch/compute/aggregation/ValuesBytesRefAggregator.java"
   }
 
+  File sparklineAggregatorInputFile = new File("${projectDir}/src/main/java/org/elasticsearch/compute/aggregation/X-SparklineAggregator.java.st")
+  template {
+    it.properties = intProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineIntAggregator.java"
+  }
+  template {
+    it.properties = longProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineLongAggregator.java"
+  }
+  template {
+    it.properties = floatProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineFloatAggregator.java"
+  }
+  template {
+    it.properties = doubleProperties
+    it.inputFile = sparklineAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/SparklineDoubleAggregator.java"
+  }
+
   File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateAggregator.java.st")
   template {
     it.properties = intProperties

@@ -1225,13 +1225,11 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
 
     /**
      * Expects
-     * </pre>
-     * {@code
+     * <pre>{@code
      * Limit[1000[INTEGER]]
      * \_Aggregate[[first_name{f}#16],[SUM(emp_no{f}#15) AS s, first_name{f}#16 AS f]]
      *   \_EsRelation[test][_meta_field{f}#21, emp_no{f}#15, first_name{f}#16, ..]
-     * }
-     * </pre>
+     * }</pre>
      */
     public void testCombineProjectionWithAggregationFirstAndAliasedGroupingUnused() {
         var plan = plan("""

@@ -90,8 +90,8 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
     public void testResyncDoesNotBlockOnPrimaryAction() throws Exception {
         ProjectId projectId = randomProjectIdOrDefault();
         try (ClusterService clusterService = createClusterService(threadPool)) {
-            final String indexName = randomAlphaOfLength(5);
-            setState(clusterService, state(projectId, indexName, true, ShardRoutingState.STARTED));
+            final Index index = new Index(randomAlphaOfLength(5), randomUUID());
+            setState(clusterService, state(projectId, index, true, ShardRoutingState.STARTED));
 
             setState(
                 clusterService,
@@ -99,7 +99,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     .blocks(
                         ClusterBlocks.builder()
                             .addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ALL)
-                            .addIndexBlock(indexName, IndexMetadata.INDEX_WRITE_BLOCK)
+                            .addIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK)
                     )
             );
 
@@ -130,8 +130,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 final ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
 
-                final IndexMetadata indexMetadata = clusterService.state().metadata().getProject(projectId).index(indexName);
-                final Index index = indexMetadata.getIndex();
+                final IndexMetadata indexMetadata = clusterService.state().metadata().getProject(projectId).index(index);
                 final ShardId shardId = new ShardId(index, 0);
                 final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable(projectId).shardRoutingTable(shardId);
                 final ShardRouting primaryShardRouting = clusterService.state()

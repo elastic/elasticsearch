@@ -34,10 +34,10 @@ public class PriorityComparatorTests extends ESTestCase {
     public void testPreferNewIndices() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards(mock(RoutingNodes.class));
         List<ShardRouting> shardRoutings = Arrays.asList(
-            shardRoutingBuilder("oldest", 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+            shardRoutingBuilder("oldest", randomUUID(), 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                 randomUnassignedInfo("foobar")
             ).build(),
-            shardRoutingBuilder("newest", 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+            shardRoutingBuilder("newest", randomUUID(), 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                 randomUnassignedInfo("foobar")
             ).build()
         );
@@ -71,10 +71,10 @@ public class PriorityComparatorTests extends ESTestCase {
     public void testPreferPriorityIndices() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards(mock(RoutingNodes.class));
         List<ShardRouting> shardRoutings = Arrays.asList(
-            shardRoutingBuilder("oldest", 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+            shardRoutingBuilder("oldest", randomUUID(), 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                 randomUnassignedInfo("foobar")
             ).build(),
-            shardRoutingBuilder("newest", 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+            shardRoutingBuilder("newest", randomUUID(), 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                 randomUnassignedInfo("foobar")
             ).build()
         );
@@ -108,10 +108,10 @@ public class PriorityComparatorTests extends ESTestCase {
     public void testPreferSystemIndices() {
         RoutingNodes.UnassignedShards shards = new RoutingNodes.UnassignedShards(mock(RoutingNodes.class));
         List<ShardRouting> shardRoutings = Arrays.asList(
-            shardRoutingBuilder("oldest", 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+            shardRoutingBuilder("oldest", randomUUID(), 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                 randomUnassignedInfo("foobar")
             ).build(),
-            shardRoutingBuilder("newest", 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+            shardRoutingBuilder("newest", randomUUID(), 0, null, randomBoolean(), ShardRoutingState.UNASSIGNED).withUnassignedInfo(
                 randomUnassignedInfo("foobar")
             ).build()
         );
@@ -175,13 +175,9 @@ public class PriorityComparatorTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             IndexMetadata indexMeta = randomFrom(indices);
             shards.add(
-                shardRoutingBuilder(
-                    indexMeta.getIndex().getName(),
-                    randomIntBetween(1, 5),
-                    null,
-                    randomBoolean(),
-                    ShardRoutingState.UNASSIGNED
-                ).withUnassignedInfo(randomUnassignedInfo("foobar")).build()
+                shardRoutingBuilder(indexMeta.getIndex(), randomIntBetween(1, 5), null, randomBoolean(), ShardRoutingState.UNASSIGNED)
+                    .withUnassignedInfo(randomUnassignedInfo("foobar"))
+                    .build()
             );
         }
         shards.sort(new PriorityComparator() {

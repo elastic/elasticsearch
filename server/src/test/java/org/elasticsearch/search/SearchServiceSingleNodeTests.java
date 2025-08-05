@@ -1242,6 +1242,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         service.beforeIndexShardCreated(
             TestShardRouting.newShardRouting(
                 "test",
+                randomUUID(),
                 0,
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),

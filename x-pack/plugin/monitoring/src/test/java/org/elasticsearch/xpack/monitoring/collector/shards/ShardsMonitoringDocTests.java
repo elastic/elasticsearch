@@ -41,6 +41,7 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
         node = assignedToNode ? MonitoringTestUtils.randomMonitoringNode(random()) : null;
         shardRouting = newShardRouting(
             randomAlphaOfLength(5),
+            randomUUID(),
             randomIntBetween(0, 5),
             assignedToNode ? node.getUUID() : null,
             randomBoolean(),
@@ -90,28 +91,28 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
     }
 
     public void testIdWithPrimaryShardAssigned() {
-        shardRouting = newShardRouting("_index_0", 123, "_node_0", randomAlphaOfLength(5), true, INITIALIZING);
+        shardRouting = newShardRouting("_index_0", randomUUID(), 123, "_node_0", randomAlphaOfLength(5), true, INITIALIZING);
         assertEquals("_state_uuid_0:_node_0:_index_0:s123:p", ShardMonitoringDoc.id("_state_uuid_0", shardRouting, 0));
     }
 
     public void testIdWithReplicaShardAssigned() {
-        shardRouting = newShardRouting("_index_1", 456, "_node_1", randomAlphaOfLength(5), false, INITIALIZING);
+        shardRouting = newShardRouting("_index_1", randomUUID(), 456, "_node_1", randomAlphaOfLength(5), false, INITIALIZING);
         assertEquals("_state_uuid_1:_node_1:_index_1:s456:r1", ShardMonitoringDoc.id("_state_uuid_1", shardRouting, 1));
     }
 
     public void testIdWithPrimaryShardUnassigned() {
-        shardRouting = newShardRouting("_index_2", 789, null, true, UNASSIGNED);
+        shardRouting = newShardRouting("_index_2", randomUUID(), 789, null, true, UNASSIGNED);
         assertEquals("_state_uuid_2:_na:_index_2:s789:p", ShardMonitoringDoc.id("_state_uuid_2", shardRouting, 0));
     }
 
     public void testIdWithReplicaShardUnassigned() {
-        shardRouting = newShardRouting("_index_3", 159, null, false, UNASSIGNED);
+        shardRouting = newShardRouting("_index_3", randomUUID(), 159, null, false, UNASSIGNED);
         assertEquals("_state_uuid_3:_na:_index_3:s159:r1", ShardMonitoringDoc.id("_state_uuid_3", shardRouting, 1));
     }
 
     @Override
     public void testToXContent() throws IOException {
-        shardRouting = newShardRouting("_index", 1, "_index_uuid", "_node_uuid", true, INITIALIZING);
+        shardRouting = newShardRouting("_index", randomUUID(), 1, "_index_uuid", "_node_uuid", true, INITIALIZING);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
         final ShardMonitoringDoc doc = new ShardMonitoringDoc(
             "_cluster",

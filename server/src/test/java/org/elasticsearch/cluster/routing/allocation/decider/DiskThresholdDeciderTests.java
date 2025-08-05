@@ -866,16 +866,13 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         DiscoveryNode discoveryNode1 = newNode("node1");
         DiscoveryNode discoveryNode2 = newNode("node2");
-
-        var testMetadata = IndexMetadata.builder("test")
-            .settings(settings(IndexVersion.current()))
-            .numberOfShards(2)
-            .numberOfReplicas(0)
+        Index testIndex = new Index("test", randomUUID());
+        var testMetadata = IndexMetadata.builder(testIndex.getName())
+            .settings(indexSettings(IndexVersion.current(), testIndex.getUUID(), 2, 0))
             .build();
-        var fooMetadata = IndexMetadata.builder("foo")
-            .settings(settings(IndexVersion.current()))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
+        Index fooIndex = new Index("foo", randomUUID());
+        var fooMetadata = IndexMetadata.builder(fooIndex.getName())
+            .settings(indexSettings(IndexVersion.current(), fooIndex.getUUID(), 1, 0))
             .build();
         ClusterState baseClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(testMetadata, false).put(fooMetadata, false).build())
@@ -885,9 +882,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(discoveryNode1).add(discoveryNode2).build())
             .build();
 
+        ShardId shard0Id = new ShardId(testIndex, 0);
+        ShardId shard1Id = new ShardId(testIndex, 1);
+
         // Two shards consuming each 80% of disk space while 70% is allowed, so shard 0 isn't allowed here
-        ShardRouting firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
-        ShardRouting secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", null, true, ShardRoutingState.STARTED);
+        ShardRouting firstRouting = TestShardRouting.newShardRouting(shard0Id, "node1", null, true, ShardRoutingState.STARTED);
+        ShardRouting secondRouting = TestShardRouting.newShardRouting(shard1Id, "node1", null, true, ShardRoutingState.STARTED);
         RoutingNode firstRoutingNode = RoutingNodesHelper.routingNode("node1", discoveryNode1, firstRouting, secondRouting);
         RoutingTable.Builder builder = RoutingTable.builder()
             .add(
@@ -906,7 +906,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
         routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(
-            routingAllocation.metadata().getProject().getIndexSafe(firstRouting.index()),
+            routingAllocation.metadata().getProject().getIndexSafe(testIndex),
             firstRouting,
             firstRoutingNode,
             routingAllocation
@@ -926,9 +926,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
 
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
-        firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, true, ShardRoutingState.STARTED);
-        secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", true, ShardRoutingState.RELOCATING);
-        ShardRouting fooRouting = TestShardRouting.newShardRouting("foo", 0, null, true, ShardRoutingState.UNASSIGNED);
+        firstRouting = TestShardRouting.newShardRouting(shard0Id, "node1", null, true, ShardRoutingState.STARTED);
+        secondRouting = TestShardRouting.newShardRouting(shard1Id, "node1", "node2", true, ShardRoutingState.RELOCATING);
+        ShardRouting fooRouting = TestShardRouting.newShardRouting(fooIndex, 0, null, true, ShardRoutingState.UNASSIGNED);
         fooRouting = fooRouting.updateUnassigned(
             new UnassignedInfo(
                 fooRouting.unassignedInfo().reason(),

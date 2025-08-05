@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -239,7 +240,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     }
 
     public void testNotStartedPrimary() {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         final int numPromotableReplicas = randomInt(2);
         final int numSearchReplicas = randomInt(2);
         final ClusterState state = state(
@@ -250,27 +251,27 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         );
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        assertThat(countRequestsForIndex(state, index), is(equalTo(0)));
+        assertThat(countRequestsForIndex(state, index.getName()), is(equalTo(0)));
     }
 
     public void testMixOfStartedPromotableAndSearchReplicas() {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         final int numShards = 1 + randomInt(3);
         final int numPromotableReplicas = randomInt(2);
         final int numSearchReplicas = randomInt(2);
 
         ClusterState state = stateWithAssignedPrimariesAndReplicas(
-            new String[] { index },
+            new Index[] { index },
             numShards,
             getReplicaRoles(numPromotableReplicas, numSearchReplicas)
         );
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        assertThat(countRequestsForIndex(state, index), is(equalTo(numShards * numSearchReplicas)));
+        assertThat(countRequestsForIndex(state, index.getName()), is(equalTo(numShards * numSearchReplicas)));
     }
 
     public void testSearchReplicasWithRandomStates() {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         final int numPromotableReplicas = randomInt(2);
         final int numSearchReplicas = randomInt(6);
 
@@ -292,20 +293,20 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
-        assertThat(countRequestsForIndex(state, index), is(equalTo(numReachableUnpromotables)));
+        assertThat(countRequestsForIndex(state, index.getName()), is(equalTo(numReachableUnpromotables)));
     }
 
     public void testInvalidNodes() throws Exception {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         ClusterState state = stateWithAssignedPrimariesAndReplicas(
-            new String[] { index },
+            new Index[] { index },
             randomIntBetween(1, 3),
             getReplicaRoles(randomInt(2), randomIntBetween(1, 2))
         );
         setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state());
 
-        ShardId shardId = state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).get(0).shardId();
+        ShardId shardId = state.routingTable().activePrimaryShardsGrouped(new String[] { index.getName() }, true).get(0).shardId();
         IndexShardRoutingTable routingTable = state.routingTable().shardRoutingTable(shardId);
         IndexShardRoutingTable.Builder wrongRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardId);
         for (int i = 0; i < routingTable.size(); i++) {

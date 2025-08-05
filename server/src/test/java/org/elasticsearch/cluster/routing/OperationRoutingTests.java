@@ -41,19 +41,18 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
 public class OperationRoutingTests extends ESTestCase {
-    public void testPreferNodes() throws InterruptedException, IOException {
+    public void testPreferNodes() throws IOException {
         TestThreadPool threadPool = null;
         ClusterService clusterService = null;
         try {
             threadPool = new TestThreadPool("testPreferNodes");
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
             final ProjectId projectId = randomProjectIdOrDefault();
-            final String indexName = "test";
+            final Index index = new Index("test", randomUUID());
             ClusterServiceUtils.setState(
                 clusterService,
-                ClusterStateCreationUtils.stateWithActivePrimary(projectId, indexName, true, randomInt(8))
+                ClusterStateCreationUtils.stateWithActivePrimary(projectId, index, true, randomInt(8))
             );
-            final Index index = clusterService.state().metadata().getProject(projectId).index(indexName).getIndex();
             final List<ShardRouting> shards = clusterService.state().getRoutingNodes().assignedShards(new ShardId(index, 0));
             final int count = randomIntBetween(1, shards.size());
             int position = 0;
@@ -71,7 +70,7 @@ public class OperationRoutingTests extends ESTestCase {
             final ShardIterator it = new OperationRouting(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            ).getShards(clusterService.state().projectState(projectId), indexName, 0, "_prefer_nodes:" + String.join(",", nodes));
+            ).getShards(clusterService.state().projectState(projectId), index.getName(), 0, "_prefer_nodes:" + String.join(",", nodes));
             final List<ShardRouting> all = new ArrayList<>();
             ShardRouting shard;
             while ((shard = it.nextOrNull()) != null) {
@@ -96,12 +95,11 @@ public class OperationRoutingTests extends ESTestCase {
             threadPool = new TestThreadPool("testPreferCombine");
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
             final ProjectId projectId = randomProjectIdOrDefault();
-            final String indexName = "test";
+            final Index index = new Index("test", randomUUID());
             ClusterServiceUtils.setState(
                 clusterService,
-                ClusterStateCreationUtils.stateWithActivePrimary(projectId, indexName, true, randomInt(8))
+                ClusterStateCreationUtils.stateWithActivePrimary(projectId, index, true, randomInt(8))
             );
-            final Index index = clusterService.state().metadata().getProject(projectId).index(indexName).getIndex();
             final List<ShardRouting> shards = clusterService.state().getRoutingNodes().assignedShards(new ShardId(index, 0));
             final ClusterState state = clusterService.state();
 
@@ -109,7 +107,7 @@ public class OperationRoutingTests extends ESTestCase {
                 final ShardIterator it = new OperationRouting(
                     Settings.EMPTY,
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                ).getShards(state.projectState(projectId), indexName, 0, prefer);
+                ).getShards(state.projectState(projectId), index.getName(), 0, prefer);
                 final List<ShardRouting> all = new ArrayList<>();
                 ShardRouting shard;
                 while (it != null && (shard = it.nextOrNull()) != null) {
@@ -158,11 +156,13 @@ public class OperationRoutingTests extends ESTestCase {
         final int numShards = randomIntBetween(2, 10);
         final int numReplicas = randomIntBetween(1, 3);
         final ProjectId projectId = randomProjectIdOrDefault();
+        final Index[] indices = new Index[numIndices];
         final String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
-            indexNames[i] = "test" + i;
+            indices[i] = new Index("test" + i, randomUUID());
+            indexNames[i] = indices[i].getName();
         }
-        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(projectId, indexNames, numShards, numReplicas);
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(projectId, indices, numShards, numReplicas);
         final int numRepeatedSearches = 4;
         List<ShardRouting> sessionsfirstSearch = null;
         OperationRouting opRouting = new OperationRouting(
@@ -218,12 +218,11 @@ public class OperationRoutingTests extends ESTestCase {
             threadPool = new TestThreadPool("testThatOnlyNodesSupportNodeIds");
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
             final ProjectId projectId = randomProjectIdOrDefault();
-            final String indexName = "test";
+            final Index index = new Index("test", randomUUID());
             ClusterServiceUtils.setState(
                 clusterService,
-                ClusterStateCreationUtils.stateWithActivePrimary(projectId, indexName, true, randomInt(8))
+                ClusterStateCreationUtils.stateWithActivePrimary(projectId, index, true, randomInt(8))
             );
-            final Index index = clusterService.state().metadata().getProject(projectId).index(indexName).getIndex();
             final List<ShardRouting> shards = clusterService.state().getRoutingNodes().assignedShards(new ShardId(index, 0));
             final int count = randomIntBetween(1, shards.size());
             int position = 0;
@@ -242,7 +241,7 @@ public class OperationRoutingTests extends ESTestCase {
                 final ShardIterator it = new OperationRouting(
                     Settings.EMPTY,
                     new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                ).getShards(clusterService.state().projectState(projectId), indexName, 0, "_only_nodes:" + String.join(",", nodes));
+                ).getShards(clusterService.state().projectState(projectId), index.getName(), 0, "_only_nodes:" + String.join(",", nodes));
                 final List<ShardRouting> only = new ArrayList<>();
                 ShardRouting shard;
                 while ((shard = it.nextOrNull()) != null) {
@@ -256,7 +255,7 @@ public class OperationRoutingTests extends ESTestCase {
                     () -> new OperationRouting(
                         Settings.EMPTY,
                         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                    ).getShards(cs.state().projectState(projectId), indexName, 0, "_only_nodes:" + String.join(",", nodes))
+                    ).getShards(cs.state().projectState(projectId), index.getName(), 0, "_only_nodes:" + String.join(",", nodes))
                 );
                 if (nodes.size() == 1) {
                     assertThat(
@@ -285,11 +284,13 @@ public class OperationRoutingTests extends ESTestCase {
         final int numShards = 1;
         final int numReplicas = 2;
         final ProjectId projectId = randomProjectIdOrDefault();
+        final Index[] indices = new Index[numIndices];
         final String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
-            indexNames[i] = "test" + i;
+            indices[i] = new Index("test" + i, randomUUID());
+            indexNames[i] = indices[i].getName();
         }
-        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(projectId, indexNames, numShards, numReplicas);
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(projectId, indices, numShards, numReplicas);
         ProjectState project = state.projectState(projectId);
         OperationRouting opRouting = new OperationRouting(
             Settings.EMPTY,
@@ -365,12 +366,14 @@ public class OperationRoutingTests extends ESTestCase {
         int numShards = 1;
         int numReplicas = 1;
         ProjectId projectId = randomProjectIdOrDefault();
-        String[] indexNames = new String[numIndices];
+        final Index[] indices = new Index[numIndices];
+        final String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
-            indexNames[i] = "test" + i;
+            indices[i] = new Index("test" + i, randomUUID());
+            indexNames[i] = indices[i].getName();
         }
 
-        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(projectId, indexNames, numShards, numReplicas);
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(projectId, indices, numShards, numReplicas);
         ProjectState project = state.projectState(projectId);
         OperationRouting opRouting = new OperationRouting(
             Settings.EMPTY,
@@ -419,12 +422,14 @@ public class OperationRoutingTests extends ESTestCase {
         int numShards = 2;
         int numReplicas = 1;
         ProjectId projectId = randomProjectIdOrDefault();
-        String[] indexNames = new String[numIndices];
+        final Index[] indices = new Index[numIndices];
+        final String[] indexNames = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
-            indexNames[i] = "test" + i;
+            indices[i] = new Index("test" + i, randomUUID());
+            indexNames[i] = indices[i].getName();
         }
 
-        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(projectId, indexNames, numShards, numReplicas);
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(projectId, indices, numShards, numReplicas);
         ProjectState project = state.projectState(projectId);
         OperationRouting opRouting = new OperationRouting(
             Settings.EMPTY,

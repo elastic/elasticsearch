@@ -141,7 +141,7 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (int i = 0; i < randomInt(8); i++) {
             String indexName = randomAlphaOfLength(8);
-            Settings.Builder settings = indexSettings(IndexVersion.current(), 1, 0);
+            Settings.Builder settings = indexSettings(IndexVersion.current(), randomUUID(), 1, 0);
             if (randomBoolean()) {
                 settings.put(DataTier.TIER_PREFERENCE_SETTING.getKey(), randomFrom("data_hot", "data_warm", "data_cold"));
             }

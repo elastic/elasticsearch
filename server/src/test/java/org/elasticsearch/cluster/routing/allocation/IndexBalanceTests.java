@@ -55,8 +55,8 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -172,8 +172,8 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -293,7 +293,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(3).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), randomUUID(), 3, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -490,7 +490,7 @@ public class IndexBalanceTests extends ESAllocationTestCase {
     ) {
         final var inSyncIds = randomList(numberOfShards, numberOfShards, () -> UUIDs.randomBase64UUID(random()));
         final var indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(indexSettings(IndexVersion.current(), numberOfShards, 0));
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), numberOfShards, 0));
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             indexMetadataBuilder.putInSyncAllocationIds(shardId, Set.of(inSyncIds.get(shardId)));
         }

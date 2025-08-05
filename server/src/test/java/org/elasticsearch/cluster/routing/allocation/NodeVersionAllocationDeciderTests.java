@@ -191,9 +191,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         for (int i = 0; i < numIndices; i++) {
             builder.put(
                 IndexMetadata.builder("test_" + i)
-                    .settings(settings(IndexVersion.current()))
-                    .numberOfShards(between(1, 5))
-                    .numberOfReplicas(between(0, 2))
+                    .settings(indexSettings(IndexVersion.current(), randomUUID(), between(1, 5), between(0, 2)))
             );
         }
         Metadata metadata = builder.build();
@@ -315,8 +313,10 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testRebalanceDoesNotAllocatePrimaryAndReplicasOnDifferentVersionNodes() {
-        ShardId shard1 = new ShardId("test1", "_na_", 0);
-        ShardId shard2 = new ShardId("test2", "_na_", 0);
+        Index index1 = new Index("test1", randomUUID());
+        Index index2 = new Index("test2", randomUUID());
+        ShardId shard1 = new ShardId(index1, 0);
+        ShardId shard2 = new ShardId(index2, 0);
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
         final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
             .roles(MASTER_DATA_ROLES)
@@ -333,16 +333,12 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(shard1.getIndexName())
-                    .settings(settings(IndexVersion.current()).put(Settings.EMPTY))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
+                    .settings(indexSettings(IndexVersion.current(), index1.getUUID(), 1, 1))
                     .putInSyncAllocationIds(0, Sets.newHashSet(allocationId1P.getId(), allocationId1R.getId()))
             )
             .put(
                 IndexMetadata.builder(shard2.getIndexName())
-                    .settings(settings(IndexVersion.current()).put(Settings.EMPTY))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
+                    .settings(indexSettings(IndexVersion.current(), index2.getUUID(), 1, 1))
                     .putInSyncAllocationIds(0, Sets.newHashSet(allocationId2P.getId(), allocationId2R.getId()))
             )
             .build();
@@ -351,18 +347,13 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard1.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard1).addShard(
-                            shardRoutingBuilder(shard1.getIndexName(), shard1.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
-                                .withAllocationId(allocationId1P)
+                            shardRoutingBuilder(shard1, newNode.getId(), true, ShardRoutingState.STARTED).withAllocationId(allocationId1P)
                                 .build()
                         )
                             .addShard(
-                                shardRoutingBuilder(
-                                    shard1.getIndexName(),
-                                    shard1.getId(),
-                                    oldNode1.getId(),
-                                    false,
-                                    ShardRoutingState.STARTED
-                                ).withAllocationId(allocationId1R).build()
+                                shardRoutingBuilder(shard1, oldNode1.getId(), false, ShardRoutingState.STARTED).withAllocationId(
+                                    allocationId1R
+                                ).build()
                             )
                     )
             )
@@ -370,18 +361,13 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard2.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard2).addShard(
-                            shardRoutingBuilder(shard2.getIndexName(), shard2.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
-                                .withAllocationId(allocationId2P)
+                            shardRoutingBuilder(shard2, newNode.getId(), true, ShardRoutingState.STARTED).withAllocationId(allocationId2P)
                                 .build()
                         )
                             .addShard(
-                                shardRoutingBuilder(
-                                    shard2.getIndexName(),
-                                    shard2.getId(),
-                                    oldNode1.getId(),
-                                    false,
-                                    ShardRoutingState.STARTED
-                                ).withAllocationId(allocationId2R).build()
+                                shardRoutingBuilder(shard2, oldNode1.getId(), false, ShardRoutingState.STARTED).withAllocationId(
+                                    allocationId2R
+                                ).build()
                             )
                     )
             )

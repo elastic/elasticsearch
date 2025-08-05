@@ -347,7 +347,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-                TestShardRouting.newShardRouting("triggered-watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED)
+                TestShardRouting.newShardRouting(index, 0, "_node_id", null, true, ShardRoutingState.STARTED)
             )
         );
         indexRoutingTableBuilder.addReplica(ShardRouting.Role.DEFAULT);
@@ -355,7 +355,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(new ShardId(otherIndex, 0)).addShard(
-                TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED)
+                TestShardRouting.newShardRouting(otherIndex, 0, "_node_id", null, true, ShardRoutingState.STARTED)
             )
         );
 

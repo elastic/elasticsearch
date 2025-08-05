@@ -145,6 +145,7 @@ public class SearchableSnapshotsRecoveryStateTests extends ESTestCase {
     private SearchableSnapshotRecoveryState createRecoveryState() {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             randomAlphaOfLength(10),
+            randomUUID(),
             0,
             randomAlphaOfLength(10),
             true,

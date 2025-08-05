@@ -264,8 +264,8 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
 
     public void testForceAllocatePrimaryOnSameNodeNotAllowed() {
         SameShardAllocationDecider decider = new SameShardAllocationDecider(createBuiltInClusterSettings());
-        ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomIntBetween(2, 4), 1);
-        Index index = clusterState.getMetadata().getProject().index("idx").getIndex();
+        Index index = new Index("idx", randomUUID());
+        ClusterState clusterState = ClusterStateCreationUtils.state(index, randomIntBetween(2, 4), 1);
         ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();
         RoutingNode routingNode = clusterState.getRoutingNodes().node(primaryShard.currentNodeId());
         RoutingAllocation routingAllocation = new RoutingAllocation(

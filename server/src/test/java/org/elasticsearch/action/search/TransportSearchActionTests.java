@@ -287,7 +287,8 @@ public class TransportSearchActionTests extends ESTestCase {
             ClusterSearchShardsGroup[] groups2 = new ClusterSearchShardsGroup[] {
                 new ClusterSearchShardsGroup(
                     new ShardId("xyz", "xyz_id", 0),
-                    new ShardRouting[] { TestShardRouting.newShardRouting("xyz", 0, "node3", true, ShardRoutingState.STARTED) }
+                    new ShardRouting[] {
+                        TestShardRouting.newShardRouting("xyz", randomUUID(), 0, "node3", true, ShardRoutingState.STARTED) }
                 ) };
             Map<String, AliasFilter> aliasFilters2 = Map.of("xyz", AliasFilter.of(null, "some_alias_for_xyz"));
             searchShardsResponseMap.put(
@@ -1655,7 +1656,7 @@ public class TransportSearchActionTests extends ESTestCase {
     public void testLocalShardIteratorFromPointInTime() {
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 2);
-        final String[] indices = { "test-1", "test-2" };
+        final Index[] indices = { new Index("test-1", randomUUID()), new Index("test-2", randomUUID()) };
         final ProjectId project = randomProjectIdOrDefault();
         final ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
             project,

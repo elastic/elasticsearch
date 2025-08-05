@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRangeWireTests;
@@ -160,12 +161,12 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testSuccess() throws InterruptedException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         final TestListener listener = new TestListener();
-        ShardRouting shardRouting = getRandomShardRouting(index);
+        ShardRouting shardRouting = getRandomShardRouting(index.getName());
         shardStateAction.localShardFailed(shardRouting, "test", getSimulatedFailure(), listener);
 
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
@@ -186,7 +187,7 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testNoMaster() throws InterruptedException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
@@ -199,7 +200,7 @@ public class ShardStateActionTests extends ESTestCase {
 
         setUpMasterRetryVerification(1, retries, latch, requestId -> {});
 
-        ShardRouting failedShard = getRandomShardRouting(index);
+        ShardRouting failedShard = getRandomShardRouting(index.getName());
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
@@ -222,7 +223,7 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testMasterChannelException() throws InterruptedException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
@@ -249,7 +250,7 @@ public class ShardStateActionTests extends ESTestCase {
         final int numberOfRetries = randomIntBetween(1, 256);
         setUpMasterRetryVerification(numberOfRetries, retries, latch, retryLoop);
 
-        ShardRouting failedShard = getRandomShardRouting(index);
+        ShardRouting failedShard = getRandomShardRouting(index.getName());
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), new ActionListener<Void>() {
             @Override
             public void onResponse(Void aVoid) {
@@ -279,12 +280,12 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testUnhandledFailure() {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         final TestListener listener = new TestListener();
-        ShardRouting failedShard = getRandomShardRouting(index);
+        ShardRouting failedShard = getRandomShardRouting(index.getName());
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), listener);
 
         final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
@@ -294,13 +295,13 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testShardNotFound() throws InterruptedException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
         final TestListener listener = new TestListener();
-        ShardRouting failedShard = getRandomShardRouting(index);
-        RoutingTable routingTable = RoutingTable.builder(clusterService.state().getRoutingTable()).remove(index).build();
+        ShardRouting failedShard = getRandomShardRouting(index.getName());
+        RoutingTable routingTable = RoutingTable.builder(clusterService.state().getRoutingTable()).remove(index.getName()).build();
         setState(clusterService, ClusterState.builder(clusterService.state()).routingTable(routingTable));
         shardStateAction.localShardFailed(failedShard, "test", getSimulatedFailure(), listener);
 
@@ -312,11 +313,11 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testNoLongerPrimaryShardException() throws InterruptedException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
 
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        ShardRouting failedShard = getRandomShardRouting(index);
+        ShardRouting failedShard = getRandomShardRouting(index.getName());
 
         final TestListener listener = new TestListener();
         long primaryTerm = clusterService.state().metadata().getProject().index(index).primaryTerm(failedShard.id());
@@ -347,9 +348,9 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testCacheRemoteShardFailed() throws Exception {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
-        ShardRouting failedShard = getRandomShardRouting(index);
+        ShardRouting failedShard = getRandomShardRouting(index.getName());
         boolean markAsStale = randomBoolean();
         int numListeners = between(1, 100);
         CountDownLatch latch = new CountDownLatch(numListeners);
@@ -383,9 +384,9 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testDeduplicateRemoteShardStarted() throws InterruptedException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
-        ShardRouting startedShard = getRandomShardRouting(index);
+        ShardRouting startedShard = getRandomShardRouting(index.getName());
         int numListeners = between(1, 100);
         CountDownLatch latch = new CountDownLatch(numListeners);
         long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
@@ -424,12 +425,12 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testRemoteShardFailedConcurrently() throws Exception {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         final AtomicBoolean shutdown = new AtomicBoolean(false);
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
         ShardRouting[] failedShards = new ShardRouting[between(1, 5)];
         for (int i = 0; i < failedShards.length; i++) {
-            failedShards[i] = getRandomShardRouting(index);
+            failedShards[i] = getRandomShardRouting(index.getName());
         }
         final int clientThreads = between(1, 6);
         int iterationsPerThread = scaledRandomIntBetween(50, 500);
@@ -480,10 +481,10 @@ public class ShardStateActionTests extends ESTestCase {
     }
 
     public void testShardStarted() throws InterruptedException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         setState(clusterService, ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomInt(5)));
 
-        final ShardRouting shardRouting = getRandomShardRouting(index);
+        final ShardRouting shardRouting = getRandomShardRouting(index.getName());
         final long primaryTerm = clusterService.state().metadata().getProject().index(shardRouting.index()).primaryTerm(shardRouting.id());
         final TestListener listener = new TestListener();
         shardStateAction.shardStarted(

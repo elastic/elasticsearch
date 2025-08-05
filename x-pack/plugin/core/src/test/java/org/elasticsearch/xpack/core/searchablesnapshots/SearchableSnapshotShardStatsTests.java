@@ -34,6 +34,7 @@ public class SearchableSnapshotShardStatsTests extends AbstractWireSerializingTe
         IndexId indexId = new IndexId(randomAlphaOfLength(5), randomAlphaOfLength(5));
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             randomAlphaOfLength(5),
+            randomUUID(),
             randomInt(10),
             randomAlphaOfLength(5),
             randomBoolean(),

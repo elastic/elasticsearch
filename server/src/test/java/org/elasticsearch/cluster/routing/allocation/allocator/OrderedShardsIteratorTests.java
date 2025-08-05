@@ -119,10 +119,10 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
 
         IndexMetadata lookup = IndexMetadata.builder("lookup").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
         IndexMetadata ds1 = IndexMetadata.builder(".ds-data-stream-2024.04.18-000001")
-            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
             .build();
         IndexMetadata ds2 = IndexMetadata.builder(".ds-data-stream-2024.04.18-000002")
-            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
             .build();
 
         var metadata = Metadata.builder()
@@ -231,9 +231,9 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
     private Metadata createMetadata(RoutingTable routingTable) {
         final ProjectMetadata.Builder project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
         for (var idxRoutingTable : routingTable) {
-            final String indexName = idxRoutingTable.getIndex().getName();
-            final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-                .settings(indexSettings(IndexVersion.current(), 1, 1))
+            final Index index = idxRoutingTable.getIndex();
+            final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+                .settings(indexSettings(IndexVersion.current(), index.getUUID(), 1, 1))
                 .build();
             project.put(indexMetadata, false);
         }
@@ -261,7 +261,7 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
     }
 
     private static IndexRoutingTable index(String indexName, String nodeId) {
-        return index(new Index(indexName, "_na_"), nodeId);
+        return index(new Index(indexName, randomUUID()), nodeId);
     }
 
     private static IndexRoutingTable index(Index index, String nodeId) {

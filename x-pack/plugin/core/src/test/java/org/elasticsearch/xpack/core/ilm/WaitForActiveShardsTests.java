@@ -111,12 +111,8 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             ShardRoutingRoleStrategy.NO_SHARD_CREATION,
             rolledIndex.getIndex()
         );
-        routingTable.addShard(
-            TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
-        );
-        routingTable.addShard(
-            TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
-        );
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex(), 0, "node", true, ShardRoutingState.STARTED));
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex(), 0, "node2", false, ShardRoutingState.STARTED));
         var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).put(rolledIndex, false).build();
         ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(project)
@@ -151,12 +147,8 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             ShardRoutingRoleStrategy.NO_SHARD_CREATION,
             rolledIndex.getIndex()
         );
-        routingTable.addShard(
-            TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
-        );
-        routingTable.addShard(
-            TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
-        );
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex(), 0, "node", true, ShardRoutingState.STARTED));
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex(), 0, "node2", false, ShardRoutingState.STARTED));
         var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).put(rolledIndex, false).build();
         ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(project)
@@ -204,24 +196,13 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             ShardRoutingRoleStrategy.NO_SHARD_CREATION,
             failureRolledIndexMeta.getIndex()
         );
-        routingTable.addShard(
-            TestShardRouting.newShardRouting(rolledIndexMeta.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
-        );
-        routingTable.addShard(
-            TestShardRouting.newShardRouting(rolledIndexMeta.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndexMeta.getIndex(), 0, "node", true, ShardRoutingState.STARTED));
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndexMeta.getIndex(), 0, "node2", false, ShardRoutingState.STARTED));
+        failureRoutingTable.addShard(
+            TestShardRouting.newShardRouting(failureRolledIndexMeta.getIndex(), 0, "node", true, ShardRoutingState.STARTED)
         );
         failureRoutingTable.addShard(
-            TestShardRouting.newShardRouting(failureRolledIndexMeta.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
-        );
-        failureRoutingTable.addShard(
-            TestShardRouting.newShardRouting(
-                failureRolledIndexMeta.getIndex().getName(),
-                0,
-                "node2",
-                null,
-                false,
-                ShardRoutingState.STARTED
-            )
+            TestShardRouting.newShardRouting(failureRolledIndexMeta.getIndex(), 0, "node2", false, ShardRoutingState.STARTED)
         );
 
         final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
@@ -280,12 +261,8 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             ShardRoutingRoleStrategy.NO_SHARD_CREATION,
             rolledIndex.getIndex()
         );
-        routingTable.addShard(
-            TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node", null, true, ShardRoutingState.STARTED)
-        );
-        routingTable.addShard(
-            TestShardRouting.newShardRouting(rolledIndex.getIndex().getName(), 0, "node2", null, false, ShardRoutingState.STARTED)
-        );
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex(), 0, "node", true, ShardRoutingState.STARTED));
+        routingTable.addShard(TestShardRouting.newShardRouting(rolledIndex.getIndex(), 0, "node2", false, ShardRoutingState.STARTED));
         var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).put(rolledIndex, false).build();
         ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(project)

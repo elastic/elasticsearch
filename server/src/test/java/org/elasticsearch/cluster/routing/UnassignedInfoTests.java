@@ -534,7 +534,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      * The unassigned meta is kept when a shard goes to INITIALIZING, but cleared when it moves to STARTED.
      */
     public void testStateTransitionMetaHandling() {
-        ShardRouting shard = shardRoutingBuilder("test", 1, null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
+        ShardRouting shard = shardRoutingBuilder("test", randomUUID(), 1, null, true, ShardRoutingState.UNASSIGNED).withUnassignedInfo(
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
         ).build();
         assertThat(shard.unassignedInfo(), notNullValue());
@@ -552,7 +552,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testNodeLeave() {
         AllocationService allocation = createAllocationService();
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
@@ -817,8 +817,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testNumberOfDelayedUnassigned() throws Exception {
         MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
+            .put(IndexMetadata.builder("test2").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
@@ -856,18 +856,20 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
             .put(
                 IndexMetadata.builder("test1")
                     .settings(
-                        settings(IndexVersion.current()).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest1)
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 1).put(
+                            UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
+                            delayTest1
+                        )
                     )
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
             )
             .put(
                 IndexMetadata.builder("test2")
                     .settings(
-                        settings(IndexVersion.current()).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), delayTest2)
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 1).put(
+                            UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
+                            delayTest2
+                        )
                     )
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
             )
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

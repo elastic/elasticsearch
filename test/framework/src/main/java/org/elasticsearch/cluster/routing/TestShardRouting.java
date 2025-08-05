@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -42,8 +42,19 @@ public class TestShardRouting {
 
     private static final Logger logger = LogManager.getLogger(TestShardRouting.class);
 
-    public static Builder shardRoutingBuilder(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
-        return shardRoutingBuilder(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
+    public static Builder shardRoutingBuilder(
+        String index,
+        String uuid,
+        int shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state
+    ) {
+        return shardRoutingBuilder(new ShardId(index, uuid, shardId), currentNodeId, primary, state);
+    }
+
+    public static Builder shardRoutingBuilder(Index index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+        return shardRoutingBuilder(new ShardId(index, shardId), currentNodeId, primary, state);
     }
 
     public static Builder shardRoutingBuilder(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
@@ -123,8 +134,19 @@ public class TestShardRouting {
         }
     }
 
-    public static ShardRouting newShardRouting(String index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
-        return newShardRouting(new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId), currentNodeId, primary, state);
+    public static ShardRouting newShardRouting(
+        String index,
+        String uuid,
+        int shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state
+    ) {
+        return newShardRouting(new ShardId(index, uuid, shardId), currentNodeId, primary, state);
+    }
+
+    public static ShardRouting newShardRouting(Index index, int shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
+        return newShardRouting(new ShardId(index, shardId), currentNodeId, primary, state);
     }
 
     public static ShardRouting newShardRouting(ShardId shardId, String currentNodeId, boolean primary, ShardRoutingState state) {
@@ -190,19 +212,25 @@ public class TestShardRouting {
 
     public static ShardRouting newShardRouting(
         String index,
+        String uuid,
         int shardId,
         String currentNodeId,
         String relocatingNodeId,
         boolean primary,
         ShardRoutingState state
     ) {
-        return newShardRouting(
-            new ShardId(index, IndexMetadata.INDEX_UUID_NA_VALUE, shardId),
-            currentNodeId,
-            relocatingNodeId,
-            primary,
-            state
-        );
+        return newShardRouting(new ShardId(index, uuid, shardId), currentNodeId, relocatingNodeId, primary, state);
+    }
+
+    public static ShardRouting newShardRouting(
+        Index index,
+        int shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state
+    ) {
+        return newShardRouting(new ShardId(index, shardId), currentNodeId, relocatingNodeId, primary, state);
     }
 
     public static ShardRouting newShardRouting(

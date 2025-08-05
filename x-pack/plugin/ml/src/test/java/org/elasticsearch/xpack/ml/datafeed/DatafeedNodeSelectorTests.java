@@ -718,10 +718,10 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
     private static RoutingTable generateRoutingTable(IndexMetadata indexMetadata, List<Tuple<Integer, ShardRoutingState>> states) {
         IndexRoutingTable.Builder rtBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
 
-        final String index = indexMetadata.getIndex().getName();
+        final Index index = indexMetadata.getIndex();
         int counter = 0;
         for (Tuple<Integer, ShardRoutingState> state : states) {
-            ShardId shardId = new ShardId(index, "_na_", counter);
+            ShardId shardId = new ShardId(index, counter);
             IndexShardRoutingTable.Builder shardRTBuilder = new IndexShardRoutingTable.Builder(shardId);
             ShardRouting shardRouting;
 

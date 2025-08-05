@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -87,8 +88,8 @@ public class ReplicationOperationTests extends ESTestCase {
     }
 
     public void testReplication() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final Index index = new Index("test", randomUUID());
+        final ShardId shardId = new ShardId(index, 0);
 
         ClusterState initialState = stateWithActivePrimary(index, true, randomInt(5));
         IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
@@ -161,8 +162,8 @@ public class ReplicationOperationTests extends ESTestCase {
     }
 
     public void testRetryTransientReplicationFailure() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final Index index = new Index("test", randomUUID());
+        final ShardId shardId = new ShardId(index, 0);
 
         ClusterState initialState = stateWithActivePrimary(index, true, randomInt(5));
         IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
@@ -273,8 +274,8 @@ public class ReplicationOperationTests extends ESTestCase {
     }
 
     public void testNoLongerPrimary() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final Index index = new Index("test", randomUUID());
+        final ShardId shardId = new ShardId(index, 0);
 
         ClusterState initialState = stateWithActivePrimary(index, true, 1 + randomInt(2), randomInt(2));
         IndexMetadata indexMetadata = initialState.getMetadata().getProject().index(index);
@@ -381,8 +382,8 @@ public class ReplicationOperationTests extends ESTestCase {
     }
 
     public void testAddedReplicaAfterPrimaryOperation() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final Index index = new Index("test", randomUUID());
+        final ShardId shardId = new ShardId(index, 0);
         final ClusterState initialState = stateWithActivePrimary(index, true, 0);
         Set<String> inSyncAllocationIds = initialState.metadata().getProject().index(index).inSyncAllocationIds(0);
         IndexShardRoutingTable shardRoutingTable = initialState.getRoutingTable().shardRoutingTable(shardId);
@@ -435,8 +436,8 @@ public class ReplicationOperationTests extends ESTestCase {
     }
 
     public void testWaitForActiveShards() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final Index index = new Index("test", randomUUID());
+        final ShardId shardId = new ShardId(index, 0);
         final int assignedReplicas = randomInt(2);
         final int unassignedReplicas = randomInt(2);
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
@@ -529,8 +530,8 @@ public class ReplicationOperationTests extends ESTestCase {
     }
 
     public void testPrimaryFailureHandlingReplicaResponse() throws Exception {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final Index index = new Index("test", randomUUID());
+        final ShardId shardId = new ShardId(index, 0);
 
         final Request request = new Request(shardId);
 

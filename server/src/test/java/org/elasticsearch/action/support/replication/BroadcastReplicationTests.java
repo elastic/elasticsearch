@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -140,7 +141,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     }
 
     public void testNotStartedPrimary() throws InterruptedException, ExecutionException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         setState(
             clusterService,
             setUpState(
@@ -155,7 +156,7 @@ public class BroadcastReplicationTests extends ESTestCase {
         );
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BaseBroadcastResponse> response = new PlainActionFuture<>();
-        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index), response);
+        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index.getName()), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             if (randomBoolean()) {
                 shardRequests.v2().onFailure(new NoShardAvailableActionException(shardRequests.v1()));
@@ -170,11 +171,11 @@ public class BroadcastReplicationTests extends ESTestCase {
     }
 
     public void testStartedPrimary() throws InterruptedException, ExecutionException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         setState(clusterService, setUpState(state(index, randomBoolean(), ShardRoutingState.STARTED), index));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BaseBroadcastResponse> response = new PlainActionFuture<>();
-        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index), response);
+        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest(index.getName()), response);
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
             ReplicationResponse replicationResponse = new ReplicationResponse();
             replicationResponse.setShardInfo(ReplicationResponse.ShardInfo.allSuccessful(1));
@@ -185,12 +186,12 @@ public class BroadcastReplicationTests extends ESTestCase {
     }
 
     public void testResultCombine() throws InterruptedException, ExecutionException, IOException {
-        final String index = "test";
+        final Index index = new Index("test", randomUUID());
         int numShards = 1 + randomInt(3);
         setState(clusterService, setUpState(stateWithAssignedPrimariesAndOneReplica(index, numShards), index));
         logger.debug("--> using initial state:\n{}", clusterService.state());
         PlainActionFuture<BaseBroadcastResponse> response = new PlainActionFuture<>();
-        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest().indices(index), response);
+        ActionTestUtils.execute(broadcastReplicationAction, null, new DummyBroadcastRequest().indices(index.getName()), response);
         int succeeded = 0;
         int failed = 0;
         for (Tuple<ShardId, ActionListener<ReplicationResponse>> shardRequests : broadcastReplicationAction.capturedShardRequests) {
@@ -234,8 +235,8 @@ public class BroadcastReplicationTests extends ESTestCase {
     }
 
     public void testShardsList() throws InterruptedException, ExecutionException {
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
+        final Index index = new Index("test", randomUUID());
+        final ShardId shardId = new ShardId(index, 0);
         ClusterState clusterState = setUpState(
             state(
                 index,
@@ -345,7 +346,7 @@ public class BroadcastReplicationTests extends ESTestCase {
     /**
      * Copy index and routing table from default project to the target project.
      */
-    private ClusterState setUpState(ClusterState state, String index) {
+    private ClusterState setUpState(ClusterState state, Index index) {
         return ClusterState.builder(state)
             .putProjectMetadata(
                 ProjectMetadata.builder(projectId).put(state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).index(index), false).build()

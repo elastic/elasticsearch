@@ -750,10 +750,13 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             routingTableBuilder.add(indexRoutingTable);
         }
 
-        imdBuilder.put(IndexMetadata.builder("logs-0").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
-        ShardRouting shardRouting = TestShardRouting.newShardRouting("logs-0", 0, "1", true, ShardRoutingState.INITIALIZING)
+        Index indexLogs = new Index("logs-0", randomUUID());
+        imdBuilder.put(
+            IndexMetadata.builder(indexLogs.getName()).settings(indexSettings(IndexVersion.current(), indexLogs.getUUID(), 1, 0))
+        );
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(indexLogs, 0, "1", true, ShardRoutingState.INITIALIZING)
             .moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get("logs-0").getIndex()).addShard(shardRouting).build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexLogs).addShard(shardRouting).build();
         routingTableBuilder.add(indexRoutingTable);
 
         ClusterState remoteState = ClusterState.builder(new ClusterName("remote"))
@@ -813,9 +816,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         // 1 shard started and another not started:
         ClusterState remoteState = createRemoteClusterState("index1", true);
         Metadata.Builder mBuilder = Metadata.builder(remoteState.metadata());
-        mBuilder.put(IndexMetadata.builder("index2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
-        ShardRouting shardRouting = TestShardRouting.newShardRouting("index2", 0, "1", true, ShardRoutingState.INITIALIZING);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(mBuilder.get("index2").getIndex()).addShard(shardRouting).build();
+        Index index2 = new Index("index2", randomUUID());
+        mBuilder.put(IndexMetadata.builder(index2.getName()).settings(indexSettings(IndexVersion.current(), index2.getUUID(), 1, 0)));
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(index2, 0, "1", true, ShardRoutingState.INITIALIZING);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index2).addShard(shardRouting).build();
         remoteState = ClusterState.builder(remoteState.getClusterName())
             .metadata(mBuilder)
             .routingTable(RoutingTable.builder(remoteState.routingTable()).add(indexRoutingTable).build())
@@ -827,9 +831,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         // Start second shard:
         shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
-        indexRoutingTable = IndexRoutingTable.builder(remoteState.metadata().getProject().indices().get("index2").getIndex())
-            .addShard(shardRouting)
-            .build();
+        indexRoutingTable = IndexRoutingTable.builder(index2).addShard(shardRouting).build();
         remoteState = ClusterState.builder(remoteState.getClusterName())
             .metadata(remoteState.metadata())
             .routingTable(RoutingTable.builder(remoteState.routingTable()).add(indexRoutingTable).build())
@@ -844,21 +846,20 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
     public void testGetLeaderIndicesToFollowWithClosedIndices() {
         final AutoFollowPattern autoFollowPattern = createAutoFollowPattern("remote", "*");
+        Index index = new Index("test-index", randomUUID());
 
         // index is opened
-        ClusterState remoteState = ClusterStateCreationUtils.stateWithActivePrimary("test-index", true, randomIntBetween(1, 3), 0);
+        ClusterState remoteState = ClusterStateCreationUtils.stateWithActivePrimary(index, true, randomIntBetween(1, 3), 0);
         List<Index> result = AutoFollower.getLeaderIndicesToFollow(autoFollowPattern, remoteState, Collections.emptyList());
         assertThat(result.size(), equalTo(1));
-        assertThat(result, hasItem(remoteState.metadata().getProject().index("test-index").getIndex()));
+        assertThat(result, hasItem(index));
 
         // index is closed
         remoteState = ClusterState.builder(remoteState)
             .metadata(
                 Metadata.builder(remoteState.metadata())
                     .put(
-                        IndexMetadata.builder(remoteState.metadata().getProject().index("test-index"))
-                            .state(IndexMetadata.State.CLOSE)
-                            .build(),
+                        IndexMetadata.builder(remoteState.metadata().getProject().index(index)).state(IndexMetadata.State.CLOSE).build(),
                         true
                     )
                     .build()

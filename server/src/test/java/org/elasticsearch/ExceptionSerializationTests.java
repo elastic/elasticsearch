@@ -251,7 +251,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testIllegalShardRoutingStateException() throws IOException {
-        final ShardRouting routing = newShardRouting("test", 0, "xyz", false, ShardRoutingState.STARTED);
+        final ShardRouting routing = newShardRouting("test", randomUUID(), 0, "xyz", false, ShardRoutingState.STARTED);
         final String routingAsString = routing.toString();
         IllegalShardRoutingStateException serialize = serialize(
             new IllegalShardRoutingStateException(routing, "foo", new NullPointerException())

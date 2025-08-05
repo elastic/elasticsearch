@@ -149,7 +149,14 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
     public void testGetOperationsWhenShardNotStarted() throws Exception {
         IndexShard indexShard = Mockito.mock(IndexShard.class);
 
-        ShardRouting shardRouting = TestShardRouting.newShardRouting("index", 0, "_node_id", true, ShardRoutingState.INITIALIZING);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            "index",
+            randomUUID(),
+            0,
+            "_node_id",
+            true,
+            ShardRoutingState.INITIALIZING
+        );
         Mockito.when(indexShard.routingEntry()).thenReturn(shardRouting);
         expectThrows(
             IndexShardNotStartedException.class,

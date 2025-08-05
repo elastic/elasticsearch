@@ -42,6 +42,7 @@ import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -186,7 +187,7 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         releasables.add(clusterService::stop);
         final var projectId = randomProjectIdOrDefault();
-        ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.state(projectId, "idx", 1, 1));
+        ClusterServiceUtils.setState(clusterService, ClusterStateCreationUtils.state(projectId, new Index("idx", randomUUID()), 1, 1));
         if (beCranky) {
             logger.info("building a cranky lookup");
         }

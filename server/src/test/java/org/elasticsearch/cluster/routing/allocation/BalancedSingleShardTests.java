@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Arrays;
@@ -50,7 +51,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     public void testRebalanceNonStartedShardNotAllowed() {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state(
-            "idx",
+            new Index("idx", randomUUID()),
             randomBoolean(),
             randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.UNASSIGNED, ShardRoutingState.RELOCATING)
         );
@@ -67,7 +68,11 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
 
     public void testRebalanceNotAllowedDuringPendingAsyncFetch() {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
-        ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED);
+        ClusterState clusterState = ClusterStateCreationUtils.state(
+            new Index("idx", randomUUID()),
+            randomBoolean(),
+            ShardRoutingState.STARTED
+        );
 
         assertThat(clusterState.metadata().projects(), aMapWithSize(1));
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
@@ -94,7 +99,11 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             }
         };
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
-        ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED);
+        ClusterState clusterState = ClusterStateCreationUtils.state(
+            new Index("idx", randomUUID()),
+            randomBoolean(),
+            ShardRoutingState.STARTED
+        );
 
         assertThat(clusterState.metadata().projects(), aMapWithSize(1));
         final ProjectId projectId = clusterState.metadata().projects().keySet().iterator().next();
@@ -187,7 +196,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     }
 
     public void testSingleShardBalanceProducesSameResultsAsBalanceStep() {
-        final String[] indices = { "idx1", "idx2" };
+        final Index[] indices = { new Index("idx1", randomUUID()), new Index("idx2", randomUUID()) };
         // Create a cluster state with 2 indices, each with 1 started primary shard, and only
         // one node initially so that all primary shards get allocated to the same node. We are only
         // using 2 indices (i.e. 2 total primary shards) because if we have any more than 2 started shards
@@ -260,7 +269,9 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     public void testNodeDecisionsRanking() {
         // only one shard, so moving it will not create a better balance anywhere, so all node decisions should
         // return the same ranking as the current node
-        ClusterState clusterState = ClusterStateCreationUtils.state(randomIntBetween(1, 10), new String[] { "idx" }, 1);
+        Index index = new Index("idx", randomUUID());
+        Index[] indices = { index };
+        ClusterState clusterState = ClusterStateCreationUtils.state(randomIntBetween(1, 10), indices, 1);
         ShardRouting shardToRebalance = clusterState.routingTable().index("idx").shardsWithState(ShardRoutingState.STARTED).get(0);
         MoveDecision decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet());
         int currentRanking = decision.getCurrentNodeRanking();
@@ -271,8 +282,8 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
 
         // start off with one node and several shards assigned to that node, then add a few nodes to the cluster,
         // each of these new nodes should have a better ranking than the current, given a low enough threshold
-        clusterState = ClusterStateCreationUtils.state(1, new String[] { "idx" }, randomIntBetween(2, 10));
-        shardToRebalance = clusterState.routingTable().index("idx").shardsWithState(ShardRoutingState.STARTED).get(0);
+        clusterState = ClusterStateCreationUtils.state(1, indices, randomIntBetween(2, 10));
+        shardToRebalance = clusterState.routingTable().index(index).shardsWithState(ShardRoutingState.STARTED).get(0);
         clusterState = addNodesToClusterState(clusterState, randomIntBetween(1, 10));
         decision = executeRebalanceFor(shardToRebalance, clusterState, emptySet());
         for (NodeAllocationResult result : decision.getNodeDecisions()) {
@@ -284,7 +295,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         // to rebalance. the new node should have the best ranking (because it has no shards), followed by the node currently
         // holding the shard as well as the other node with only 2 shards (they should have the same ranking), followed by the
         // node with 3 shards which will have the lowest ranking.
-        clusterState = ClusterStateCreationUtils.state(3, new String[] { "idx" }, 7);
+        clusterState = ClusterStateCreationUtils.state(3, indices, 7);
         shardToRebalance = null;
         Set<String> nodesWithTwoShards = new HashSet<>();
         String nodeWithThreeShards = null;
@@ -371,7 +382,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         List<AllocationDecider> allocationDeciders = Arrays.asList(rebalanceDecider, allocationDecider);
         final int numShards = randomIntBetween(8, 13);
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(balancerSettings);
-        ClusterState clusterState = ClusterStateCreationUtils.state("idx", 2, numShards);
+        ClusterState clusterState = ClusterStateCreationUtils.state(new Index("idx", randomUUID()), 2, numShards);
         // add a new node so shards can be rebalanced there
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
         nodesBuilder.add(newNode(randomAlphaOfLength(7)));

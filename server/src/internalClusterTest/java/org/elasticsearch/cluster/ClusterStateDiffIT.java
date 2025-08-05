@@ -300,7 +300,12 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         }
         int additionalIndexCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalIndexCount; i++) {
-            builder.add(randomIndexRoutingTable("index-" + randomInt(), clusterState.nodes().getNodes().keySet().toArray(new String[0])));
+            builder.add(
+                randomIndexRoutingTable(
+                    new Index("index-" + randomInt(), randomUUID()),
+                    clusterState.nodes().getNodes().keySet().toArray(new String[0])
+                )
+            );
         }
         return ClusterState.builder(clusterState).routingTable(builder.build());
     }
@@ -308,12 +313,12 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     /**
      * Randomly updates index routing table in the cluster state
      */
-    private IndexRoutingTable randomIndexRoutingTable(String index, String[] nodeIds) {
-        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(new Index(index, "_na_"));
+    private IndexRoutingTable randomIndexRoutingTable(Index index, String[] nodeIds) {
+        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index);
         int shardCount = randomInt(10);
 
         for (int i = 0; i < shardCount; i++) {
-            IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", i));
+            IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, i));
             int replicaCount = randomIntBetween(1, 10);
             Set<String> availableNodeIds = Sets.newHashSet(nodeIds);
             for (int j = 0; j < replicaCount; j++) {

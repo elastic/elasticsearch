@@ -189,9 +189,7 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         for (int i = 0; i < numIndices; i++) {
             builder.put(
                 IndexMetadata.builder("test_" + i)
-                    .settings(settings(IndexVersion.current()))
-                    .numberOfShards(between(1, 5))
-                    .numberOfReplicas(between(0, 2))
+                    .settings(indexSettings(IndexVersion.current(), randomUUID(), between(1, 5), between(0, 2)))
             );
         }
         Metadata metadata = builder.build();
@@ -313,8 +311,10 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testRebalanceDoesNotAllocatePrimaryAndReplicasOnDifferentVersionNodes() {
-        ShardId shard1 = new ShardId("test1", "_na_", 0);
-        ShardId shard2 = new ShardId("test2", "_na_", 0);
+        Index index1 = new Index("test1", randomUUID());
+        ShardId shard1 = new ShardId(index1, 0);
+        Index index2 = new Index("test2", randomUUID());
+        ShardId shard2 = new ShardId(index2, 0);
         final DiscoveryNode newNode = DiscoveryNodeUtils.builder("newNode").roles(MASTER_DATA_ROLES).build();
         final DiscoveryNode oldNode1 = DiscoveryNodeUtils.builder("oldNode1")
             .roles(MASTER_DATA_ROLES)
@@ -330,17 +330,13 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         AllocationId allocationId2R = AllocationId.newInitializing();
         Metadata metadata = Metadata.builder()
             .put(
-                IndexMetadata.builder(shard1.getIndexName())
-                    .settings(settings(IndexVersion.current()).put(Settings.EMPTY))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
+                IndexMetadata.builder(index1.getName())
+                    .settings(indexSettings(IndexVersion.current(), index1.getUUID(), 1, 1))
                     .putInSyncAllocationIds(0, Sets.newHashSet(allocationId1P.getId(), allocationId1R.getId()))
             )
             .put(
-                IndexMetadata.builder(shard2.getIndexName())
-                    .settings(settings(IndexVersion.current()).put(Settings.EMPTY))
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
+                IndexMetadata.builder(index2.getName())
+                    .settings(indexSettings(IndexVersion.current(), index2.getUUID(), 1, 1))
                     .putInSyncAllocationIds(0, Sets.newHashSet(allocationId2P.getId(), allocationId2R.getId()))
             )
             .build();
@@ -349,18 +345,13 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard1.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard1).addShard(
-                            shardRoutingBuilder(shard1.getIndexName(), shard1.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
-                                .withAllocationId(allocationId1P)
+                            shardRoutingBuilder(shard1, newNode.getId(), true, ShardRoutingState.STARTED).withAllocationId(allocationId1P)
                                 .build()
                         )
                             .addShard(
-                                shardRoutingBuilder(
-                                    shard1.getIndexName(),
-                                    shard1.getId(),
-                                    oldNode1.getId(),
-                                    false,
-                                    ShardRoutingState.STARTED
-                                ).withAllocationId(allocationId1R).build()
+                                shardRoutingBuilder(shard1, oldNode1.getId(), false, ShardRoutingState.STARTED).withAllocationId(
+                                    allocationId1R
+                                ).build()
                             )
                     )
             )
@@ -368,18 +359,13 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
                 IndexRoutingTable.builder(shard2.getIndex())
                     .addIndexShard(
                         new IndexShardRoutingTable.Builder(shard2).addShard(
-                            shardRoutingBuilder(shard2.getIndexName(), shard2.getId(), newNode.getId(), true, ShardRoutingState.STARTED)
-                                .withAllocationId(allocationId2P)
+                            shardRoutingBuilder(shard2, newNode.getId(), true, ShardRoutingState.STARTED).withAllocationId(allocationId2P)
                                 .build()
                         )
                             .addShard(
-                                shardRoutingBuilder(
-                                    shard2.getIndexName(),
-                                    shard2.getId(),
-                                    oldNode1.getId(),
-                                    false,
-                                    ShardRoutingState.STARTED
-                                ).withAllocationId(allocationId2R).build()
+                                shardRoutingBuilder(shard2, oldNode1.getId(), false, ShardRoutingState.STARTED).withAllocationId(
+                                    allocationId2R
+                                ).build()
                             )
                     )
             )
@@ -399,8 +385,8 @@ public class IndexVersionAllocationDeciderTests extends ESAllocationTestCase {
         );
         state = strategy.reroute(state, new AllocationCommands(), true, false, false, ActionListener.noop()).clusterState();
         // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
-        assertThat(state.routingTable().index(shard2.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
-        assertThat(state.routingTable().index(shard1.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
+        assertThat(state.routingTable().index(index2).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
+        assertThat(state.routingTable().index(index1).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
     }
 
     public void testRestoreDoesNotAllocateSnapshotOnOlderNodes() {

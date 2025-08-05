@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -110,7 +111,7 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
         final int successfulShards = totalShards > 0 ? randomIntBetween(0, totalShards) : 0;
         final int failedShards = totalShards - successfulShards;
 
-        final String indexName = randomAlphaOfLength(10);
+        final Index index = new Index(randomAlphaOfLength(10), randomUUID());
         final int replicas = randomIntBetween(0, 2);
         final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5));
         final IndexId indexId = new IndexId(randomAlphaOfLength(5), randomAlphaOfLength(5));
@@ -120,12 +121,12 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
 
         for (int i = 0; i < totalShards; i++) {
             if (i < successfulShards) {
-                shardStats.add(createSearchableSnapshotShardStats(indexName, i, true, snapshotId, indexId));
+                shardStats.add(createSearchableSnapshotShardStats(index, i, true, snapshotId, indexId));
                 for (int j = 0; j < replicas; j++) {
-                    shardStats.add(createSearchableSnapshotShardStats(indexName, i, false, snapshotId, indexId));
+                    shardStats.add(createSearchableSnapshotShardStats(index, i, false, snapshotId, indexId));
                 }
             } else {
-                shardFailures.add(new DefaultShardOperationFailedException(indexName, i, new Exception()));
+                shardFailures.add(new DefaultShardOperationFailedException(index.getName(), i, new Exception()));
             }
         }
 
@@ -133,7 +134,7 @@ public class SearchableSnapshotsStatsResponseTests extends ESTestCase {
     }
 
     private static SearchableSnapshotShardStats createSearchableSnapshotShardStats(
-        String index,
+        Index index,
         int shardId,
         boolean primary,
         SnapshotId snapshotId,

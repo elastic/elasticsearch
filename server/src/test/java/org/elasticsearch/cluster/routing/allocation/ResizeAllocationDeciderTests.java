@@ -123,7 +123,14 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
         ClusterState clusterState = createInitialClusterState(true);
         ResizeAllocationDecider resizeAllocationDecider = new ResizeAllocationDecider();
         RoutingAllocation routingAllocation = new RoutingAllocation(null, clusterState, null, null, 0);
-        ShardRouting shardRouting = TestShardRouting.newShardRouting("non-resize", 0, null, true, ShardRoutingState.UNASSIGNED);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            "non-resize",
+            randomUUID(),
+            0,
+            null,
+            true,
+            ShardRoutingState.UNASSIGNED
+        );
         assertEquals(Decision.ALWAYS, resizeAllocationDecider.canAllocate(shardRouting, routingAllocation));
         assertEquals(
             Decision.ALWAYS,

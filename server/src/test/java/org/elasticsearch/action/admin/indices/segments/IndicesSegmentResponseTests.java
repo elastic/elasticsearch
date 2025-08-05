@@ -30,7 +30,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 public class IndicesSegmentResponseTests extends ESTestCase {
 
     public void testToXContentSerialiationWithSortedFields() throws Exception {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting("foo", 0, "node_id", true, ShardRoutingState.STARTED);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting("foo", randomUUID(), 0, "node_id", true, ShardRoutingState.STARTED);
         Segment segment = new Segment("my");
 
         SortField sortField = new SortField("foo", SortField.Type.STRING);
@@ -54,7 +54,7 @@ public class IndicesSegmentResponseTests extends ESTestCase {
         final int indices = randomIntBetween(1, 10);
         final List<ShardRouting> routings = new ArrayList<>(indices);
         for (int i = 0; i < indices; i++) {
-            routings.add(TestShardRouting.newShardRouting("index-" + i, 0, "node_id", true, ShardRoutingState.STARTED));
+            routings.add(TestShardRouting.newShardRouting("index-" + i, randomUUID(), 0, "node_id", true, ShardRoutingState.STARTED));
         }
         Segment segment = new Segment("my");
         SortField sortField = new SortField("foo", SortField.Type.STRING);

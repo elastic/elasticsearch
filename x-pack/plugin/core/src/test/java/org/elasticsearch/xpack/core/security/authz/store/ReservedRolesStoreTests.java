@@ -1687,15 +1687,22 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-tenable_io.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-rapid7_insightvm.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
             "logs-rapid7_insightvm.asset_vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
-            "logs-carbon_black_cloud.asset_vulnerability_summary-" + randomAlphaOfLength(randomIntBetween(0, 13))
+            "logs-carbon_black_cloud.asset_vulnerability_summary-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-m365_defender.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-microsoft_defender_endpoint.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13))
         ).forEach(indexName -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(false)
-            );
+            if (indexAbstraction.getName().startsWith("logs-m365_defender.vulnerability-") == false &&
+                indexAbstraction.getName().startsWith("logs-microsoft_defender_endpoint.vulnerability-") == false) {
+                // delete_index is granted for m365_defender.vulnerability and microsoft_defender_endpoint.vulnerability
+                // because of ILM policy. So exclude both from this check.
+                assertThat(
+                    kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                    is(false)
+                );
+            }
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
@@ -1713,6 +1720,20 @@ public class ReservedRolesStoreTests extends ESTestCase {
             );
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+
+        Arrays.asList(
+            "logs-m365_defender.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13)),
+            "logs-microsoft_defender_endpoint.vulnerability-" + randomAlphaOfLength(randomIntBetween(0, 13))
+        ).forEach(indexName -> {
+            logger.info("index name [{}]", indexName);
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
+            // Allow delete index
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
+            // Implied by the overall view_index_metadata and monitor privilege
+            assertViewIndexMetadata(kibanaRole, indexName);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:monitor/").test(indexAbstraction), is(true));
+
         });
 
         Arrays.asList(

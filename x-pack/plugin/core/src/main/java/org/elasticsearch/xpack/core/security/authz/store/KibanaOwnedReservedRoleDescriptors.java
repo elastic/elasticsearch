@@ -517,9 +517,23 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-tenable_io.vulnerability-*",
                         "logs-rapid7_insightvm.vulnerability-*",
                         "logs-rapid7_insightvm.asset_vulnerability-*",
-                        "logs-carbon_black_cloud.asset_vulnerability_summary-*"
+                        "logs-carbon_black_cloud.asset_vulnerability_summary-*",
+                        "logs-m365_defender.vulnerability-*",
+                        "logs-microsoft_defender_endpoint.vulnerability-*"
                     )
                     .privileges("read", "view_index_metadata")
+                    .build(),
+                // For source indices of the Cloud Detection & Response (CDR) packages
+                // that has ILM policy
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        "logs-m365_defender.vulnerability-*",
+                        "logs-microsoft_defender_endpoint.vulnerability-*"
+                    )
+                    .privileges(
+                        // Require "delete_index" to perform ILM policy actions
+                        TransportDeleteIndexAction.TYPE.name()
+                    )
                     .build(),
                 // For alias indices of the Cloud Detection & Response (CDR) packages that ships a
                 // transform

@@ -53,7 +53,8 @@ record CmdLineArgs(
     VectorEncoding vectorEncoding,
     int dimensions,
     boolean earlyTermination,
-    KnnIndexTester.MergePolicyType mergePolicy
+    KnnIndexTester.MergePolicyType mergePolicy,
+    float vectorsRatio
 ) implements ToXContentObject {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -81,6 +82,7 @@ record CmdLineArgs(
     static final ParseField FILTER_SELECTIVITY_FIELD = new ParseField("filter_selectivity");
     static final ParseField SEED_FIELD = new ParseField("seed");
     static final ParseField MERGE_POLICY_FIELD = new ParseField("merge_policy");
+    static final ParseField VECTORS_RATIO = new ParseField("vectors_ratio");
 
     static CmdLineArgs fromXContent(XContentParser parser) throws IOException {
         Builder builder = PARSER.apply(parser, null);
@@ -115,6 +117,7 @@ record CmdLineArgs(
         PARSER.declareFloat(Builder::setFilterSelectivity, FILTER_SELECTIVITY_FIELD);
         PARSER.declareLong(Builder::setSeed, SEED_FIELD);
         PARSER.declareString(Builder::setMergePolicy, MERGE_POLICY_FIELD);
+        PARSER.declareFloat(Builder::setVectorsRatio, VECTORS_RATIO);
     }
 
     @Override
@@ -149,6 +152,7 @@ record CmdLineArgs(
         builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);
         builder.field(FILTER_SELECTIVITY_FIELD.getPreferredName(), filterSelectivity);
         builder.field(SEED_FIELD.getPreferredName(), seed);
+        builder.field(VECTORS_RATIO.getPreferredName(), vectorsRatio);
         return builder.endObject();
     }
 
@@ -183,6 +187,7 @@ record CmdLineArgs(
         private float filterSelectivity = 1f;
         private long seed = 1751900822751L;
         private KnnIndexTester.MergePolicyType mergePolicy = null;
+        private float vectorsRatio = 1f;
 
         public Builder setDocVectors(List<String> docVectors) {
             if (docVectors == null || docVectors.isEmpty()) {
@@ -313,6 +318,11 @@ record CmdLineArgs(
             return this;
         }
 
+        public Builder setVectorsRatio(float vectorsRatio) {
+            this.vectorsRatio = vectorsRatio;
+            return this;
+        }
+
         public CmdLineArgs build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -347,7 +357,8 @@ record CmdLineArgs(
                 vectorEncoding,
                 dimensions,
                 earlyTermination,
-                mergePolicy
+                mergePolicy,
+                vectorsRatio
             );
         }
     }

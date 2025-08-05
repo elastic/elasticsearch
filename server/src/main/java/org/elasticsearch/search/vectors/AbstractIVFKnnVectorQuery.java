@@ -60,16 +60,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
-    private static final double VECTOR_VISITED_PERCENTAGE_BUDGET = 0.05;
-
     protected final String field;
     protected final int nProbe;
     protected final int k;
     protected final int numCands;
     protected final Query filter;
+    private final float visitedRatio;
     protected int vectorOpsCount;
 
-    protected AbstractIVFKnnVectorQuery(String field, int nProbe, int k, int numCands, Query filter) {
+    protected AbstractIVFKnnVectorQuery(String field, int nProbe, int k, int numCands, float visitedRatio, Query filter) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -84,6 +83,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
+        this.visitedRatio = visitedRatio;
     }
 
     @Override
@@ -132,7 +132,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
-        int totalBudget = (int) (reader.numDocs() * VECTOR_VISITED_PERCENTAGE_BUDGET);
+        int totalBudget = (int) (reader.numDocs() * visitedRatio);
 
         List<Callable<TopDocs>> tasks;
         if (leafReaderContexts.isEmpty() == false) {
@@ -146,12 +146,12 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 .mapToDouble(Double::doubleValue)
                 .toArray();
 
-            // max affinity for decreasing nProbe
             double averageAffinity = Arrays.stream(affinityScores).average().orElse(Double.NaN);
+            // max affinity for decreasing nProbe
             double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
             double lowerAffinity = (maxAffinity + averageAffinity) * 0.5;
             double cutoffAffinity = lowerAffinity * 0.5; // minimum affinity score for a segment to be considered
-            double affinityTreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing nProbe
+            double affinityThreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing nProbe
             int maxAdjustments = (int) (nProbe * 1.5);
 
             if (Double.isNaN(maxAffinity) || Double.isNaN(averageAffinity)) {
@@ -171,10 +171,10 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     if (score < cutoffAffinity) {
                         continue;
                     }
-                    int adjustedNProbe = adjustNProbeForSegment(score, affinityTreshold, maxAdjustments);
+                    int adjustedNProbe = adjustNProbeForSegment(score, affinityThreshold, maxAdjustments);
                     LeafReaderContext context = segmentAffinity.context();
 
-                    // budgetᵢ = total_budget × (affinityᵢ × |vectors|ᵢ) / ∑ (affinityⱼ × |vectors|ⱼ)
+                    // distribute the budget according to : budgetᵢ = total_budget × (affinityᵢ × |vectors|ᵢ) / ∑ (affinityⱼ × |vectors|ⱼ)
                     int segmentBudget = (int) (totalBudget * (score * context.reader().numDocs()) / scoreVectorsSum);
                     tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedNProbe, Math.max(1, segmentBudget)));
                 }
@@ -257,6 +257,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
                     // with larger clusters, global centroid might not be a good representative,
                     // so we want to include "some" centroids' scores for higher quality estimate
+                    // TODO: tweak the threshold numCentroids here
                     if (numCentroids > 64) {
                         float[] centroidScores = reader.getCentroidsScores(
                             fieldInfo,

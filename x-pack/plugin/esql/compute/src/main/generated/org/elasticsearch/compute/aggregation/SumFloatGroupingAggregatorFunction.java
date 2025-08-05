@@ -301,8 +301,8 @@ public final class SumFloatGroupingAggregatorFunction implements GroupingAggrega
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = SumFloatAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = SumFloatAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

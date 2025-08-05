@@ -13,16 +13,17 @@ import org.apache.lucene.index.FloatVectorValues;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * An implementation of the hierarchical k-means algorithm that better partitions data than naive k-means
  */
 public class HierarchicalKMeans {
 
-    static final int MAXK = 128;
-    static final int MAX_ITERATIONS_DEFAULT = 6;
-    static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
-    static final float DEFAULT_SOAR_LAMBDA = 1.0f;
+    public static final int MAXK = 128;
+    public static final int MAX_ITERATIONS_DEFAULT = 6;
+    public static final int SAMPLES_PER_CLUSTER_DEFAULT = 64;
+    public static final float DEFAULT_SOAR_LAMBDA = 1.0f;
 
     final int dimension;
     final int maxIterations;
@@ -34,7 +35,7 @@ public class HierarchicalKMeans {
         this(dimension, MAX_ITERATIONS_DEFAULT, SAMPLES_PER_CLUSTER_DEFAULT, MAXK, DEFAULT_SOAR_LAMBDA);
     }
 
-    HierarchicalKMeans(int dimension, int maxIterations, int samplesPerCluster, int clustersPerNeighborhood, float soarLambda) {
+    public HierarchicalKMeans(int dimension, int maxIterations, int samplesPerCluster, int clustersPerNeighborhood, float soarLambda) {
         this.dimension = dimension;
         this.maxIterations = maxIterations;
         this.samplesPerCluster = samplesPerCluster;
@@ -79,7 +80,7 @@ public class HierarchicalKMeans {
         if (kMeansIntermediate.centroids().length > 1 && kMeansIntermediate.centroids().length < vectors.size()) {
             int localSampleSize = Math.min(kMeansIntermediate.centroids().length * samplesPerCluster / 2, vectors.size());
             KMeansLocal kMeansLocal = new KMeansLocal(localSampleSize, maxIterations);
-            kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, DEFAULT_SOAR_LAMBDA);
+            kMeansLocal.cluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
         }
 
         return kMeansIntermediate;
@@ -148,30 +149,32 @@ public class HierarchicalKMeans {
     }
 
     void updateAssignmentsWithRecursiveSplit(KMeansIntermediate current, int cluster, KMeansIntermediate subPartitions) {
+        if (subPartitions.centroids().length == 0) {
+            return; // nothing to do, sub-partitions is empty
+        }
         int orgCentroidsSize = current.centroids().length;
         int newCentroidsSize = current.centroids().length + subPartitions.centroids().length - 1;
 
         // update based on the outcomes from the split clusters recursion
-        if (subPartitions.centroids().length > 1) {
-            float[][] newCentroids = new float[newCentroidsSize][dimension];
-            System.arraycopy(current.centroids(), 0, newCentroids, 0, current.centroids().length);
+        float[][] newCentroids = new float[newCentroidsSize][];
+        System.arraycopy(current.centroids(), 0, newCentroids, 0, current.centroids().length);
 
-            // replace the original cluster
-            int origCentroidOrd = 0;
-            newCentroids[cluster] = subPartitions.centroids()[0];
+        // replace the original cluster
+        int origCentroidOrd = 0;
+        newCentroids[cluster] = subPartitions.centroids()[0];
 
-            // append the remainder
-            System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
+        // append the remainder
+        System.arraycopy(subPartitions.centroids(), 1, newCentroids, current.centroids().length, subPartitions.centroids().length - 1);
+        assert Arrays.stream(newCentroids).allMatch(Objects::nonNull);
 
-            current.setCentroids(newCentroids);
+        current.setCentroids(newCentroids);
 
-            for (int i = 0; i < subPartitions.assignments().length; i++) {
-                // this is a new centroid that was added, and so we'll need to remap it
-                if (subPartitions.assignments()[i] != origCentroidOrd) {
-                    int parentOrd = subPartitions.ordToDoc(i);
-                    assert current.assignments()[parentOrd] == cluster;
-                    current.assignments()[parentOrd] = subPartitions.assignments()[i] + orgCentroidsSize - 1;
-                }
+        for (int i = 0; i < subPartitions.assignments().length; i++) {
+            // this is a new centroid that was added, and so we'll need to remap it
+            if (subPartitions.assignments()[i] != origCentroidOrd) {
+                int parentOrd = subPartitions.ordToDoc(i);
+                assert current.assignments()[parentOrd] == cluster;
+                current.assignments()[parentOrd] = subPartitions.assignments()[i] + orgCentroidsSize - 1;
             }
         }
     }

@@ -152,18 +152,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       return;
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        ValuesBytesRefAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
-      }
-    }
+    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
   }
 
   private void addRawInput(int positionOffset, IntBigArrayBlock groups, BytesRefBlock values) {
@@ -209,18 +198,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       return;
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition)) {
-        continue;
-      }
-      int groupStart = groups.getFirstValueIndex(groupPosition);
-      int groupEnd = groupStart + groups.getValueCount(groupPosition);
-      for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = groups.getInt(g);
-        ValuesBytesRefAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
-      }
-    }
+    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
   }
 
   private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
@@ -255,11 +233,7 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
       return;
     }
     BytesRefBlock values = (BytesRefBlock) valuesUncast;
-    BytesRef scratch = new BytesRef();
-    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = groups.getInt(groupPosition);
-      ValuesBytesRefAggregator.combineIntermediate(state, groupId, values, groupPosition + positionOffset);
-    }
+    ValuesBytesRefAggregator.combineIntermediate(state, positionOffset, groups, values);
   }
 
   @Override
@@ -274,8 +248,8 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = ValuesBytesRefAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = ValuesBytesRefAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

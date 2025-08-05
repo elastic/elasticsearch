@@ -11,6 +11,7 @@ package org.elasticsearch.search.rank.context;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankShardResult;
 
 /**
@@ -37,4 +38,13 @@ public abstract class RankFeaturePhaseRankShardContext {
      */
     @Nullable
     public abstract RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId);
+
+    /**
+     * Prepares a SearchContext with any additional information needed before executing
+     * commands on shards.
+     * @param context SearchContext
+     */
+    public void prepareForFetch(SearchContext context) {
+        // Default no-op
+    }
 }

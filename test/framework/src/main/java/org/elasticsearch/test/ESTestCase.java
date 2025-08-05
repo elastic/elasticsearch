@@ -444,6 +444,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * doesn't have a {@link RandomizedContext}. There's probably a way to do this
      * that isn't a nasty hack, but that's a job for another day.
      */
+    @SuppressForbidden(reason = "I'm not proud of it, but I don't want to spend spacetime looking at carrotsearch :)")
     @BeforeClass
     public static void fudgeRandomContextForVirtualThreads() {
         final RandomizedContext current = RandomizedContext.current();
@@ -469,6 +470,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "I'm not proud of it, but I don't want to spend spacetime looking at carrotsearch :)")
     @AfterClass
     public static void cleanUpMess() {
         if (virtualThreadsContext.get() != null) {

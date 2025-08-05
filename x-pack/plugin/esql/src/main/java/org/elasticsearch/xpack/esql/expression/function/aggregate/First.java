@@ -10,19 +10,17 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstOverTimeDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstOverTimeFloatAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstOverTimeIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstOverTimeLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.compute.aggregation.LastOverTimeDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeFloatAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -36,8 +34,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Last extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Last", Last::readFrom);
+public class First extends AggregateFunction implements ToAggregator {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", First::readFrom);
 
     private final Expression sort;
 
@@ -45,10 +43,10 @@ public class Last extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double" },
-        description = "The latest value of a field.",
-        examples = @Example(file = "stats_last", tag = "last")
+        description = "The earliest value of a field.",
+        examples = @Example(file = "stats_first", tag = "first")
     )
-    public Last(
+    public First(
         Source source,
         @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
         @Param(name = "field", type = { "datetime", "date_nanos" }) Expression sort
@@ -56,18 +54,18 @@ public class Last extends AggregateFunction implements ToAggregator {
         this(source, field, Literal.TRUE, sort);
     }
 
-    private Last(Source source, Expression field, Expression filter, Expression sort) {
+    private First(Source source, Expression field, Expression filter, Expression sort) {
         super(source, field, filter, List.of(sort));
         this.sort = sort;
     }
 
-    private static Last readFrom(StreamInput in) throws IOException {
+    private static First readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression filter = in.readNamedWriteable(Expression.class);
         List<Expression> params = in.readNamedWriteableCollectionAsList(Expression.class);
         Expression sort = params.getFirst();
-        return new Last(source, field, filter, sort);
+        return new First(source, field, filter, sort);
     }
 
     @Override
@@ -76,18 +74,18 @@ public class Last extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    protected NodeInfo<Last> info() {
-        return NodeInfo.create(this, Last::new, field(), sort);
+    protected NodeInfo<First> info() {
+        return NodeInfo.create(this, First::new, field(), sort);
     }
 
     @Override
-    public Last replaceChildren(List<Expression> newChildren) {
-        return new Last(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+    public First replaceChildren(List<Expression> newChildren) {
+        return new First(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
-    public Last withFilter(Expression filter) {
-        return new Last(source(), field(), filter, sort);
+    public First withFilter(Expression filter) {
+        return new First(source(), field(), filter, sort);
     }
 
     @Override
@@ -113,16 +111,16 @@ public class Last extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new LastOverTimeLongAggregatorFunctionSupplier();
-            case INTEGER -> new LastOverTimeIntAggregatorFunctionSupplier();
-            case DOUBLE -> new LastOverTimeDoubleAggregatorFunctionSupplier();
-            case FLOAT -> new LastOverTimeFloatAggregatorFunctionSupplier();
+            case LONG -> new FirstOverTimeLongAggregatorFunctionSupplier();
+            case INTEGER -> new FirstOverTimeIntAggregatorFunctionSupplier();
+            case DOUBLE -> new FirstOverTimeDoubleAggregatorFunctionSupplier();
+            case FLOAT -> new FirstOverTimeFloatAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
 
     @Override
     public String toString() {
-        return "last(" + field() + ", " + sort + ")";
+        return "first(" + field() + ", " + sort + ")";
     }
 }

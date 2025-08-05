@@ -17,19 +17,15 @@ last_bytes_in:long | pod:keyword
 
 double_by_date
 required_capability: agg_first_last
-// tag::last[]
 FROM k8s
 | STATS last_network_cost = LAST(network.cost, @timestamp) BY pod
 | SORT pod ASC
-// end::last[]
 ;
 
-// tag::last-result[]
 last_network_cost:double | pod:keyword
                    6.250 | one
                   10.875 | three
                   10.750 | two
-// end::last-result[]
 ;
 
 by_date_nanos

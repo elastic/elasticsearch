@@ -18,6 +18,7 @@ public class AggregateWritables {
             Avg.ENTRY,
             Count.ENTRY,
             CountDistinct.ENTRY,
+            First.ENTRY,
             Max.ENTRY,
             Median.ENTRY,
             MedianAbsoluteDeviation.ENTRY,

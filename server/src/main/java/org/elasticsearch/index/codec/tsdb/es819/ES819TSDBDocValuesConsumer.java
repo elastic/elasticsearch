@@ -69,7 +69,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final int skipIndexIntervalSize;
     final boolean enableOptimizedMerge;
     private final BinaryDVCompressionMode binaryDVCompressionMode;
-    private final SegmentWriteState state;
 
     ES819TSDBDocValuesConsumer(
         SegmentWriteState state,
@@ -83,7 +82,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     ) throws IOException {
         this.termsDictBuffer = new byte[1 << 14];
         this.binaryDVCompressionMode = binaryDVCompressionMode;
-        this.state = state;
         this.dir = state.directory;
         this.context = state.context;
         boolean success = false;
@@ -290,9 +288,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     }
 
     public void doAddUncompressedBinary(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
-        meta.writeInt(field.number);
-        meta.writeByte(ES819TSDBDocValuesFormat.BINARY);
-
         if (valuesProducer instanceof TsdbDocValuesProducer tsdbValuesProducer && tsdbValuesProducer.mergeStats.supported()) {
             final int numDocsWithField = tsdbValuesProducer.mergeStats.sumNumDocsWithField();
             final int minLength = tsdbValuesProducer.mergeStats.minLength();
@@ -530,6 +525,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 sampler.processLine(v.bytes, v.offset, v.length);
             }
 
+            assert maxLength >= minLength : "maxLength [" + maxLength + "] < minLength [" + minLength + "]";
+
             // Build encoder from sample
             FSST.SymbolTable symbolTable = FSST.SymbolTable.buildSymbolTable(sampler.getSample());
 
@@ -539,7 +536,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 if (numDocsWithField > 0 && numDocsWithField < maxDoc) {
                     disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                 }
-                assert maxLength >= minLength;
                 offsetsAccumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField);
                 CompressedOffsetWriter offsetWriter = new CompressedOffsetWriter(offsetsAccumulator);
 

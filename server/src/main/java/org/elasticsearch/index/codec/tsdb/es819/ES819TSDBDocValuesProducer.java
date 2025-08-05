@@ -1566,13 +1566,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         long addressesLength;
         DirectMonotonicReader.Meta addressesMeta;
 
+        // Compression
+        final BinaryDVCompressionMode compression;
+
         // FSST
         int minCompressedLength;
         int maxCompressedLength;
         FSST.Decoder decoder;
 
-        // Compression
-        final BinaryDVCompressionMode compression;
 
         private BinaryEntry(BinaryDVCompressionMode compression) {
             this.compression = compression;

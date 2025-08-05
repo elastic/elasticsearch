@@ -24,11 +24,15 @@ public class MapperBuilderContext {
      * The root context, to be used when building a tree of mappers
      */
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream) {
-        return root(isSourceSynthetic, isDataStream, MergeReason.MAPPING_UPDATE);
+        return MapperBuilderContext.builder().isSourceSynthetic(isSourceSynthetic).isDataStream(isDataStream).build();
     }
 
     public static MapperBuilderContext root(boolean isSourceSynthetic, boolean isDataStream, MergeReason mergeReason) {
-        return new MapperBuilderContext(null, isSourceSynthetic, isDataStream, false, ObjectMapper.Defaults.DYNAMIC, mergeReason, false);
+        return MapperBuilderContext.builder()
+            .isSourceSynthetic(isSourceSynthetic)
+            .isDataStream(isDataStream)
+            .mergeReason(mergeReason)
+            .build();
     }
 
     private final String path;
@@ -145,5 +149,67 @@ public class MapperBuilderContext {
      */
     public boolean isInNestedContext() {
         return inNestedContext;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+
+        private String path = null;
+        private boolean isSourceSynthetic;
+        private boolean isDataStream;
+        private boolean parentObjectContainsDimensions = false;
+        private ObjectMapper.Dynamic dynamic = ObjectMapper.Defaults.DYNAMIC;
+        private MergeReason mergeReason = MergeReason.MAPPING_UPDATE;
+        private boolean inNestedContext = false;
+
+        public Builder path(String path) {
+            this.path = path;
+            return this;
+        }
+
+        public Builder isSourceSynthetic(boolean isSourceSynthetic) {
+            this.isSourceSynthetic = isSourceSynthetic;
+            return this;
+        }
+
+        public Builder isDataStream(boolean isDataStream) {
+            this.isDataStream = isDataStream;
+            return this;
+        }
+
+        public Builder parentObjectContainsDimensions(boolean parentObjectContainsDimensions) {
+            this.parentObjectContainsDimensions = parentObjectContainsDimensions;
+            return this;
+        }
+
+        public Builder dynamic(ObjectMapper.Dynamic dynamic) {
+            this.dynamic = dynamic;
+            return this;
+        }
+
+        public Builder mergeReason(MergeReason mergeReason) {
+            this.mergeReason = mergeReason;
+            return this;
+        }
+
+        public Builder inNestedContext(boolean inNestedContext) {
+            this.inNestedContext = inNestedContext;
+            return this;
+        }
+
+        public MapperBuilderContext build() {
+            return new MapperBuilderContext(
+                path,
+                isSourceSynthetic,
+                isDataStream,
+                parentObjectContainsDimensions,
+                dynamic,
+                mergeReason,
+                inNestedContext
+            );
+        }
     }
 }

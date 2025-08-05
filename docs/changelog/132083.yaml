@@ -1,0 +1,5 @@
+pr: 132083
+summary: "Index templates: Add `{created,modified}_date`"
+area: Ingest Node
+type: enhancement
+issues: []

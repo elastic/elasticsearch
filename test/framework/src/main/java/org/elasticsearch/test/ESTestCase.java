@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
+import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -172,6 +174,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.Method;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.URI;
@@ -431,6 +434,29 @@ public abstract class ESTestCase extends LuceneTestCase {
             reverse.set((seed & 1) == 0);
         } catch (Exception e) {
             throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * This is an awful hack to work around the fact the virtual threads' thread group
+     * doesn't have a {@link RandomizedContext}. There's probably a way to do this
+     * that isn't a nasty hack, but that's a job for another day.
+     */
+    @Before
+    public void fudgeRandomContextForVirtualThreads() {
+        final RandomizedContext current = RandomizedContext.current();
+        try {
+            Method create = RandomizedContext.class.getDeclaredMethod("create", ThreadGroup.class, Class.class, RandomizedRunner.class);
+            create.setAccessible(true);
+            Thread.ofVirtual().start(() -> {
+                try {
+                    create.invoke(null, Thread.currentThread().getThreadGroup(), current.getTargetClass(), current.getRunner());
+                } catch (Exception e) {
+                    fail(e, "Hack didn't work");
+                }
+            });
+        } catch (NoSuchMethodException e) {
+            fail(e, "Hack didn't work");
         }
     }
 

@@ -283,4 +283,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
   task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Moved to plugin")
   task.skipTest("migration/20_post_feature_upgrade/Get feature upgrade status", "Moved to plugin")
   task.skipTest("synonyms/80_synonyms_from_index/Fail loading synonyms from index if synonyms_set doesn't exist", "Synonyms do no longer fail if the synonyms_set doesn't exist")
+  task.skipTest("update/100_synthetic_source/keyword", "synthetic recovery source means _recovery_source field will not be present")
+  task.skipTest("update/100_synthetic_source/stored text", "synthetic recovery source means _recovery_source field will not be present")
 })

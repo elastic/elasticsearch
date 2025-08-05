@@ -185,33 +185,38 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         final RandomAccessInput bytesSlice = data.randomAccessSlice(entry.dataOffset, entry.dataLength);
 
+        final int maxCompressedLength = entry.maxCompressedLength;
+        final int lengthToAllocate = entry.maxLength + 7; // uncompressed
         if (entry.docsWithFieldOffset == -1) {
-            // dense
-            if (entry.minLength == entry.maxLength) {
-                // fixed length
-                final int length = entry.maxLength;
-                return new DenseBinaryDocValues(maxDoc) {
-                    final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
+            // dense
+            if (entry.minCompressedLength == entry.maxCompressedLength) {
+                // fixed length
+                return new DenseBinaryDocValues(maxDoc) {
+                    final BytesRef inBuf = new BytesRef(new byte[maxCompressedLength], 0, maxCompressedLength);
+                    final BytesRef outBuf = new BytesRef(new byte[lengthToAllocate], 0, lengthToAllocate);
                     @Override
                     public BytesRef binaryValue() throws IOException {
-                        bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
-                        return bytes;
+                        bytesSlice.readBytes((long) doc * maxCompressedLength, inBuf.bytes, 0, maxCompressedLength);
+                        outBuf.length = FSST.decompress(inBuf.bytes, 0, inBuf.length, entry.decoder, outBuf.bytes);
+                        return outBuf;
                     }
                 };
             } else {
                 // variable length
                 final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
-                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
+                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
                 return new DenseBinaryDocValues(maxDoc) {
-                    final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
+                    final BytesRef inBuf = new BytesRef(new byte[maxCompressedLength], 0, 0);
+                    final BytesRef outBuf = new BytesRef(new byte[lengthToAllocate], 0, lengthToAllocate);
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
                         long startOffset = addresses.get(doc);
-                        bytes.length = (int) (addresses.get(doc + 1L) - startOffset);
-                        bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
-                        return bytes;
+                        inBuf.length = (int) (addresses.get(doc + 1L) - startOffset);
+                        bytesSlice.readBytes(startOffset, inBuf.bytes, 0, inBuf.length);
+                        outBuf.length = FSST.decompress(inBuf.bytes, 0, inBuf.length, entry.decoder, outBuf.bytes);
+                        return outBuf;
                     }
                 };
             }
@@ -225,32 +230,34 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numDocsWithField
             );
-            if (entry.minLength == entry.maxLength) {
+            if (entry.minCompressedLength == entry.maxCompressedLength) {
                 // fixed length
-                final int length = entry.maxLength;
                 return new SparseBinaryDocValues(disi) {
-                    final BytesRef bytes = new BytesRef(new byte[length], 0, length);
+                    final BytesRef inBuf = new BytesRef(new byte[maxCompressedLength], 0, entry.maxCompressedLength);
+                    final BytesRef outBuf = new BytesRef(new byte[lengthToAllocate], 0, lengthToAllocate);
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
-                        bytesSlice.readBytes((long) disi.index() * length, bytes.bytes, 0, length);
-                        return bytes;
+                        bytesSlice.readBytes((long) disi.index() * maxCompressedLength, inBuf.bytes, 0, maxCompressedLength);
+                        outBuf.length = FSST.decompress(inBuf.bytes, 0, inBuf.length, entry.decoder, outBuf.bytes);
+                        return outBuf;
                     }
                 };
             } else {
                 // variable length
                 final RandomAccessInput addressesData = this.data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
-                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
+                final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData);
                 return new SparseBinaryDocValues(disi) {
-                    final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
-
+                    final BytesRef inBuf = new BytesRef(new byte[maxCompressedLength], 0, 0);
+                    final BytesRef outBuf = new BytesRef(new byte[lengthToAllocate], 0, lengthToAllocate);
                     @Override
                     public BytesRef binaryValue() throws IOException {
                         final int index = disi.index();
                         long startOffset = addresses.get(index);
-                        bytes.length = (int) (addresses.get(index + 1L) - startOffset);
-                        bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
-                        return bytes;
+                        inBuf.length = (int) (addresses.get(index + 1L) - startOffset);
+                        bytesSlice.readBytes(startOffset, inBuf.bytes, 0, inBuf.length);
+                        outBuf.length = FSST.decompress(inBuf.bytes, 0, inBuf.length, entry.decoder, outBuf.bytes);
+                        return outBuf;
                     }
                 };
             }
@@ -954,7 +961,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         entry.numDocsWithField = meta.readInt();
         entry.minLength = meta.readInt();
         entry.maxLength = meta.readInt();
-        if (entry.minLength < entry.maxLength) {
+
+        entry.minCompressedLength = meta.readInt();
+        entry.maxCompressedLength = meta.readInt();
+        entry.decoder = FSST.Decoder.readFrom(meta::readByte);
+
+        if (entry.minCompressedLength < entry.maxCompressedLength) {
             entry.addressesOffset = meta.readLong();
 
             // Old count of uncompressed addresses

@@ -18,7 +18,7 @@ import java.util.StringJoiner;
 
 /**
  * Any ESQL function; generally this is translated into a computation to be evaluated on arguments, including scalar functions (e.g. in
- * {@code EVAL}) or aggregations ({@code STATS}).
+ * {@code EVAL}) or aggregation functions ({@code STATS}).
  */
 public abstract class Function extends Expression {
 

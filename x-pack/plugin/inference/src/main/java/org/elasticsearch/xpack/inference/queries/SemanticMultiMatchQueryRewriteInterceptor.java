@@ -142,78 +142,16 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         Set<String> inferenceFields,
         String queryValue
     ) {
+        validateQueryTypeSupported(originalQuery.type());
+        
         switch (originalQuery.type()) {
             case BEST_FIELDS:
-                // For best_fields, use dis_max to find the single best matching field
-                // This mimics the behavior of multi_match best_fields which wraps match queries in dis_max
-                DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
-                for (String fieldName : inferenceFields) {
-                    SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
-                    disMaxQuery.add(semanticQuery);
-                }
-                // Apply tie_breaker if specified
-                if (originalQuery.tieBreaker() != null) {
-                    disMaxQuery.tieBreaker(originalQuery.tieBreaker());
-                }
-                disMaxQuery.boost(originalQuery.boost());
-                disMaxQuery.queryName(originalQuery.queryName());
-                return disMaxQuery;
-
+                return buildBestFieldsSemanticQuery(originalQuery, inferenceFields, queryValue);
             case MOST_FIELDS:
-                // For most_fields, we want to score across all fields and sum the scores
-                // This can be reasonably approximated with semantic queries
-                BoolQueryBuilder boolQuery = new BoolQueryBuilder();
-                for (String fieldName : inferenceFields) {
-                    SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
-                    boolQuery.should(semanticQuery);
-                }
-                boolQuery.minimumShouldMatch("1");
-                boolQuery.boost(originalQuery.boost());
-                boolQuery.queryName(originalQuery.queryName());
-                return boolQuery;
-
-            case CROSS_FIELDS:
-                // Cross-fields requires term-level analysis across fields which doesn't translate
-                // meaningfully to semantic queries that work with dense vectors
-                throw new IllegalArgumentException(
-                    "multi_match query with type [cross_fields] is not supported for semantic_text fields. " +
-                    "Use [best_fields] or [most_fields] instead."
-                );
-
-            case PHRASE:
-                // Phrase queries require positional information which semantic queries don't have
-                throw new IllegalArgumentException(
-                    "multi_match query with type [phrase] is not supported for semantic_text fields. " +
-                    "Use [best_fields] instead."
-                );
-
-            case PHRASE_PREFIX:
-                // Phrase prefix queries require positional and prefix information
-                throw new IllegalArgumentException(
-                    "multi_match query with type [phrase_prefix] is not supported for semantic_text fields. " +
-                    "Use [best_fields] instead."
-                );
-
-            case BOOL_PREFIX:
-                // Bool prefix requires term-level prefix analysis
-                throw new IllegalArgumentException(
-                    "multi_match query with type [bool_prefix] is not supported for semantic_text fields. " +
-                    "Use [best_fields] or [most_fields] instead."
-                );
-
+                return buildMostFieldsSemanticQuery(originalQuery, inferenceFields, queryValue);
             default:
                 // Fallback to best_fields behavior for unknown types
-                DisMaxQueryBuilder defaultDisMaxQuery = new DisMaxQueryBuilder();
-                for (String fieldName : inferenceFields) {
-                    SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
-                    defaultDisMaxQuery.add(semanticQuery);
-                }
-                if (originalQuery.tieBreaker() != null) {
-                    defaultDisMaxQuery.tieBreaker(originalQuery.tieBreaker());
-                }
-                defaultDisMaxQuery.boost(originalQuery.boost());
-                defaultDisMaxQuery.queryName(originalQuery.queryName());
-                return defaultDisMaxQuery;
+                return buildBestFieldsSemanticQuery(originalQuery, inferenceFields, queryValue);
         }
     }
 
@@ -221,9 +159,100 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         MultiMatchQueryBuilder originalQuery,
         MultiFieldInferenceInfo inferenceInfo
     ) {
-        BoolQueryBuilder combinedQuery = new BoolQueryBuilder();
+        validateQueryTypeSupported(originalQuery.type());
+        
         String queryValue = (String) originalQuery.value();
-
+        
+        switch (originalQuery.type()) {
+            case BEST_FIELDS:
+                return buildBestFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
+            case MOST_FIELDS:
+                return buildMostFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
+            default:
+                // Fallback to best_fields behavior
+                return buildBestFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
+        }
+    }
+    
+    /**
+     * Validates that the multi_match query type is supported for semantic_text fields.
+     * Throws IllegalArgumentException for unsupported types.
+     */
+    private void validateQueryTypeSupported(MultiMatchQueryBuilder.Type queryType) {
+        switch (queryType) {
+            case CROSS_FIELDS:
+                throw new IllegalArgumentException(
+                    "multi_match query with type [cross_fields] is not supported for semantic_text fields. " +
+                    "Use [best_fields] or [most_fields] instead."
+                );
+            case PHRASE:
+                throw new IllegalArgumentException(
+                    "multi_match query with type [phrase] is not supported for semantic_text fields. " +
+                    "Use [best_fields] instead."
+                );
+            case PHRASE_PREFIX:
+                throw new IllegalArgumentException(
+                    "multi_match query with type [phrase_prefix] is not supported for semantic_text fields. " +
+                    "Use [best_fields] instead."
+                );
+            case BOOL_PREFIX:
+                throw new IllegalArgumentException(
+                    "multi_match query with type [bool_prefix] is not supported for semantic_text fields. " +
+                    "Use [best_fields] or [most_fields] instead."
+                );
+            // BEST_FIELDS and MOST_FIELDS are supported - no validation needed
+        }
+    }
+    
+    /**
+     * Builds a best_fields query for pure semantic fields using DisMaxQueryBuilder.
+     */
+    private QueryBuilder buildBestFieldsSemanticQuery(
+        MultiMatchQueryBuilder originalQuery,
+        Set<String> inferenceFields,
+        String queryValue
+    ) {
+        DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
+        for (String fieldName : inferenceFields) {
+            SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
+            disMaxQuery.add(semanticQuery);
+        }
+        // Apply tie_breaker if specified
+        if (originalQuery.tieBreaker() != null) {
+            disMaxQuery.tieBreaker(originalQuery.tieBreaker());
+        }
+        disMaxQuery.boost(originalQuery.boost());
+        disMaxQuery.queryName(originalQuery.queryName());
+        return disMaxQuery;
+    }
+    
+    /**
+     * Builds a most_fields query for pure semantic fields using BoolQueryBuilder.
+     */
+    private QueryBuilder buildMostFieldsSemanticQuery(
+        MultiMatchQueryBuilder originalQuery,
+        Set<String> inferenceFields,
+        String queryValue
+    ) {
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+        for (String fieldName : inferenceFields) {
+            SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
+            boolQuery.should(semanticQuery);
+        }
+        boolQuery.minimumShouldMatch("1");
+        boolQuery.boost(originalQuery.boost());
+        boolQuery.queryName(originalQuery.queryName());
+        return boolQuery;
+    }
+    
+    private QueryBuilder buildBestFieldsCombinedQuery(
+        MultiMatchQueryBuilder originalQuery,
+        MultiFieldInferenceInfo inferenceInfo,
+        String queryValue
+    ) {
+        // For best_fields, use dis_max to find the single best matching field across all field types
+        DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
+        
         // Add semantic queries for inference fields per index
         Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex = inferenceInfo.getInferenceFieldsPerIndex();
         for (Map.Entry<String, Map<String, InferenceFieldMetadata>> entry : inferenceFieldsPerIndex.entrySet()) {
@@ -234,7 +263,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
                 BoolQueryBuilder indexSpecificQuery = new BoolQueryBuilder();
                 indexSpecificQuery.must(new SemanticQueryBuilder(fieldName, queryValue, true));
                 indexSpecificQuery.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, List.of(indexName)));
-                combinedQuery.should(indexSpecificQuery);
+                disMaxQuery.add(indexSpecificQuery);
             }
         }
 
@@ -244,12 +273,53 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             BoolQueryBuilder indexFilteredQuery = new BoolQueryBuilder();
             indexFilteredQuery.must(nonInferenceQuery);
             indexFilteredQuery.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, inferenceInfo.getNonInferenceIndices()));
-            combinedQuery.should(indexFilteredQuery);
+            disMaxQuery.add(indexFilteredQuery);
+        }
+        
+        // Apply tie_breaker if specified
+        if (originalQuery.tieBreaker() != null) {
+            disMaxQuery.tieBreaker(originalQuery.tieBreaker());
+        }
+        disMaxQuery.boost(originalQuery.boost());
+        disMaxQuery.queryName(originalQuery.queryName());
+        return disMaxQuery;
+    }
+    
+    private QueryBuilder buildMostFieldsCombinedQuery(
+        MultiMatchQueryBuilder originalQuery,
+        MultiFieldInferenceInfo inferenceInfo,
+        String queryValue
+    ) {
+        // For most_fields, use bool should to score across all fields
+        BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+        
+        // Add semantic queries for inference fields per index
+        Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex = inferenceInfo.getInferenceFieldsPerIndex();
+        for (Map.Entry<String, Map<String, InferenceFieldMetadata>> entry : inferenceFieldsPerIndex.entrySet()) {
+            String indexName = entry.getKey();
+            Map<String, InferenceFieldMetadata> indexInferenceFields = entry.getValue();
+
+            for (String fieldName : indexInferenceFields.keySet()) {
+                BoolQueryBuilder indexSpecificQuery = new BoolQueryBuilder();
+                indexSpecificQuery.must(new SemanticQueryBuilder(fieldName, queryValue, true));
+                indexSpecificQuery.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, List.of(indexName)));
+                boolQuery.should(indexSpecificQuery);
+            }
         }
 
-        combinedQuery.boost(originalQuery.boost());
-        combinedQuery.queryName(originalQuery.queryName());
-        return combinedQuery;
+        // Add non-inference query for indices without semantic_text fields
+        if (inferenceInfo.getNonInferenceIndices().isEmpty() == false) {
+            MultiMatchQueryBuilder nonInferenceQuery = copyMultiMatchQueryBuilder(originalQuery);
+            BoolQueryBuilder indexFilteredQuery = new BoolQueryBuilder();
+            indexFilteredQuery.must(nonInferenceQuery);
+            indexFilteredQuery.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, inferenceInfo.getNonInferenceIndices()));
+            boolQuery.should(indexFilteredQuery);
+        }
+        
+        boolQuery.minimumShouldMatch("1");
+        boolQuery.boost(originalQuery.boost());
+        boolQuery.queryName(originalQuery.queryName());
+        return boolQuery;
     }
 
     /**

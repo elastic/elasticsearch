@@ -65,15 +65,11 @@ import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompleti
  * }
  * </code></pre>
  */
-public class MistralErrorResponse extends UnifiedChatCompletionErrorResponse {
+public class MistralErrorResponseHelper {
     private static final String MISTRAL_ERROR = "mistral_error";
 
     public static final UnifiedChatCompletionErrorParserContract ERROR_PARSER = UnifiedChatCompletionErrorResponseUtils
         .createErrorParserWithStringify(MISTRAL_ERROR);
-
-    private MistralErrorResponse(String message) {
-        super(message, MISTRAL_ERROR, null, null);
-    }
 
     /**
      * Creates an ErrorResponse from the given HttpResult.
@@ -86,4 +82,6 @@ public class MistralErrorResponse extends UnifiedChatCompletionErrorResponse {
     public static UnifiedChatCompletionErrorResponse fromResponse(HttpResult response) {
         return ERROR_PARSER.parse(response);
     }
+
+    private MistralErrorResponseHelper() {}
 }

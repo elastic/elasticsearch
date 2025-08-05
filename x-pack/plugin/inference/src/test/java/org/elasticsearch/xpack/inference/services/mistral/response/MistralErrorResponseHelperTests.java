@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.mockito.Mockito.mock;
 
-public class MistralErrorResponseTests extends ESTestCase {
+public class MistralErrorResponseHelperTests extends ESTestCase {
 
     public static final String ERROR_RESPONSE_JSON = """
         {
@@ -24,7 +24,7 @@ public class MistralErrorResponseTests extends ESTestCase {
         """;
 
     public void testFromResponse() {
-        var errorResponse = MistralErrorResponse.fromResponse(
+        var errorResponse = MistralErrorResponseHelper.fromResponse(
             new HttpResult(mock(HttpResponse.class), ERROR_RESPONSE_JSON.getBytes(StandardCharsets.UTF_8))
         );
         assertNotNull(errorResponse);

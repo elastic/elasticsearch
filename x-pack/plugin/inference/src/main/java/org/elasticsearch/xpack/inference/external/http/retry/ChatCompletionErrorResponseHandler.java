@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
@@ -62,12 +63,16 @@ public class ChatCompletionErrorResponseHandler {
                 restStatus,
                 errorMessage,
                 errorResponse.type(),
-                errorResponse.code(),
+                code(errorResponse.code(), restStatus),
                 errorResponse.param()
             );
         } else {
             return buildDefaultChatCompletionError(errorResponse, errorMessage, restStatus);
         }
+    }
+
+    private static String code(@Nullable String code, RestStatus status) {
+        return code != null ? code : status.name().toLowerCase(Locale.ROOT);
     }
 
     /**

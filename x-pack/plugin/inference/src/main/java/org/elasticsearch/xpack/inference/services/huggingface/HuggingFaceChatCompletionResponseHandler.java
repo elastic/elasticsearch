@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.inference.services.huggingface;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorParserContract;
 import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompletionErrorResponse;
@@ -17,6 +20,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.UnifiedChatCompleti
 import org.elasticsearch.xpack.inference.services.huggingface.response.HuggingFaceErrorResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
+import java.io.IOException;
 import java.util.Optional;
 
 /**
@@ -47,32 +51,67 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
      */
     private static class StreamingHuggingFaceErrorResponseEntity extends UnifiedChatCompletionErrorResponse {
         private static final ConstructingObjectParser<Optional<UnifiedChatCompletionErrorResponse>, Void> ERROR_PARSER =
-            new ConstructingObjectParser<>(
-                HUGGING_FACE_ERROR,
-                true,
-                args -> Optional.ofNullable((StreamingHuggingFaceErrorResponseEntity) args[0])
-            );
-        private static final ConstructingObjectParser<StreamingHuggingFaceErrorResponseEntity, Void> ERROR_BODY_PARSER =
-            new ConstructingObjectParser<>(
-                HUGGING_FACE_ERROR,
-                true,
-                args -> new StreamingHuggingFaceErrorResponseEntity(args[0] != null ? (String) args[0] : "unknown", (Integer) args[1])
-            );
+            new ConstructingObjectParser<>(HUGGING_FACE_ERROR, true, args -> {
+                if (args[0] == null) {
+                    return Optional.empty();
+                }
+
+                return Optional.of(new StreamingHuggingFaceErrorResponseEntity((ErrorFieldObject) args[0]));
+            });
 
         static {
-            ERROR_BODY_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("message"));
-            ERROR_BODY_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField("http_status_code"));
-
-            ERROR_PARSER.declareObjectOrNull(
+            ERROR_PARSER.declareField(
                 ConstructingObjectParser.optionalConstructorArg(),
-                ERROR_BODY_PARSER,
-                null,
-                new ParseField("error")
+                (p, c) -> parseErrorField(p),
+                new ParseField("error"),
+                // The expected value is an object, string, or null, using this value type to allow that combination
+                // We'll check the current token in the called function to ensure it is only an object, string, or null
+                ObjectParser.ValueType.VALUE_OBJECT_ARRAY
             );
         }
 
-        StreamingHuggingFaceErrorResponseEntity(String errorMessage, @Nullable Integer httpStatusCode) {
-            super(errorMessage, HUGGING_FACE_ERROR, httpStatusCode != null ? String.valueOf(httpStatusCode) : null, null);
+        StreamingHuggingFaceErrorResponseEntity(ErrorFieldObject errorField) {
+            super(
+                errorField.message,
+                HUGGING_FACE_ERROR,
+                errorField.httpStatusCode != null ? String.valueOf(errorField.httpStatusCode) : null,
+                null
+            );
         }
     }
+
+    private static ErrorFieldObject parseErrorField(XContentParser parser) throws IOException {
+        var token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            return ErrorFieldObject.parseString(parser);
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            return ErrorFieldObject.parseObject(parser);
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            return null;
+        }
+
+        throw new XContentParseException("Unexpected token: " + token);
+    }
+
+    private record ErrorFieldObject(String message, @Nullable Integer httpStatusCode) {
+        private static final ConstructingObjectParser<ErrorFieldObject, Void> PARSER = new ConstructingObjectParser<>(
+            ErrorFieldObject.class.getSimpleName(),
+            true,
+            args -> new ErrorFieldObject(args[0] != null ? (String) args[0] : "unknown", (Integer) args[1])
+        );
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("message"));
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField("http_status_code"));
+        }
+
+        public static ErrorFieldObject parseObject(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
+        public static ErrorFieldObject parseString(XContentParser parser) throws IOException {
+            return new ErrorFieldObject(parser.text(), null);
+        }
+    }
+
 }

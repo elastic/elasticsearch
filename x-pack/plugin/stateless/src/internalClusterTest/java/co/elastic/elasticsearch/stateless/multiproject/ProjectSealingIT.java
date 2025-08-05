@@ -25,25 +25,36 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ProjectSealingIT extends AbstractStatelessIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.concatLists(List.of(InternalSettingsPlugin.class), super.nodePlugins());
+    }
 
     @Override
     protected boolean multiProjectIntegrationTest() {
@@ -51,8 +62,8 @@ public class ProjectSealingIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testFlushProject() throws Exception {
-        startMasterAndIndexNode();
-        startMasterAndIndexNode();
+        startMasterAndIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        startMasterAndIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         startSearchNode();
         ensureStableCluster(3);
 
@@ -69,7 +80,9 @@ public class ProjectSealingIT extends AbstractStatelessIntegTestCase {
                 var indexSettings = Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
                     .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                    .put(INDEX_MERGE_ENABLED, false)
                     .build();
                 createIndex(project, indexName, indexSettings);
             }

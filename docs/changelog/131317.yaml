@@ -1,5 +1,5 @@
 pr: 131317
-summary: Don't normalize fields of type text when the index mode is LogsDB or TSDB
+summary: Don't enable norms for fields of type text when the index mode is LogsDB or TSDB
 area: Mapping
 type: breaking
 issues: []

@@ -49,9 +49,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 
@@ -162,24 +160,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                     tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, nProbe, Integer.MAX_VALUE));
                 }
             } else {
-                Map<LeafReaderContext, Integer> segmentNProbeMap = new HashMap<>();
-                // process segments based on their affinity scores
-                for (SegmentAffinity affinity : segmentAffinities) {
-                    double score = affinity.affinityScore();
-
-                    // skip segments with very low affinity
-                    if (score < cutoffAffinity) {
-                        continue;
-                    }
-
-                    // adjust nProbe based on affinity score, with larger affinity we increase nprobe (and viceversa)
-                    int adjustedNProbe = adjustNProbeForSegment(score, affinityTreshold, maxAdjustments);
-
-                    // store the adjusted nProbe value for this segment
-                    segmentNProbeMap.put(affinity.context(), adjustedNProbe);
-                }
-
-                tasks = new ArrayList<>(segmentNProbeMap.size());
+                tasks = new ArrayList<>(segmentAffinities.size());
                 double scoreVectorsSum = segmentAffinities.stream()
                     .map(segmentAffinity -> segmentAffinity.affinityScore * segmentAffinity.context.reader().numDocs())
                     .mapToDouble(Double::doubleValue)

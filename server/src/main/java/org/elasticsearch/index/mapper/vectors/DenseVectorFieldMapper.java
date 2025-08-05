@@ -2740,6 +2740,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         .add(filter, BooleanClause.Occur.FILTER)
                         .build();
             } else if (indexOptions instanceof BBQIVFIndexOptions bbqIndexOptions) {
+                float visitedRatio = 0.05f; // TODO: this is fixed to 5% <-- tweak this with a linear transformation from num_candidates?
                 knnQuery = parentFilter != null
                     ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                         name(),
@@ -2749,9 +2750,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         filter,
                         parentFilter,
                         bbqIndexOptions.defaultNProbe,
-                        1f
+                    visitedRatio
                     )
-                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe, 1);
+                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe, visitedRatio);
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(

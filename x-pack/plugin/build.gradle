@@ -139,6 +139,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-multiple", "Error message changed")
   task.skipTest("esql/192_lookup_join_on_aliases/fails when alias or pattern resolves to multiple", "Error message changed")
   task.skipTest("esql/10_basic/Test wrong LIMIT parameter", "Error message changed")
+  task.skipTest("esql/190_lookup_join/lookup-no-key-only-key", "Requires the fix")
 })
 
 tasks.named('yamlRestCompatTest').configure {

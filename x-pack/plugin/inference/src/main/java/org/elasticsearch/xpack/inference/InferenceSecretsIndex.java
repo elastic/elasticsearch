@@ -29,10 +29,12 @@ public class InferenceSecretsIndex {
     private static final int INDEX_MAPPING_VERSION = 1;
 
     public static Settings settings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .build();
+        return builder().build();
+    }
+
+    // Public to allow tests to create the index with custom settings
+    public static Settings.Builder builder() {
+        return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
     }
 
     /**

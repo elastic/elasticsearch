@@ -699,6 +699,25 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         DEFAULT_PRUNING, // Default pruning configuration
         STRICT_PRUNING   // Stricter pruning with higher thresholds
     }
+    
+    public enum QueryPruningScenario {
+        PRUNE_FALSE_NO_CONFIG,
+        PRUNE_FALSE_WITH_CONFIG,
+        PRUNE_TRUE_NO_CONFIG,
+        PRUNE_TRUE_WITH_CONFIG,
+        PRUNE_NULL_WITH_CONFIG,
+        PRUNE_NULL_NO_CONFIG
+    }
+
+    public enum IndexPruningScenario {
+        // PREVIOUS_VERSION_NO_PRUNING, //TODO(mromaios): This fails when combined with query pruning that overrides the index options,
+        // check.
+        PRUNE_FALSE_NO_CONFIG,
+        PRUNE_TRUE_NO_CONFIG,
+        PRUNE_TRUE_WITH_CONFIG,
+        PRUNE_NULL_NO_CONFIG
+    }
+
 
     private void withSearchExecutionContext(MapperService mapperService, CheckedConsumer<SearchExecutionContext, IOException> consumer)
         throws IOException {
@@ -853,24 +872,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
 
         return PruningScenario.DEFAULT_PRUNING;
-    }
-
-    public enum QueryPruningScenario {
-        PRUNE_FALSE_NO_CONFIG,
-        PRUNE_FALSE_WITH_CONFIG,
-        PRUNE_TRUE_NO_CONFIG,
-        PRUNE_TRUE_WITH_CONFIG,
-        PRUNE_NULL_WITH_CONFIG,
-        PRUNE_NULL_NO_CONFIG
-    }
-
-    public enum IndexPruningScenario {
-        // PREVIOUS_VERSION_NO_PRUNING, //TODO(mromaios): This fails when combined with query pruning that overrides the index options,
-        // check.
-        PRUNE_FALSE_NO_CONFIG,
-        PRUNE_TRUE_NO_CONFIG,
-        PRUNE_TRUE_WITH_CONFIG,
-        PRUNE_NULL_NO_CONFIG
     }
 
     private Tuple<Boolean, TokenPruningConfig> getQueryPruneConfig(QueryPruningScenario queryPruningScenario) {

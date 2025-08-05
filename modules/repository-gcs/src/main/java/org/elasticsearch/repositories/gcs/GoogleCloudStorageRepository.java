@@ -139,6 +139,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     @Override
     protected GoogleCloudStorageBlobStore createBlobStore() {
         return new GoogleCloudStorageBlobStore(
+            getProjectId(),
             bucket,
             clientName,
             metadata.name(),

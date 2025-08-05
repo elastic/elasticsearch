@@ -14,15 +14,18 @@ dependencies {
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
 
-  clusterPlugins project(':x-pack:plugin:deprecation:qa::early-deprecation-plugin')
-  clusterPlugins project(':x-pack:plugin:deprecation:qa::deprecation-plugin')
-}
-
-tasks.named('javaRestTest') {
-  // Tried to just include deprecation, data-streams and ml, but apparently some other non
-  // immediately apparent plugin is needed
-  // Example failing build scan: https://gradle-enterprise.elastic.co/s/rxaz3vi2a3tao
-  usesDefaultDistribution("the .logs.deprecated index can not be written or read with a minimal plugin set")
+  clusterModules project(':x-pack:plugin:deprecation:qa::early-deprecation-plugin')
+  clusterModules project(':x-pack:plugin:deprecation:qa::deprecation-plugin')
+  clusterModules project(':modules:ingest-common')
+  clusterModules project(':modules:mapper-extras')
+  clusterModules project(':modules:data-streams')
+  clusterModules project(xpackModule('stack'))
+  clusterModules project(xpackModule('deprecation'))
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('ml'))
+  clusterModules project(xpackModule('mapper-constant-keyword'))
+  clusterModules project(xpackModule('wildcard'))
+  clusterModules project(xpackModule('transform'))
 }
 
 restResources {

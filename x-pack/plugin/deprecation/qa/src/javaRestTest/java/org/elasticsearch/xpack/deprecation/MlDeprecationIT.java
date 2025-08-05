@@ -14,7 +14,6 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
@@ -33,8 +32,16 @@ public class MlDeprecationIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .plugin("deprecation-plugin")
+        .module("deprecation-plugin")
+        .module("x-pack-deprecation")
+        .module("x-pack-stack")
+        .module("x-pack-ilm")
+        .module("x-pack-ml")
+        .module("mapper-extras")
+        .module("wildcard")
+        .module("ingest-common")
+        .module("constant-keyword")
+        .module("transform")
         .setting("cluster.deprecation_indexing.enabled", "true")
         .setting("cluster.deprecation_indexing.flush_interval", "100ms")
         .setting("xpack.security.enabled", "false")

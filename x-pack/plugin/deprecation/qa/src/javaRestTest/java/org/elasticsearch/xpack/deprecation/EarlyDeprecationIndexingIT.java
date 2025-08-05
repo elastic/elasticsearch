@@ -16,7 +16,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 
@@ -40,8 +39,13 @@ public class EarlyDeprecationIndexingIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .plugin("early-deprecation-plugin")
+        .module("early-deprecation-plugin")
+        .module("x-pack-deprecation")
+        .module("x-pack-stack")
+        .module("x-pack-ilm")
+        .module("ingest-common")
+        .module("constant-keyword")
+        .module("data-streams")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.deprecation_indexing.enabled", "true")

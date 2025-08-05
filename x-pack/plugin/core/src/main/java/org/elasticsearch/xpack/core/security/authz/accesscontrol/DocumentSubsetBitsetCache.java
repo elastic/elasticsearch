@@ -55,31 +55,33 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  * This is a cache for {@link BitSet} instances that are used with the {@link DocumentSubsetReader}.
  * It is bounded by memory size and access time.
- *
+ * <p>
  * DLS uses {@link BitSet} instances to track which documents should be visible to the user ("live") and which should not ("dead").
  * This means that there is a bit for each document in a Lucene index (ES shard).
  * Consequently, an index with 10 million document will use more than 1Mb of bitset memory for every unique DLS query, and an index
  * with 1 billion documents will use more than 100Mb of memory per DLS query.
  * Because DLS supports templating queries based on user metadata, there may be many distinct queries in use for each index, even if
  * there is only a single active role.
- *
+ * <p>
  * The primary benefit of the cache is to avoid recalculating the "live docs" (visible documents) when a user performs multiple
  * consecutive queries across one or more large indices. Given the memory examples above, the cache is only useful if it can hold at
  * least 1 large (100Mb or more ) {@code BitSet} during a user's active session, and ideally should be capable of support multiple
  * simultaneous users with distinct DLS queries.
- *
+ * <p>
  * For this reason the default memory usage (weight) for the cache set to 10% of JVM heap ({@link #CACHE_SIZE_SETTING}), so that it
  * automatically scales with the size of the Elasticsearch deployment, and can provide benefit to most use cases without needing
  * customisation. On a 32Gb heap, a 10% cache would be 3.2Gb which is large enough to store BitSets representing 25 billion docs.
- *
+ * <p>
  * However, because queries can be templated by user metadata and that metadata can change frequently, it is common for the
- * effetively lifetime of a single DLS query to be relatively short. We do not want to sacrifice 10% of heap to a cache that is storing
- * BitSets that are not longer needed, so we set the TTL on this cache to be 2 hours ({@link #CACHE_TTL_SETTING}). This time has been
+ * effective lifetime of a single DLS query to be relatively short. We do not want to sacrifice 10% of heap to a cache that is storing
+ * BitSets that are no longer needed, so we set the TTL on this cache to be 2 hours ({@link #CACHE_TTL_SETTING}). This time has been
  * chosen so that it will retain BitSets that are in active use during a user's session, but not be an ongoing drain on memory.
  *
  * @see org.elasticsearch.index.cache.bitset.BitsetFilterCache
  */
 public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListener, Closeable, Accountable {
+
+    private static final Logger logger = LogManager.getLogger(DocumentSubsetBitsetCache.class);
 
     /**
      * The TTL defaults to 2 hours. We default to a large cache size ({@link #CACHE_SIZE_SETTING}), and aggressively
@@ -101,8 +103,6 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     );
 
     private static final BitSet NULL_MARKER = new FixedBitSet(0);
-
-    private static final Logger logger = LogManager.getLogger(DocumentSubsetBitsetCache.class);
 
     /**
      * When a {@link BitSet} is evicted from {@link #bitsetCache}, we need to also remove it from {@link #keysByIndex}.
@@ -130,7 +130,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
      * @param cleanupExecutor An executor on which the cache cleanup tasks can be run. Due to the way the cache is structured internally,
      *                        it is sometimes necessary to run an asynchronous task to synchronize the internal state.
      */
-    protected DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
+    // visible for testing
+    DocumentSubsetBitsetCache(Settings settings, ExecutorService cleanupExecutor) {
         final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
         this.cacheEvictionLock = new ReleasableLock(readWriteLock.writeLock());
         this.cacheModificationLock = new ReleasableLock(readWriteLock.readLock());
@@ -171,7 +172,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         }
         // We push this to a background thread, so that it reduces the risk of blocking searches, but also so that the lock management is
         // simpler - this callback is likely to take place on a thread that is actively adding something to the cache, and is therefore
-        // holding the read ("update") side of the lock. It is not possible to upgrade a read lock to a write ("eviction") lock, but we
+        // holding the read ("update") side of the lock. It is not possible to upgrade a read lock to a write lock ("eviction"), but we
         // need to acquire that lock here.
         cleanupExecutor.submit(() -> {
             try (ReleasableLock ignored = cacheEvictionLock.acquire()) {
@@ -214,7 +215,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
     /**
      * Obtain the {@link BitSet} for the given {@code query} in the given {@code context}.
      * If there is a cached entry for that query and context, it will be returned.
-     * Otherwise a new BitSet will be created and stored in the cache.
+     * Otherwise, a new BitSet will be created and stored in the cache.
      * The returned BitSet may be null (e.g. if the query has no results).
      */
     @Nullable
@@ -289,7 +290,7 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
 
     // Package private for testing
     static boolean isEffectiveMatchAllDocsQuery(Query rewrittenQuery) {
-        if (rewrittenQuery instanceof ConstantScoreQuery && ((ConstantScoreQuery) rewrittenQuery).getQuery() instanceof MatchAllDocsQuery) {
+        if (rewrittenQuery instanceof ConstantScoreQuery csq && csq.getQuery() instanceof MatchAllDocsQuery) {
             return true;
         }
         if (rewrittenQuery instanceof MatchAllDocsQuery) {
@@ -322,7 +323,8 @@ public final class DocumentSubsetBitsetCache implements IndexReader.ClosedListen
         return Map.of("count", entryCount(), "memory", ram.toString(), "memory_in_bytes", ram.getBytes());
     }
 
-    private static class BitsetCacheKey {
+    private static final class BitsetCacheKey {
+
         final IndexReader.CacheKey index;
         final Query query;
 

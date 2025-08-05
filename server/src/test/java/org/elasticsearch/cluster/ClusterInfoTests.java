@@ -82,7 +82,7 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolUsageStats =
                 new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(/* totalThreadPoolThreads= */ randomIntBetween(1, 16),
                     /* averageThreadPoolUtilization= */ randomFloat(),
-                    /* averageThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
+                    /* maxThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
                 );
             Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> usageStatsForThreadPools = new HashMap<>();
             usageStatsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolUsageStats);

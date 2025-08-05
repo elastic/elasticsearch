@@ -11,9 +11,12 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,6 +64,7 @@ public class ScriptServiceTests extends ESTestCase {
     private Settings baseSettings;
     private ClusterSettings clusterSettings;
     private Map<String, ScriptContext<?>> rateLimitedContexts;
+    private ProjectId projectId;
 
     @Before
     public void setup() throws IOException {
@@ -78,21 +82,14 @@ public class ScriptServiceTests extends ESTestCase {
         engines.put("test", new MockScriptEngine("test", scripts, Collections.emptyMap()));
         logger.info("--> setup script service");
         rateLimitedContexts = compilationRateLimitedContexts();
+        projectId = randomProjectIdOrDefault();
     }
 
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
-        scriptService = new ScriptService(finalSettings, engines, contexts, () -> 1L) {
+        scriptService = new ScriptService(finalSettings, engines, contexts, () -> 1L, TestProjectResolvers.singleProject(projectId)) {
             @Override
-            Map<String, StoredScriptSource> getScriptsFromClusterState() {
-                Map<String, StoredScriptSource> scripts = new HashMap<>();
-                scripts.put("test1", new StoredScriptSource("test", "1+1", Collections.emptyMap()));
-                scripts.put("test2", new StoredScriptSource("test", "1", Collections.emptyMap()));
-                return scripts;
-            }
-
-            @Override
-            protected StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
                 // mock the script that gets retrieved from an index
                 return new StoredScriptSource("test", "1+1", Collections.emptyMap());
             }
@@ -446,25 +443,26 @@ public class ScriptServiceTests extends ESTestCase {
 
     public void testGetStoredScript() throws Exception {
         buildScriptService(Settings.EMPTY);
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        ScriptMetadata.TYPE,
-                        new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
-                            {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build()
-                    )
-            )
+        ProjectMetadata project = ProjectMetadata.builder(projectId)
+            .putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).storeScript("_id", StoredScriptSource.parse(new BytesArray("""
+                {"script": {"lang": "_lang", "source": "abc"} }"""), XContentType.JSON)).build())
             .build();
 
-        assertEquals("abc", ScriptService.getStoredScript(cs, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")).getSource());
+        assertEquals("abc", ScriptService.getStoredScript(project, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")).getSource());
 
-        cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(ScriptService.getStoredScript(cs, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")));
+        project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        assertNull(ScriptService.getStoredScript(project, new GetStoredScriptRequest(TEST_REQUEST_TIMEOUT, "_id")));
     }
 
     public void testMaxSizeLimit() throws Exception {
         buildScriptService(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 4).build());
+        ScriptMetadata.Builder scripts = new ScriptMetadata.Builder(null);
+        scripts.storeScript("test1", new StoredScriptSource("test", "1+1", Collections.emptyMap()));
+        scripts.storeScript("test2", new StoredScriptSource("test", "1", Collections.emptyMap()));
+        final var project = ProjectMetadata.builder(projectId).putCustom(ScriptMetadata.TYPE, scripts.build()).build();
+        final var state = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(project).build();
+        scriptService.applyClusterState(new ClusterChangedEvent("", state, ClusterState.EMPTY_STATE));
+
         scriptService.compile(new Script(ScriptType.INLINE, "test", "1+1", Collections.emptyMap()), randomFrom(contexts.values()));
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
             scriptService.compile(new Script(ScriptType.INLINE, "test", "10+10", Collections.emptyMap()), randomFrom(contexts.values()));

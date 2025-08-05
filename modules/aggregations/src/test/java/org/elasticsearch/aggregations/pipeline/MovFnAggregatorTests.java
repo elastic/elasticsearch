@@ -18,6 +18,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -106,7 +107,8 @@ public class MovFnAggregatorTests extends AggregatorTestCase {
             Settings.EMPTY,
             engines,
             Map.of(MovingFunctionScript.CONTEXT.name, MovingFunctionScript.CONTEXT),
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
     }
 

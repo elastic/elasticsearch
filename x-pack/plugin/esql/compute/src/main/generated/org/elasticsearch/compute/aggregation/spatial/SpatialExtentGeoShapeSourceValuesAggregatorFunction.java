@@ -66,73 +66,81 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      BytesRefBlock block = page.getBlock(channels.get(0));
-      BytesRefVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    BytesRefBlock block = page.getBlock(channels.get(0));
-    BytesRefVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(BytesRefVector vector) {
-    BytesRef scratch = new BytesRef();
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
+    BytesRefVector bytesVector = bytesBlock.asVector();
+    if (bytesVector == null) {
+      addRawBlock(bytesBlock, mask);
+      return;
+    }
+    addRawVector(bytesVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    BytesRefBlock bytesBlock = page.getBlock(channels.get(0));
+    BytesRefVector bytesVector = bytesBlock.asVector();
+    if (bytesVector == null) {
+      addRawBlock(bytesBlock);
+      return;
+    }
+    addRawVector(bytesVector);
+  }
+
+  private void addRawVector(BytesRefVector bytesVector) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
     }
   }
 
-  private void addRawVector(BytesRefVector vector, BooleanVector mask) {
-    BytesRef scratch = new BytesRef();
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(BytesRefVector bytesVector, BooleanVector mask) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
+      SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
     }
   }
 
-  private void addRawBlock(BytesRefBlock block) {
-    BytesRef scratch = new BytesRef();
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(BytesRefBlock bytesBlock) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int p = 0; p < bytesBlock.getPositionCount(); p++) {
+      if (bytesBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SpatialExtentGeoShapeSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
+      int bytesStart = bytesBlock.getFirstValueIndex(p);
+      int bytesEnd = bytesStart + bytesBlock.getValueCount(p);
+      for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
+        BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
+        SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
       }
     }
   }
 
-  private void addRawBlock(BytesRefBlock block, BooleanVector mask) {
-    BytesRef scratch = new BytesRef();
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(BytesRefBlock bytesBlock, BooleanVector mask) {
+    BytesRef bytesScratch = new BytesRef();
+    for (int p = 0; p < bytesBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      if (bytesBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SpatialExtentGeoShapeSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
+      int bytesStart = bytesBlock.getFirstValueIndex(p);
+      int bytesEnd = bytesStart + bytesBlock.getValueCount(p);
+      for (int bytesOffset = bytesStart; bytesOffset < bytesEnd; bytesOffset++) {
+        BytesRef bytesValue = bytesBlock.getBytesRef(bytesOffset, bytesScratch);
+        SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
       }
     }
   }

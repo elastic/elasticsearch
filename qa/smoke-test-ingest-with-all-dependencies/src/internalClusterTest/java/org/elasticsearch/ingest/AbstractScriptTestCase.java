@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -33,7 +34,13 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
     public void init() throws Exception {
         MustacheScriptEngine engine = new MustacheScriptEngine(Settings.EMPTY);
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        scriptService = new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     protected TemplateScript.Factory compile(String template) {

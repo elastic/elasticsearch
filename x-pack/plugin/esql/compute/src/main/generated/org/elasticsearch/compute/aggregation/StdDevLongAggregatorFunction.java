@@ -60,69 +60,77 @@ public final class StdDevLongAggregatorFunction implements AggregatorFunction {
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      LongBlock block = page.getBlock(channels.get(0));
-      LongVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    LongBlock block = page.getBlock(channels.get(0));
-    LongVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(LongVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      StdDevLongAggregator.combine(state, vector.getLong(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    LongBlock valueBlock = page.getBlock(channels.get(0));
+    LongVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      addRawBlock(valueBlock, mask);
+      return;
+    }
+    addRawVector(valueVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    LongBlock valueBlock = page.getBlock(channels.get(0));
+    LongVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      addRawBlock(valueBlock);
+      return;
+    }
+    addRawVector(valueVector);
+  }
+
+  private void addRawVector(LongVector valueVector) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      long valueValue = valueVector.getLong(valuesPosition);
+      StdDevLongAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawVector(LongVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(LongVector valueVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < valueVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      StdDevLongAggregator.combine(state, vector.getLong(i));
+      long valueValue = valueVector.getLong(valuesPosition);
+      StdDevLongAggregator.combine(state, valueValue);
     }
   }
 
-  private void addRawBlock(LongBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(LongBlock valueBlock) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
+      if (valueBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        StdDevLongAggregator.combine(state, block.getLong(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        long valueValue = valueBlock.getLong(valueOffset);
+        StdDevLongAggregator.combine(state, valueValue);
       }
     }
   }
 
-  private void addRawBlock(LongBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(LongBlock valueBlock, BooleanVector mask) {
+    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      if (valueBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        StdDevLongAggregator.combine(state, block.getLong(i));
+      int valueStart = valueBlock.getFirstValueIndex(p);
+      int valueEnd = valueStart + valueBlock.getValueCount(p);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        long valueValue = valueBlock.getLong(valueOffset);
+        StdDevLongAggregator.combine(state, valueValue);
       }
     }
   }

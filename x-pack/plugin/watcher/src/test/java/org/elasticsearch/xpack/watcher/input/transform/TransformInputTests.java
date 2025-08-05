@@ -44,7 +44,7 @@ public class TransformInputTests extends ESTestCase {
 
     @Before
     public void setupScriptService() {
-        scriptService = WatcherMockScriptPlugin.newMockScriptService(Collections.singletonMap("1", s -> "2"));
+        scriptService = WatcherMockScriptPlugin.newMockScriptService(Collections.singletonMap("1", s -> "2"), randomProjectIdOrDefault());
     }
 
     public void testExecute() {

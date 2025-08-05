@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 public abstract class Foldables {
@@ -15,5 +16,12 @@ public abstract class Foldables {
             return e.fold(ctx);
         }
         throw new QlIllegalArgumentException("Cannot determine value for {}", e);
+    }
+
+    public static String stringLiteralValueOf(Expression expression, String message) {
+        if (expression instanceof Literal literal && literal.value() instanceof BytesRef bytesRef) {
+            return bytesRef.utf8ToString();
+        }
+        throw new QlIllegalArgumentException(message);
     }
 }

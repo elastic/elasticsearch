@@ -23,6 +23,7 @@ import com.sun.net.httpserver.HttpHandler;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -235,8 +236,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        protected GoogleCloudStorageService createStorageService(boolean isServerless) {
-            return new GoogleCloudStorageService() {
+        protected GoogleCloudStorageService createStorageService(ClusterService clusterService, ProjectResolver projectResolver) {
+            return new GoogleCloudStorageService(clusterService, projectResolver) {
                 @Override
                 StorageOptions createStorageOptions(
                     final GoogleCloudStorageClientSettings gcsClientSettings,
@@ -280,7 +281,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     projectId,
                     metadata,
                     registry,
-                    this.storageService,
+                    this.storageService.get(),
                     clusterService,
                     bigArrays,
                     recoverySettings,
@@ -289,10 +290,11 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                     @Override
                     protected GoogleCloudStorageBlobStore createBlobStore() {
                         return new GoogleCloudStorageBlobStore(
+                            getProjectId(),
                             metadata.settings().get("bucket"),
                             "test",
                             metadata.name(),
-                            storageService,
+                            storageService.get(),
                             bigArrays,
                             randomIntBetween(1, 8) * 1024,
                             BackoffPolicy.noBackoff(),

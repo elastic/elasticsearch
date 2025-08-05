@@ -11,6 +11,7 @@
 * [`LOOKUP JOIN`](../../commands/processing-commands.md#esql-lookup-join)
 * [preview] [`MV_EXPAND`](../../commands/processing-commands.md#esql-mv_expand)
 * [`RENAME`](../../commands/processing-commands.md#esql-rename)
+* [preview] [`RERANK`](../../commands/processing-commands.md#esql-rerank)
 * [preview] [`SAMPLE`](../../commands/processing-commands.md#esql-sample)
 * [`SORT`](../../commands/processing-commands.md#esql-sort)
 * [`STATS`](../../commands/processing-commands.md#esql-stats-by)

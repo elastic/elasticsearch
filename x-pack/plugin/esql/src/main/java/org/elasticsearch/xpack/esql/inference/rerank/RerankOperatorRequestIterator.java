@@ -51,22 +51,28 @@ public class RerankOperatorRequestIterator implements BulkInferenceRequestIterat
             throw new NoSuchElementException();
         }
 
-        final int inputSize = Math.min(remainingPositions, batchSize);
-        final List<String> inputs = new ArrayList<>(inputSize);
+        final int maxInputSize = Math.min(remainingPositions, batchSize);
+        final List<String> inputs = new ArrayList<>(maxInputSize);
         BytesRef scratch = new BytesRef();
 
         int startIndex = inputBlock.getPositionCount() - remainingPositions;
-        for (int i = 0; i < inputSize; i++) {
+
+        if (inputBlock.isNull(startIndex)) {
+            remainingPositions -= 1;
+            return null;
+        }
+
+        for (int i = 0; i < maxInputSize; i++) {
             int pos = startIndex + i;
             if (inputBlock.isNull(pos)) {
-                inputs.add("");
+                break;
             } else {
                 scratch = inputBlock.getBytesRef(inputBlock.getFirstValueIndex(pos), scratch);
                 inputs.add(BytesRefs.toString(scratch));
             }
         }
 
-        remainingPositions -= inputSize;
+        remainingPositions -= inputs.size();
         return inferenceRequest(inputs);
     }
 

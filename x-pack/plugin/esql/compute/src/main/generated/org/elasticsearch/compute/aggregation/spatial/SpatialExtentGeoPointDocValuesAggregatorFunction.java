@@ -65,69 +65,77 @@ public final class SpatialExtentGeoPointDocValuesAggregatorFunction implements A
   public void addRawInput(Page page, BooleanVector mask) {
     if (mask.allFalse()) {
       // Entire page masked away
-      return;
-    }
-    if (mask.allTrue()) {
-      // No masking
-      LongBlock block = page.getBlock(channels.get(0));
-      LongVector vector = block.asVector();
-      if (vector != null) {
-        addRawVector(vector);
-      } else {
-        addRawBlock(block);
-      }
-      return;
-    }
-    // Some positions masked away, others kept
-    LongBlock block = page.getBlock(channels.get(0));
-    LongVector vector = block.asVector();
-    if (vector != null) {
-      addRawVector(vector, mask);
+    } else if (mask.allTrue()) {
+      addRawInputNotMasked(page);
     } else {
-      addRawBlock(block, mask);
+      addRawInputMasked(page, mask);
     }
   }
 
-  private void addRawVector(LongVector vector) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialExtentGeoPointDocValuesAggregator.combine(state, vector.getLong(i));
+  private void addRawInputMasked(Page page, BooleanVector mask) {
+    LongBlock encodedBlock = page.getBlock(channels.get(0));
+    LongVector encodedVector = encodedBlock.asVector();
+    if (encodedVector == null) {
+      addRawBlock(encodedBlock, mask);
+      return;
+    }
+    addRawVector(encodedVector, mask);
+  }
+
+  private void addRawInputNotMasked(Page page) {
+    LongBlock encodedBlock = page.getBlock(channels.get(0));
+    LongVector encodedVector = encodedBlock.asVector();
+    if (encodedVector == null) {
+      addRawBlock(encodedBlock);
+      return;
+    }
+    addRawVector(encodedVector);
+  }
+
+  private void addRawVector(LongVector encodedVector) {
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      long encodedValue = encodedVector.getLong(valuesPosition);
+      SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
     }
   }
 
-  private void addRawVector(LongVector vector, BooleanVector mask) {
-    for (int i = 0; i < vector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+  private void addRawVector(LongVector encodedVector, BooleanVector mask) {
+    for (int valuesPosition = 0; valuesPosition < encodedVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      SpatialExtentGeoPointDocValuesAggregator.combine(state, vector.getLong(i));
+      long encodedValue = encodedVector.getLong(valuesPosition);
+      SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
     }
   }
 
-  private void addRawBlock(LongBlock block) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
-      if (block.isNull(p)) {
+  private void addRawBlock(LongBlock encodedBlock) {
+    for (int p = 0; p < encodedBlock.getPositionCount(); p++) {
+      if (encodedBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SpatialExtentGeoPointDocValuesAggregator.combine(state, block.getLong(i));
+      int encodedStart = encodedBlock.getFirstValueIndex(p);
+      int encodedEnd = encodedStart + encodedBlock.getValueCount(p);
+      for (int encodedOffset = encodedStart; encodedOffset < encodedEnd; encodedOffset++) {
+        long encodedValue = encodedBlock.getLong(encodedOffset);
+        SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
       }
     }
   }
 
-  private void addRawBlock(LongBlock block, BooleanVector mask) {
-    for (int p = 0; p < block.getPositionCount(); p++) {
+  private void addRawBlock(LongBlock encodedBlock, BooleanVector mask) {
+    for (int p = 0; p < encodedBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (block.isNull(p)) {
+      if (encodedBlock.isNull(p)) {
         continue;
       }
-      int start = block.getFirstValueIndex(p);
-      int end = start + block.getValueCount(p);
-      for (int i = start; i < end; i++) {
-        SpatialExtentGeoPointDocValuesAggregator.combine(state, block.getLong(i));
+      int encodedStart = encodedBlock.getFirstValueIndex(p);
+      int encodedEnd = encodedStart + encodedBlock.getValueCount(p);
+      for (int encodedOffset = encodedStart; encodedOffset < encodedEnd; encodedOffset++) {
+        long encodedValue = encodedBlock.getLong(encodedOffset);
+        SpatialExtentGeoPointDocValuesAggregator.combine(state, encodedValue);
       }
     }
   }

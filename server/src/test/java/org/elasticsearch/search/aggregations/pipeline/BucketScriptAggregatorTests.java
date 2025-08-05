@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -30,7 +31,9 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -56,7 +59,13 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public void testScript() throws IOException {
@@ -95,8 +104,42 @@ public class BucketScriptAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testNonMultiBucketParent() {
+        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number_field", NumberFieldMapper.NumberType.INTEGER);
+        MappedFieldType fieldType1 = new KeywordFieldMapper.KeywordFieldType("the_field");
+
+        FilterAggregationBuilder filter = new FilterAggregationBuilder("placeholder", new MatchAllQueryBuilder()).subAggregation(
+            new TermsAggregationBuilder("the_terms").userValueTypeHint(ValueType.STRING)
+                .field("the_field")
+                .subAggregation(new AvgAggregationBuilder("the_avg").field("number_field"))
+        )
+            .subAggregation(
+                new BucketScriptPipelineAggregationBuilder(
+                    "bucket_script",
+                    Collections.singletonMap("the_avg", "the_terms['test1']>the_avg.value"),
+                    new Script(ScriptType.INLINE, MockScriptEngine.NAME, SCRIPT_NAME, Collections.emptyMap())
+                )
+            );
+
+        assertThrows(
+            "Expected a multi bucket aggregation but got [InternalFilter] for aggregation [bucket_script]",
+            IllegalArgumentException.class,
+            () -> testCase(filter, new MatchAllDocsQuery(), iw -> {
+                Document doc = new Document();
+                doc.add(new SortedSetDocValuesField("the_field", new BytesRef("test1")));
+                doc.add(new SortedNumericDocValuesField("number_field", 19));
+                iw.addDocument(doc);
+
+                doc = new Document();
+                doc.add(new SortedSetDocValuesField("the_field", new BytesRef("test2")));
+                doc.add(new SortedNumericDocValuesField("number_field", 55));
+                iw.addDocument(doc);
+            }, f -> fail("This shouldn't be called"), fieldType, fieldType1)
+        );
+    }
+
     private void testCase(
-        FiltersAggregationBuilder aggregationBuilder,
+        AggregationBuilder aggregationBuilder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalFilters> verify,

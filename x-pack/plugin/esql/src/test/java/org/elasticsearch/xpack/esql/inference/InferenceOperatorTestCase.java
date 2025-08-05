@@ -229,4 +229,27 @@ public abstract class InferenceOperatorTestCase<InferenceResultsType extends Inf
             threadPool.schedule(runnable, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.generic());
         }
     }
+
+    public static class BlockStringReader {
+
+        private final StringBuilder sb = new StringBuilder();
+        private BytesRef scratch = new BytesRef();
+
+        public String readString(BytesRefBlock block, int pos) {
+            sb.setLength(0);
+            int valueIndex = block.getFirstValueIndex(pos);
+            while (valueIndex < block.getFirstValueIndex(pos) + block.getValueCount(pos)) {
+                scratch = block.getBytesRef(valueIndex, scratch);
+                sb.append(scratch.utf8ToString());
+                if (valueIndex < block.getValueCount(pos) - 1) {
+                    sb.append("\n");
+                }
+                valueIndex++;
+            }
+            scratch = block.getBytesRef(block.getFirstValueIndex(pos), scratch);
+
+            return sb.toString();
+        }
+
+    }
 }

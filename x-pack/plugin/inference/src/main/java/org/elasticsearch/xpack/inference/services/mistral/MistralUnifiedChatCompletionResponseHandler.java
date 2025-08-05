@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.mistral.response.MistralErrorResponse;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiUnifiedChatCompletionResponseHandler;
 
 import java.util.Locale;
@@ -26,26 +25,15 @@ public class MistralUnifiedChatCompletionResponseHandler extends OpenAiUnifiedCh
     private static final String MISTRAL_ERROR = "mistral_error";
 
     public MistralUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, MistralErrorResponse::fromResponse);
+        super(requestType, parseFunction, ErrorResponse::fromResponse);
     }
 
     @Override
     protected Exception buildError(String message, Request request, HttpResult result, ErrorResponse errorResponse) {
         assert request.isStreaming() : "Only streaming requests support this format";
         var responseStatusCode = result.response().getStatusLine().getStatusCode();
-        if (request.isStreaming()) {
-            var errorMessage = constructErrorMessage(message, request, errorResponse, responseStatusCode);
-            var restStatus = toRestStatus(responseStatusCode);
-            return errorResponse instanceof MistralErrorResponse
-                ? new UnifiedChatCompletionException(restStatus, errorMessage, MISTRAL_ERROR, restStatus.name().toLowerCase(Locale.ROOT))
-                : new UnifiedChatCompletionException(
-                    restStatus,
-                    errorMessage,
-                    createErrorType(errorResponse),
-                    restStatus.name().toLowerCase(Locale.ROOT)
-                );
-        } else {
-            return super.buildError(message, request, result, errorResponse);
-        }
+        var errorMessage = constructErrorMessage(message, request, errorResponse, responseStatusCode);
+        var restStatus = toRestStatus(responseStatusCode);
+        return new UnifiedChatCompletionException(restStatus, errorMessage, MISTRAL_ERROR, restStatus.name().toLowerCase(Locale.ROOT));
     }
 }

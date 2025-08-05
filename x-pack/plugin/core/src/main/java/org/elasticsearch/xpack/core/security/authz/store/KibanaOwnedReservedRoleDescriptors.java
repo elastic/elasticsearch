@@ -328,6 +328,8 @@ class KibanaOwnedReservedRoleDescriptors {
                         "indices:admin/data_stream/lifecycle/put"
                     )
                     .build(),
+                // Read datasets for auto install content packages feature in Fleet
+                RoleDescriptor.IndicesPrivileges.builder().indices("logs-*", "metrics-*", "traces-*").privileges("read").build(),
                 // Endpoint specific action responses. Kibana reads and writes (for third party
                 // agents) to the index to display action responses to the user.
                 // `create_index`: is necessary in order to ensure that the DOT datastream index is

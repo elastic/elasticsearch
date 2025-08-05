@@ -906,4 +906,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
         return result;
     }
+
+    public static IndexVersion getIndexOptionsCompatibleIndexVersion() {
+        return IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
+    }
 }

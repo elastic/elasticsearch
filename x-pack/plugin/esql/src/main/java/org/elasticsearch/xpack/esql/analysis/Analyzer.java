@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNan
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToUnsignedLong;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorFunction;
@@ -813,11 +814,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
 
+            // Do not need to cast as string if there are multiple rerank fields since it will be converted to YAML.
+            boolean castRerankFieldsAsString = rerank.rerankFields().size() < 2;
+
             // First resolving fields used in expression
             for (Alias field : rerank.rerankFields()) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
-                newFields.add(result);
-                changed |= result != field;
+                Alias resolved = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
+
+                if (resolved.resolved()) {
+                    if (castRerankFieldsAsString
+                        && rerank.isValidRerankField(resolved)
+                        && DataType.isString(resolved.dataType()) == false) {
+                        resolved = resolved.replaceChild(new ToString(resolved.child().source(), resolved.child()));
+                    }
+                }
+
+                newFields.add(resolved);
+                changed |= resolved != field;
             }
 
             if (changed) {

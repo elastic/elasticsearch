@@ -61,26 +61,26 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
-    BytesRefVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      if (valuesBlock.mayHaveNulls()) {
+    BytesRefBlock valueBlock = page.getBlock(channels.get(0));
+    BytesRefVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      if (valueBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
       }
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, valueBlock);
         }
 
         @Override
         public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, valueBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, valueBlock);
         }
 
         @Override
@@ -91,17 +91,17 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valueVector);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valueVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valueVector);
       }
 
       @Override
@@ -110,36 +110,43 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     };
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, BytesRefBlock values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntArrayBlock groups, BytesRefBlock valueBlock) {
+    BytesRef valueScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          MinIpAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
+          MinIpAggregator.combine(state, groupId, valueValue);
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, BytesRefVector values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntArrayBlock groups, BytesRefVector valueVector) {
+    BytesRef valueScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
       }
+      int valuesPosition = groupPosition + positionOffset;
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        MinIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+        BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+        MinIpAggregator.combine(state, groupId, valueValue);
       }
     }
   }
@@ -168,41 +175,50 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(groupPosition + positionOffset, scratch), seen.getBoolean(groupPosition + positionOffset));
+        int valuesPosition = groupPosition + positionOffset;
+        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, BytesRefBlock values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, BytesRefBlock valueBlock) {
+    BytesRef valueScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          MinIpAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
+          MinIpAggregator.combine(state, groupId, valueValue);
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, BytesRefVector values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups,
+      BytesRefVector valueVector) {
+    BytesRef valueScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
       }
+      int valuesPosition = groupPosition + positionOffset;
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        MinIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+        BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+        MinIpAggregator.combine(state, groupId, valueValue);
       }
     }
   }
@@ -231,31 +247,36 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(groupPosition + positionOffset, scratch), seen.getBoolean(groupPosition + positionOffset));
+        int valuesPosition = groupPosition + positionOffset;
+        MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock valueBlock) {
+    BytesRef valueScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (values.isNull(groupPosition + positionOffset)) {
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupId = groups.getInt(groupPosition);
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        MinIpAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        BytesRef valueValue = valueBlock.getBytesRef(valueOffset, valueScratch);
+        MinIpAggregator.combine(state, groupId, valueValue);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BytesRefVector values) {
-    BytesRef scratch = new BytesRef();
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefVector valueVector) {
+    BytesRef valueScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
-      MinIpAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+      BytesRef valueValue = valueVector.getBytesRef(valuesPosition, valueScratch);
+      MinIpAggregator.combine(state, groupId, valueValue);
     }
   }
 
@@ -277,7 +298,8 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(groupPosition + positionOffset, scratch), seen.getBoolean(groupPosition + positionOffset));
+      int valuesPosition = groupPosition + positionOffset;
+      MinIpAggregator.combineIntermediate(state, groupId, max.getBytesRef(valuesPosition, scratch), seen.getBoolean(valuesPosition));
     }
   }
 
@@ -293,8 +315,8 @@ public final class MinIpGroupingAggregatorFunction implements GroupingAggregator
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
-      GroupingAggregatorEvaluationContext evaluatorContext) {
-    blocks[offset] = MinIpAggregator.evaluateFinal(state, selected, evaluatorContext.driverContext());
+      GroupingAggregatorEvaluationContext ctx) {
+    blocks[offset] = MinIpAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

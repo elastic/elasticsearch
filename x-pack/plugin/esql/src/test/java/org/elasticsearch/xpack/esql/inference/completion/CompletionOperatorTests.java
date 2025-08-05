@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.inference.completion;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
@@ -65,23 +64,17 @@ public class CompletionOperatorTests extends InferenceOperatorTestCase<ChatCompl
         BytesRefBlock inputBlock = resultPage.getBlock(inputChannel);
         BytesRefBlock resultBlock = resultPage.getBlock(inputPage.getBlockCount());
 
-        BytesRef scratch = new BytesRef();
-        StringBuilder inputBuilder = new StringBuilder();
+        BlockStringReader blockReader = new InferenceOperatorTestCase.BlockStringReader();
 
         for (int curPos = 0; curPos < inputPage.getPositionCount(); curPos++) {
-            inputBuilder.setLength(0);
-            int valueIndex = inputBlock.getFirstValueIndex(curPos);
-            while (valueIndex < inputBlock.getFirstValueIndex(curPos) + inputBlock.getValueCount(curPos)) {
-                scratch = inputBlock.getBytesRef(valueIndex, scratch);
-                inputBuilder.append(scratch.utf8ToString());
-                if (valueIndex < inputBlock.getValueCount(curPos) - 1) {
-                    inputBuilder.append("\n");
-                }
-                valueIndex++;
+            if (inputBlock.isNull(curPos)) {
+                assertThat(resultBlock.isNull(curPos), equalTo(true));
+            } else {
+                assertThat(
+                    blockReader.readString(resultBlock, curPos),
+                    equalTo(blockReader.readString(inputBlock, curPos).toUpperCase(java.util.Locale.ROOT))
+                );
             }
-            scratch = resultBlock.getBytesRef(resultBlock.getFirstValueIndex(curPos), scratch);
-
-            assertThat(scratch.utf8ToString(), equalTo(inputBuilder.toString().toUpperCase(Locale.ROOT)));
         }
     }
 

@@ -87,12 +87,7 @@ public final class Randomness {
      *                               RandomizedContext or tests are
      *                               running but tests.seed is not set
      */
-    @SuppressForbidden(reason = "Need to hack something for virtual threads")
     public static Random get() {
-        if (Thread.currentThread().isVirtual()) {
-            // Need to work out how to propagate context to virtual threads
-            return ThreadLocalRandom.current();
-        }
         if (currentMethod != null && getRandomMethod != null) {
             try {
                 Object randomizedContext = currentMethod.invoke(null);

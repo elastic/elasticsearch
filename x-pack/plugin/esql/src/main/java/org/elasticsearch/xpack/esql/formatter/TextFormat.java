@@ -28,6 +28,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
+
 /**
  * Templating class for displaying ESQL responses in text formats.
  */
@@ -283,7 +285,6 @@ public enum TextFormat implements MediaType {
      */
     public static final String URL_PARAM_FORMAT = "format";
     public static final String URL_PARAM_DELIMITER = "delimiter";
-    public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
         final var delimiter = delimiter(request);

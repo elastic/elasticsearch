@@ -15,6 +15,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -23,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.Column;
+import org.elasticsearch.xpack.esql.action.stream.EsqlQueryResponseStream;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plugin.EsqlQueryStatus;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -56,6 +58,12 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
     private Boolean allowPartialResults = null;
+
+    /**
+     * If this field is null, the request does not support streaming.
+     */
+    @Nullable
+    private EsqlQueryResponseStream responseStream;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -245,6 +253,15 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
         return this;
+    }
+
+    @Nullable
+    public EsqlQueryResponseStream responseStream() {
+        return responseStream;
+    }
+
+    public void responseStream(EsqlQueryResponseStream responseStream) {
+        this.responseStream = responseStream;
     }
 
     @Override

@@ -369,19 +369,18 @@ public class GoogleCloudStorageService {
                     .filter(entry -> entry.getValue().getCredential() != null)
                     .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 
-                if (allClientSettings.size() != clientSettings.size()) {
-                    logger.warn(
-                        "Project [{}] has [{}] GCS client settings, but [{}] is usable due to missing credentials for clients {}",
-                        project.id(),
-                        allClientSettings.size(),
-                        clientSettings.size(),
-                        Sets.difference(allClientSettings.keySet(), clientSettings.keySet())
-                    );
-                }
-
                 // TODO: If performance is an issue, we may consider comparing just the relevant project secrets for new or updated clients
                 // and avoid building the clientSettings
                 if (newOrUpdated(project.id(), clientSettings)) {
+                    if (allClientSettings.size() != clientSettings.size()) {
+                        logger.warn(
+                            "Project [{}] has [{}] GCS client settings, but [{}] is usable due to missing credentials for clients {}",
+                            project.id(),
+                            allClientSettings.size(),
+                            clientSettings.size(),
+                            Sets.difference(allClientSettings.keySet(), clientSettings.keySet())
+                        );
+                    }
                     updatedPerProjectClients.put(project.id(), new PerProjectClientsHolder(clientSettings));
                 }
             }

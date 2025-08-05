@@ -150,7 +150,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             // max affinity for decreasing nProbe
             double maxAffinity = Arrays.stream(affinityScores).max().orElse(Double.NaN);
             double lowerAffinity = (maxAffinity + averageAffinity) * 0.5;
-            double cutoffAffinity = lowerAffinity * 0.5; // minimum affinity score for a segment to be considered
+            double cutoffAffinity = lowerAffinity * 0.1; // minimum affinity score for a segment to be considered
             double affinityThreshold = (maxAffinity + lowerAffinity) * 0.66; // min affinity for increasing nProbe
             int maxAdjustments = (int) (nProbe * 1.5);
 
@@ -244,6 +244,15 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
                     if (similarityFunction == COSINE) {
                         VectorUtil.l2normalize(queryVector);
+                    }
+
+                    if (queryVector.length != fieldInfo.getVectorDimension()) {
+                        throw new IllegalArgumentException(
+                            "vector query dimension: "
+                                + queryVector.length
+                                + " differs from field dimension: "
+                                + fieldInfo.getVectorDimension()
+                        );
                     }
                     // similarity between query vector and global centroid, higher is better
                     float centroidsScore = similarityFunction.compare(queryVector, globalCentroid);

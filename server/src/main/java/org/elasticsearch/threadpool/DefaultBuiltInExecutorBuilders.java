@@ -34,35 +34,13 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
         final double indexAutoscalingEWMA = WRITE_THREAD_POOLS_EWMA_ALPHA_SETTING.get(settings);
 
         Map<String, ExecutorBuilder> result = new HashMap<>();
-        result.put(
-            ThreadPool.Names.GENERIC,
-            new ScalingExecutorBuilder(ThreadPool.Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
-        );
-        result.put(
-            ThreadPool.Names.WRITE_COORDINATION,
-            new FixedExecutorBuilder(
-                settings,
-                ThreadPool.Names.WRITE_COORDINATION,
-                allocatedProcessors,
-                10000,
-                EsExecutors.TaskTrackingConfig.builder().trackOngoingTasks().trackExecutionTime(indexAutoscalingEWMA).build()
-            )
-        );
-        result.put(
-            ThreadPool.Names.WRITE,
-            new FixedExecutorBuilder(
-                settings,
-                ThreadPool.Names.WRITE,
-                allocatedProcessors,
-                // 10,000 for all nodes with 8 cores or fewer. Scale up once we have more than 8 cores.
-                Math.max(allocatedProcessors * 750, 10000),
-                EsExecutors.TaskTrackingConfig.builder()
-                    .trackOngoingTasks()
-                    .trackMaxQueueLatency()
-                    .trackExecutionTime(indexAutoscalingEWMA)
-                    .build()
-            )
-        );
+        // result.put(
+        // ThreadPool.Names.GENERIC,
+        // new ScalingExecutorBuilder(ThreadPool.Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), false)
+        // );
+        result.put(ThreadPool.Names.GENERIC, new VirtualThreadsExecutorBuilder(ThreadPool.Names.GENERIC, false));
+        result.put(ThreadPool.Names.WRITE_COORDINATION, new VirtualThreadsExecutorBuilder(ThreadPool.Names.WRITE_COORDINATION, true));
+        result.put(ThreadPool.Names.WRITE, new VirtualThreadsExecutorBuilder(ThreadPool.Names.WRITE, true));
         int searchOrGetThreadPoolSize = ThreadPool.searchOrGetThreadPoolSize(allocatedProcessors);
         result.put(
             ThreadPool.Names.GET,

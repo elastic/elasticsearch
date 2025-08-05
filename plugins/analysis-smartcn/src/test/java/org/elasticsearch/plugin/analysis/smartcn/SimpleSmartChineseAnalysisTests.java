@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugin.analysis.smartcn;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.TokenizerFactory;
@@ -21,7 +22,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class SimpleSmartChineseAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
-        final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisSmartChinesePlugin());
+        final TestAnalysis analysis = createTestAnalysis(
+            new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE),
+            Settings.EMPTY,
+            new AnalysisSmartChinesePlugin()
+        );
         TokenizerFactory tokenizerFactory = analysis.tokenizer.get("smartcn_tokenizer");
         MatcherAssert.assertThat(tokenizerFactory, instanceOf(SmartChineseTokenizerTokenizerFactory.class));
     }

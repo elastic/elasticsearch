@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedE
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.ParsingException;
@@ -114,11 +115,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals("no such index [foo]", rootCauses[0].getMessage());
             ShardSearchFailure failure = new ShardSearchFailure(
                 new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
+                new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1), null)
             );
             ShardSearchFailure failure1 = new ShardSearchFailure(
                 new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null)
+                new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 2), null)
             );
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
                 "search",
@@ -141,15 +142,15 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         {
             ShardSearchFailure failure = new ShardSearchFailure(
                 new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
+                new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1), null)
             );
             ShardSearchFailure failure1 = new ShardSearchFailure(
-                new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 1), null)
+                new QueryShardException(new Index("foo1", IndexMetadata.INDEX_UUID_NA_VALUE), "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo1", IndexMetadata.INDEX_UUID_NA_VALUE, 1), null)
             );
             ShardSearchFailure failure2 = new ShardSearchFailure(
-                new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 2), null)
+                new QueryShardException(new Index("foo1", IndexMetadata.INDEX_UUID_NA_VALUE), "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo1", IndexMetadata.INDEX_UUID_NA_VALUE, 2), null)
             );
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
                 "search",
@@ -310,11 +311,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         {
             ShardSearchFailure failure = new ShardSearchFailure(
                 new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
+                new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1), null)
             );
             ShardSearchFailure failure1 = new ShardSearchFailure(
                 new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null)
+                new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 2), null)
             );
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
                 "search",
@@ -351,15 +352,15 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         {
             ShardSearchFailure failure = new ShardSearchFailure(
                 new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
+                new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1), null)
             );
             ShardSearchFailure failure1 = new ShardSearchFailure(
-                new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 1), null)
+                new QueryShardException(new Index("foo1", IndexMetadata.INDEX_UUID_NA_VALUE), "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo1", IndexMetadata.INDEX_UUID_NA_VALUE, 1), null)
             );
             ShardSearchFailure failure2 = new ShardSearchFailure(
-                new QueryShardException(new Index("foo1", "_na_"), "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo1", "_na_", 2), null)
+                new QueryShardException(new Index("foo1", IndexMetadata.INDEX_UUID_NA_VALUE), "foobar", null),
+                new SearchShardTarget("node_1", new ShardId("foo1", IndexMetadata.INDEX_UUID_NA_VALUE, 2), null)
             );
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
                 "search",
@@ -396,7 +397,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                       "reason": {
                         "type": "query_shard_exception",
                         "reason": "foobar",
-                        "index_uuid": "_na_",
+                        "index_uuid": IndexMetadata.INDEX_UUID_NA_VALUE,
                         "index": "foo1"
                       }
                     }
@@ -407,11 +408,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         {
             ShardSearchFailure failure = new ShardSearchFailure(
                 new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
+                new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1), null)
             );
             ShardSearchFailure failure1 = new ShardSearchFailure(
                 new ParsingException(1, 2, "foobar", null),
-                new SearchShardTarget("node_1", new ShardId("foo", "_na_", 2), null)
+                new SearchShardTarget("node_1", new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 2), null)
             );
             NullPointerException nullPointerException = new NullPointerException();
             SearchPhaseExecutionException ex = new SearchPhaseExecutionException(

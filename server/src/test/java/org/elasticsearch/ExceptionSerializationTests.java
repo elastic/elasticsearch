@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.coordination.CoordinationStateRejectedException
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IllegalShardRoutingStateException;
@@ -283,7 +284,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testQueryShardException() throws IOException {
-        QueryShardException ex = serialize(new QueryShardException(new Index("foo", "_na_"), "fobar", null));
+        QueryShardException ex = serialize(new QueryShardException(new Index("foo", IndexMetadata.INDEX_UUID_NA_VALUE), "fobar", null));
         assertEquals(ex.getIndex().getName(), "foo");
         assertEquals(ex.getMessage(), "fobar");
 
@@ -293,7 +294,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchException() throws IOException {
-        SearchShardTarget target = new SearchShardTarget("foo", new ShardId("bar", "_na_", 1), null);
+        SearchShardTarget target = new SearchShardTarget("foo", new ShardId("bar", IndexMetadata.INDEX_UUID_NA_VALUE, 1), null);
         SearchException ex = serialize(new SearchException(null, "hello world", new NullPointerException()));
         assertNull(ex.shard());
         assertEquals(ex.getMessage(), "hello world");
@@ -322,7 +323,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testRecoverFilesRecoveryException() throws IOException {
-        ShardId id = new ShardId("foo", "_na_", 1);
+        ShardId id = new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
         ByteSizeValue bytes = ByteSizeValue.ofBytes(randomIntBetween(0, 10000));
         RecoverFilesRecoveryException ex = serialize(new RecoverFilesRecoveryException(id, 10, bytes, null));
         assertEquals(ex.getShardId(), id);
@@ -397,7 +398,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testIllegalIndexShardStateException() throws IOException {
-        ShardId id = new ShardId("foo", "_na_", 1);
+        ShardId id = new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
         IndexShardState state = randomFrom(IndexShardState.values());
         IllegalIndexShardStateException ex = serialize(new IllegalIndexShardStateException(id, state, "come back later buddy"));
         assertEquals(id, ex.getShardId());
@@ -463,7 +464,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testRecoveryEngineException() throws IOException {
-        ShardId id = new ShardId("foo", "_na_", 1);
+        ShardId id = new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
         RecoveryEngineException ex = serialize(new RecoveryEngineException(id, 10, "total failure", new NullPointerException()));
         assertEquals(id, ex.getShardId());
         assertEquals("Phase[10] total failure", ex.getMessage());
@@ -536,7 +537,11 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testWriteThrowable() throws IOException {
-        final QueryShardException queryShardException = new QueryShardException(new Index("foo", "_na_"), "foobar", null);
+        final QueryShardException queryShardException = new QueryShardException(
+            new Index("foo", IndexMetadata.INDEX_UUID_NA_VALUE),
+            "foobar",
+            null
+        );
         final UnknownException unknownException = new UnknownException("this exception is unknown", queryShardException);
 
         final Exception[] causes = new Exception[] {
@@ -907,7 +912,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testShardLockObtainFailedException() throws IOException {
-        ShardId shardId = new ShardId("foo", "_na_", 1);
+        ShardId shardId = new ShardId("foo", IndexMetadata.INDEX_UUID_NA_VALUE, 1);
         ShardLockObtainFailedException orig = new ShardLockObtainFailedException(shardId, "boom");
         TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         ShardLockObtainFailedException ex = serialize(orig, version);

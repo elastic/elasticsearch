@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -51,7 +52,7 @@ public class RestCatRecoveryActionTests extends ESTestCase {
 
         for (int i = 0; i < successfulShards; i++) {
             final RecoveryState state = mock(RecoveryState.class);
-            when(state.getShardId()).thenReturn(new ShardId(new Index("index", "_na_"), i));
+            when(state.getShardId()).thenReturn(new ShardId(new Index("index", IndexMetadata.INDEX_UUID_NA_VALUE), i));
             final RecoveryState.Timer timer = mock(RecoveryState.Timer.class);
             final long startTime = randomLongBetween(0, new Date().getTime());
             when(timer.startTime()).thenReturn(startTime);

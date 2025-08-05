@@ -12,6 +12,7 @@ package org.elasticsearch.plugin.analysis.icu;
 import com.ibm.icu.text.Normalizer2;
 
 import org.apache.lucene.analysis.CharFilter;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -25,7 +26,7 @@ import java.io.StringReader;
 public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
     public void testDefaultSetting() throws Exception {
         Settings settings = Settings.builder().put("index.analysis.char_filter.myNormalizerChar.type", "icu_normalizer").build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
         CharFilterFactory charFilterFactory = analysis.charFilter.get("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";
@@ -49,7 +50,7 @@ public class SimpleIcuNormalizerCharFilterTests extends ESTestCase {
             .put("index.analysis.char_filter.myNormalizerChar.name", "nfkc")
             .put("index.analysis.char_filter.myNormalizerChar.mode", "decompose")
             .build();
-        TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), settings, new AnalysisICUPlugin());
+        TestAnalysis analysis = createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), settings, new AnalysisICUPlugin());
         CharFilterFactory charFilterFactory = analysis.charFilter.get("myNormalizerChar");
 
         String input = "ʰ㌰゙5℃№㈱㌘，バッファーの正規化のテスト．㋐㋑㋒㋓㋔ｶｷｸｹｺｻﾞｼﾞｽﾞｾﾞｿﾞg̈각/각நிเกषिchkʷक्षि";

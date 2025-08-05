@@ -103,6 +103,6 @@ public class IcuTokenizerFactoryTests extends ESTestCase {
             .build();
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
 
-        return createTestAnalysis(new Index("test", "_na_"), nodeSettings, settings, new AnalysisICUPlugin());
+        return createTestAnalysis(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE), nodeSettings, settings, new AnalysisICUPlugin());
     }
 }

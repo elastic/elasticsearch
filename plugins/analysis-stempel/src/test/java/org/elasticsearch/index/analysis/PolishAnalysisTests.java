@@ -11,6 +11,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.pl.PolishAnalyzer;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
@@ -24,7 +25,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class PolishAnalysisTests extends ESTestCase {
     public void testDefaultsPolishAnalysis() throws IOException {
-        final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisStempelPlugin());
+        final TestAnalysis analysis = createTestAnalysis(
+            new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE),
+            Settings.EMPTY,
+            new AnalysisStempelPlugin()
+        );
         TokenFilterFactory tokenizerFactory = analysis.tokenFilter.get("polish_stem");
         MatcherAssert.assertThat(tokenizerFactory, instanceOf(PolishStemTokenFilterFactory.class));
 

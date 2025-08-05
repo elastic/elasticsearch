@@ -1380,7 +1380,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Arrays.asList(
                 new AutoFollowCoordinator.AutoFollowResult(
                     "_alias1",
-                    Collections.singletonList(Tuple.tuple(new Index("index1", "_na_"), new RuntimeException("error-1")))
+                    Collections.singletonList(
+                        Tuple.tuple(new Index("index1", IndexMetadata.INDEX_UUID_NA_VALUE), new RuntimeException("error-1"))
+                    )
                 ),
                 new AutoFollowCoordinator.AutoFollowResult(
                     "_alias2",

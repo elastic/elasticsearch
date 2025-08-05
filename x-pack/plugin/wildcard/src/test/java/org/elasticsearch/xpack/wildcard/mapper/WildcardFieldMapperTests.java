@@ -1080,7 +1080,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     protected final SearchExecutionContext createMockContext() {
-        Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
+        Index index = new Index(randomAlphaOfLengthBetween(1, 10), IndexMetadata.INDEX_UUID_NA_VALUE);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()

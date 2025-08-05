@@ -648,7 +648,11 @@ public class IndexModuleTests extends ESTestCase {
             .put("index.store.type", storeType)
             .build();
         final Settings nodeSettings = Settings.builder().put(IndexModule.NODE_STORE_ALLOW_MMAP.getKey(), false).build();
-        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo", "_na_"), settings, nodeSettings);
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            new Index("foo", IndexMetadata.INDEX_UUID_NA_VALUE),
+            settings,
+            nodeSettings
+        );
         final IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry, indexNameExpressionResolver);
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newIndexService(module));
         assertThat(e, hasToString(containsString("store type [" + storeType + "] is not allowed")));

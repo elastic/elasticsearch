@@ -201,7 +201,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             Iterable<StoreFileMetadata>,
             Writeable {
 
-        private static final ShardId FAKE_SHARD_ID = new ShardId("_na_", "_na_", 0);
+        private static final ShardId FAKE_SHARD_ID = new ShardId("_na_", IndexMetadata.INDEX_UUID_NA_VALUE, 0);
         public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(Store.MetadataSnapshot.EMPTY, emptyList());
 
         public static StoreFilesMetadata readFrom(StreamInput in) throws IOException {

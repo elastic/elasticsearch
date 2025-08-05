@@ -613,7 +613,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitFunctionStandard(EsqlBaseParser.FunctionStandardContext ctx) {
+    public Expression visitFunctionStandard(EsqlBaseParser.FunctionStandardContext ctx) {
         String name = visitFunctionName(ctx.functionName());
         List<Expression> args = expressions(ctx.booleanExpression());
         if (ctx.mapExpression() != null) {
@@ -643,7 +643,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitFunctionFirstLast(EsqlBaseParser.FunctionFirstLastContext ctx) {
+    public Expression visitFunctionFirstLast(EsqlBaseParser.FunctionFirstLastContext ctx) {
         Expression value = (Expression) visit(ctx.value);
         Expression by = (Expression) visit(ctx.by);
         throw new IllegalArgumentException("FIRST/LAST not yet implemented");

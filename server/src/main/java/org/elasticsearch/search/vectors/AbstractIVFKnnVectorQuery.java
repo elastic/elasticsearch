@@ -61,6 +61,7 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
+    public static final double VECTOR_VISITED_PERCENTAGE_BUDGET = 0.05;
 
     protected final String field;
     protected final int nProbe;
@@ -131,15 +132,20 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         KnnCollectorManager knnCollectorManager = getKnnCollectorManager(numCands, indexSearcher);
         TaskExecutor taskExecutor = indexSearcher.getTaskExecutor();
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
+
+        int totalBudget = (int) (reader.numDocs() * VECTOR_VISITED_PERCENTAGE_BUDGET);
+
         List<Callable<TopDocs>> tasks;
         if (leafReaderContexts.isEmpty() == false) {
-
             // calculate the affinity of each segment to the query vector
             // (need information from each segment: no. of clusters, global centroid, density, parent centroids' scores, etc.)
             List<SegmentAffinity> segmentAffinities = calculateSegmentAffinities(leafReaderContexts, getQueryVector());
 
             // TODO: sort segments by affinity score in descending order, and cut the long tail ?
-            double[] affinityScores = segmentAffinities.stream().map(SegmentAffinity::affinityScore).mapToDouble(Double::doubleValue).toArray();
+            double[] affinityScores = segmentAffinities.stream()
+                .map(SegmentAffinity::affinityScore)
+                .mapToDouble(Double::doubleValue)
+                .toArray();
 
             // max affinity for decreasing nProbe
             double averageAffinity = Arrays.stream(affinityScores).average().orElse(Double.NaN);
@@ -152,7 +158,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             if (Double.isNaN(maxAffinity) || Double.isNaN(averageAffinity)) {
                 tasks = new ArrayList<>(leafReaderContexts.size());
                 for (LeafReaderContext context : leafReaderContexts) {
-                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, nProbe));
+                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, nProbe, Integer.MAX_VALUE));
                 }
             } else {
                 Map<LeafReaderContext, Integer> segmentNProbeMap = new HashMap<>();
@@ -173,8 +179,19 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
                 }
 
                 tasks = new ArrayList<>(segmentNProbeMap.size());
-                for (Map.Entry<LeafReaderContext, Integer> entry : segmentNProbeMap.entrySet()) {
-                    tasks.add(() -> searchLeaf(entry.getKey(), filterWeight, knnCollectorManager, entry.getValue()));
+                double scoreVectorsSum = segmentAffinities.stream()
+                    .map(segmentAffinity -> segmentAffinity.affinityScore * segmentAffinity.context.reader().numDocs())
+                    .mapToDouble(Double::doubleValue)
+                    .sum();
+
+                for (SegmentAffinity segmentAffinity : segmentAffinities) {
+                    double score = segmentAffinity.affinityScore();
+                    int adjustedNProbe = adjustNProbeForSegment(score, affinityTreshold, maxAdjustments);
+                    LeafReaderContext context = segmentAffinity.context();
+
+                    // budgetᵢ = total_budget × (affinityᵢ × |vectors|ᵢ) / ∑ (affinityⱼ × |vectors|ⱼ)
+                    int segmentBudget = (int) (totalBudget * (score * context.reader().numDocs()) / scoreVectorsSum);
+                    tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, adjustedNProbe, Math.max(1, segmentBudget)));
                 }
             }
         } else {
@@ -191,18 +208,17 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
 
-    private int adjustNProbeForSegment(double affinityScore, double affinityTreshold, int maxAdjustment) {
+    private int adjustNProbeForSegment(double affinityScore, double affinityThreshold, int maxAdjustment) {
         int baseNProbe = this.nProbe;
 
         // for high affinity scores, increase nProbe
-        if (affinityScore > affinityTreshold) {
-            int adjustment = (int) Math.ceil((affinityScore - affinityTreshold) * maxAdjustment);
+        if (affinityScore > affinityThreshold) {
+            int adjustment = (int) Math.ceil((affinityScore - affinityThreshold) * maxAdjustment);
             return Math.min(baseNProbe * adjustment, baseNProbe + maxAdjustment);
         }
 
         // for low affinity scores, decrease nProbe
-        if (affinityScore <= affinityTreshold) {
-            // int adjustment = (int) Math.ceil((affinityTreshold - affinityScore) * maxAdjustment);
+        if (affinityScore <= affinityThreshold) {
             return Math.max(baseNProbe / 3, 1);
         }
 
@@ -288,9 +304,14 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
     private record SegmentAffinity(LeafReaderContext context, double affinityScore) {}
 
-    private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, int nProbe)
-        throws IOException {
-        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, nProbe);
+    private TopDocs searchLeaf(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        KnnCollectorManager knnCollectorManager,
+        int nProbe,
+        int visitingBudget
+    ) throws IOException {
+        TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, nProbe, visitingBudget);
         if (ctx.docBase > 0) {
             for (ScoreDoc scoreDoc : results.scoreDocs) {
                 scoreDoc.doc += ctx.docBase;
@@ -299,15 +320,20 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         return results;
     }
 
-    TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, KnnCollectorManager knnCollectorManager, int nProbe)
-        throws IOException {
+    TopDocs getLeafResults(
+        LeafReaderContext ctx,
+        Weight filterWeight,
+        KnnCollectorManager knnCollectorManager,
+        int nProbe,
+        int visitingBudget
+    ) throws IOException {
         final LeafReader reader = ctx.reader();
         final Bits liveDocs = reader.getLiveDocs();
 
         KnnSearchStrategy searchStrategy = new IVFKnnSearchStrategy(nProbe);
 
         if (filterWeight == null) {
-            return approximateSearch(ctx, liveDocs, Integer.MAX_VALUE, knnCollectorManager, searchStrategy);
+            return approximateSearch(ctx, liveDocs, visitingBudget, knnCollectorManager, searchStrategy);
         }
 
         Scorer scorer = filterWeight.scorer(ctx);
@@ -317,7 +343,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         BitSet acceptDocs = createBitSet(scorer.iterator(), liveDocs, reader.maxDoc());
         final int cost = acceptDocs.cardinality();
-        return approximateSearch(ctx, acceptDocs, cost + 1, knnCollectorManager, searchStrategy);
+        return approximateSearch(ctx, acceptDocs, Math.min(visitingBudget, cost + 1), knnCollectorManager, searchStrategy);
     }
 
     abstract TopDocs approximateSearch(

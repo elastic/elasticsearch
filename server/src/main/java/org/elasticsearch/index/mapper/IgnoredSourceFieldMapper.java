@@ -216,7 +216,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    static List<NameValue> decodeMulti(BytesRef value) {
+    public static List<NameValue> decodeMulti(BytesRef value) {
         try {
             StreamInput stream = new BytesArray(value).streamInput();
             var count = stream.readVInt();

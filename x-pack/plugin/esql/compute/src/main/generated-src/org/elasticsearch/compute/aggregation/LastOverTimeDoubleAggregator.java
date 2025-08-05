@@ -7,35 +7,37 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-ValueOverTimeAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    timeseries = true,
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
+    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "DOUBLE_BLOCK") }
 )
 public class LastOverTimeDoubleAggregator {
-
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
 
     // TODO: Since data in data_streams is sorted by `_tsid` and timestamp in descending order,
     // we can read the first encountered value for each group of `_tsid` and time bucket.
-    public static void combine(GroupingState current, int groupId, long timestamp, double value) {
+    public static void combine(GroupingState current, int groupId, double value, long timestamp) {
         current.collectValue(groupId, timestamp, value);
     }
 
@@ -46,6 +48,7 @@ public class LastOverTimeDoubleAggregator {
         DoubleBlock values,
         int otherPosition
     ) {
+        // TODO seen should probably be part of the intermediate representation
         int valueCount = values.getValueCount(otherPosition);
         if (valueCount > 0) {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
@@ -56,16 +59,8 @@ public class LastOverTimeDoubleAggregator {
         }
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState otherState, int otherGroupId) {
-        if (otherGroupId < otherState.timestamps.size() && otherState.hasValue(otherGroupId)) {
-            var timestamp = otherState.timestamps.get(otherGroupId);
-            var value = otherState.values.get(otherGroupId);
-            current.collectValue(currentGroupId, timestamp, value);
-        }
-    }
-
-    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-        return state.evaluateFinal(selected, evalContext);
+    public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        return state.evaluateFinal(selected, ctx);
     }
 
     public static final class GroupingState extends AbstractArrayState {

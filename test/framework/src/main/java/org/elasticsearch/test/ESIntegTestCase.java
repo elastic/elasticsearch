@@ -286,7 +286,6 @@ import static org.hamcrest.Matchers.startsWith;
  * </ul>
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
-@ESTestCase.WithoutEntitlements // ES-12042
 public abstract class ESIntegTestCase extends ESTestCase {
 
     /** node names of the corresponding clusters will start with these prefixes */
@@ -550,6 +549,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // close the previous one and create a new one
                 if (testCluster != null) {
                     IOUtils.closeWhileHandlingException(testCluster::close);
+                    TEST_ENTITLEMENTS.revokeAllEntitledNodePaths();
                 }
                 testCluster = buildTestCluster(currentClusterScope, seed);
             }
@@ -2337,7 +2337,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getClientWrapper(),
             forbidPrivateIndexSettings(),
             forceSingleDataPath(),
-            autoManageVotingExclusions()
+            autoManageVotingExclusions(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
     }
 

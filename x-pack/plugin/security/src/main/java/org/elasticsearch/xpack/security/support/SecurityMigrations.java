@@ -9,19 +9,28 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingResponse;
@@ -29,6 +38,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsA
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.rolemapping.GetRoleMappingsResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.util.Arrays;
@@ -37,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -248,6 +259,93 @@ public class SecurityMigrations {
                 .map(ExpressionRoleMapping::getName)
                 .filter(clusterStateRoleMappings::contains)
                 .toList();
+        }
+    }
+
+    public static class Manager {
+
+        private static final int MAX_SECURITY_MIGRATION_RETRY_COUNT = 10;
+
+        private final PersistentTasksService persistentTasksService;
+        private final SecuritySystemIndices systemIndices;
+
+        // Node local retry count for migration jobs that's checked only on the master node to make sure
+        // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
+        // restart or master node change.
+        private final AtomicInteger nodeLocalMigrationRetryCount;
+
+        public Manager(ClusterService clusterService, PersistentTasksService persistentTasksService, SecuritySystemIndices systemIndices) {
+            this.persistentTasksService = persistentTasksService;
+            this.systemIndices = systemIndices;
+            this.nodeLocalMigrationRetryCount = new AtomicInteger(0);
+            systemIndices.getMainIndexManager().addStateListener((projectId, oldState, newState) -> {
+                // Only consider applying migrations if it's the master node and the security index exists
+                if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
+                    applyPendingSecurityMigrations(projectId, newState);
+                }
+            });
+        }
+
+        @FixForMultiProject
+        // TODO : The migration task needs to be project aware
+        private void applyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState newState) {
+            // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
+            if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
+                submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
+                return;
+            }
+
+            Map.Entry<Integer, SecurityMigrations.SecurityMigration> nextMigration = SecurityMigrations.MIGRATIONS_BY_VERSION.higherEntry(
+                newState.migrationsVersion
+            );
+
+            // Check if next migration that has not been applied is eligible to run on the current cluster
+            if (nextMigration == null
+                || systemIndices.getMainIndexManager()
+                    .getProject(projectId)
+                    .isEligibleSecurityMigration(nextMigration.getValue()) == false) {
+                // Reset retry counter if all eligible migrations have been applied successfully
+                nodeLocalMigrationRetryCount.set(0);
+            } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
+                logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
+            } else if (systemIndices.getMainIndexManager().getProject(projectId).isReadyForSecurityMigration(nextMigration.getValue())) {
+                submitPersistentMigrationTask(newState.migrationsVersion);
+            }
+        }
+
+        private void submitPersistentMigrationTask(int migrationsVersion) {
+            submitPersistentMigrationTask(migrationsVersion, true);
+        }
+
+        private void submitPersistentMigrationTask(int migrationsVersion, boolean securityMigrationNeeded) {
+            nodeLocalMigrationRetryCount.incrementAndGet();
+            persistentTasksService.sendStartRequest(
+                SecurityMigrationTaskParams.TASK_NAME,
+                SecurityMigrationTaskParams.TASK_NAME,
+                new SecurityMigrationTaskParams(migrationsVersion, securityMigrationNeeded),
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
+                ActionListener.wrap((response) -> {
+                    logger.debug("Security migration task submitted");
+                }, (exception) -> {
+                    // Do nothing if the task is already in progress
+                    if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
+                        // Do not count ResourceAlreadyExistsException as failure
+                        nodeLocalMigrationRetryCount.decrementAndGet();
+                    } else {
+                        logger.warn("Submit security migration task failed: " + exception.getCause());
+                    }
+                })
+            );
+        }
+
+        public PersistentTasksExecutor<?> getPersistentTasksExecutor(Client client, ThreadPool threadPool) {
+            return new SecurityMigrationExecutor(
+                SecurityMigrationTaskParams.TASK_NAME,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT),
+                systemIndices.getMainIndexManager(),
+                client,
+                SecurityMigrations.MIGRATIONS_BY_VERSION
+            );
         }
     }
 }

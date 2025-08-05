@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.IndexOptions;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -76,6 +77,12 @@ public class SemanticTextIndexOptions implements ToXContent {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
                 return parseDenseVectorIndexOptionsFromMap(fieldName, map, indexVersion);
             }
+        },
+        SPARSE_VECTOR("sparse_vector") {
+            @Override
+            public IndexOptions parseIndexOptions(String fieldName, Map<String, Object> map, IndexVersion indexVersion) {
+                return parseSparseVectorIndexOptionsFromMap(map);
+            }
         };
 
         public final String value;
@@ -123,6 +130,14 @@ public class SemanticTextIndexOptions implements ToXContent {
             ).orElseThrow(() -> new IllegalArgumentException("Unsupported index options " + TYPE_FIELD + " " + type));
 
             return vectorIndexType.parseIndexOptions(fieldName, map, indexVersion);
+        } catch (Exception exc) {
+            throw new ElasticsearchException(exc);
+        }
+    }
+
+    private static SparseVectorFieldMapper.SparseVectorIndexOptions parseSparseVectorIndexOptionsFromMap(Map<String, Object> map) {
+        try {
+            return SparseVectorFieldMapper.SparseVectorIndexOptions.parseFromMap(map);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }

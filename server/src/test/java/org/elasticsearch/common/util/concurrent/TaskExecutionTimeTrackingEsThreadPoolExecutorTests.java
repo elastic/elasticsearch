@@ -141,20 +141,15 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             executor.execute(() -> {});
             executor.execute(() -> {});
 
+            waitForTimeToElapse();
             var frontOfQueueDuration = executor.peekMaxQueueLatencyInQueue();
-            assertBusy(
-                // Wrap this call in an assertBusy because it's feasible for the thread pool's clock to see no time pass.
-                () -> assertThat("Expected a task to be queued", frontOfQueueDuration, greaterThan(0L))
-            );
-            safeSleep(10);
+            assertThat("Expected a task to be queued", frontOfQueueDuration, greaterThan(0L));
+            waitForTimeToElapse();
             var updatedFrontOfQueueDuration = executor.peekMaxQueueLatencyInQueue();
-            assertBusy(
-                // Again add an assertBusy to ensure time passes on the thread pool's clock and there are no races.
-                () -> assertThat(
-                    "Expected a second peek to report a longer duration",
-                    updatedFrontOfQueueDuration,
-                    greaterThan(frontOfQueueDuration)
-                )
+            assertThat(
+                "Expected a second peek to report a longer duration",
+                updatedFrontOfQueueDuration,
+                greaterThan(frontOfQueueDuration)
             );
 
             // Release the first task that's running, and wait for the second to start -- then it is ensured that the queue will be empty.
@@ -458,6 +453,17 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         @Override
         long getQueueTimeNanos() {
             return queuedTimeTakenNanos;
+        }
+    }
+
+    /**
+     * Ensures that the time reported by {@code System.nanoTime()} has advanced. It is otherwise feasible for the clock to report no time
+     * passing between operations. Call this method if time passing must be guaranteed.
+     */
+    private static void waitForTimeToElapse() throws InterruptedException {
+        final var startNanoTime = System.nanoTime();
+        while (TimeUnit.MILLISECONDS.convert(System.nanoTime() - startNanoTime, TimeUnit.NANOSECONDS) <= 100) {
+            Thread.sleep(100);
         }
     }
 }

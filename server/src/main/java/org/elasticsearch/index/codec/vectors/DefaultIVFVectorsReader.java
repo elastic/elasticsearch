@@ -371,7 +371,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             return vectors;
         }
 
-        void scoreIndividually(int offset) throws IOException {
+        float scoreIndividually(int offset) throws IOException {
+            float maxScore = Float.NEGATIVE_INFINITY;
             // score individually, first the quantized byte chunk
             for (int j = 0; j < BULK_SIZE; j++) {
                 int doc = docIdsScratch[j + offset];
@@ -406,8 +407,35 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
                         correctionsAdd[j],
                         scores[j]
                     );
+                    if (scores[j] > maxScore) {
+                        maxScore = scores[j];
+                    }
                 }
             }
+            return maxScore;
+        }
+
+        private static int filterDocs(int[] docIds, int offset, IntPredicate needsScoring) {
+            int filtered = 0;
+            for (int i = 0; i < ES91OSQVectorsScorer.BULK_SIZE; i++) {
+                if (needsScoring.test(docIds[offset + i]) == false) {
+                    docIds[offset + i] = -1;
+                    filtered++;
+                }
+            }
+            return filtered;
+        }
+
+        private static int collect(int[] docIds, int offset, KnnCollector knnCollector, float[] scores) {
+            int scoredDocs = 0;
+            for (int i = 0; i < ES91OSQVectorsScorer.BULK_SIZE; i++) {
+                int doc = docIds[offset + i];
+                if (doc != -1) {
+                    scoredDocs++;
+                    knnCollector.collect(doc, scores[i]);
+                }
+            }
+            return scoredDocs;
         }
 
         @Override
@@ -417,23 +445,17 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
             int limit = vectors - BULK_SIZE + 1;
             int i = 0;
             for (; i < limit; i += BULK_SIZE) {
-                int docsToScore = BULK_SIZE;
-                for (int j = 0; j < BULK_SIZE; j++) {
-                    int doc = docIdsScratch[i + j];
-                    if (needsScoring.test(doc) == false) {
-                        docIdsScratch[i + j] = -1;
-                        docsToScore--;
-                    }
-                }
+                int docsToScore = BULK_SIZE - filterDocs(docIdsScratch, i, needsScoring);
                 if (docsToScore == 0) {
                     continue;
                 }
                 quantizeQueryIfNecessary();
                 indexInput.seek(slicePos + i * quantizedByteLength);
+                float maxScore = Float.NEGATIVE_INFINITY;
                 if (docsToScore < BULK_SIZE / 2) {
-                    scoreIndividually(i);
+                    maxScore = scoreIndividually(i);
                 } else {
-                    osqVectorsScorer.scoreBulk(
+                    maxScore = osqVectorsScorer.scoreBulk(
                         quantizedQueryScratch,
                         queryCorrections.lowerInterval(),
                         queryCorrections.upperInterval(),
@@ -444,12 +466,8 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader {
                         scores
                     );
                 }
-                for (int j = 0; j < BULK_SIZE; j++) {
-                    int doc = docIdsScratch[i + j];
-                    if (doc != -1) {
-                        scoredDocs++;
-                        knnCollector.collect(doc, scores[j]);
-                    }
+                if (knnCollector.minCompetitiveSimilarity() < maxScore) {
+                    scoredDocs += collect(docIdsScratch, i, knnCollector, scores);
                 }
             }
             // process tail

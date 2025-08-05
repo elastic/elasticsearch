@@ -526,10 +526,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 // For source indices of the Cloud Detection & Response (CDR) packages
                 // that has ILM policy
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(
-                        "logs-m365_defender.vulnerability-*",
-                        "logs-microsoft_defender_endpoint.vulnerability-*"
-                    )
+                    .indices("logs-m365_defender.vulnerability-*", "logs-microsoft_defender_endpoint.vulnerability-*")
                     .privileges(
                         // Require "delete_index" to perform ILM policy actions
                         TransportDeleteIndexAction.TYPE.name()

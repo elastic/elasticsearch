@@ -1694,8 +1694,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
-            if (indexAbstraction.getName().startsWith("logs-m365_defender.vulnerability-") == false &&
-                indexAbstraction.getName().startsWith("logs-microsoft_defender_endpoint.vulnerability-") == false) {
+            if (indexAbstraction.getName().startsWith("logs-m365_defender.vulnerability-") == false
+                && indexAbstraction.getName().startsWith("logs-microsoft_defender_endpoint.vulnerability-") == false) {
                 // delete_index is granted for m365_defender.vulnerability and microsoft_defender_endpoint.vulnerability
                 // because of ILM policy. So exclude both from this check.
                 assertThat(

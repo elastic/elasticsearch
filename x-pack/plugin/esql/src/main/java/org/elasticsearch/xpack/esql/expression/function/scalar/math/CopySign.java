@@ -62,8 +62,10 @@ public class CopySign extends EsqlScalarFunction {
     private DataType dataType;
 
     @FunctionInfo(
-        description = "Returns a value with the magnitude of the first argument and the sign of the second argument. "
-            + "This function is similar to Java's Math.copySign(double magnitude, double sign).",
+        description = """
+            Returns a value with the magnitude of the first argument and the sign of the second argument.
+            This function is similar to Java's Math.copySign(double magnitude, double sign) which is
+            similar to `copysign` from [IEEE 754](https://en.wikipedia.org/wiki/IEEE_754).""",
         returnType = { "double", "integer", "long" }
     )
     public CopySign(

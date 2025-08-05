@@ -498,12 +498,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 meta.writeBytes(compressedSymbolTable, compressedSymbolTable.length);
 
                 if (maxCompressedLength > minCompressedLength) {
-                    start = data.getFilePointer();
-                    meta.writeLong(start);
-                    meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
-                    // copy
                     offsetsAccumulator.build(meta, data);
-                    meta.writeLong(data.getFilePointer() - start);
                 }
             } finally {
                 IOUtils.close(disiAccumulator, offsetsAccumulator);
@@ -591,12 +586,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 meta.writeBytes(compressedSymbolTable, compressedSymbolTable.length);
 
                 if (maxCompressedLength > minCompressedLength) {
-                    start = data.getFilePointer();
-                    meta.writeLong(start);
-                    meta.writeVInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
-                    // copy
                     offsetsAccumulator.build(meta, data);
-                    meta.writeLong(data.getFilePointer() - start);
                 }
             } finally {
                 IOUtils.close(disiAccumulator, offsetsAccumulator);

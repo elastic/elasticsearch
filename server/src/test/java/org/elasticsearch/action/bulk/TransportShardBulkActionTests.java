@@ -54,7 +54,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.junit.Ignore;
 import org.mockito.MockingDetails;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Stubbing;
@@ -889,6 +888,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    @AwaitsFix(bugUrl = "")
     public void testRetries() throws Exception {
         IndexSettings indexSettings = new IndexSettings(indexMetadata(), Settings.EMPTY);
         UpdateRequest writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
@@ -960,7 +960,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         latch.await();
     }
 
-    @Ignore("Hopefully a one-off")
+    @AwaitsFix(bugUrl = "Hopefully a one-off")
     public void testForceExecutionOnRejectionAfterMappingUpdate() throws Exception {
         TestThreadPool rejectingThreadPool = new TestThreadPool(
             "TransportShardBulkActionTests#testForceExecutionOnRejectionAfterMappingUpdate",

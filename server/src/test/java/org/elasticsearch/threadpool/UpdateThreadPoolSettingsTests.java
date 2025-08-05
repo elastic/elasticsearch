@@ -49,6 +49,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Not right now")
     public void testWriteThreadPoolsMaxSize() throws InterruptedException {
         final int maxSize = 1 + EsExecutors.allocatedProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);

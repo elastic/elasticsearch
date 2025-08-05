@@ -74,7 +74,8 @@ public class CheckAbortedMergesIT extends ESIntegTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Plugin not found"));
 
-        final boolean checkAbortedMerges = false;randomBoolean();
+        final boolean checkAbortedMerges = false;
+        randomBoolean();
         pluginA.blockMerges();
 
         final var indexName = randomIdentifier();

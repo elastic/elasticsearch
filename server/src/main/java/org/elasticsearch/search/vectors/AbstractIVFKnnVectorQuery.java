@@ -168,6 +168,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
                 for (SegmentAffinity segmentAffinity : segmentAffinities) {
                     double score = segmentAffinity.affinityScore();
+                    if (score < cutoffAffinity) {
+                        continue;
+                    }
                     int adjustedNProbe = adjustNProbeForSegment(score, affinityTreshold, maxAdjustments);
                     LeafReaderContext context = segmentAffinity.context();
 

@@ -17,7 +17,7 @@ import java.io.IOException;
 
 public abstract class BlockAwareNumericDocValues extends NumericDocValues {
 
-    public abstract void loadBlock(BlockLoader.LongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
+    public abstract void loadBlock(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
 
     public abstract void loadBlock(BlockLoader.IntBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
 

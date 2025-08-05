@@ -188,7 +188,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
+            try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
                 blockAware.loadBlock(builder, docs, offset);
                 return builder.build();
             }

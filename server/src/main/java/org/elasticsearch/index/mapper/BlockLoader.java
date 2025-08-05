@@ -400,6 +400,8 @@ public interface BlockLoader {
          */
         LongBuilder longs(int expectedCount);
 
+        BlockLoader.SingletonLongBuilder singletonLongs(int expectedCount);
+
         /**
          * Build a builder to load only {@code null}s.
          */
@@ -503,6 +505,13 @@ public interface BlockLoader {
          * Appends a long to the current entry.
          */
         LongBuilder appendLong(long value);
+    }
+
+    interface SingletonLongBuilder extends Builder {
+
+        SingletonLongBuilder appendLong(long value);
+
+        SingletonLongBuilder appendLongs(long[] values, int from, int length);
     }
 
     interface SingletonOrdinalsBuilder extends Builder {

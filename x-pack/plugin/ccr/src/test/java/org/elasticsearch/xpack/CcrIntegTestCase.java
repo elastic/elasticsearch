@@ -182,7 +182,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             0,
             "leader",
             mockPlugins,
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         leaderCluster.beforeTest(random());
         leaderCluster.ensureAtLeastNumDataNodes(numberOfNodesPerCluster());
@@ -204,7 +205,8 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             0,
             "follower",
             mockPlugins,
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         clusterGroup = new ClusterGroup(leaderCluster, followerCluster);
 

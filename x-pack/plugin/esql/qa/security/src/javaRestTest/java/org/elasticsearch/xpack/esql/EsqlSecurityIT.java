@@ -27,7 +27,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.Before;
 import org.junit.ClassRule;
 
@@ -40,6 +39,7 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -594,7 +594,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinIndexAllowed() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
         Response resp = runESQLCommand(
@@ -685,7 +685,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinDocLevelSecurity() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
         Response resp = runESQLCommand("dls_user", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value | KEEP x, org");
@@ -734,7 +734,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinFieldLevelSecurity() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
         Response resp = runESQLCommand("fls_user2", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-user2 ON value");
@@ -792,7 +792,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinFieldLevelSecurityOnAlias() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
         Response resp = runESQLCommand("fls_user2_alias", "ROW x = 40.0 | EVAL value = x | LOOKUP JOIN lookup-second-alias ON value");
@@ -850,7 +850,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
     public void testLookupJoinIndexForbidden() throws Exception {
         assumeTrue(
             "Requires LOOKUP JOIN capability",
-            EsqlSpecTestCase.hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
+            hasCapabilities(adminClient(), List.of(EsqlCapabilities.Cap.JOIN_LOOKUP_V12.capabilityName()))
         );
 
         var resp = expectThrows(

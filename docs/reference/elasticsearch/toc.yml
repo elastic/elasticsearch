@@ -97,6 +97,16 @@ toc:
             - file: rest-apis/retrieve-selected-fields.md
             - file: rest-apis/retrieve-stored-fields.md
             - file: rest-apis/retrievers.md
+              children:
+                - file: rest-apis/retrievers/knn-retriever.md
+                - file: rest-apis/retrievers/linear-retriever.md
+                - file: rest-apis/retrievers/pinned-retriever.md
+                - file: rest-apis/retrievers/rescorer-retriever.md
+                - file: rest-apis/retrievers/rrf-retriever.md
+                - file: rest-apis/retrievers/rule-retriever.md
+                - file: rest-apis/retrievers/standard-retriever.md
+                - file: rest-apis/retrievers/text-similarity-reranker-retriever.md
+                - file: rest-apis/retrievers/retrievers-examples.md
             - file: rest-apis/search-multiple-data-streams-indices.md
             - file: rest-apis/search-profile.md
             - file: rest-apis/search-rank-eval.md
@@ -106,6 +116,7 @@ toc:
             - file: rest-apis/searching-with-query-rules.md
             - file: rest-apis/shard-request-cache.md
             - file: rest-apis/term-vectors-examples.md
+            - file: rest-apis/update-by-query-api.md
             - file: rest-apis/update-document.md
             - file: rest-apis/update-cc-api-key-examples.md
             - file: rest-apis/vector-tile-search.md

@@ -20,7 +20,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InferenceBaseRestTest.assertStatusOkOrCreated;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
 
@@ -41,7 +40,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
-                    "custom",
                     "deepseek",
                     "elastic",
                     "elasticsearch",
@@ -77,9 +75,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     }
 
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
-        List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(18));
-
         assertThat(
             providersFor(TaskType.TEXT_EMBEDDING),
             containsInAnyOrder(
@@ -90,7 +85,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
-                    "custom",
                     "elastic",
                     "elasticsearch",
                     "googleaistudio",
@@ -117,8 +111,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
+                    "azureaistudio",
                     "cohere",
-                    "custom",
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
@@ -143,15 +137,16 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "azureaistudio",
                     "azureopenai",
                     "cohere",
-                    "custom",
                     "deepseek",
                     "googleaistudio",
+                    "googlevertexai",
                     "openai",
                     "streaming_completion_test_service",
                     "completion_test_service",
                     "hugging_face",
                     "amazon_sagemaker",
-                    "mistral"
+                    "mistral",
+                    "watsonxai"
                 ).toArray()
             )
         );
@@ -169,7 +164,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "hugging_face",
                     "amazon_sagemaker",
                     "googlevertexai",
-                    "mistral"
+                    "mistral",
+                    "watsonxai"
                 ).toArray()
             )
         );
@@ -181,7 +177,6 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "alibabacloud-ai-search",
-                    "custom",
                     "elastic",
                     "elasticsearch",
                     "hugging_face",

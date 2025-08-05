@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
@@ -22,6 +23,7 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
+import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.MinimalServiceSettings;
@@ -106,9 +108,9 @@ public class ElasticInferenceService extends SenderService {
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
     static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = defaultEndpointId(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
-    // elser-v2
-    static final String DEFAULT_ELSER_MODEL_ID_V2 = "elser-v2";
-    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId(DEFAULT_ELSER_MODEL_ID_V2);
+    // elser-2
+    static final String DEFAULT_ELSER_2_MODEL_ID = "elser_model_2";
+    static final String DEFAULT_ELSER_ENDPOINT_ID_V2 = defaultEndpointId("elser-2");
 
     // multilingual-text-embed
     static final String DEFAULT_MULTILINGUAL_EMBED_MODEL_ID = "multilingual-embed-v1";
@@ -139,9 +141,28 @@ public class ElasticInferenceService extends SenderService {
         ServiceComponents serviceComponents,
         ElasticInferenceServiceSettings elasticInferenceServiceSettings,
         ModelRegistry modelRegistry,
-        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler
+        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
+        InferenceServiceExtension.InferenceServiceFactoryContext context
     ) {
-        super(factory, serviceComponents);
+        this(
+            factory,
+            serviceComponents,
+            elasticInferenceServiceSettings,
+            modelRegistry,
+            authorizationRequestHandler,
+            context.clusterService()
+        );
+    }
+
+    public ElasticInferenceService(
+        HttpRequestSender.Factory factory,
+        ServiceComponents serviceComponents,
+        ElasticInferenceServiceSettings elasticInferenceServiceSettings,
+        ModelRegistry modelRegistry,
+        ElasticInferenceServiceAuthorizationRequestHandler authorizationRequestHandler,
+        ClusterService clusterService
+    ) {
+        super(factory, serviceComponents, clusterService);
         this.elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(
             elasticInferenceServiceSettings.getElasticInferenceServiceUrl()
         );
@@ -174,13 +195,13 @@ public class ElasticInferenceService extends SenderService {
                 ),
                 MinimalServiceSettings.chatCompletion(NAME)
             ),
-            DEFAULT_ELSER_MODEL_ID_V2,
+            DEFAULT_ELSER_2_MODEL_ID,
             new DefaultModelConfig(
                 new ElasticInferenceServiceSparseEmbeddingsModel(
                     DEFAULT_ELSER_ENDPOINT_ID_V2,
                     TaskType.SPARSE_EMBEDDING,
                     NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_MODEL_ID_V2, null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_2_MODEL_ID, null, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents,
@@ -213,7 +234,6 @@ public class ElasticInferenceService extends SenderService {
                     DenseVectorFieldMapper.ElementType.FLOAT
                 )
             ),
-
             DEFAULT_RERANK_MODEL_ID_V1,
             new DefaultModelConfig(
                 new ElasticInferenceServiceRerankModel(
@@ -627,7 +647,7 @@ public class ElasticInferenceService extends SenderService {
     private TraceContext getCurrentTraceInfo() {
         var threadPool = getServiceComponents().threadPool();
 
-        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
+        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT_HTTP_HEADER);
         var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
 
         return new TraceContext(traceParent, traceState);

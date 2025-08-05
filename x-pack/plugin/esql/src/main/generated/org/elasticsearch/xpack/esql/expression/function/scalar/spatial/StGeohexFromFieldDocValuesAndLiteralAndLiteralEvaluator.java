@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -71,7 +72,7 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
   @Override
   public String toString() {
-    return "StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", bounds=" + bounds + "]";
+    return "StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + "]";
   }
 
   @Override
@@ -96,10 +97,10 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
     private final EvalOperator.ExpressionEvaluator.Factory encoded;
 
-    private final StGeohex.GeoHexBoundedGrid bounds;
+    private final Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds;
 
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded,
-        StGeohex.GeoHexBoundedGrid bounds) {
+        Function<DriverContext, StGeohex.GeoHexBoundedGrid> bounds) {
       this.source = source;
       this.encoded = encoded;
       this.bounds = bounds;
@@ -107,12 +108,12 @@ public final class StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator imple
 
     @Override
     public StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), bounds, context);
+      return new StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), bounds.apply(context), context);
     }
 
     @Override
     public String toString() {
-      return "StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", bounds=" + bounds + "]";
+      return "StGeohexFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + "]";
     }
   }
 }

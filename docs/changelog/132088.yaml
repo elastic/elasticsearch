@@ -1,0 +1,5 @@
+pr: 132088
+summary: Fix combine result for `ingest_took`
+area: ES|QL
+type: bug
+issues: []

@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.TermFrequencyAttribute;
+import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -32,7 +34,6 @@ import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.inference.WeightedToken;
@@ -53,6 +54,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.index.IndexVersions.SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT;
 import static org.elasticsearch.index.IndexVersions.UPGRADE_TO_LUCENE_10_0_0;
@@ -65,14 +67,13 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class SparseVectorFieldMapperTests extends MapperTestCase {
+public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        Map<String, Float> map = new LinkedHashMap<>();
-        map.put("ten", 10f);
-        map.put("twenty", 20f);
-        return map;
+        return new TreeMap<>(
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLengthBetween(5, 10), Float.valueOf(randomIntBetween(1, 127))))
+        );
     }
 
     @Override
@@ -208,26 +209,22 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertEquals(Strings.toString(fieldMapping(this::minimalMapping)), mapper.mappingSource().toString());
 
-        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+        @SuppressWarnings("unchecked")
+        var expected = (Map<String, Float>) getSampleValueForDocument();
+        ParsedDocument doc1 = mapper.parse(source(b -> b.field("field", expected)));
 
         List<IndexableField> fields = doc1.rootDoc().getFields("field");
-        assertEquals(2, fields.size());
-        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
-        XFeatureField featureField1 = null;
-        XFeatureField featureField2 = null;
+        assertEquals(expected.size(), fields.size());
+        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
+
         for (IndexableField field : fields) {
-            if (field.stringValue().equals("ten")) {
-                featureField1 = (XFeatureField) field;
-            } else if (field.stringValue().equals("twenty")) {
-                featureField2 = (XFeatureField) field;
-            } else {
-                throw new UnsupportedOperationException();
+            if (field instanceof FeatureField fField) {
+                var value = expected.remove(fField.stringValue());
+                assertThat(fField.getFeatureValue(), equalTo(value));
+                int freq1 = getFrequency(fField.tokenStream(null, null));
+                assertThat(XFeatureField.decodeFeatureValue(freq1), equalTo(value));
             }
         }
-
-        int freq1 = getFrequency(featureField1.tokenStream(null, null));
-        int freq2 = getFrequency(featureField2.tokenStream(null, null));
-        assertTrue(freq1 < freq2);
     }
 
     public void testDefaultsWithAndWithoutIncludeDefaults() throws Exception {
@@ -314,14 +311,14 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
         List<IndexableField> fields = parsedDocument.rootDoc().getFields("field");
         assertEquals(2, fields.size());
-        assertThat(fields.get(0), Matchers.instanceOf(XFeatureField.class));
-        XFeatureField featureField1 = null;
-        XFeatureField featureField2 = null;
+        assertThat(fields.get(0), Matchers.instanceOf(FeatureField.class));
+        FeatureField featureField1 = null;
+        FeatureField featureField2 = null;
         for (IndexableField field : fields) {
             if (field.stringValue().equals("foo.bar")) {
-                featureField1 = (XFeatureField) field;
+                featureField1 = (FeatureField) field;
             } else if (field.stringValue().equals("foobar")) {
-                featureField2 = (XFeatureField) field;
+                featureField2 = (FeatureField) field;
             } else {
                 throw new UnsupportedOperationException();
             }
@@ -369,13 +366,13 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         }));
 
         // then validate that the generate document stored both values appropriately and we have only the max value stored
-        XFeatureField barField = ((XFeatureField) doc1.rootDoc().getByKey("foo.field\\.bar"));
+        FeatureField barField = ((FeatureField) doc1.rootDoc().getByKey("foo.field\\.bar"));
         assertEquals(20, barField.getFeatureValue(), 1);
 
-        XFeatureField storedBarField = ((XFeatureField) doc1.rootDoc().getFields("foo.field").get(1));
+        FeatureField storedBarField = ((FeatureField) doc1.rootDoc().getFields("foo.field").get(1));
         assertEquals(20, storedBarField.getFeatureValue(), 1);
 
-        assertEquals(3, doc1.rootDoc().getFields().stream().filter((f) -> f instanceof XFeatureField).count());
+        assertEquals(3, doc1.rootDoc().getFields().stream().filter((f) -> f instanceof FeatureField).count());
     }
 
     public void testCannotBeUsedInMultiFields() {
@@ -459,7 +456,8 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
 
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                return new SyntheticSourceExample(getSampleValueForDocument(), getSampleValueForDocument(), b -> {
+                var sample = getSampleValueForDocument();
+                return new SyntheticSourceExample(sample, sample, b -> {
                     if (withStore) {
                         minimalStoreMapping(b);
                     } else {
@@ -907,5 +905,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             }
         }
         return result;
+    }
+
+    public static IndexVersion getIndexOptionsCompatibleIndexVersion() {
+        return IndexVersionUtils.randomVersionBetween(random(), SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
     }
 }

@@ -61,7 +61,8 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerProvider {
 
     static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
-    public static final double VECTOR_VISITED_PERCENTAGE_BUDGET = 0.05;
+
+    private static final double VECTOR_VISITED_PERCENTAGE_BUDGET = 0.05;
 
     protected final String field;
     protected final int nProbe;

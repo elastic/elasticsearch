@@ -1057,6 +1057,16 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             entry.minCompressedLength = meta.readInt();
             entry.maxCompressedLength = meta.readInt();
             entry.decoder = FSST.Decoder.readFrom(meta::readByte);
+            if (entry.minCompressedLength < entry.maxCompressedLength) {
+                entry.addressesOffset = meta.readLong();
+
+                // Old count of uncompressed addresses
+                long numAddresses = entry.numDocsWithField + 1L;
+
+                final int blockShift = meta.readVInt();
+                entry.addressesMeta = DirectMonotonicReader.loadMeta(meta, numAddresses, blockShift);
+                entry.addressesLength = meta.readLong();
+            }
         } else { // NO_COMPRESS
             if (entry.minLength < entry.maxLength) {
                 entry.addressesOffset = meta.readLong();

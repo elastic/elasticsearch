@@ -9,6 +9,8 @@
 
 package org.elasticsearch.rest.action;
 
+import java.util.Set;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -264,6 +266,13 @@ public class RestActions {
      * Parses a top level query including the query element that wraps it
      */
     public static QueryBuilder getQueryContent(XContentParser parser) {
+        return getQueryContent(parser, Set.of());
+    }
+
+    /**
+     * Parses a top level query including the query element that wraps it. Ignoring explicitly supplied ignored tokens when validating.
+     */
+    public static QueryBuilder getQueryContent(XContentParser parser, Set<String> ignoredTokens) {
         try {
             QueryBuilder queryBuilder = null;
             XContentParser.Token first = parser.nextToken();
@@ -281,7 +290,7 @@ public class RestActions {
                     String currentName = parser.currentName();
                     if ("query".equals(currentName)) {
                         queryBuilder = parseTopLevelQuery(parser);
-                    } else {
+                    } else if (ignoredTokens.contains(currentName) == false) {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }
                 }

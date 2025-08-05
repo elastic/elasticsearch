@@ -524,9 +524,16 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
     public void testTakesIntoAccountExpectedSizeForInitializingSearchableSnapshots() {
 
         var searchableSnapshotIndex = IndexMetadata.builder("searchable_snapshot")
-            .settings(indexSettings(IndexVersion.current(), 3, 0).put(INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE))
+            .settings(
+                indexSettings(IndexVersion.current(), randomUUID(), 3, 0).put(
+                    INDEX_STORE_TYPE_SETTING.getKey(),
+                    SEARCHABLE_SNAPSHOT_STORE_TYPE
+                )
+            )
             .build();
-        var regularIndex = IndexMetadata.builder("regular_index").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        var regularIndex = IndexMetadata.builder("regular_index")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
 
         String nodeId = "node1";
         var knownShardSizes = new HashMap<String, Long>();

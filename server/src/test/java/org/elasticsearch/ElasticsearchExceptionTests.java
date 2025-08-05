@@ -397,7 +397,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                       "reason": {
                         "type": "query_shard_exception",
                         "reason": "foobar",
-                        "index_uuid": IndexMetadata.INDEX_UUID_NA_VALUE,
+                        "index_uuid": "_na_",
                         "index": "foo1"
                       }
                     }

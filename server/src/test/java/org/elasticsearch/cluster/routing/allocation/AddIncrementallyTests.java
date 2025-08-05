@@ -262,9 +262,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
         for (int i = 0; i < numberOfIndices; i++) {
             IndexMetadata.Builder index = IndexMetadata.builder("test" + i)
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(numberOfShards)
-                .numberOfReplicas(numberOfReplicas);
+                .settings(indexSettings(IndexVersion.current(), randomUUID(), numberOfShards, numberOfReplicas));
             metadataBuilder = metadataBuilder.put(index);
         }
 
@@ -312,9 +310,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         );
 
         IndexMetadata.Builder index = IndexMetadata.builder("test" + indexOrdinal)
-            .settings(settings(IndexVersion.current()))
-            .numberOfShards(numberOfShards)
-            .numberOfReplicas(numberOfReplicas);
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), numberOfShards, numberOfReplicas));
         IndexMetadata imd = index.build();
         metadataBuilder = metadataBuilder.put(imd, true);
         routingTableBuilder.addAsNew(imd);

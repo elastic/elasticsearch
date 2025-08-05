@@ -49,10 +49,12 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), 1, 1)))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
             .put(
                 IndexMetadata.builder("test2")
-                    .settings(indexSettings(IndexVersion.current(), 1, 1).put("index.routing.allocation.include._id", "node1,node2"))
+                    .settings(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 1).put("index.routing.allocation.include._id", "node1,node2")
+                    )
             )
             .build();
 
@@ -131,17 +133,15 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
             .put(
                 IndexMetadata.builder("test2")
                     .settings(
-                        settings(IndexVersion.current()).put(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 1).put(
                             IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey(),
                             "node1,node2"
                         )
                     )
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
             )
             .build();
 
@@ -234,8 +234,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
+            .put(IndexMetadata.builder("test2").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
 
             .build();
 
@@ -312,8 +312,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
+            .put(IndexMetadata.builder("test2").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -421,8 +421,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
+            .put(IndexMetadata.builder("test2").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -499,8 +499,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
+            .put(IndexMetadata.builder("test2").settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -608,8 +608,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         );
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(0))
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 0)))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 0)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)

@@ -122,7 +122,7 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
                 metadataBuilder.put(
                     IndexMetadata.builder(indexName)
                         .settings(
-                            indexSettings(IndexVersion.current(), shardCount, replicaCount).put(
+                            indexSettings(IndexVersion.current(), randomUUID(), shardCount, replicaCount).put(
                                 IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".fake_tier",
                                 tier
                             )

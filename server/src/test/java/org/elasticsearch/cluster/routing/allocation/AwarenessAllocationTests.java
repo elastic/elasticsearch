@@ -312,8 +312,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("Building initial routing table for 'moveShardOnceNewNodeWithAttributeAdded4'");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 5, 1)))
+            .put(IndexMetadata.builder("test2").settings(indexSettings(IndexVersion.current(), randomUUID(), 5, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -742,8 +742,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("Building initial routing table for 'fullAwareness3'");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), 5, 1)))
+            .put(IndexMetadata.builder("test2").settings(indexSettings(IndexVersion.current(), randomUUID(), 5, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -830,7 +830,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         logger.info("Building initial routing table for 'testUnbalancedZones'");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(indexSettings(IndexVersion.current(), randomUUID(), 5, 1)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)

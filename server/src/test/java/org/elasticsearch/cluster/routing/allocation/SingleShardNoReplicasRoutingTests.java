@@ -212,9 +212,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         Metadata.Builder metadataBuilder = Metadata.builder();
         for (int i = 0; i < numberOfIndices; i++) {
-            metadataBuilder.put(
-                IndexMetadata.builder("test" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
-            );
+            metadataBuilder.put(IndexMetadata.builder("test" + i).settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0)));
         }
         Metadata metadata = metadataBuilder.build();
 
@@ -324,9 +322,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         Metadata.Builder metadataBuilder = Metadata.builder();
         for (int i = 0; i < numberOfIndices; i++) {
-            metadataBuilder.put(
-                IndexMetadata.builder("test" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0)
-            );
+            metadataBuilder.put(IndexMetadata.builder("test" + i).settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0)));
         }
         Metadata metadata = metadataBuilder.build();
 

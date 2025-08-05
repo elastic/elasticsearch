@@ -51,6 +51,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -615,7 +616,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             var inSyncIds = randomList(shards * (replicas + 1), shards * (replicas + 1), () -> UUIDs.randomBase64UUID(random()));
             var shardSize = randomLongBetween(10_000_000L, 10_000_000_000L);
 
-            var indexMetadataBuilder = IndexMetadata.builder(indexName).settings(indexSettings(IndexVersion.current(), shards, replicas));
+            var indexMetadataBuilder = IndexMetadata.builder(indexName)
+                .settings(indexSettings(IndexVersion.current(), randomUUID(), shards, replicas));
             if (randomBoolean()) {
                 indexMetadataBuilder.shardSizeInBytesForecast(smallShardSizeDeviation(shardSize));
             }
@@ -757,7 +759,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
             metadataBuilder.put(
                 IndexMetadata.builder(indexName)
-                    .settings(indexSettings(IndexVersion.current(), 1, 1).put("index.routing.allocation.exclude._id", "node-2"))
+                    .settings(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 1).put("index.routing.allocation.exclude._id", "node-2")
+                    )
             );
 
             var indexId = metadataBuilder.get(indexName).getIndex();
@@ -790,7 +794,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
             metadataBuilder.put(
                 IndexMetadata.builder(indexName)
-                    .settings(indexSettings(IndexVersion.current(), 1, 0).put("index.routing.allocation.exclude._id", "node-2"))
+                    .settings(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 0).put("index.routing.allocation.exclude._id", "node-2")
+                    )
             );
 
             var indexId = metadataBuilder.get(indexName).getIndex();
@@ -877,21 +883,27 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         // index-1 is allocated according to the desired balance
-        var indexMetadata1 = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var index1 = new Index("index-1", randomUUID());
+        var index1ShardId_0 = new ShardId(index1, 0);
+        var index1ShardId_1 = new ShardId(index1, 1);
+        var indexMetadata1 = IndexMetadata.builder(index1.getName())
+            .settings(indexSettings(IndexVersion.current(), index1.getUUID(), 2, 0))
+            .build();
         routingTableBuilder.add(
             IndexRoutingTable.builder(indexMetadata1.getIndex())
-                .addShard(newShardRouting(shardIdFrom(indexMetadata1, 0), "node-1", true, STARTED))
-                .addShard(newShardRouting(shardIdFrom(indexMetadata1, 1), "node-2", true, STARTED))
+                .addShard(newShardRouting(index1ShardId_0, "node-1", true, STARTED))
+                .addShard(newShardRouting(index1ShardId_1, "node-2", true, STARTED))
         );
-        clusterInfoBuilder.withShard(shardIdFrom(indexMetadata1, 0), true, ByteSizeValue.ofGb(8).getBytes())
-            .withShard(shardIdFrom(indexMetadata1, 1), true, ByteSizeValue.ofGb(8).getBytes());
+        clusterInfoBuilder.withShard(index1ShardId_0, true, ByteSizeValue.ofGb(8).getBytes())
+            .withShard(index1ShardId_1, true, ByteSizeValue.ofGb(8).getBytes());
 
         // index-2 is restored earlier but is not started on the desired node yet
-        var indexMetadata2 = IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
-        snapshotShardSizes.put(
-            new SnapshotShard(snapshot, indexIdFrom(indexMetadata2), shardIdFrom(indexMetadata2, 0)),
-            ByteSizeValue.ofGb(1).getBytes()
-        );
+        var index2 = new Index("index-2", randomUUID());
+        var index2ShardId = new ShardId(index2, 0);
+        var indexMetadata2 = IndexMetadata.builder(index2.getName())
+            .settings(indexSettings(IndexVersion.current(), index2.getUUID(), 1, 0))
+            .build();
+        snapshotShardSizes.put(new SnapshotShard(snapshot, indexIdFrom(indexMetadata2), index2ShardId), ByteSizeValue.ofGb(1).getBytes());
         var index2SnapshotRecoverySource = new RecoverySource.SnapshotRecoverySource(
             "restore",
             snapshot,
@@ -903,9 +915,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             case 0 -> routingTableBuilder.addAsNewRestore(indexMetadata2, index2SnapshotRecoverySource, Set.of());
             // index is initializing on desired node
             case 1 -> {
-                ShardId index2ShardId = shardIdFrom(indexMetadata2, 0);
                 routingTableBuilder.add(
-                    IndexRoutingTable.builder(indexMetadata2.getIndex())
+                    IndexRoutingTable.builder(index2)
                         .addShard(
                             shardRoutingBuilder(index2ShardId, "node-1", true, INITIALIZING).withRecoverySource(
                                 index2SnapshotRecoverySource
@@ -921,9 +932,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             }
             // index is initializing on undesired node
             case 2 -> {
-                ShardId index2ShardId = shardIdFrom(indexMetadata2, 0);
                 routingTableBuilder.add(
-                    IndexRoutingTable.builder(indexMetadata2.getIndex())
+                    IndexRoutingTable.builder(index2)
                         .addShard(
                             shardRoutingBuilder(index2ShardId, "node-2", true, INITIALIZING).withRecoverySource(
                                 index2SnapshotRecoverySource
@@ -940,28 +950,32 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             // index is started on undesired node
             case 3 -> {
                 routingTableBuilder.add(
-                    IndexRoutingTable.builder(indexMetadata2.getIndex())
-                        .addShard(newShardRouting(shardIdFrom(indexMetadata2, 0), "node-2", true, STARTED))
+                    IndexRoutingTable.builder(index2).addShard(newShardRouting(index2ShardId, "node-2", true, STARTED))
                 );
                 clusterInfoBuilder.withNodeUsedSpace("node-2", ByteSizeValue.ofGb(1).getBytes())
-                    .withShard(shardIdFrom(indexMetadata2, 0), true, ByteSizeValue.ofGb(1).getBytes());
+                    .withShard(index2ShardId, true, ByteSizeValue.ofGb(1).getBytes());
             }
             default -> throw new AssertionError("unexpected randomization");
         }
 
         // index-3 is restored as new from snapshot
-        var indexMetadata3 = IndexMetadata.builder("index-3").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var index3 = new Index("index-3", randomUUID());
+        var index3ShardId_0 = new ShardId(index3, 0);
+        var index3ShardId_1 = new ShardId(index3, 1);
+        var indexMetadata3 = IndexMetadata.builder(index3.getName())
+            .settings(indexSettings(IndexVersion.current(), index3.getUUID(), 2, 0))
+            .build();
         routingTableBuilder.addAsNewRestore(
             indexMetadata3,
             new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata3)),
             Set.of()
         );
         snapshotShardSizes.put(
-            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), shardIdFrom(indexMetadata3, 0)),
+            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), index3ShardId_0),
             ByteSizeValue.ofMb(512).getBytes()
         );
         snapshotShardSizes.put(
-            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), shardIdFrom(indexMetadata3, 1)),
+            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), index3ShardId_1),
             ByteSizeValue.ofMb(512).getBytes()
         );
 
@@ -978,11 +992,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             snapshot,
                             RestoreInProgress.State.STARTED,
                             randomBoolean(),
-                            List.of(indexMetadata2.getIndex().getName(), indexMetadata3.getIndex().getName()),
+                            List.of(index2.getName(), index3.getName()),
                             Map.ofEntries(
-                                Map.entry(shardIdFrom(indexMetadata2, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
-                                Map.entry(shardIdFrom(indexMetadata3, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
-                                Map.entry(shardIdFrom(indexMetadata3, 1), new RestoreInProgress.ShardRestoreStatus(randomUUID()))
+                                Map.entry(index2ShardId, new RestoreInProgress.ShardRestoreStatus(randomUUID())),
+                                Map.entry(index3ShardId_0, new RestoreInProgress.ShardRestoreStatus(randomUUID())),
+                                Map.entry(index3ShardId_1, new RestoreInProgress.ShardRestoreStatus(randomUUID()))
                             )
                         )
                     ).build()
@@ -1001,9 +1015,9 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var initialDesiredBalance = new DesiredBalance(
             1,
             Map.ofEntries(
-                Map.entry(shardIdFrom(indexMetadata1, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                Map.entry(shardIdFrom(indexMetadata1, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                Map.entry(shardIdFrom(indexMetadata2, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+                Map.entry(index1ShardId_0, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(index1ShardId_1, new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                Map.entry(index2ShardId, new ShardAssignment(Set.of("node-1"), 1, 0, 0))
             )
         );
         var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
@@ -1019,20 +1033,20 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             anyOf(
                 equalTo(
                     Map.ofEntries(
-                        Map.entry(shardIdFrom(indexMetadata1, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata1, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata2, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata3, 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata3, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+                        Map.entry(index1ShardId_0, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                        Map.entry(index1ShardId_1, new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                        Map.entry(index2ShardId, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                        Map.entry(index3ShardId_0, new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                        Map.entry(index3ShardId_1, new ShardAssignment(Set.of("node-2"), 1, 0, 0))
                     )
                 ),
                 equalTo(
                     Map.ofEntries(
-                        Map.entry(shardIdFrom(indexMetadata1, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata1, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata2, 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata3, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata3, 1), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+                        Map.entry(index1ShardId_0, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                        Map.entry(index1ShardId_1, new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                        Map.entry(index2ShardId, new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                        Map.entry(index3ShardId_0, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                        Map.entry(index3ShardId_1, new ShardAssignment(Set.of("node-1"), 1, 0, 0))
                     )
                 )
             )
@@ -1052,31 +1066,38 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
         var routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         // index-1 is allocated according to the desired balance
-        var indexMetadata1 = IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 2, 0)).build();
+        var index1 = new Index("index-1", randomUUID());
+        var index1ShardId_0 = new ShardId(index1, 0);
+        var index1ShardId_1 = new ShardId(index1, 1);
+        var indexMetadata1 = IndexMetadata.builder(index1.getName())
+            .settings(indexSettings(IndexVersion.current(), index1.getUUID(), 2, 0))
+            .build();
         routingTableBuilder.add(
-            IndexRoutingTable.builder(indexMetadata1.getIndex())
-                .addShard(newShardRouting(shardIdFrom(indexMetadata1, 0), "node-1", true, STARTED))
-                .addShard(newShardRouting(shardIdFrom(indexMetadata1, 1), "node-2", true, STARTED))
+            IndexRoutingTable.builder(index1)
+                .addShard(newShardRouting(index1ShardId_0, "node-1", true, STARTED))
+                .addShard(newShardRouting(index1ShardId_1, "node-2", true, STARTED))
         );
-        clusterInfoBuilder.withShard(shardIdFrom(indexMetadata1, 0), true, ByteSizeValue.ofGb(8).getBytes())
-            .withShard(shardIdFrom(indexMetadata1, 1), true, ByteSizeValue.ofGb(8).getBytes());
+        clusterInfoBuilder.withShard(index1ShardId_0, true, ByteSizeValue.ofGb(8).getBytes())
+            .withShard(index1ShardId_1, true, ByteSizeValue.ofGb(8).getBytes());
 
         // index-2 & index-3 are restored as new from snapshot
-        var indexMetadata2 = IndexMetadata.builder("index-2")
-            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 2))
+        var index2 = new Index("index-2", randomUUID());
+        var index2ShardId = new ShardId(index2, 0);
+        var indexMetadata2 = IndexMetadata.builder(index2.getName())
+            .settings(indexSettings(IndexVersion.current(), index2.getUUID(), 1, 0).put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 2))
             .build();
         routingTableBuilder.addAsNewRestore(
             indexMetadata2,
             new RecoverySource.SnapshotRecoverySource("restore", snapshot, IndexVersion.current(), indexIdFrom(indexMetadata2)),
             Set.of()
         );
-        snapshotShardSizes.put(
-            new SnapshotShard(snapshot, indexIdFrom(indexMetadata2), shardIdFrom(indexMetadata2, 0)),
-            ByteSizeValue.ofGb(1).getBytes()
-        );
+        snapshotShardSizes.put(new SnapshotShard(snapshot, indexIdFrom(indexMetadata2), index2ShardId), ByteSizeValue.ofGb(1).getBytes());
 
-        var indexMetadata3 = IndexMetadata.builder("index-3")
-            .settings(indexSettings(IndexVersion.current(), 2, 0).put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 1))
+        var index3 = new Index("index-3", randomUUID());
+        var index3ShardId_0 = new ShardId(index3, 0);
+        var index3ShardId_1 = new ShardId(index3, 1);
+        var indexMetadata3 = IndexMetadata.builder(index3.getName())
+            .settings(indexSettings(IndexVersion.current(), index3.getUUID(), 2, 0).put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), 1))
             .build();
         routingTableBuilder.addAsNewRestore(
             indexMetadata3,
@@ -1084,11 +1105,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             Set.of()
         );
         snapshotShardSizes.put(
-            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), shardIdFrom(indexMetadata3, 0)),
+            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), index3ShardId_0),
             ByteSizeValue.ofMb(512).getBytes()
         );
         snapshotShardSizes.put(
-            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), shardIdFrom(indexMetadata3, 1)),
+            new SnapshotShard(snapshot, indexIdFrom(indexMetadata3), index3ShardId_1),
             ByteSizeValue.ofMb(512).getBytes()
         );
 
@@ -1105,11 +1126,11 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                             snapshot,
                             RestoreInProgress.State.STARTED,
                             randomBoolean(),
-                            List.of(indexMetadata2.getIndex().getName(), indexMetadata3.getIndex().getName()),
+                            List.of(index2.getName(), index3.getName()),
                             Map.ofEntries(
-                                Map.entry(shardIdFrom(indexMetadata2, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
-                                Map.entry(shardIdFrom(indexMetadata3, 0), new RestoreInProgress.ShardRestoreStatus(randomUUID())),
-                                Map.entry(shardIdFrom(indexMetadata3, 1), new RestoreInProgress.ShardRestoreStatus(randomUUID()))
+                                Map.entry(index2ShardId, new RestoreInProgress.ShardRestoreStatus(randomUUID())),
+                                Map.entry(index3ShardId_0, new RestoreInProgress.ShardRestoreStatus(randomUUID())),
+                                Map.entry(index3ShardId_1, new RestoreInProgress.ShardRestoreStatus(randomUUID()))
                             )
                         )
                     ).build()
@@ -1128,8 +1149,8 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         var initialDesiredBalance = new DesiredBalance(
             1,
             Map.ofEntries(
-                Map.entry(shardIdFrom(indexMetadata1, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                Map.entry(shardIdFrom(indexMetadata1, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+                Map.entry(index1ShardId_0, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                Map.entry(index1ShardId_1, new ShardAssignment(Set.of("node-2"), 1, 0, 0))
             )
         );
         var nextDesiredBalance = createDesiredBalanceComputer(new BalancedShardsAllocator()).compute(
@@ -1145,20 +1166,20 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             anyOf(
                 equalTo(
                     Map.ofEntries(
-                        Map.entry(shardIdFrom(indexMetadata1, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata1, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata2, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata3, 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata3, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0))
+                        Map.entry(index1ShardId_0, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                        Map.entry(index1ShardId_1, new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                        Map.entry(index2ShardId, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                        Map.entry(index3ShardId_0, new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                        Map.entry(index3ShardId_1, new ShardAssignment(Set.of("node-2"), 1, 0, 0))
                     )
                 ),
                 equalTo(
                     Map.ofEntries(
-                        Map.entry(shardIdFrom(indexMetadata1, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata1, 1), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata2, 0), new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata3, 0), new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
-                        Map.entry(shardIdFrom(indexMetadata3, 1), new ShardAssignment(Set.of("node-1"), 1, 0, 0))
+                        Map.entry(index1ShardId_0, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                        Map.entry(index1ShardId_1, new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                        Map.entry(index2ShardId, new ShardAssignment(Set.of("node-2"), 1, 0, 0)),
+                        Map.entry(index3ShardId_0, new ShardAssignment(Set.of("node-1"), 1, 0, 0)),
+                        Map.entry(index3ShardId_1, new ShardAssignment(Set.of("node-1"), 1, 0, 0))
                     )
                 )
             )

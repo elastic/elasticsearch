@@ -1106,8 +1106,10 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             int numberOfShards = indexNameToNodeIdsMap.get(index).size() == 0 ? 1 : indexNameToNodeIdsMap.get(index).size();
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                 .settings(
-                    indexSettings(IndexVersion.current(), numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis())
-                        .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), blockedIndices.contains(index))
+                    indexSettings(IndexVersion.current(), randomUUID(), numberOfShards, 0).put(
+                        SETTING_CREATION_DATE,
+                        System.currentTimeMillis()
+                    ).put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), blockedIndices.contains(index))
                 )
                 .build();
             if (blockedIndices.contains(index)) {

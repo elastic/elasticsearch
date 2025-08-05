@@ -1709,6 +1709,11 @@ public abstract class ESTestCase extends LuceneTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 
+    /** Return consistent index settings for the provided index version, uuid, shard- and replica-count, */
+    public static Settings.Builder indexSettings(IndexVersion indexVersionCreated, String uuid) {
+        return settings(indexVersionCreated).put(IndexMetadata.SETTING_INDEX_UUID, uuid);
+    }
+
     /** Return consistent index settings for the provided shard- and replica-count. */
     public static Settings.Builder indexSettings(int shards, int replicas) {
         return Settings.builder()

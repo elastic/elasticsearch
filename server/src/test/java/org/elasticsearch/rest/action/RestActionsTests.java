@@ -134,7 +134,7 @@ public class RestActionsTests extends ESTestCase {
                     "reason" : {
                       "type" : "parsing_exception",
                       "reason" : "error",
-                      "index_uuid" : IndexMetadata.INDEX_UUID_NA_VALUE,
+                      "index_uuid" : "_na_",
                       "index" : "index",
                       "line" : 0,
                       "col" : 0,
@@ -151,7 +151,7 @@ public class RestActionsTests extends ESTestCase {
                     "reason" : {
                       "type" : "parsing_exception",
                       "reason" : "error",
-                      "index_uuid" : IndexMetadata.INDEX_UUID_NA_VALUE,
+                      "index_uuid" : "_na_",
                       "index" : "index",
                       "line" : 0,
                       "col" : 0,
@@ -168,7 +168,7 @@ public class RestActionsTests extends ESTestCase {
                     "reason" : {
                       "type" : "parsing_exception",
                       "reason" : "error",
-                      "index_uuid" : IndexMetadata.INDEX_UUID_NA_VALUE,
+                      "index_uuid" : "_na_",
                       "index" : "index",
                       "line" : 0,
                       "col" : 0,

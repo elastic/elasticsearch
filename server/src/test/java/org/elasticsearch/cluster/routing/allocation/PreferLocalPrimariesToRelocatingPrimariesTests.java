@@ -52,12 +52,8 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         logger.info("create 2 indices with [{}] no replicas, and wait till all are allocated", numberOfShards);
 
         Metadata metadata = Metadata.builder()
-            .put(
-                IndexMetadata.builder("test1").settings(settings(IndexVersion.current())).numberOfShards(numberOfShards).numberOfReplicas(0)
-            )
-            .put(
-                IndexMetadata.builder("test2").settings(settings(IndexVersion.current())).numberOfShards(numberOfShards).numberOfReplicas(0)
-            )
+            .put(IndexMetadata.builder("test1").settings(indexSettings(IndexVersion.current(), randomUUID(), numberOfShards, 0)))
+            .put(IndexMetadata.builder("test2").settings(indexSettings(IndexVersion.current(), randomUUID(), numberOfShards, 0)))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -80,18 +76,16 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
 
         logger.info("remove one of the nodes and apply filter to move everything from another node");
 
+        IndexMetadata index1Metadata = clusterState.metadata().getProject().index("test1");
+        IndexMetadata index2Metadata = clusterState.metadata().getProject().index("test2");
         metadata = Metadata.builder()
             .put(
-                IndexMetadata.builder(clusterState.metadata().getProject().index("test1"))
-                    .settings(
-                        indexSettings(IndexVersion.current(), numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2")
-                    )
+                IndexMetadata.builder(index1Metadata)
+                    .settings(Settings.builder().put(index1Metadata.getSettings()).put("index.routing.allocation.exclude._name", "node2"))
             )
             .put(
-                IndexMetadata.builder(clusterState.metadata().getProject().index("test2"))
-                    .settings(
-                        indexSettings(IndexVersion.current(), numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2")
-                    )
+                IndexMetadata.builder(index2Metadata)
+                    .settings(Settings.builder().put(index2Metadata.getSettings()).put("index.routing.allocation.exclude._name", "node2"))
             )
             .build();
         clusterState = ClusterState.builder(clusterState)

@@ -122,7 +122,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 2)))
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, randomUUID(), between(1, 10), between(0, 2)))
                 );
             }
             clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
@@ -194,7 +195,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(1, 3)))
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, randomUUID(), between(1, 10), between(1, 3)))
                 );
             }
             clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
@@ -317,7 +319,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 3)))
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, randomUUID(), between(1, 10), between(0, 3)))
                 );
             }
             clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
@@ -442,7 +445,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(2, 10), between(0, 2)))
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, randomUUID(), between(2, 10), between(0, 2)))
                 );
             }
             clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
@@ -541,7 +545,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 2)))
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, randomUUID(), between(1, 10), between(0, 2)))
                 );
             }
             clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());
@@ -635,7 +640,8 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
             ProjectMetadata.Builder metadata = ProjectMetadata.builder(projectId);
             for (String index : allIndices) {
                 metadata.put(
-                    IndexMetadata.builder(index).settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, between(1, 10), between(0, 3)))
+                    IndexMetadata.builder(index)
+                        .settings(indexSettings(IndexVersions.MINIMUM_COMPATIBLE, randomUUID(), between(1, 10), between(0, 3)))
                 );
             }
             clusterState = newClusterState(Metadata.builder().put(metadata).build(), discoNodes.build());

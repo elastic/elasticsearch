@@ -406,11 +406,7 @@ public class ClusterBalanceStatsTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder();
         var routingTableBuilder = RoutingTable.builder();
         for (var index : indices) {
-            var indexMetadata = index.v1()
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(index.v2().length)
-                .numberOfReplicas(0)
-                .build();
+            var indexMetadata = index.v1().settings(indexSettings(IndexVersion.current(), randomUUID(), index.v2().length, 0)).build();
             metadataBuilder.put(indexMetadata, false);
             var indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
             for (int shardId = 0; shardId < index.v2().length; shardId++) {

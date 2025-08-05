@@ -61,9 +61,7 @@ public class EnableAllocationShortCircuitTests extends ESAllocationTestCase {
         final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = randomIntBetween(1, 10); i >= 0; i--) {
             final IndexMetadata indexMetadata = IndexMetadata.builder("test" + i)
-                .settings(settings(IndexVersion.current()))
-                .numberOfShards(1)
-                .numberOfReplicas(randomIntBetween(0, numberOfNodes - 1))
+                .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, randomIntBetween(0, numberOfNodes - 1)))
                 .build();
             metadataBuilder.put(indexMetadata, true);
             routingTableBuilder.addAsNew(indexMetadata);

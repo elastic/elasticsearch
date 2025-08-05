@@ -235,24 +235,20 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .put(
                 IndexMetadata.builder("short_delay")
                     .settings(
-                        settings(IndexVersion.current()).put(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 1).put(
                             UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
                             shortDelaySetting
                         )
                     )
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
             )
             .put(
                 IndexMetadata.builder("long_delay")
                     .settings(
-                        settings(IndexVersion.current()).put(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 1).put(
                             UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
                             longDelaySetting
                         )
                     )
-                    .numberOfShards(1)
-                    .numberOfReplicas(1)
             )
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

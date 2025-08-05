@@ -57,15 +57,11 @@ public class AllocationPriorityTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("first")
-                    .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_PRIORITY, priorityFirst))
-                    .numberOfShards(2)
-                    .numberOfReplicas(1)
+                    .settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 1).put(IndexMetadata.SETTING_PRIORITY, priorityFirst))
             )
             .put(
                 IndexMetadata.builder("second")
-                    .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_PRIORITY, prioritySecond))
-                    .numberOfShards(2)
-                    .numberOfReplicas(1)
+                    .settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 1).put(IndexMetadata.SETTING_PRIORITY, prioritySecond))
             )
             .build();
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)

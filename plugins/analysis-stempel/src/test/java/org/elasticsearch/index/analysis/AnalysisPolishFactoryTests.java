@@ -42,9 +42,10 @@ public class AnalysisPolishFactoryTests extends AnalysisFactoryTestCase {
 
     public void testThreadSafety() throws IOException {
         // TODO: is this the right boilerplate? I forked this out of TransportAnalyzeAction.java:
-        Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+        Settings settings = indexSettings(IndexVersion.current(), UUIDs.randomBase64UUID(), 1, 0).put(
+            Environment.PATH_HOME_SETTING.getKey(),
+            createTempDir().toString()
+        ).build();
         Environment environment = TestEnvironment.newEnvironment(settings);
         IndexMetadata metadata = IndexMetadata.builder(IndexMetadata.INDEX_UUID_NA_VALUE).settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);

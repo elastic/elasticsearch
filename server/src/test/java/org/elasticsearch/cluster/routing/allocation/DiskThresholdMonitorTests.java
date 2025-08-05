@@ -76,27 +76,27 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
             .put(
                 IndexMetadata.builder("test")
-                    .settings(settings(IndexVersion.current()).put("index.routing.allocation.require._id", "node2"))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 0).put("index.routing.allocation.require._id", "node2")
+                    )
             )
             .put(
                 IndexMetadata.builder("test_1")
-                    .settings(settings(IndexVersion.current()).put("index.routing.allocation.require._id", "node1"))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 0).put("index.routing.allocation.require._id", "node1")
+                    )
             )
             .put(
                 IndexMetadata.builder("test_2")
-                    .settings(settings(IndexVersion.current()).put("index.routing.allocation.require._id", "node1"))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 0).put("index.routing.allocation.require._id", "node1")
+                    )
             )
             .put(
                 IndexMetadata.builder("frozen")
-                    .settings(settings(IndexVersion.current()).put("index.routing.allocation.require._id", "frozen"))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
+                    .settings(
+                        indexSettings(IndexVersion.current(), randomUUID(), 1, 0).put("index.routing.allocation.require._id", "frozen")
+                    )
             )
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
@@ -463,8 +463,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
         final ProjectId projectId = randomProjectIdOrDefault();
         ProjectMetadata project = ProjectMetadata.builder(projectId)
-            .put(IndexMetadata.builder("test_1").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test_1").settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 1)))
+            .put(IndexMetadata.builder("test_2").settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 1)))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(project.index("test_1"))
@@ -814,8 +814,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         );
         final var projectId = randomProjectIdOrDefault();
         final ProjectMetadata projectMetadata = ProjectMetadata.builder(projectId)
-            .put(IndexMetadata.builder("test_1").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
-            .put(IndexMetadata.builder("test_2").settings(settings(IndexVersion.current())).numberOfShards(2).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test_1").settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 1)))
+            .put(IndexMetadata.builder("test_2").settings(indexSettings(IndexVersion.current(), randomUUID(), 2, 1)))
             .build();
         final RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(projectMetadata.index("test_1"))

@@ -421,6 +421,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             final int numDocsWithField = tsdbValuesProducer.mergeStats.sumNumDocsWithField();
             final int minLength = tsdbValuesProducer.mergeStats.minLength();
             final int maxLength = tsdbValuesProducer.mergeStats.maxLength();
+            assert maxLength >= minLength : "maxLength [" + maxLength + "] < minLength [" + minLength + "]";
 
             BinaryDocValues values = valuesProducer.getBinary(field);
             var sampler = new ReservoirSampler();
@@ -445,7 +446,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 if (numDocsWithField > 0 && numDocsWithField < maxDoc) {
                     disiAccumulator = new DISIAccumulator(dir, context, data, IndexedDISI.DEFAULT_DENSE_RANK_POWER);
                 }
-                assert maxLength >= minLength;
                 offsetsAccumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField);
                 CompressedOffsetWriter offsetWriter = new CompressedOffsetWriter(offsetsAccumulator);
 
@@ -519,8 +519,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 maxLength = Math.max(length, maxLength);
                 sampler.processLine(v.bytes, v.offset, v.length);
             }
-
-            assert maxLength >= minLength : "maxLength [" + maxLength + "] < minLength [" + minLength + "]";
 
             // Build encoder from sample
             FSST.SymbolTable symbolTable = FSST.SymbolTable.buildSymbolTable(sampler.getSample());

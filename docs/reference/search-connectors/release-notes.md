@@ -13,6 +13,16 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.1.1 [connectors-9.1.1-release-notes]
+
+### Fixes [connectors-9.1.1-fixes]
+
+:::{dropdown} Resolves missing access control for “Everyone Except External Users” in SharePoint connector
+
+Permissions granted to the `Everyone Except External Users` group were previously ignored, causing incomplete access control metadata in documents. This occurred because the connector did not recognize the group’s login name format.
+[#3577](https://github.com/elastic/connectors/pull/3577) resolves this issue by recognizing the group’s login format and correctly applying its permissions to document access control metadata.
+:::
+
 ## 9.1.0 [connectors-9.1.0-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 

@@ -69,7 +69,7 @@ public class JsonXContentParser extends AbstractXContentParser {
      * Handle parser exception depending on type.
      * This converts known exceptions to XContentParseException and rethrows them.
      */
-    private static IOException handleParserException(IOException e) throws IOException {
+    static IOException handleParserException(IOException e) throws IOException {
         switch (e) {
             case JsonEOFException eof -> throw new XContentEOFException(getLocation(eof), "Unexpected end of file", e);
             case JsonParseException pe -> throw newXContentParseException(pe);

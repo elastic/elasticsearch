@@ -17,18 +17,18 @@ import com.fasterxml.jackson.core.JsonParser;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentGenerator;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.provider.XContentImplUtils;
 
-import java.io.CharConversionException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
+
+import static org.elasticsearch.xcontent.provider.json.JsonXContentParser.handleParserException;
 
 /**
  * A JSON based content implementation using Jackson.
@@ -99,8 +99,8 @@ public class JsonXContentImpl implements XContent {
     public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
         try {
             return createParser(config, jsonFactory.createParser(content));
-        } catch (CharConversionException e) {
-            throw new XContentParseException(null, e.getMessage(), e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -108,8 +108,8 @@ public class JsonXContentImpl implements XContent {
     public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
         try {
             return createParser(config, jsonFactory.createParser(is));
-        } catch (CharConversionException e) {
-            throw new XContentParseException(null, e.getMessage(), e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -117,8 +117,8 @@ public class JsonXContentImpl implements XContent {
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
         try {
             return createParser(config, jsonFactory.createParser(data, offset, length));
-        } catch (CharConversionException e) {
-            throw new XContentParseException(null, e.getMessage(), e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 
@@ -126,8 +126,8 @@ public class JsonXContentImpl implements XContent {
     public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
         try {
             return createParser(config, jsonFactory.createParser(reader));
-        } catch (CharConversionException e) {
-            throw new XContentParseException(null, e.getMessage(), e);
+        } catch (IOException e) {
+            throw handleParserException(e);
         }
     }
 }

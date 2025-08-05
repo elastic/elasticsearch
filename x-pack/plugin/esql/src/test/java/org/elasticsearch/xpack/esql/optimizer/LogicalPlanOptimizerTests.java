@@ -615,16 +615,17 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test
             | stats sum(salary) + 1 where false,
                     sum(salary) + 3,
-                    sum(salary) + 2 where null
+                    sum(salary) + 2 where null,
+                    sum(salary) + 4 where not true
             """);
 
         var project = as(plan, Project.class);
         assertThat(
             Expressions.names(project.projections()),
-            contains("sum(salary) + 1 where false", "sum(salary) + 3", "sum(salary) + 2 where null")
+            contains("sum(salary) + 1 where false", "sum(salary) + 3", "sum(salary) + 2 where null", "sum(salary) + 4 where not true")
         );
         var eval = as(project.child(), Eval.class);
-        assertThat(eval.fields().size(), is(3));
+        assertThat(eval.fields().size(), is(4));
 
         var alias = as(eval.fields().getFirst(), Alias.class);
         assertTrue(alias.child().foldable());
@@ -662,6 +663,42 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var block = as(blocks[0], LongVectorBlock.class);
         assertThat(block.getPositionCount(), is(1));
         assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalNotTrue() {
+        var plan = plan("""
+            from test
+            | stats count(salary) where not true
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("count(salary) where not true"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+    * Limit[1000[INTEGER],false]
+    * \_Aggregate[[],[COUNT(salary{f}#10,true[BOOLEAN]) AS m1#4]]
+    * \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+    */
+    public void testReplaceStatsFilteredAggWithEvalNotFalse() {
+        var plan = plan("""
+            from test
+            | stats m1 = count(salary) where not false
+            """);
+        var limit = as(plan, Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("m1"));
+        var source = as(aggregate.child(), EsRelation.class);
     }
 
     /*
@@ -795,6 +832,37 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             from test
             | stats m = min(salary) where emp_no > 1,
                     max(salary) where emp_no > 1
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(agg.aggregates().size(), is(2));
+
+        var alias = as(agg.aggregates().get(0), Alias.class);
+        var aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        alias = as(agg.aggregates().get(1), Alias.class);
+        aggFunc = as(alias.child(), AggregateFunction.class);
+        assertThat(aggFunc.filter(), is(Literal.TRUE));
+
+        var filter = as(agg.child(), Filter.class);
+        assertThat(Expressions.name(filter.condition()), is("emp_no > 1"));
+
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    /*
+     Limit[1000[INTEGER],false]
+     \_Aggregate[[],[MIN(salary{f}#15,true[BOOLEAN]) AS m1#4, MAX(salary{f}#15,true[BOOLEAN]) AS m2#8]]
+     \_Filter[emp_no{f}#10 > 1[INTEGER]]
+     \_EsRelation[test][_meta_field{f}#16, emp_no{f}#10, first_name{f}#11, ..]
+     */
+    public void testExtractStatsCommonAlwaysTruePlusOtherFilter() {
+        var plan = plan("""
+            from test
+            | stats m1 = min(salary) where (true and emp_no > 1),
+                    m2 = max(salary) where (1==1 and emp_no > 1)
             """);
 
         var limit = as(plan, Limit.class);

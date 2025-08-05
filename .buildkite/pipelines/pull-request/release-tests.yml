@@ -15,6 +15,7 @@ steps:
               - checkPart3
               - checkPart4
               - checkPart5
+              - checkPart6
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2404

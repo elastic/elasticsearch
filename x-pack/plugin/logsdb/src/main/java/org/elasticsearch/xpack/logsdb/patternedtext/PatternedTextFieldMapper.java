@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 
@@ -36,7 +37,7 @@ import java.util.Map;
 /**
  * A {@link FieldMapper} that assigns every document the same value.
  */
-public class PatternedTextFieldMapper extends FieldMapper {
+public class PatternedTextFieldMapper extends TextFamilyFieldMapper {
 
     public static final FeatureFlag PATTERNED_TEXT_MAPPER = new FeatureFlag("patterned_text");
 
@@ -60,12 +61,27 @@ public class PatternedTextFieldMapper extends FieldMapper {
         private final IndexSettings indexSettings;
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final TextParams.Analyzers analyzers;
+        private final boolean isWithinMultiField;
+
+        private boolean isSyntheticSourceEnabled;
 
         public Builder(String name, MappingParserContext context) {
-            this(name, context.indexVersionCreated(), context.getIndexSettings(), context.getIndexAnalyzers());
+            this(
+                name,
+                context.indexVersionCreated(),
+                context.getIndexSettings(),
+                context.getIndexAnalyzers(),
+                context.isWithinMultiField()
+            );
         }
 
-        public Builder(String name, IndexVersion indexCreatedVersion, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers) {
+        public Builder(
+            String name,
+            IndexVersion indexCreatedVersion,
+            IndexSettings indexSettings,
+            IndexAnalyzers indexAnalyzers,
+            boolean isWithinMultiField
+        ) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
             this.indexSettings = indexSettings;
@@ -75,6 +91,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
                 m -> ((PatternedTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
             );
+            this.isWithinMultiField = isWithinMultiField;
         }
 
         @Override
@@ -98,14 +115,18 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
         @Override
         public PatternedTextFieldMapper build(MapperBuilderContext context) {
+            this.isSyntheticSourceEnabled = context.isSourceSynthetic();
+
             PatternedTextFieldType patternedTextFieldType = buildFieldType(context);
             BuilderParams builderParams = builderParams(this, context);
             var templateIdMapper = KeywordFieldMapper.Builder.buildWithDocValuesSkipper(
                 patternedTextFieldType.templateIdFieldName(),
                 indexSettings.getMode(),
                 indexCreatedVersion,
-                true
+                true,
+                isWithinMultiField
             ).indexed(false).build(context);
+
             return new PatternedTextFieldMapper(leafName(), patternedTextFieldType, builderParams, this, templateIdMapper);
         }
     }
@@ -127,9 +148,18 @@ public class PatternedTextFieldMapper extends FieldMapper {
         Builder builder,
         KeywordFieldMapper templateIdMapper
     ) {
-        super(simpleName, mappedFieldPatternedTextFieldType, builderParams);
+        super(
+            simpleName,
+            builder.indexCreatedVersion,
+            builder.isSyntheticSourceEnabled,
+            builder.isWithinMultiField,
+            mappedFieldPatternedTextFieldType,
+            builderParams
+        );
+
         assert mappedFieldPatternedTextFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldPatternedTextFieldType.hasDocValues() == false;
+
         this.fieldType = Defaults.FIELD_TYPE;
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
@@ -146,7 +176,7 @@ public class PatternedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexSettings, indexAnalyzers, isWithinMultiField).init(this);
     }
 
     @Override

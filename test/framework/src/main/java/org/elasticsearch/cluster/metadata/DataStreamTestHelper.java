@@ -78,6 +78,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingInd
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureStoreName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
+import static org.elasticsearch.test.ESTestCase.indexSettings;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphanumericOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -88,6 +89,7 @@ import static org.elasticsearch.test.ESTestCase.randomMap;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
 import static org.elasticsearch.test.ESTestCase.randomProjectIdOrDefault;
+import static org.elasticsearch.test.ESTestCase.randomUUID;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -608,12 +610,10 @@ public final class DataStreamTestHelper {
     }
 
     public static IndexMetadata createIndexMetadata(String name, boolean hidden, Settings settings, int replicas) {
-        Settings.Builder b = Settings.builder()
-            .put(settings)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+        Settings.Builder indexSettingsBuilder = indexSettings(IndexVersion.current(), randomUUID(), 1, replicas).put(settings)
             .put("index.hidden", hidden);
 
-        return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(replicas).build();
+        return IndexMetadata.builder(name).settings(indexSettingsBuilder).build();
     }
 
     public static String backingIndexPattern(String dataStreamName, long generation) {

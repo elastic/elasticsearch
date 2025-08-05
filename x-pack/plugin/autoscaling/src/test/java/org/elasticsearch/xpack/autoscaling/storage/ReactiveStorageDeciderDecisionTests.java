@@ -820,9 +820,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         while (shards > 0) {
             IndexMetadata indexMetadata = IndexMetadata.builder("test" + "-" + shards)
-                .settings(settings(IndexVersion.current()).put(randomFrom(tierSettingNames), "data_hot"))
-                .numberOfShards(randomIntBetween(1, 5))
-                .numberOfReplicas(randomIntBetween(0, maxShardCopies - 1))
+                .settings(
+                    indexSettings(IndexVersion.current(), randomUUID(), randomIntBetween(1, 5), randomIntBetween(0, maxShardCopies - 1))
+                        .put(randomFrom(tierSettingNames), "data_hot")
+                )
                 .build();
 
             builder.put(indexMetadata, false);

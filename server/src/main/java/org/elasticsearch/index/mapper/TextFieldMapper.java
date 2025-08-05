@@ -311,7 +311,7 @@ public final class TextFieldMapper extends FieldMapper {
             this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
             this.withinMultiField = withinMultiField;
 
-            // don't normalize if the index is LOGSDB or TSDB based
+            // don't enable norms by default if the index is LOGSDB or TSDB based
             this.norms = Parameter.normsParam(
                 m -> ((TextFieldMapper) m).norms,
                 () -> indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES

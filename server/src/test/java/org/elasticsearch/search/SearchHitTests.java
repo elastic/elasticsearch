@@ -12,6 +12,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -476,4 +477,57 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
         return Explanation.match(value, description, details);
     }
+
+    public void testShardTargetSetsDataStreamName() {
+        // Create a SearchHit
+        SearchHit hit = new SearchHit(1);
+
+        // Create a backing index name following the pattern: .ds-<data-stream>-<yyyy.MM.dd>-<generation>
+        String backingIndexName = ".ds-my-service-logs-2024.02.05-000001";
+        String nodeId = "node1";
+        int shardId = 0;
+        String clusterAlias = null;
+
+        // Create SearchShardTarget with the backing index name
+        SearchShardTarget target = new SearchShardTarget(
+            nodeId,
+            new ShardId(new Index(backingIndexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId),
+            clusterAlias
+        );
+
+        // Set the shard target
+        hit.shard(target);
+
+        // Verify the data-stream field is set correctly
+        assertEquals("my-service-logs", hit.getDataStream());
+        assertEquals(backingIndexName, hit.getIndex());
+        assertNull(hit.getClusterAlias());
+    }
+
+    public void testShardTargetWithNonDataStreamIndex() {
+        // Create a SearchHit
+        SearchHit hit = new SearchHit(1);
+
+        // Create a regular index name (not a backing index)
+        String regularIndexName = "regular-index";
+        String nodeId = "node1";
+        int shardId = 0;
+        String clusterAlias = null;
+
+        // Create SearchShardTarget with a non-data-stream-backed index name
+        SearchShardTarget target = new SearchShardTarget(
+            nodeId,
+            new ShardId(new Index(regularIndexName, IndexMetadata.INDEX_UUID_NA_VALUE), shardId),
+            clusterAlias
+        );
+
+        // Set the shard target
+        hit.shard(target);
+
+        // Verify the data-stream field is null for non-backing indices
+        assertNull(hit.getDataStream());
+        assertEquals(regularIndexName, hit.getIndex());
+        assertNull(hit.getClusterAlias());
+    }
+
 }

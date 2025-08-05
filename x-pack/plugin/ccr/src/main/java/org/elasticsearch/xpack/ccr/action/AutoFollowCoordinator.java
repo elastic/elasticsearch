@@ -64,7 +64,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
@@ -89,10 +88,6 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
     private static final Logger LOGGER = LogManager.getLogger(AutoFollowCoordinator.class);
     private static final int MAX_AUTO_FOLLOW_ERRORS = 256;
-
-    private static final Pattern DS_BACKING_PATTERN = Pattern.compile(
-        "^(.*?" + DataStream.BACKING_INDEX_PREFIX + ")(.+)-(\\d{4}.\\d{2}.\\d{2})(-[\\d]+)?$"
-    );
 
     private final Client client;
     private final ClusterService clusterService;
@@ -852,7 +847,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     // follow a parseable pattern. Instead it would be better to rename it as though
                     // the data stream name was the leader index name, ending up with
                     // ".ds-logs-foo-bar_copy-2022-02-02-000001" as the final index name.
-                    Matcher m = DS_BACKING_PATTERN.matcher(leaderIndexName);
+                    Matcher m = DataStream.DS_BACKING_PATTERN.matcher(leaderIndexName);
                     if (m.find()) {
                         return m.group(1) + // Prefix including ".ds-"
                             followPattern.replace(AUTO_FOLLOW_PATTERN_REPLACEMENT, m.group(2)) + // Data stream name changed

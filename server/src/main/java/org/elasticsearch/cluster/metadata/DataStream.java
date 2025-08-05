@@ -74,6 +74,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.ComposableIndexTemplate.EMPTY_MAPPINGS;
@@ -97,6 +99,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final String FAILURE_STORE_PREFIX = ".fs-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
+    public static final Pattern DS_BACKING_PATTERN = Pattern.compile(
+        "^(.*?" + BACKING_INDEX_PREFIX + ")(.+)-(\\d{4}.\\d{2}.\\d{2})(-[\\d]+)?$"
+    );
 
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static final Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
@@ -1363,6 +1368,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     public static String getDefaultFailureStoreName(String dataStreamName, long generation, long epochMillis) {
         return getDefaultIndexName(FAILURE_STORE_PREFIX, dataStreamName, generation, epochMillis);
+    }
+
+    /**
+     * Parses the name of the data stream for a backing index if it matches a data stream backing index name format.
+     *
+     * @param indexName name of the index
+     * @return name of the data stream if applicable or else null otherwise
+     */
+    public static String getDataStreamNameFromIndex(String indexName) {
+        if (indexName == null) {
+            return null;
+        }
+
+        Matcher matcher = DataStream.DS_BACKING_PATTERN.matcher(indexName);
+        if (matcher.matches()) {
+            return matcher.group(2);
+        }
+        return null;
     }
 
     /**

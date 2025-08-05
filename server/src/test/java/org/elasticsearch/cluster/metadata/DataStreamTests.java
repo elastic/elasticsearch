@@ -2715,6 +2715,36 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
     }
 
+    public void testGetDataStreamNameFromValidBackingIndex() {
+        // Test a valid backing index name with correct format: .ds-<data-stream>-<yyyy.MM.dd>-<generation>
+        String indexName = ".ds-my-service-logs-2024.02.05-000001";
+        String dataStreamName = DataStream.getDataStreamNameFromIndex(indexName);
+
+        assertEquals("my-service-logs", dataStreamName);
+    }
+
+    public void testGetDataStreamNameFromInvalidBackingIndex() {
+        // Test cases that should not be recognized as valid backing indices
+        String[] invalidNames = {
+            "not-a-backing-index", // No .ds- prefix
+            ".ds-", // Missing data stream name
+            ".ds-logs", // Missing date and generation
+            ".ds-logs-2024.02.05", // Missing generation
+        };
+
+        for (String invalidName : invalidNames) {
+            assertNull(
+                "Should return null for invalid backing index name: " + invalidName,
+                DataStream.getDataStreamNameFromIndex(invalidName)
+            );
+        }
+    }
+
+    public void testGetDataStreamNameFromNullIndex() {
+        // should return null given null index name
+        assertNull(DataStream.getDataStreamNameFromIndex(null));
+    }
+
     private static CompressedXContent randomMappings() {
         try {
             return new CompressedXContent("{\"_doc\": {\"properties\":{\"" + randomAlphaOfLength(5) + "\":{\"type\":\"keyword\"}}}}");

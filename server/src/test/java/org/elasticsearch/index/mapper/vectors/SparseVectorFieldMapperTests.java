@@ -716,7 +716,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         PRUNE_NULL_NO_CONFIG
     }
 
-
     private void withSearchExecutionContext(MapperService mapperService, CheckedConsumer<SearchExecutionContext, IOException> consumer)
         throws IOException {
         var mapper = mapperService.documentMapper();
@@ -884,8 +883,11 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     private void runTestTypeQueryFinalization(IndexPruningScenario indexPruningScenario, QueryPruningScenario queryPruningScenario)
         throws IOException {
         logger.debug("Running test with indexPruningScenario: {}, queryPruningScenario: {}", indexPruningScenario, queryPruningScenario);
-        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(),
-            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT,
+            IndexVersion.current()
+        );
         MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningScenario));
         logger.debug("Index mapping: {}", mapperService.documentMapper().mappingSource().toString());
         Tuple<Boolean, TokenPruningConfig> queryPruneConfig = getQueryPruneConfig(queryPruningScenario);

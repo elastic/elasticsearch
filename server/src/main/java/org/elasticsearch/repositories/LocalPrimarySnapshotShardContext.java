@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -185,19 +186,26 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
 
     @Override
     public SnapshotShardContext.FileReader fileReader(String file, StoreFileMetadata metadata) throws IOException {
-        return new FileReader(file, metadata);
+        Releasable commitRefReleasable = null;
+        IndexInput indexInput = null;
+        try {
+            commitRefReleasable = withCommitRef();
+            indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, metadata);
+            return new FileReader(commitRefReleasable, indexInput);
+        } catch (Exception e) {
+            IOUtils.close(e, indexInput, commitRefReleasable);
+            throw e;
+        }
     }
 
-    class FileReader implements SnapshotShardContext.FileReader {
+    static class FileReader implements SnapshotShardContext.FileReader {
 
-        private final String file;
         private final Releasable commitRefReleasable;
         private final IndexInput indexInput;
 
-        FileReader(String file, StoreFileMetadata metadata) throws IOException {
-            this.file = file;
-            this.commitRefReleasable = withCommitRef();
-            this.indexInput = store.openVerifyingInput(file, IOContext.DEFAULT, metadata);
+        FileReader(Releasable commitRefReleasable, IndexInput indexInput) {
+            this.commitRefReleasable = commitRefReleasable;
+            this.indexInput = indexInput;
         }
 
         @Override
@@ -207,8 +215,7 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
 
         @Override
         public void close() throws IOException {
-            commitRefReleasable.close();
-            indexInput.close();
+            IOUtils.close(indexInput, commitRefReleasable);
         }
 
         @Override

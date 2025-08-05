@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
@@ -146,5 +147,11 @@ public final class Alias extends NamedExpression {
      */
     public static Expression unwrap(Expression e) {
         return e instanceof Alias as ? as.child() : e;
+    }
+
+    @Override
+    protected boolean innerEquals(Object o) {
+        var other = (Alias) o;
+        return super.innerEquals(other) && Objects.equals(id(), other.id());
     }
 }

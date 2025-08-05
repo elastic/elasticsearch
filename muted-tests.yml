@@ -482,12 +482,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/132078
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/stored text}
-  issue: https://github.com/elastic/elasticsearch/issues/132108
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/132110
 - class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
   method: testRelocationWhileForceMerging
   issue: https://github.com/elastic/elasticsearch/issues/131789

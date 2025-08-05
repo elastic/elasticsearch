@@ -17,15 +17,10 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
-import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.inference.TaskType.unsupportedTaskTypeErrorMsg;
@@ -36,21 +31,24 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 @SuppressWarnings("checkstyle:LineLength")
 public class PredefinedCustomService extends CustomService {
 
-    private static PredefinedCustomServiceSchema SCHEMA;
+    private static Map<TaskType, PredefinedCustomServiceSchema> SCHEMAS;
+    private static String NAME;
 
     public PredefinedCustomService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
         InferenceServiceExtension.InferenceServiceFactoryContext context,
-        PredefinedCustomServiceSchema schema
+        Map<TaskType, PredefinedCustomServiceSchema> schemas,
+        String name
     ) {
         super(factory, serviceComponents, context);
-        SCHEMA = schema;
+        SCHEMAS = schemas;
+        NAME = name;
     }
 
     @Override
     public String name() {
-        return SCHEMA.getName();
+        return NAME;
     }
 
     @Override
@@ -64,21 +62,18 @@ public class PredefinedCustomService extends CustomService {
             Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-            // Parse service settings map to ensure it contains the expected structure
-            Map<String, Object> parsedServiceSettingsMap = parseServiceSettingsMap(serviceSettingsMap);
-
             PredefinedCustomModel model = createModel(
                 inferenceEntityId,
                 taskType,
-                parsedServiceSettingsMap,
+                serviceSettingsMap,
                 taskSettingsMap,
-                parsedServiceSettingsMap,
+                serviceSettingsMap,
                 ConfigurationParseContext.REQUEST
             );
 
-            throwIfNotEmptyMap(config, SCHEMA.getName());
-            throwIfNotEmptyMap(parsedServiceSettingsMap, SCHEMA.getName());
-            throwIfNotEmptyMap(taskSettingsMap, SCHEMA.getName());
+            throwIfNotEmptyMap(config, NAME);
+            throwIfNotEmptyMap(serviceSettingsMap, NAME);
+            throwIfNotEmptyMap(taskSettingsMap, NAME);
 
             parsedModelListener.onResponse(model);
         } catch (Exception e) {
@@ -91,15 +86,12 @@ public class PredefinedCustomService extends CustomService {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
-        // Parse service settings map to ensure it contains the expected structure
-        Map<String, Object> parsedServiceSettingsMap = parseServiceSettingsMap(serviceSettingsMap);
-
         return createModel(
             inferenceEntityId,
             taskType,
-            parsedServiceSettingsMap,
+            serviceSettingsMap,
             taskSettingsMap,
-            parsedServiceSettingsMap,
+            serviceSettingsMap,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -116,12 +108,14 @@ public class PredefinedCustomService extends CustomService {
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
         // Parse service settings map to ensure it contains the expected structure
-        Map<String, Object> parsedServiceSettingsMap = parseServiceSettingsMap(serviceSettingsMap);
+        // Map<String, Object> parsedServiceSettingsMap = parseServiceSettingsMap(serviceSettingsMap);
+        // Parse task settings map to ensure it contains the expected structure
+        // Map<String, Object> parsedTaskSettingsMap = parseTaskSettingsMap(taskSettingsMap);
 
         return createModel(
             inferenceEntityId,
             taskType,
-            parsedServiceSettingsMap,
+            serviceSettingsMap,
             taskSettingsMap,
             secretSettingsMap,
             ConfigurationParseContext.PERSISTENT
@@ -131,7 +125,10 @@ public class PredefinedCustomService extends CustomService {
     @Override
     public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
         if (model instanceof PredefinedCustomModel customModel && customModel.getTaskType() == TaskType.TEXT_EMBEDDING) {
-            var newServiceSettings = new PredefinedServiceSettings(getCustomServiceSettings(customModel, embeddingSize));
+            var newServiceSettings = new PredefinedServiceSettings(
+                getCustomServiceSettings(customModel, embeddingSize),
+                customModel.getServiceSettings().getParameters()
+            );
 
             return new PredefinedCustomModel(customModel, newServiceSettings);
         } else {
@@ -156,46 +153,18 @@ public class PredefinedCustomService extends CustomService {
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        if (SCHEMA.getSupportedTaskTypes().contains(taskType) == false) {
+        if (SCHEMAS.containsKey(taskType) == false) {
             throw new ElasticsearchStatusException(unsupportedTaskTypeErrorMsg(taskType, NAME), RestStatus.BAD_REQUEST);
         }
         return new PredefinedCustomModel(
             inferenceEntityId,
             taskType,
-            SCHEMA.getName(),
+            NAME,
+            SCHEMAS.get(taskType),
             parsedServiceSettings,
             taskSettings,
             secretSettings,
             context
         );
-    }
-
-    private Map<String, Object> parseServiceSettingsMap(Map<String, Object> unparsedServiceSettingsMap) {
-        Map<String, Object> parsedServiceSettingsMap = new HashMap<>(parseSchema());
-
-        Map<String, Object> secretParameters = new HashMap<>();
-        for (String secretParameter : SCHEMA.getSecretParameters()) {
-            if (unparsedServiceSettingsMap.containsKey(secretParameter)) {
-                secretParameters.put(secretParameter, unparsedServiceSettingsMap.remove(secretParameter));
-            }
-        }
-        parsedServiceSettingsMap.put("secret_parameters", secretParameters);
-
-        Map<String, Object> parameters = new HashMap<>();
-        for (String parameter : SCHEMA.getParameters()) {
-            if (unparsedServiceSettingsMap.containsKey(parameter)) {
-                parameters.put(parameter, unparsedServiceSettingsMap.remove(parameter));
-            }
-        }
-        parsedServiceSettingsMap.put("parameters", parameters);
-        return parsedServiceSettingsMap;
-    }
-
-    private Map<String, Object> parseSchema() {
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, SCHEMA.getSchema())) {
-            return parser.map();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 }

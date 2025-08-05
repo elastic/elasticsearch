@@ -351,8 +351,7 @@ public class CustomService extends SenderService {
             serviceSettings.getResponseJsonParser(),
             serviceSettings.rateLimitSettings(),
             serviceSettings.getBatchSize(),
-            serviceSettings.getInputTypeTranslator(),
-            serviceSettings.getParameters()
+            serviceSettings.getInputTypeTranslator()
         );
     }
 

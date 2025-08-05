@@ -61,7 +61,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     public static final String REQUEST = "request";
     public static final String RESPONSE = "response";
     public static final String JSON_PARSER = "json_parser";
-    public static final String PARAMETERS = "parameters";
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
     private static final String RESPONSE_SCOPE = String.join(".", ModelConfigurations.SERVICE_SETTINGS, RESPONSE);
@@ -98,8 +97,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         var responseJsonParser = extractResponseParser(taskType, jsonParserMap, validationException);
 
-        Map<String, Object> parameters = extractOptionalMap(map, PARAMETERS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -131,8 +128,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             responseJsonParser,
             rateLimitSettings,
             batchSize,
-            inputTypeTranslator,
-            parameters
+            inputTypeTranslator
         );
     }
 
@@ -228,7 +224,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
     private final RateLimitSettings rateLimitSettings;
     private final int batchSize;
     private final InputTypeTranslator inputTypeTranslator;
-    private final Map<String, Object> parameters;
 
     public CustomServiceSettings(
         TextEmbeddingSettings textEmbeddingSettings,
@@ -248,32 +243,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             responseJsonParser,
             rateLimitSettings,
             null,
-            InputTypeTranslator.EMPTY_TRANSLATOR,
-            null
-        );
-    }
-
-    public CustomServiceSettings(
-        TextEmbeddingSettings textEmbeddingSettings,
-        String url,
-        @Nullable Map<String, String> headers,
-        @Nullable QueryParameters queryParameters,
-        String requestContentString,
-        CustomResponseParser responseJsonParser,
-        @Nullable RateLimitSettings rateLimitSettings,
-        Map<String, Object> parameters
-    ) {
-        this(
-            textEmbeddingSettings,
-            url,
-            headers,
-            queryParameters,
-            requestContentString,
-            responseJsonParser,
-            rateLimitSettings,
-            null,
-            InputTypeTranslator.EMPTY_TRANSLATOR,
-            parameters
+            InputTypeTranslator.EMPTY_TRANSLATOR
         );
     }
 
@@ -288,32 +258,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         @Nullable Integer batchSize,
         InputTypeTranslator inputTypeTranslator
     ) {
-        this(
-            textEmbeddingSettings,
-            url,
-            headers,
-            queryParameters,
-            requestContentString,
-            responseJsonParser,
-            rateLimitSettings,
-            batchSize,
-            inputTypeTranslator,
-            null
-        );
-    }
-
-    public CustomServiceSettings(
-        TextEmbeddingSettings textEmbeddingSettings,
-        String url,
-        @Nullable Map<String, String> headers,
-        @Nullable QueryParameters queryParameters,
-        String requestContentString,
-        CustomResponseParser responseJsonParser,
-        @Nullable RateLimitSettings rateLimitSettings,
-        @Nullable Integer batchSize,
-        InputTypeTranslator inputTypeTranslator,
-        @Nullable Map<String, Object> parameters
-    ) {
         this.textEmbeddingSettings = Objects.requireNonNull(textEmbeddingSettings);
         this.url = Objects.requireNonNull(url);
         this.headers = Collections.unmodifiableMap(Objects.requireNonNullElse(headers, Map.of()));
@@ -323,7 +267,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
         this.batchSize = Objects.requireNonNullElse(batchSize, DEFAULT_EMBEDDING_BATCH_SIZE);
         this.inputTypeTranslator = Objects.requireNonNull(inputTypeTranslator);
-        this.parameters = Objects.requireNonNullElse(parameters, new HashMap<>());
     }
 
     public CustomServiceSettings(StreamInput in) throws IOException {
@@ -355,7 +298,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         } else {
             inputTypeTranslator = InputTypeTranslator.EMPTY_TRANSLATOR;
         }
-        parameters = in.readMap(StreamInput::readGenericValue);
     }
 
     @Override
@@ -416,10 +358,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
         return batchSize;
     }
 
-    public Map<String, Object> getParameters() {
-        return parameters;
-    }
-
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
@@ -473,10 +411,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
 
         builder.field(BATCH_SIZE, batchSize);
 
-        if (parameters.isEmpty() == false) {
-            builder.field(PARAMETERS, parameters);
-        }
-
         return builder;
     }
 
@@ -523,8 +457,6 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_CUSTOM_SERVICE_INPUT_TYPE_8_19)) {
             inputTypeTranslator.writeTo(out);
         }
-
-        out.writeMap(parameters, StreamOutput::writeGenericValue);
     }
 
     @Override
@@ -540,8 +472,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             && Objects.equals(responseJsonParser, that.responseJsonParser)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings)
             && Objects.equals(batchSize, that.batchSize)
-            && Objects.equals(inputTypeTranslator, that.inputTypeTranslator)
-            && Objects.equals(parameters, that.parameters);
+            && Objects.equals(inputTypeTranslator, that.inputTypeTranslator);
     }
 
     @Override
@@ -555,8 +486,7 @@ public class CustomServiceSettings extends FilteredXContentObject implements Ser
             responseJsonParser,
             rateLimitSettings,
             batchSize,
-            inputTypeTranslator,
-            parameters
+            inputTypeTranslator
         );
     }
 

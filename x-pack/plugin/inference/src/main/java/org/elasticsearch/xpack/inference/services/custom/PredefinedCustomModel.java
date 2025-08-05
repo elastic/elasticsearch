@@ -19,6 +19,26 @@ public class PredefinedCustomModel extends CustomModel {
         String inferenceId,
         TaskType taskType,
         String service,
+        PredefinedCustomServiceSchema schema,
+        Map<String, Object> serviceSettings,
+        Map<String, Object> taskSettings,
+        Map<String, Object> secrets,
+        ConfigurationParseContext context
+    ) {
+        this(
+            inferenceId,
+            taskType,
+            service,
+            PredefinedServiceSettings.fromMap(serviceSettings, context, taskType, schema),
+            PredefinedTaskSettings.fromMap(schema, taskSettings),
+            PredefinedSecretSettings.fromMap(schema, secrets)
+        );
+    }
+
+    public PredefinedCustomModel(
+        String inferenceId,
+        TaskType taskType,
+        String service,
         Map<String, Object> parsedServiceSettings,
         Map<String, Object> taskSettings,
         Map<String, Object> secrets,
@@ -30,7 +50,7 @@ public class PredefinedCustomModel extends CustomModel {
             taskType,
             service,
             PredefinedServiceSettings.fromMap(parsedServiceSettings, context, taskType, inferenceId),
-            CustomTaskSettings.fromMap(taskSettings), // TODO: Switch this to PredefinedTaskSettings with proper serialization
+            PredefinedTaskSettings.fromMap(taskSettings),
             CustomSecretSettings.fromMap(secrets) // TODO: Switch this to PredefinedSecretSettings with proper serialization
         );
     }
@@ -48,5 +68,10 @@ public class PredefinedCustomModel extends CustomModel {
 
     protected PredefinedCustomModel(CustomModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+    }
+
+    @Override
+    public PredefinedServiceSettings getServiceSettings() {
+        return (PredefinedServiceSettings) super.getServiceSettings();
     }
 }

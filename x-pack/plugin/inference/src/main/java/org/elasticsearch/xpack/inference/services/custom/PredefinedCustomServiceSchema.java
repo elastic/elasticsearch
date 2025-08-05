@@ -7,19 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.custom;
 
-import org.elasticsearch.inference.TaskType;
-
-import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 
 public interface PredefinedCustomServiceSchema {
-    String getName();
+    List<String> getNonParameterServiceSettings();
 
-    String getSchema();
+    List<String> getServiceSettingsParameters();
 
-    List<String> getParameters();
+    List<String> getServiceSettingsSecretParameters();
 
-    List<String> getSecretParameters();
+    List<String> getTaskSettingsParameters();
 
-    EnumSet<TaskType> getSupportedTaskTypes();
+    String generateServiceSettings(Map<String, Object> parameters);
 }

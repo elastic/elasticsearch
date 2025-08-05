@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
@@ -119,7 +120,9 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBed
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSchema;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCompletionServiceSchema;
+import org.elasticsearch.xpack.inference.services.cohere.CohereRerankServiceSchema;
+import org.elasticsearch.xpack.inference.services.cohere.CohereTextEmbeddingServiceSchema;
 import org.elasticsearch.xpack.inference.services.custom.CustomService;
 import org.elasticsearch.xpack.inference.services.custom.PredefinedCustomService;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekService;
@@ -401,7 +404,20 @@ public class InferencePlugin extends Plugin
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
             context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context),
             // context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new PredefinedCustomService(httpFactory.get(), serviceComponents.get(), context, new CohereServiceSchema()),
+            context -> new PredefinedCustomService(
+                httpFactory.get(),
+                serviceComponents.get(),
+                context,
+                Map.of(
+                    TaskType.TEXT_EMBEDDING,
+                    new CohereTextEmbeddingServiceSchema(),
+                    TaskType.RERANK,
+                    new CohereRerankServiceSchema(),
+                    TaskType.COMPLETION,
+                    new CohereCompletionServiceSchema()
+                ),
+                "cohere"
+            ),
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
             context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),

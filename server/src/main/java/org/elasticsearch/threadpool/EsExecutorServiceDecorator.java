@@ -146,7 +146,7 @@ public class EsExecutorServiceDecorator implements ExecutorService {
     public void execute(Runnable command) {
         final Runnable wrappedRunnable = command != WORKER_PROBE ? wrapRunnable(command) : WORKER_PROBE;
         try {
-            if (rejectAfterShutdown && shutdownRequested.get() || delegate.isShutdown()) {
+            if (rejectAfterShutdown && (shutdownRequested.get() || delegate.isShutdown())) {
                 throw new EsRejectedExecutionException("executor has been shutdown", delegate.isShutdown());
             }
             // Increment outstanding task count

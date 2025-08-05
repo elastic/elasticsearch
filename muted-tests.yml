@@ -473,9 +473,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test151MachineDependentHeapWithSizeOverride
   issue: https://github.com/elastic/elasticsearch/issues/123437
-- class: org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTests
-  method: testUpdates
-  issue: https://github.com/elastic/elasticsearch/issues/131795
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/131964
@@ -485,12 +482,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/132078
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/stored text}
-  issue: https://github.com/elastic/elasticsearch/issues/132108
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/132110
 - class: org.elasticsearch.index.engine.MergeWithLowDiskSpaceIT
   method: testRelocationWhileForceMerging
   issue: https://github.com/elastic/elasticsearch/issues/131789
@@ -503,9 +494,6 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
   method: testNullsOrderWithMissingOrderSupportQueryingNewNode
   issue: https://github.com/elastic/elasticsearch/issues/132249
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/132273
 - class: org.elasticsearch.common.logging.JULBridgeTests
   method: testThrowable
   issue: https://github.com/elastic/elasticsearch/issues/132280

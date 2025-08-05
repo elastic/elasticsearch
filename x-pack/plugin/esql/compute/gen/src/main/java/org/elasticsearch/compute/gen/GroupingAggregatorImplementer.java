@@ -40,6 +40,7 @@ import static org.elasticsearch.compute.gen.Methods.optionalStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
 import static org.elasticsearch.compute.gen.Methods.requireAnyType;
 import static org.elasticsearch.compute.gen.Methods.requireArgs;
+import static org.elasticsearch.compute.gen.Methods.requireArgsStartsWith;
 import static org.elasticsearch.compute.gen.Methods.requireName;
 import static org.elasticsearch.compute.gen.Methods.requirePrimitiveOrImplements;
 import static org.elasticsearch.compute.gen.Methods.requireStaticMethod;
@@ -98,8 +99,7 @@ public class GroupingAggregatorImplementer {
         Elements elements,
         TypeElement declarationType,
         IntermediateState[] interStateAnno,
-        List<TypeMirror> warnExceptions,
-        boolean timseries
+        List<TypeMirror> warnExceptions
     ) {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
@@ -116,10 +116,20 @@ public class GroupingAggregatorImplementer {
             declarationType,
             aggState.declaredType().isPrimitive() ? requireType(aggState.declaredType()) : requireVoidType(),
             requireName("combine"),
-            combineArgs(aggState, timseries)
+            combineArgs(aggState)
         );
+        switch (combine.getParameters().size()) {
+            case 2, 3 -> timseries = false;
+            case 4 -> {
+                if (false == TypeName.get(combine.getParameters().get(2).asType()).equals(TypeName.LONG)) {
+                    throw new IllegalArgumentException("combine/4's third parameter must be long but was: " + combine);
+                }
+                timseries = true;
+            }
+            default -> throw new IllegalArgumentException("combine must have 2, 3, or 4 parameters but was: " + combine);
+        }
         // TODO support multiple parameters
-        this.aggParam = AggregationParameter.create(combine.getParameters().getLast().asType());
+        this.aggParam = AggregationParameter.create(combine.getParameters().getLast());
 
         this.createParameters = init.getParameters()
             .stream()
@@ -135,21 +145,13 @@ public class GroupingAggregatorImplementer {
         this.intermediateState = Arrays.stream(interStateAnno)
             .map(AggregatorImplementer.IntermediateStateDesc::newIntermediateStateDesc)
             .toList();
-        this.timseries = timseries;
     }
 
-    private static Methods.ArgumentMatcher combineArgs(AggregationState aggState, boolean includeTimestampVector) {
+    private static Methods.ArgumentMatcher combineArgs(AggregationState aggState) {
         if (aggState.declaredType().isPrimitive()) {
             return requireArgs(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"));
-        } else if (includeTimestampVector) {
-            return requireArgs(
-                requireType(aggState.declaredType()),
-                requireType(TypeName.INT),
-                requireType(TypeName.LONG), // @timestamp
-                requireAnyType("<aggregation input column type>")
-            );
         } else {
-            return requireArgs(
+            return requireArgsStartsWith(
                 requireType(aggState.declaredType()),
                 requireType(TypeName.INT),
                 requireAnyType("<aggregation input column type>")
@@ -724,11 +726,11 @@ public class GroupingAggregatorImplementer {
             .addParameter(BLOCK_ARRAY, "blocks")
             .addParameter(TypeName.INT, "offset")
             .addParameter(INT_VECTOR, "selected")
-            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "evaluatorContext");
+            .addParameter(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT, "ctx");
 
         if (aggState.declaredType().isPrimitive()) {
-            builder.addStatement("blocks[offset] = state.toValuesBlock(selected, evaluatorContext.driverContext())");
-        } else if (timseries) {
+            builder.addStatement("blocks[offset] = state.toValuesBlock(selected, ctx.driverContext())");
+        } else {
             requireStaticMethod(
                 declarationType,
                 requireType(BLOCK),
@@ -739,15 +741,7 @@ public class GroupingAggregatorImplementer {
                     requireType(GROUPING_AGGREGATOR_EVALUATOR_CONTEXT)
                 )
             );
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, evaluatorContext)", declarationType);
-        } else {
-            requireStaticMethod(
-                declarationType,
-                requireType(BLOCK),
-                requireName("evaluateFinal"),
-                requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(DRIVER_CONTEXT))
-            );
-            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, evaluatorContext.driverContext())", declarationType);
+            builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, ctx)", declarationType);
         }
         return builder.build();
     }

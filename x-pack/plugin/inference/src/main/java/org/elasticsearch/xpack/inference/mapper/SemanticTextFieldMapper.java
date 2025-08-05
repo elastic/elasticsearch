@@ -1063,7 +1063,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     if (childScorer != null) {
                         childScorer.iterator().nextDoc();
                     }
-                    dvLoader = fieldLoader.docValuesLoader(context.reader(), null);
+                    if (onlyTextChunks == false) {
+                        dvLoader = fieldLoader.docValuesLoader(context.reader(), null);
+                    }
                     var terms = context.reader().terms(getOffsetsFieldName(name()));
                     offsetsLoader = terms != null ? OffsetSourceField.loader(terms) : null;
                 } catch (IOException exc) {
@@ -1141,10 +1143,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 CheckedConsumer<OffsetSourceFieldMapper.OffsetSource, IOException> action
             ) throws IOException {
                 while (it.docID() < doc) {
-                    if (dvLoader == null || dvLoader.advanceToDoc(it.docID()) == false) {
-                        throw new IllegalStateException(
-                            "Cannot fetch values for field [" + name() + "], missing embeddings for doc [" + doc + "]"
-                        );
+                    if (onlyTextChunks == false) {
+                        if (dvLoader == null || dvLoader.advanceToDoc(it.docID()) == false) {
+                            throw new IllegalStateException(
+                                "Cannot fetch values for field [" + name() + "], missing embeddings for doc [" + doc + "]"
+                            );
+                        }
                     }
 
                     var offset = offsetsLoader.advanceTo(it.docID());

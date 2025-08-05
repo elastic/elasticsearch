@@ -92,16 +92,16 @@ public class InferenceIndicesIT extends ESIntegTestCase {
 
                 @Override
                 public Settings getIndexSettings() {
-                    return InferenceIndex.settingsForTesting(
-                        Settings.builder().put("index.routing.allocation.require.index_router", "config").build()
-                    );
+                    return InferenceIndex.builder()
+                        .put(Settings.builder().put("index.routing.allocation.require.index_router", "config").build())
+                        .build();
                 }
 
                 @Override
                 public Settings getSecretsIndexSettings() {
-                    return InferenceSecretsIndex.settingsForTesting(
-                        Settings.builder().put("index.routing.allocation.require.index_router", "secrets").build()
-                    );
+                    return InferenceSecretsIndex.builder()
+                        .put(Settings.builder().put("index.routing.allocation.require.index_router", "secrets").build())
+                        .build();
                 }
             };
             plugins.add(inferencePlugin);

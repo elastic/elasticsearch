@@ -33,16 +33,9 @@ public class InferenceIndex {
         return builder().build();
     }
 
-    private static Settings.Builder builder() {
+    // Public to allow tests to create the index with custom settings
+    public static Settings.Builder builder() {
         return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1");
-    }
-
-    /**
-     * This allows tests to set additional settings for the inference index.
-     * @param extraSettings additional settings to apply to the inference index.
-     */
-    public static Settings settingsForTesting(Settings extraSettings) {
-        return builder().put(extraSettings).build();
     }
 
     /**

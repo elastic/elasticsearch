@@ -92,8 +92,8 @@ public class InetAddresses {
 
     private static byte[] convertDottedQuadToHex(byte[] ipUtf8, int offset, int length) {
         int quadOffset = -1;
-        for (int i = offset; i < offset + length; i++) {
-            if (ipUtf8[i] == ':') {
+        for (int i = 0; i < length; i++) {
+            if (ipUtf8[i + offset] == ':') {
                 quadOffset = i + 1;
             }
         }

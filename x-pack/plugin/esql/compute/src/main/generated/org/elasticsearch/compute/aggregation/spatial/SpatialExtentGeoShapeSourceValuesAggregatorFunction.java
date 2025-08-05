@@ -95,19 +95,19 @@ public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implement
 
   private void addRawVector(BytesRefVector bytesVector) {
     BytesRef bytesScratch = new BytesRef();
-    for (int i = 0; i < bytesVector.getPositionCount(); i++) {
-      BytesRef bytesValue = bytesVector.getBytesRef(i, bytesScratch);
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
       SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
     }
   }
 
   private void addRawVector(BytesRefVector bytesVector, BooleanVector mask) {
     BytesRef bytesScratch = new BytesRef();
-    for (int i = 0; i < bytesVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < bytesVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      BytesRef bytesValue = bytesVector.getBytesRef(i, bytesScratch);
+      BytesRef bytesValue = bytesVector.getBytesRef(valuesPosition, bytesScratch);
       SpatialExtentGeoShapeSourceValuesAggregator.combine(state, bytesValue);
     }
   }

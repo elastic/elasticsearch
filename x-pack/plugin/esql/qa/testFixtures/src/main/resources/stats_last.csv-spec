@@ -1,0 +1,13 @@
+first
+required_capability: agg_first_last
+// tag::last[]
+FROM k8s
+| STATS last_bytes_in = LAST(network.bytes_in, @timestamp) BY pod
+// end::last[]
+;
+
+// tag::last-result[]
+last_bytes_in:long | pod:keyword
+          21343214 | two
+// end::last-result[]
+;

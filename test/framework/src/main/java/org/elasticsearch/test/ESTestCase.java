@@ -211,6 +211,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
@@ -436,26 +437,48 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    private static final AtomicReference<RandomizedContext> virtualThreadsContext = new AtomicReference<>();
+
     /**
      * This is an awful hack to work around the fact the virtual threads' thread group
      * doesn't have a {@link RandomizedContext}. There's probably a way to do this
      * that isn't a nasty hack, but that's a job for another day.
      */
-    @Before
-    public void fudgeRandomContextForVirtualThreads() {
+    @BeforeClass
+    public static void fudgeRandomContextForVirtualThreads() {
         final RandomizedContext current = RandomizedContext.current();
         try {
             Method create = RandomizedContext.class.getDeclaredMethod("create", ThreadGroup.class, Class.class, RandomizedRunner.class);
             create.setAccessible(true);
             Thread.ofVirtual().start(() -> {
                 try {
-                    create.invoke(null, Thread.currentThread().getThreadGroup(), current.getTargetClass(), current.getRunner());
+                    virtualThreadsContext.set(
+                        (RandomizedContext) create.invoke(
+                            null,
+                            Thread.currentThread().getThreadGroup(),
+                            current.getTargetClass(),
+                            current.getRunner()
+                        )
+                    );
                 } catch (Exception e) {
                     fail(e, "Hack didn't work");
                 }
             });
         } catch (NoSuchMethodException e) {
             fail(e, "Hack didn't work");
+        }
+    }
+
+    @AfterClass
+    public static void cleanUpMess() {
+        if (virtualThreadsContext.get() != null) {
+            try {
+                final Method dispose = RandomizedContext.class.getDeclaredMethod("dispose");
+                dispose.setAccessible(true);
+                dispose.invoke(virtualThreadsContext.get());
+            } catch (Exception e) {
+                fail(e, "Hack didn't work");
+            }
         }
     }
 

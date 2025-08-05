@@ -100,18 +100,15 @@ class KMeansLocal {
             }
         }
         if (changed) {
-            for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
-                if (centroidChanged.get(clusterIdx)) {
-                    Arrays.fill(centroids[clusterIdx], 0.0f);
-                }
-            }
             Arrays.fill(centroidCounts, 0);
             for (int idx = 0; idx < vectors.size(); idx++) {
                 final int assignment = assignments[translateOrd.apply(idx)];
                 if (centroidChanged.get(assignment)) {
-                    centroidCounts[assignment]++;
-                    float[] vector = vectors.vectorValue(idx);
                     float[] centroid = centroids[assignment];
+                    if (centroidCounts[assignment]++ == 0) {
+                        Arrays.fill(centroid, 0.0f);
+                    }
+                    float[] vector = vectors.vectorValue(idx);
                     for (int d = 0; d < dim; d++) {
                         centroid[d] += vector[d];
                     }
@@ -120,9 +117,12 @@ class KMeansLocal {
 
             for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
                 if (centroidChanged.get(clusterIdx)) {
-                    float countF = (float) centroidCounts[clusterIdx];
-                    for (int d = 0; d < dim; d++) {
-                        centroids[clusterIdx][d] /= countF;
+                    float count = (float) centroidCounts[clusterIdx];
+                    if (count > 0) {
+                        float[] centroid = centroids[clusterIdx];
+                        for (int d = 0; d < dim; d++) {
+                            centroid[d] /= count;
+                        }
                     }
                 }
             }

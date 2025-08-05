@@ -244,8 +244,7 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
-                    public void close() {
-                    }
+                    public void close() {}
                 };
             }
 

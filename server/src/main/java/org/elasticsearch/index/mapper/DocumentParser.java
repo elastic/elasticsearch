@@ -521,10 +521,8 @@ public final class DocumentParser {
         );
     }
 
-    private static int parseObject(final DocumentParserContext context,
-                                   String currentFieldName,
-                                   long arrayObjectsLimit,
-                                   int alreadyCounted) throws IOException {
+    private static int parseObject(final DocumentParserContext context, String currentFieldName, long arrayObjectsLimit, int alreadyCounted)
+        throws IOException {
         int newCount = 0;
         assert currentFieldName != null;
         context.setImmediateXContentParent(context.parser().currentToken());

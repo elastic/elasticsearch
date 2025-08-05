@@ -37,10 +37,10 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         rootBuilder.add(new ObjectMapper.Builder("disabled", Optional.empty()).enabled(disabledFieldEnabled));
         ObjectMapper.Builder fooBuilder = new ObjectMapper.Builder("foo", Optional.empty()).enabled(fooFieldEnabled);
         if (includeBarField) {
-            fooBuilder.add(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers(), false));
+            fooBuilder.add(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers()));
         }
         if (includeBazField) {
-            fooBuilder.add(new TextFieldMapper.Builder("baz", createDefaultIndexAnalyzers(), false));
+            fooBuilder.add(new TextFieldMapper.Builder("baz", createDefaultIndexAnalyzers()));
         }
         rootBuilder.add(fooBuilder);
         return rootBuilder.build(MapperBuilderContext.root(false, false));
@@ -365,15 +365,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     private static ObjectMapper.Builder createObjectSubobjectsFalseLeafWithDots() {
         KeywordFieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         KeywordFieldMapper fieldMapper = fieldBuilder.build(
-            new MapperBuilderContext(
-                "foo.metrics",
-                false,
-                false,
-                false,
-                ObjectMapper.Defaults.DYNAMIC,
-                MapperService.MergeReason.MAPPING_UPDATE,
-                false
-            )
+            MapperBuilderContext.builder().path("foo.metrics").isSourceSynthetic(false).isDataStream(false).build()
         );
         assertEquals("host.name", fieldMapper.leafName());
         assertEquals("foo.metrics.host.name", fieldMapper.fullPath());
@@ -385,15 +377,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     private ObjectMapper.Builder createObjectSubobjectsFalseLeafWithMultiField() {
         TextFieldMapper.Builder fieldBuilder = createTextKeywordMultiField("host.name");
         TextFieldMapper textKeywordMultiField = fieldBuilder.build(
-            new MapperBuilderContext(
-                "foo.metrics",
-                false,
-                false,
-                false,
-                ObjectMapper.Defaults.DYNAMIC,
-                MapperService.MergeReason.MAPPING_UPDATE,
-                false
-            )
+            MapperBuilderContext.builder().path("foo.metrics").isSourceSynthetic(false).isDataStream(false).build()
         );
         assertEquals("host.name", textKeywordMultiField.leafName());
         assertEquals("foo.metrics.host.name", textKeywordMultiField.fullPath());
@@ -410,7 +394,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private TextFieldMapper.Builder createTextKeywordMultiField(String name, String multiFieldName) {
-        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers(), false);
+        TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
         builder.multiFieldsBuilder.add(new KeywordFieldMapper.Builder(multiFieldName, IndexVersion.current()));
         return builder;
     }

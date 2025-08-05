@@ -27,9 +27,9 @@ public class DocumentParserContextTests extends ESTestCase {
     private final MapperBuilderContext root = MapperBuilderContext.root(false, false);
 
     public void testDynamicMapperSizeMultipleMappers() {
-        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers(), false).build(root));
+        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()).build(root));
         assertEquals(1, context.getNewFieldsSize());
-        context.addDynamicMapper(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers(), false).build(root));
+        context.addDynamicMapper(new TextFieldMapper.Builder("bar", createDefaultIndexAnalyzers()).build(root));
         assertEquals(2, context.getNewFieldsSize());
         context.addDynamicRuntimeField(new TestRuntimeField("runtime1", "keyword"));
         assertEquals(3, context.getNewFieldsSize());
@@ -44,9 +44,9 @@ public class DocumentParserContextTests extends ESTestCase {
     }
 
     public void testDynamicMapperSizeSameFieldMultipleMappers() {
-        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers(), false).build(root));
+        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()).build(root));
         assertEquals(1, context.getNewFieldsSize());
-        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers(), false).build(root));
+        context.addDynamicMapper(new TextFieldMapper.Builder("foo", createDefaultIndexAnalyzers()).build(root));
         assertEquals(1, context.getNewFieldsSize());
     }
 

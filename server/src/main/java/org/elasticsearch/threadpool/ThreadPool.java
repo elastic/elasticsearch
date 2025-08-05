@@ -159,7 +159,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
 
     public enum ThreadPoolType {
         FIXED("fixed"),
-        SCALING("scaling");
+        SCALING("scaling"),
+        VIRTUAL("virtual");
 
         private final String type;
 
@@ -616,6 +617,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             if (executor.executor() instanceof ThreadPoolExecutor) {
                 closeMetrics(executor);
                 executor.executor().shutdown();
+                logger.info("Shutting down pool [{}]", executor.info.getName());
+            } else if (executor.executor() instanceof EsExecutorServiceDecorator decorator) {
+                logger.info("Shutting down virtual pool [{}]", executor.info.getName());
+                decorator.shutdown();
+            } else {
+                logger.warn("unknown executor type [{}]", executor.executor().getClass().getName());
             }
         }
     }
@@ -627,6 +634,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             if (executor.executor() instanceof ThreadPoolExecutor) {
                 closeMetrics(executor);
                 executor.executor().shutdownNow();
+            } else if (executor.executor() instanceof EsExecutorServiceDecorator decorator) {
+                decorator.shutdownNow();
             }
         }
     }
@@ -637,6 +646,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             if (executor.executor() instanceof ThreadPoolExecutor) {
                 closeMetrics(executor);
                 result &= executor.executor().awaitTermination(timeout, unit);
+            } else if (executor.executor() instanceof EsExecutorServiceDecorator decorator) {
+                result &= decorator.awaitTermination(timeout, unit);
             }
         }
         cachedTimeThread.join(unit.toMillis(timeout));
@@ -914,7 +925,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof EsThreadPoolExecutor || executor == EsExecutors.DIRECT_EXECUTOR_SERVICE;
+            assert executor instanceof EsThreadPoolExecutor
+                || executor instanceof EsExecutorServiceDecorator
+                || executor == EsExecutors.DIRECT_EXECUTOR_SERVICE;
             this.executor = executor;
             this.info = info;
         }

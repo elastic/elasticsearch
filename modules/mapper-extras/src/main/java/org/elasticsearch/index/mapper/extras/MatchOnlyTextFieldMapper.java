@@ -45,14 +45,16 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.BlockStoredFieldsReader;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
-import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
+import org.elasticsearch.index.mapper.TextFamilyFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.TextParams;
@@ -73,14 +75,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.index.mapper.TextFieldMapper.Builder.multiFieldsNotStoredByDefaultIndexVersionCheck;
-
 /**
  * A {@link FieldMapper} for full-text fields that only indexes
  * {@link IndexOptions#DOCS} and runs positional queries by looking at the
  * _source.
  */
-public class MatchOnlyTextFieldMapper extends FieldMapper {
+public class MatchOnlyTextFieldMapper extends TextFamilyFieldMapper {
 
     public static final String CONTENT_TYPE = "match_only_text";
 
@@ -106,15 +106,17 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final TextParams.Analyzers analyzers;
-        private final boolean withinMultiField;
         private final boolean storedFieldInBinaryFormat;
+        private final boolean isWithinMultiField;
+
+        private boolean isSyntheticSourceEnabled;
 
         public Builder(
             String name,
             IndexVersion indexCreatedVersion,
             IndexAnalyzers indexAnalyzers,
-            boolean withinMultiField,
-            boolean storedFieldInBinaryFormat
+            boolean storedFieldInBinaryFormat,
+            boolean isWithinMultiField
         ) {
             super(name);
             this.indexCreatedVersion = indexCreatedVersion;
@@ -124,8 +126,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 m -> ((MatchOnlyTextFieldMapper) m).positionIncrementGap,
                 indexCreatedVersion
             );
-            this.withinMultiField = withinMultiField;
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
+            this.isWithinMultiField = isWithinMultiField;
         }
 
         @Override
@@ -144,8 +146,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 indexAnalyzer,
                 context.isSourceSynthetic(),
                 meta.getValue(),
-                withinMultiField,
-                multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField(),
+                isWithinMultiField,
                 storedFieldInBinaryFormat
             );
             return ft;
@@ -153,16 +154,10 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
+            this.isSyntheticSourceEnabled = context.isSourceSynthetic();
+
             MatchOnlyTextFieldType tft = buildFieldType(context);
-            final boolean storeSource;
-            if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
-                storeSource = context.isSourceSynthetic()
-                    && withinMultiField == false
-                    && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-            } else {
-                storeSource = context.isSourceSynthetic();
-            }
-            return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), storeSource, this);
+            return new MatchOnlyTextFieldMapper(leafName(), Defaults.FIELD_TYPE, tft, builderParams(this, context), this);
         }
     }
 
@@ -179,8 +174,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             n,
             c.indexVersionCreated(),
             c.getIndexAnalyzers(),
-            c.isWithinMultiField(),
-            isSyntheticSourceStoredFieldInBinaryFormat(c.indexVersionCreated())
+            isSyntheticSourceStoredFieldInBinaryFormat(c.indexVersionCreated()),
+            c.isWithinMultiField()
         )
     );
 
@@ -188,10 +183,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
-        private final String originalName;
 
         private final boolean withinMultiField;
-        private final boolean hasCompatibleMultiFields;
         private final boolean storedFieldInBinaryFormat;
 
         public MatchOnlyTextFieldType(
@@ -201,15 +194,12 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean isSyntheticSource,
             Map<String, String> meta,
             boolean withinMultiField,
-            boolean hasCompatibleMultiFields,
             boolean storedFieldInBinaryFormat
         ) {
             super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name, isSyntheticSource);
-            this.originalName = isSyntheticSource ? name + "._original" : null;
             this.withinMultiField = withinMultiField;
-            this.hasCompatibleMultiFields = hasCompatibleMultiFields;
             this.storedFieldInBinaryFormat = storedFieldInBinaryFormat;
         }
 
@@ -220,7 +210,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 Lucene.STANDARD_ANALYZER,
                 false,
                 Collections.emptyMap(),
-                false,
                 false,
                 false
             );
@@ -249,59 +238,31 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
                 );
             }
-            if (searchExecutionContext.isSourceSynthetic() && withinMultiField) {
-                String parentField = searchExecutionContext.parentPath(name());
-                var parent = searchExecutionContext.lookup().fieldType(parentField);
 
-                if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent
-                    && keywordParent.ignoreAbove() != Integer.MAX_VALUE) {
-                    if (parent.isStored()) {
-                        return storedFieldFetcher(parentField, keywordParent.originalName());
-                    } else if (parent.hasDocValues()) {
-                        var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                        return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(keywordParent.originalName()));
-                    }
-                }
-
-                if (parent.isStored()) {
-                    return storedFieldFetcher(parentField);
-                } else if (parent.hasDocValues()) {
-                    var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
-                    return docValuesFieldFetcher(ifd);
+            // if synthetic source is enabled, then fetch the value from one of the valid source providers
+            if (searchExecutionContext.isSourceSynthetic()) {
+                if (withinMultiField) {
+                    // fetch the value from parent
+                    return parentFieldValueFetcher(searchExecutionContext);
+                } else if (textFieldType.syntheticSourceDelegate().isPresent()) {
+                    // otherwise, if there is a delegate field, fetch the value from it
+                    return delegateFieldValueFetcher(searchExecutionContext, textFieldType.syntheticSourceDelegate().get());
                 } else {
-                    assert false : "parent field should either be stored or have doc values";
+                    // otherwise, fetch the value from self
+                    return storedFieldFetcher(syntheticSourceFallbackFieldName(true));
                 }
-            } else if (searchExecutionContext.isSourceSynthetic() && hasCompatibleMultiFields) {
-                var mapper = (MatchOnlyTextFieldMapper) searchExecutionContext.getMappingLookup().getMapper(name());
-                var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(mapper);
-
-                if (kwd != null) {
-                    var fieldType = kwd.fieldType();
-
-                    if (fieldType.ignoreAbove() != Integer.MAX_VALUE) {
-                        if (fieldType.isStored()) {
-                            return storedFieldFetcher(fieldType.name(), fieldType.originalName());
-                        } else if (fieldType.hasDocValues()) {
-                            var ifd = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                            return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(fieldType.originalName()));
-                        }
-                    }
-
-                    if (fieldType.isStored()) {
-                        return storedFieldFetcher(fieldType.name());
-                    } else if (fieldType.hasDocValues()) {
-                        var ifd = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-                        return docValuesFieldFetcher(ifd);
-                    } else {
-                        assert false : "multi field should either be stored or have doc values";
-                    }
-                } else {
-                    assert false : "multi field of type keyword should exist";
-                }
-            } else if (searchExecutionContext.isSourceSynthetic()) {
-                String name = storedFieldNameForSyntheticSource();
-                return storedFieldFetcher(name);
             }
+
+            // otherwise, synthetic source must be disabled, so fetch the value directly from _source
+            return sourceFieldValueFetcher(searchExecutionContext);
+        }
+
+        /**
+         * Returns a function that will fetch values directly from _source.
+         */
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> sourceFieldValueFetcher(
+            final SearchExecutionContext searchExecutionContext
+        ) {
             return context -> {
                 ValueFetcher valueFetcher = valueFetcher(searchExecutionContext, null);
                 SourceProvider sourceProvider = searchExecutionContext.lookup();
@@ -314,6 +275,62 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                     }
                 };
             };
+        }
+
+        /**
+         * Returns a function that will fetch value from a parent field.
+         */
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> parentFieldValueFetcher(
+            final SearchExecutionContext searchExecutionContext
+        ) {
+            assert searchExecutionContext.isSourceSynthetic() : "Synthetic source should be enabled";
+
+            String parentField = searchExecutionContext.parentPath(name());
+            var parent = searchExecutionContext.lookup().fieldType(parentField);
+
+            if (parent instanceof KeywordFieldMapper.KeywordFieldType keywordParent && keywordParent.isIgnoreAboveSet()) {
+                final String parentFieldName = keywordParent.syntheticSourceFallbackFieldName(searchExecutionContext.isSourceSynthetic());
+                if (parent.isStored()) {
+                    return storedFieldFetcher(parentField, parentFieldName);
+                } else if (parent.hasDocValues()) {
+                    var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
+                    return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(parentFieldName));
+                }
+            }
+
+            if (parent.isStored()) {
+                return storedFieldFetcher(parentField);
+            } else if (parent.hasDocValues()) {
+                var ifd = searchExecutionContext.getForField(parent, MappedFieldType.FielddataOperation.SEARCH);
+                return docValuesFieldFetcher(ifd);
+            } else {
+                assert false : "parent field should either be stored or have doc values";
+                return sourceFieldValueFetcher(searchExecutionContext);
+            }
+        }
+
+        /**
+         * Returns a function that will fetch values from a synthetic source delegate.
+         */
+        private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> delegateFieldValueFetcher(
+            final SearchExecutionContext searchExecutionContext,
+            final KeywordFieldMapper.KeywordFieldType keywordDelegate
+        ) {
+            // since we don't know whether the field will be ignored during parsing (ex. when value trips ignore_above)
+            // we must look for both, the expected field name (if parsing of the field was successful), and the backup
+            // field name (if the field was ignored during parsing)
+            final String expectedFieldName = keywordDelegate.name();
+            final String backupFieldName = keywordDelegate.syntheticSourceFallbackFieldName(true);
+
+            if (keywordDelegate.isStored()) {
+                return storedFieldFetcher(expectedFieldName, backupFieldName);
+            } else if (keywordDelegate.hasDocValues()) {
+                var ifd = searchExecutionContext.getForField(keywordDelegate, MappedFieldType.FielddataOperation.SEARCH);
+                return combineFieldFetchers(docValuesFieldFetcher(ifd), storedFieldFetcher(backupFieldName));
+            } else {
+                assert false : "multi field should either be stored or have doc values";
+                return sourceFieldValueFetcher(searchExecutionContext);
+            }
         }
 
         private static IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> docValuesFieldFetcher(
@@ -544,10 +561,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (textFieldType.isSyntheticSource()) {
+                final String fieldName = syntheticSourceFallbackFieldName(true);
                 if (storedFieldInBinaryFormat) {
-                    return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(storedFieldNameForSyntheticSource());
+                    return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(fieldName);
                 } else {
-                    return new BytesFromMixedStringsBytesRefBlockLoader(storedFieldNameForSyntheticSource());
+                    return new BytesFromMixedStringsBytesRefBlockLoader(fieldName);
                 }
             }
             SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
@@ -563,7 +581,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
             if (textFieldType.isSyntheticSource()) {
                 return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
-                    storedFieldNameForSyntheticSource(),
+                    syntheticSourceFallbackFieldName(true),
                     CoreValuesSourceType.KEYWORD,
                     TextDocValuesField::new
                 ) {
@@ -586,19 +604,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 TextDocValuesField::new
             );
         }
-
-        private String storedFieldNameForSyntheticSource() {
-            return originalName;
-        }
     }
 
     private final IndexVersion indexCreatedVersion;
     private final IndexAnalyzers indexAnalyzers;
     private final NamedAnalyzer indexAnalyzer;
     private final int positionIncrementGap;
-    private final boolean storeSource;
     private final FieldType fieldType;
-    private final boolean withinMultiField;
     private final boolean storedFieldInBinaryFormat;
 
     private MatchOnlyTextFieldMapper(
@@ -606,19 +618,25 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         FieldType fieldType,
         MatchOnlyTextFieldType mappedFieldType,
         BuilderParams builderParams,
-        boolean storeSource,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, builderParams);
+        super(
+            simpleName,
+            builder.indexCreatedVersion,
+            builder.isSyntheticSourceEnabled,
+            builder.isWithinMultiField,
+            mappedFieldType,
+            builderParams
+        );
+
         assert mappedFieldType.getTextSearchInfo().isTokenized();
         assert mappedFieldType.hasDocValues() == false;
+
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
-        this.storeSource = storeSource;
-        this.withinMultiField = builder.withinMultiField;
         this.storedFieldInBinaryFormat = builder.storedFieldInBinaryFormat;
     }
 
@@ -629,7 +647,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, withinMultiField, storedFieldInBinaryFormat).init(this);
+        return new Builder(leafName(), indexCreatedVersion, indexAnalyzers, storedFieldInBinaryFormat, isWithinMultiField).init(this);
     }
 
     @Override
@@ -645,12 +663,18 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         context.doc().add(field);
         context.addToFieldNames(fieldType().name());
 
-        if (storeSource) {
-            if (storedFieldInBinaryFormat) {
-                final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
-                context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), bytesRef));
-            } else {
-                context.doc().add(new StoredField(fieldType().storedFieldNameForSyntheticSource(), value.string()));
+        // match_only_text isn't stored, so if synthetic source needs to be supported, we must do something about it
+        if (needsToSupportSyntheticSource()) {
+            // if the delegate can't support synthetic source for the given value, then store a copy of said value so
+            // that synthetic source can load it
+            if (fieldType().textFieldType.canUseSyntheticSourceDelegateForSyntheticSource(value.string()) == false) {
+                final String fieldName = fieldType().syntheticSourceFallbackFieldName(fieldType().textFieldType.isSyntheticSource());
+                if (storedFieldInBinaryFormat) {
+                    final var bytesRef = new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length());
+                    context.doc().add(new StoredField(fieldName, bytesRef));
+                } else {
+                    context.doc().add(new StoredField(fieldName, value.string()));
+                }
             }
         }
     }
@@ -667,27 +691,37 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        if (storeSource) {
-            return new SyntheticSourceSupport.Native(
-                () -> new StringStoredFieldFieldLoader(fieldType().storedFieldNameForSyntheticSource(), fieldType().name(), leafName()) {
-                    @Override
-                    protected void write(XContentBuilder b, Object value) throws IOException {
-                        if (value instanceof BytesRef valueBytes) {
-                            b.value(valueBytes.utf8ToString());
-                        } else {
-                            assert value instanceof String;
-                            b.value(value.toString());
-                        }
-                    }
+        return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
+    }
+
+    private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
+        // match_only_text is not stored for space efficiency, except when synthetic source is enabled as synthetic source
+        // needs something to load to reconstruct source. In such cases, we *might* store this field or we *might* rely
+        // on a delegate field if one exists. Because of this uncertainty, we need multiple field loaders.
+
+        // first field loader, representing this field
+        final String fieldName = fieldType().syntheticSourceFallbackFieldName(fieldType().textFieldType.isSyntheticSource());
+        final var thisFieldLayer = new CompositeSyntheticFieldLoader.StoredFieldLayer(fieldName) {
+            @Override
+            protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                if (value instanceof BytesRef valueBytes) {
+                    b.value(valueBytes.utf8ToString());
+                } else {
+                    assert value instanceof String;
+                    b.value(value.toString());
                 }
-            );
-        } else {
-            var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
-            if (kwd != null) {
-                return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
             }
-            assert false : "there should be a suite field mapper with native synthetic source support";
-            return super.syntheticSourceSupport();
+        };
+
+        final CompositeSyntheticFieldLoader fieldLoader = new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, thisFieldLayer);
+
+        // second loader, representing a delegate field, if one exists
+        var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
+        if (kwd != null) {
+            // merge the two field loaders into one
+            return fieldLoader.mergedWith(kwd.syntheticFieldLoader(fullPath(), leafName()));
         }
+
+        return fieldLoader;
     }
 }

@@ -49,7 +49,8 @@ primaryExpression
     ;
 
 functionExpression
-    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP
+    : functionName LP (ASTERISK | (booleanExpression (COMMA booleanExpression)* (COMMA mapExpression)?))? RP  #functionStandard
+    | (FIRST | LAST) LP value=booleanExpression BY by=booleanExpression RP                                             #functionFirstLast
     ;
 
 functionName

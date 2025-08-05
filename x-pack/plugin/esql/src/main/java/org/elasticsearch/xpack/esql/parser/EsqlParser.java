@@ -164,7 +164,7 @@ public class EsqlParser {
 
     private class PostProcessor extends EsqlBaseParserBaseListener {
         @Override
-        public void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
+        public void exitFunctionStandard(EsqlBaseParser.FunctionStandardContext ctx) {
             // TODO remove this at some point
             EsqlBaseParser.FunctionNameContext identifier = ctx.functionName();
             if (identifier.getText().equalsIgnoreCase("is_null")) {

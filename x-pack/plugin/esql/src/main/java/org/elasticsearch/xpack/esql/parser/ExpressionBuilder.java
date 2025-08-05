@@ -613,7 +613,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
+    public Object visitFunctionStandard(EsqlBaseParser.FunctionStandardContext ctx) {
         String name = visitFunctionName(ctx.functionName());
         List<Expression> args = expressions(ctx.booleanExpression());
         if (ctx.mapExpression() != null) {
@@ -640,6 +640,13 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         var name = visitIdentifierOrParameter(ctx.identifierOrParameter());
         context.telemetry().function(name);
         return name;
+    }
+
+    @Override
+    public Object visitFunctionFirstLast(EsqlBaseParser.FunctionFirstLastContext ctx) {
+        Expression value = (Expression) visit(ctx.value);
+        Expression by = (Expression) visit(ctx.by);
+        throw new IllegalArgumentException("FIRST/LAST not yet implemented");
     }
 
     @Override

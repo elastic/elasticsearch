@@ -13,12 +13,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.DisMaxQueryBuilder;
-import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.*;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -125,14 +120,15 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         Set<String> inferenceFields = inferenceInfo.getInferenceFields();
 
         if (inferenceFields.size() == 1) {
-            // Single inference field - create a simple semantic query
+            // Single inference field - all multi_match types work the same (like original Elasticsearch)
+            // No validation needed since single field queries don't require type-specific combination logic
             String fieldName = inferenceFields.iterator().next();
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
             semanticQuery.boost(originalQuery.boost());
             semanticQuery.queryName(originalQuery.queryName());
             return semanticQuery;
         } else {
-            // Multiple inference fields - handle based on multi-match query type
+            // Multiple inference fields - handle based on multi-match query type (validation happens here)
             return buildMultiFieldSemanticQuery(originalQuery, inferenceFields, queryValue);
         }
     }
@@ -142,8 +138,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         Set<String> inferenceFields,
         String queryValue
     ) {
-        validateQueryTypeSupported(originalQuery.type());
-
         return switch (originalQuery.type()) {
             case BEST_FIELDS -> buildBestFieldsSemanticQuery(originalQuery, inferenceFields, queryValue);
             case MOST_FIELDS -> buildMostFieldsSemanticQuery(originalQuery, inferenceFields, queryValue);
@@ -161,15 +155,13 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
 
         String queryValue = (String) originalQuery.value();
 
-        switch (originalQuery.type()) {
-            case BEST_FIELDS:
-                return buildBestFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
-            case MOST_FIELDS:
-                return buildMostFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
-            default:
+        return switch (originalQuery.type()) {
+            case BEST_FIELDS -> buildBestFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
+            case MOST_FIELDS -> buildMostFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
+            default ->
                 // Fallback to best_fields behavior
-                return buildBestFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
-        }
+                    buildBestFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
+        };
     }
 
     /**
@@ -198,7 +190,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
                     "multi_match query with type [bool_prefix] is not supported for semantic_text fields. " +
                     "Use [best_fields] or [most_fields] instead."
                 );
-            // BEST_FIELDS and MOST_FIELDS are supported - no validation needed
         }
     }
 
@@ -210,7 +201,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         Set<String> inferenceFields,
         String queryValue
     ) {
-        DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
+        DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
         for (String fieldName : inferenceFields) {
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
             disMaxQuery.add(semanticQuery);

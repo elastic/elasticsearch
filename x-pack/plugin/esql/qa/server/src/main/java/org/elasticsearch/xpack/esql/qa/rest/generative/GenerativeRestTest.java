@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
 import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,6 +34,9 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsF
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 
 public abstract class GenerativeRestTest extends ESRestTestCase {
+
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
 
     public static final int ITERATIONS = 100;
     public static final int MAX_DEPTH = 20;
@@ -64,7 +70,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     @Before
     public void setup() throws IOException {
         if (indexExists(CSV_DATASET_MAP.keySet().iterator().next()) == false) {
-            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping());
+            loadDataSetIntoEs(client(), true, supportsSourceFieldMapping(), false);
         }
     }
 
@@ -96,8 +102,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                     final String command = current.commandString();
 
                     final EsqlQueryGenerator.QueryExecuted result = previousResult == null
-                        ? execute(command, 0)
-                        : execute(previousResult.query() + command, previousResult.depth());
+                        ? execute(command, 0, profileLogger)
+                        : execute(previousResult.query() + command, previousResult.depth(), profileLogger);
                     previousResult = result;
 
                     final boolean hasException = result.exception() != null;
@@ -154,7 +160,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         );
         if (outputValidation.success() == false) {
             for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                if (allowedError.matcher(outputValidation.errorMessage()).matches()) {
+                if (isAllowedError(outputValidation.errorMessage(), allowedError)) {
                     return outputValidation;
                 }
             }
@@ -165,23 +171,35 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     private void checkException(EsqlQueryGenerator.QueryExecuted query) {
         for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (allowedError.matcher(query.exception().getMessage()).matches()) {
+            if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
             }
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
     }
 
+    /**
+     * Long lines in exceptions can be split across several lines. When a newline is inserted, the end of the current line and the beginning
+     * of the new line are marked with a backslash {@code \}; the new line will also have whitespace before the backslash for aligning.
+     */
+    private static final Pattern ERROR_MESSAGE_LINE_BREAK = Pattern.compile("\\\\\n\\s*\\\\");
+
+    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return allowedPattern.matcher(errorWithoutLineBreaks).matches();
+    }
+
     @SuppressWarnings("unchecked")
-    public static EsqlQueryGenerator.QueryExecuted execute(String command, int depth) {
+    public static EsqlQueryGenerator.QueryExecuted execute(String command, int depth, @Nullable ProfileLogger profileLogger) {
         try {
-            Map<String, Object> a = RestEsqlTestCase.runEsql(
+            Map<String, Object> json = RestEsqlTestCase.runEsql(
                 new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
+                profileLogger,
                 RestEsqlTestCase.Mode.SYNC
             );
-            List<EsqlQueryGenerator.Column> outputSchema = outputSchema(a);
-            List<List<Object>> values = (List<List<Object>>) a.get("values");
+            List<EsqlQueryGenerator.Column> outputSchema = outputSchema(json);
+            List<List<Object>> values = (List<List<Object>>) json.get("values");
             return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, values, null);
         } catch (Exception e) {
             return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, e);
@@ -202,7 +220,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(client(), true, supportsSourceFieldMapping()).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false).stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();

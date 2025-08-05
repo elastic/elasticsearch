@@ -56,7 +56,7 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
                     return Optional.empty();
                 }
 
-                return Optional.of(new StreamingHuggingFaceErrorResponseEntity((ErrorFieldObject) args[0]));
+                return Optional.of(new StreamingHuggingFaceErrorResponseEntity((ErrorField) args[0]));
             });
 
         static {
@@ -70,7 +70,7 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
             );
         }
 
-        StreamingHuggingFaceErrorResponseEntity(ErrorFieldObject errorField) {
+        StreamingHuggingFaceErrorResponseEntity(ErrorField errorField) {
             super(
                 errorField.message,
                 HUGGING_FACE_ERROR,
@@ -80,12 +80,12 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
         }
     }
 
-    private static ErrorFieldObject parseErrorField(XContentParser parser) throws IOException {
+    private static ErrorField parseErrorField(XContentParser parser) throws IOException {
         var token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
-            return ErrorFieldObject.parseString(parser);
+            return ErrorField.parseString(parser);
         } else if (token == XContentParser.Token.START_OBJECT) {
-            return ErrorFieldObject.parseObject(parser);
+            return ErrorField.parseObject(parser);
         } else if (token == XContentParser.Token.VALUE_NULL) {
             return null;
         }
@@ -93,11 +93,11 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
         throw new XContentParseException("Unexpected token: " + token);
     }
 
-    private record ErrorFieldObject(String message, @Nullable Integer httpStatusCode) {
-        private static final ConstructingObjectParser<ErrorFieldObject, Void> PARSER = new ConstructingObjectParser<>(
-            ErrorFieldObject.class.getSimpleName(),
+    private record ErrorField(String message, @Nullable Integer httpStatusCode) {
+        private static final ConstructingObjectParser<ErrorField, Void> PARSER = new ConstructingObjectParser<>(
+            ErrorField.class.getSimpleName(),
             true,
-            args -> new ErrorFieldObject(args[0] != null ? (String) args[0] : "unknown", (Integer) args[1])
+            args -> new ErrorField(args[0] != null ? (String) args[0] : "unknown", (Integer) args[1])
         );
 
         static {
@@ -105,12 +105,12 @@ public class HuggingFaceChatCompletionResponseHandler extends OpenAiUnifiedChatC
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField("http_status_code"));
         }
 
-        public static ErrorFieldObject parseObject(XContentParser parser) {
+        public static ErrorField parseObject(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
 
-        public static ErrorFieldObject parseString(XContentParser parser) throws IOException {
-            return new ErrorFieldObject(parser.text(), null);
+        public static ErrorField parseString(XContentParser parser) throws IOException {
+            return new ErrorField(parser.text(), null);
         }
     }
 

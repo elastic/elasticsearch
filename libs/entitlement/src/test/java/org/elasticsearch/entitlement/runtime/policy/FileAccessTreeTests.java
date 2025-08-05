@@ -59,6 +59,7 @@ public class FileAccessTreeTests extends ESTestCase {
         Path.of("/home"),
         Path.of("/config"),
         new Path[] { Path.of("/data1"), Path.of("/data2") },
+        Path.of("/shareddata"),
         new Path[] { Path.of("/shared1"), Path.of("/shared2") },
         Path.of("/lib"),
         Path.of("/modules"),

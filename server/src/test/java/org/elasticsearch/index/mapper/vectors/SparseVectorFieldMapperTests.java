@@ -699,7 +699,7 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         DEFAULT_PRUNING, // Default pruning configuration
         STRICT_PRUNING   // Stricter pruning with higher thresholds
     }
-    
+
     public enum QueryPruningScenario {
         PRUNE_FALSE_NO_CONFIG,
         PRUNE_FALSE_WITH_CONFIG,
@@ -710,8 +710,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     }
 
     public enum IndexPruningScenario {
-        // PREVIOUS_VERSION_NO_PRUNING, //TODO(mromaios): This fails when combined with query pruning that overrides the index options,
-        // check.
         PRUNE_FALSE_NO_CONFIG,
         PRUNE_TRUE_NO_CONFIG,
         PRUNE_TRUE_WITH_CONFIG,
@@ -765,8 +763,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         }
     }
 
-    // @TestLogging(value = "org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapperTests:TRACE", reason = "debug")
-    // TODO(mromaios): remove
     public void testTypeQueryFinalizationPruningScenarios() throws Exception {
         for (int i = 0; i < 60; i++) {
             runTestTypeQueryFinalization(randomFrom(IndexPruningScenario.values()), randomFrom(QueryPruningScenario.values()));
@@ -807,7 +803,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
             case PRUNE_TRUE_NO_CONFIG -> fieldMapping(this::mappingWithIndexOptionsOnlyPruneTrue);
             case PRUNE_TRUE_WITH_CONFIG -> fieldMapping(this::minimalMappingWithExplicitIndexOptions);
             case PRUNE_NULL_NO_CONFIG -> fieldMapping(this::minimalMapping);
-            // case PRUNE_NULL_NO_CONFIG, PREVIOUS_VERSION_NO_PRUNING -> fieldMapping(this::minimalMapping); //TODO(mromaios): revisit
         };
     }
 
@@ -832,11 +827,6 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
         IndexPruningScenario indexPruningScenario,
         QueryPruningScenario queryPruningScenario
     ) {
-        // TODO(mromaios): Double check expected behavior with previous index version
-        // if (indexPruningScenario == IndexPruningScenario.PREVIOUS_VERSION_NO_PRUNING) {
-        // return PruningScenario.NO_PRUNING;
-        // }
-
         PruningScenario effectivePruningScenario = null;
         if (queryPruningScenario != null) {
             effectivePruningScenario = switch (queryPruningScenario) {
@@ -894,11 +884,8 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     private void runTestTypeQueryFinalization(IndexPruningScenario indexPruningScenario, QueryPruningScenario queryPruningScenario)
         throws IOException {
         logger.debug("Running test with indexPruningScenario: {}, queryPruningScenario: {}", indexPruningScenario, queryPruningScenario);
-        IndexVersion indexVersion = getIndexVersionForTest(
-            // indexPruningScenario == IndexPruningScenario.PREVIOUS_VERSION_NO_PRUNING //TODO(mromaios): revisit, adding one specific UT
-            // for it for now
-            false
-        );
+        IndexVersion indexVersion = IndexVersionUtils.randomVersionBetween(random(),
+            SPARSE_VECTOR_PRUNING_INDEX_OPTIONS_SUPPORT, IndexVersion.current());
         MapperService mapperService = createMapperService(indexVersion, getIndexMapping(indexPruningScenario));
         logger.debug("Index mapping: {}", mapperService.documentMapper().mappingSource().toString());
         Tuple<Boolean, TokenPruningConfig> queryPruneConfig = getQueryPruneConfig(queryPruningScenario);

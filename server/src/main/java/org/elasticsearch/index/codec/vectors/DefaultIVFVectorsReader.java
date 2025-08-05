@@ -369,7 +369,7 @@ public class DefaultIVFVectorsReader extends IVFVectorsReader implements OffHeap
             centroidDp = Float.intBitsToFloat(indexInput.readInt());
             vectors = indexInput.readVInt();
             // read the doc ids
-            assert vectors < docIdsScratch.length;
+            assert vectors <= docIdsScratch.length;
             docIdsWriter.readInts(indexInput, vectors, docIdsScratch);
             slicePos = indexInput.getFilePointer();
             return vectors;

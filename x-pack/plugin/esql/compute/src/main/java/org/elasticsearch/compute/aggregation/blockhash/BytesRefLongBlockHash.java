@@ -98,29 +98,42 @@ final class BytesRefLongBlockHash extends BlockHash {
     }
 
     public IntVector add(IntVector bytesHashes, LongVector longsVector) {
-        if (bytesHashes.isConstant()) {
-            boolean singleValue = true;
-            // TODO: Should we also support num_runs? Should we add a constant flag to Vector and perform this check in EVAL instead?
-            if (longsVector.isConstant() == false) {
-                long firstValue = longsVector.getLong(0);
-                for (int i = 1; i < longsVector.getPositionCount(); i++) {
-                    if (firstValue != longsVector.getLong(i)) {
-                        singleValue = false;
-                        break;
-                    }
-                }
-            }
-            if (singleValue) {
-                int singleOrd = Math.toIntExact(hashOrdToGroup(finalHash.add(bytesHashes.getInt(0), longsVector.getLong(0))));
-                return blockFactory.newConstantIntVector(singleOrd, longsVector.getPositionCount());
-            }
-        }
         int positions = bytesHashes.getPositionCount();
         final int[] ords = new int[positions];
-        for (int i = 0; i < positions; i++) {
-            ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(bytesHashes.getInt(i), longsVector.getLong(i))));
+        int lastByte = bytesHashes.getInt(0);
+        long lastLong = longsVector.getLong(0);
+        ords[0] = Math.toIntExact(hashOrdToGroup(finalHash.add(lastByte, lastLong)));
+        boolean constant = true;
+        if (bytesHashes.isConstant()) {
+            for (int i = 1; i < positions; i++) {
+                final long nextLong = longsVector.getLong(i);
+                if (nextLong == lastLong) {
+                    ords[i] = ords[i - 1];
+                } else {
+                    ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(lastByte, nextLong)));
+                    lastLong = nextLong;
+                    constant = false;
+                }
+            }
+        } else {
+            for (int i = 1; i < positions; i++) {
+                final int nextByte = bytesHashes.getInt(i);
+                final long nextLong = longsVector.getLong(i);
+                if (nextByte == lastByte && nextLong == lastLong) {
+                    ords[i] = ords[i - 1];
+                } else {
+                    ords[i] = Math.toIntExact(hashOrdToGroup(finalHash.add(nextByte, nextLong)));
+                    lastByte = nextByte;
+                    lastLong = nextLong;
+                    constant = false;
+                }
+            }
         }
-        return blockFactory.newIntArrayVector(ords, positions);
+        if (constant) {
+            return blockFactory.newConstantIntVector(ords[0], positions);
+        } else {
+            return blockFactory.newIntArrayVector(ords, positions);
+        }
     }
 
     @Override

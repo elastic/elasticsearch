@@ -132,15 +132,18 @@ final class BytesRefBlockHash extends BlockHash {
 
     private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
         IntVector inputOrds = inputBlock.getOrdinalsVector();
-        try (
-            var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount());
-            var hashOrds = add(inputBlock.getDictionaryVector())
-        ) {
-            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
-                int ord = hashOrds.getInt(inputOrds.getInt(p));
-                builder.appendInt(ord);
+        try (var hashOrds = add(inputBlock.getDictionaryVector())) {
+            if (inputOrds.isConstant()) {
+                int ord = hashOrds.getInt(inputOrds.getInt(0));
+                return blockFactory.newConstantIntVector(ord, inputOrds.getPositionCount());
             }
-            return builder.build();
+            try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
+                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                    int ord = hashOrds.getInt(inputOrds.getInt(p));
+                    builder.appendInt(ord);
+                }
+                return builder.build();
+            }
         }
     }
 

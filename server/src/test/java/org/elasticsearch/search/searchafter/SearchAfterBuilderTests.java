@@ -286,13 +286,11 @@ public class SearchAfterBuilderTests extends ESTestCase {
     public void testSetSortValuesRejectsNull() {
         SearchAfterBuilder builder = new SearchAfterBuilder();
 
-        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> {
-            builder.setSortValues(new Object[]{ null });
-        });
+        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, () -> { builder.setSortValues(new Object[] { null }); });
         assertThat(e1.getMessage(), equalTo("Values cannot contain null at position 0."));
 
         IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> {
-            builder.setSortValues(new Object[]{ 123L, null, "test" });
+            builder.setSortValues(new Object[] { 123L, null, "test" });
         });
         assertThat(e2.getMessage(), equalTo("Values cannot contain null at position 1."));
     }
@@ -306,9 +304,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
-            ParsingException e = expectThrows(ParsingException.class, () -> {
-                SearchAfterBuilder.fromXContent(parser);
-            });
+            ParsingException e = expectThrows(ParsingException.class, () -> { SearchAfterBuilder.fromXContent(parser); });
             assertThat(e.getMessage(), equalTo("Values cannot contain null."));
         }
     }
@@ -323,7 +319,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         SortAndFormats sortAndFormats = new SortAndFormats(sort, formats);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            SearchAfterBuilder.buildFieldDoc(sortAndFormats, new Object[]{ null }, null);
+            SearchAfterBuilder.buildFieldDoc(sortAndFormats, new Object[] { null }, null);
         });
         assertThat(e.getMessage(), equalTo("Values cannot contain null at position 0."));
     }

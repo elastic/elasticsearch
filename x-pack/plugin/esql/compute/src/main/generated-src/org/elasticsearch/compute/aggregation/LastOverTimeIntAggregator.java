@@ -76,7 +76,7 @@ public class LastOverTimeIntAggregator {
         IntBlock values,
         int otherPosition
     ) {
-        // NOCOMMIT use seen?!
+        // TODO seen should probably be part of the intermediate representation
         int valueCount = values.getValueCount(otherPosition);
         if (valueCount > 0) {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));

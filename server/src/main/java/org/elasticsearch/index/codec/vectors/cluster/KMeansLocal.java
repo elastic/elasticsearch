@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.cluster;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
 import org.elasticsearch.index.codec.vectors.SampleReader;
@@ -70,14 +71,14 @@ class KMeansLocal {
         FloatVectorValues vectors,
         IntToIntFunction translateOrd,
         float[][] centroids,
+        FixedBitSet centroidChanged,
         int[] centroidCounts,
         int[] assignments,
         NeighborHood[] neighborhoods
     ) throws IOException {
         boolean changed = false;
         int dim = vectors.dimension();
-        Arrays.fill(centroidCounts, 0);
-
+        centroidChanged.clear();
         final float[] distances = new float[4];
         for (int idx = 0; idx < vectors.size(); idx++) {
             float[] vector = vectors.vectorValue(idx);
@@ -90,22 +91,25 @@ class KMeansLocal {
                 bestCentroidOffset = getBestCentroid(centroids, vector, distances);
             }
             if (assignment != bestCentroidOffset) {
+                if (assignment != -1) {
+                    centroidChanged.set(assignment);
+                }
+                centroidChanged.set(bestCentroidOffset);
                 assignments[vectorOrd] = bestCentroidOffset;
                 changed = true;
             }
-            centroidCounts[bestCentroidOffset]++;
         }
-
         if (changed) {
             for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
-                if (centroidCounts[clusterIdx] > 0) {
+                if (centroidChanged.get(clusterIdx)) {
                     Arrays.fill(centroids[clusterIdx], 0.0f);
                 }
             }
-
+            Arrays.fill(centroidCounts, 0);
             for (int idx = 0; idx < vectors.size(); idx++) {
                 final int assignment = assignments[translateOrd.apply(idx)];
-                if (centroidCounts[assignment] > 0) {
+                if (centroidChanged.get(assignment)) {
+                    centroidCounts[assignment]++;
                     float[] vector = vectors.vectorValue(idx);
                     float[] centroid = centroids[assignment];
                     for (int d = 0; d < dim; d++) {
@@ -115,7 +119,7 @@ class KMeansLocal {
             }
 
             for (int clusterIdx = 0; clusterIdx < centroids.length; clusterIdx++) {
-                if (centroidCounts[clusterIdx] > 0) {
+                if (centroidChanged.get(clusterIdx)) {
                     float countF = (float) centroidCounts[clusterIdx];
                     for (int d = 0; d < dim; d++) {
                         centroids[clusterIdx][d] /= countF;
@@ -433,17 +437,18 @@ class KMeansLocal {
         }
 
         assert assignments.length == n;
+        FixedBitSet centroidChanged = new FixedBitSet(centroids.length);
         int[] centroidCounts = new int[centroids.length];
         for (int i = 0; i < maxIterations; i++) {
             // This is potentially sampled, so we need to translate ordinals
-            if (stepLloyd(sampledVectors, translateOrd, centroids, centroidCounts, assignments, neighborhoods) == false) {
+            if (stepLloyd(sampledVectors, translateOrd, centroids, centroidChanged, centroidCounts, assignments, neighborhoods) == false) {
                 break;
             }
         }
         // If we were sampled, do a once over the full set of vectors to finalize the centroids
         if (sampleSize < n || maxIterations == 0) {
             // No ordinal translation needed here, we are using the full set of vectors
-            stepLloyd(vectors, i -> i, centroids, centroidCounts, assignments, neighborhoods);
+            stepLloyd(vectors, i -> i, centroids, centroidChanged, centroidCounts, assignments, neighborhoods);
         }
     }
 

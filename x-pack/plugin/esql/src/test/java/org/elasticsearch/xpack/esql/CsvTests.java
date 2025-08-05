@@ -67,12 +67,14 @@ import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.inference.InferenceRunner;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPlanPreOptimizer;
+import org.elasticsearch.xpack.esql.optimizer.LogicalPreOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -98,7 +100,6 @@ import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.junit.After;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.URL;
@@ -131,6 +132,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 /**
  * CSV-based unit testing.
@@ -191,7 +193,7 @@ public class CsvTests extends ESTestCase {
     private ThreadPool threadPool;
     private Executor executor;
 
-    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
         List<URL> urls = classpathResources("/*.csv-spec");
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
@@ -582,6 +584,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx)),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
             mapper,
@@ -594,24 +597,27 @@ public class CsvTests extends ESTestCase {
 
         PlainActionFuture<ActualResults> listener = new PlainActionFuture<>();
 
-        session.executeOptimizedPlan(
-            new EsqlQueryRequest(),
-            new EsqlExecutionInfo(randomBoolean()),
-            planRunner(bigArrays, foldCtx, physicalOperationProviders),
-            session.optimizedPlan(analyzed),
-            listener.delegateFailureAndWrap(
-                // Wrap so we can capture the warnings in the calling thread
-                (next, result) -> next.onResponse(
-                    new ActualResults(
-                        result.schema().stream().map(Attribute::name).toList(),
-                        result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
-                        result.schema().stream().map(Attribute::dataType).toList(),
-                        result.pages(),
-                        threadPool.getThreadContext().getResponseHeaders()
+        session.preOptimizedPlan(analyzed, listener.delegateFailureAndWrap((l, preOptimized) -> {
+            session.executeOptimizedPlan(
+                new EsqlQueryRequest(),
+                new EsqlExecutionInfo(randomBoolean()),
+                planRunner(bigArrays, foldCtx, physicalOperationProviders),
+                session.optimizedPlan(preOptimized),
+                listener.delegateFailureAndWrap(
+                    // Wrap so we can capture the warnings in the calling thread
+                    (next, result) -> next.onResponse(
+                        new ActualResults(
+                            result.schema().stream().map(Attribute::name).toList(),
+                            result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
+                            result.schema().stream().map(Attribute::dataType).toList(),
+                            result.pages(),
+                            threadPool.getThreadContext().getResponseHeaders()
+                        )
                     )
                 )
-            )
-        );
+            );
+        }));
+
         return listener.get();
     }
 
@@ -699,9 +705,9 @@ public class CsvTests extends ESTestCase {
             configuration,
             exchangeSource::createExchangeSource,
             () -> exchangeSink.createExchangeSink(() -> {}),
-            Mockito.mock(EnrichLookupService.class),
-            Mockito.mock(LookupFromIndexService.class),
-            Mockito.mock(InferenceRunner.class),
+            mock(EnrichLookupService.class),
+            mock(LookupFromIndexService.class),
+            mock(InferenceService.class),
             physicalOperationProviders,
             List.of()
         );

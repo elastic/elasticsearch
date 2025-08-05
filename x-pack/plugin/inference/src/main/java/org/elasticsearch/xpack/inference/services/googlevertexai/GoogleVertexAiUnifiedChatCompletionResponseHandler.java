@@ -124,7 +124,7 @@ public class GoogleVertexAiUnifiedChatCompletionResponseHandler extends GoogleVe
             }
         }
 
-        static UnifiedChatCompletionErrorResponse fromString(String response) {
+        public static UnifiedChatCompletionErrorResponse fromString(String response) {
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(XContentParserConfiguration.EMPTY, response)

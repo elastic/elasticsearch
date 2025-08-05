@@ -34,6 +34,7 @@ public class AggregateWritables {
             MinOverTime.ENTRY,
             MaxOverTime.ENTRY,
             AvgOverTime.ENTRY,
+            Last.ENTRY,
             LastOverTime.ENTRY,
             FirstOverTime.ENTRY,
             SumOverTime.ENTRY,

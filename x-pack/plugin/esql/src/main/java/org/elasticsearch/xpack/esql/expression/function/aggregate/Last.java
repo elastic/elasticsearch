@@ -20,6 +20,7 @@ import org.elasticsearch.compute.aggregation.LastOverTimeDoubleAggregatorFunctio
 import org.elasticsearch.compute.aggregation.LastOverTimeFloatAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastOverTimeIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastOverTimeLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -36,22 +37,22 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class Last extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Last", Last::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Last", Last::readFrom);
 
     private final Expression sort;
 
     // TODO: support all types
     @FunctionInfo(
-        type = FunctionType.TIME_SERIES_AGGREGATE,
+        type = FunctionType.AGGREGATE,
         returnType = { "long", "integer", "double" },
         description = "The latest value of a field.",
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) }
-        // examples = { @Example(file = "k8s-timeseries", tag = "last_over_time") } NOCOMMIT
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.UNAVAILABLE) },
+        examples = @Example(file = "stats_last", tag = "last")
     )
     public Last(
         Source source,
         @Param(name = "field", type = { "long", "integer", "double" }) Expression field,
-        @Param(name = "field", type = { "long", "datetime", "date_nanos" }) Expression sort
+        @Param(name = "field", type = { "datetime", "date_nanos" }) Expression sort
     ) {
         this(source, field, Literal.TRUE, sort);
     }
@@ -61,13 +62,13 @@ public class Last extends AggregateFunction implements ToAggregator {
         this.sort = sort;
     }
 
-    public Last(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class)
-        );
+    private static Last readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((PlanStreamInput) in);
+        Expression field = in.readNamedWriteable(Expression.class);
+        Expression filter = in.readNamedWriteable(Expression.class);
+        List<Expression> params = in.readNamedWriteableCollectionAsList(Expression.class);
+        Expression sort = params.getFirst();
+        return new Last(source, field, filter, sort);
     }
 
     @Override

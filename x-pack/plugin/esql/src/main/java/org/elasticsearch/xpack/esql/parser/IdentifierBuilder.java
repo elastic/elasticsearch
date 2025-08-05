@@ -38,17 +38,13 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
     public String visitIdentifier(IdentifierContext ctx) {
-        return ctx == null ? null : unquoteIdentifier(ctx.QUOTED_IDENTIFIER(), ctx.UNQUOTED_IDENTIFIER());
-    }
-
-    protected static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {
-        String result;
-        if (quotedNode != null) {
-            result = unquoteIdString(quotedNode.getText());
-        } else {
-            result = unquotedNode.getText();
+        if (ctx == null) {
+            return null;
         }
-        return result;
+        if (ctx.QUOTED_IDENTIFIER() != null) {
+            return unquoteIdString(ctx.QUOTED_IDENTIFIER().getText());
+        }
+        return ctx.getText();
     }
 
     protected static String unquoteIdString(String quotedString) {

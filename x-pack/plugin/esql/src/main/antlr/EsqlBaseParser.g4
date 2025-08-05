@@ -165,6 +165,8 @@ qualifiedNamePatterns
 identifier
     : UNQUOTED_IDENTIFIER
     | QUOTED_IDENTIFIER
+    | FIRST
+    | LAST
     ;
 
 identifierPattern

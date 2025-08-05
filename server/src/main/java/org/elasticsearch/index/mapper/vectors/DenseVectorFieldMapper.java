@@ -2750,9 +2750,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         filter,
                         parentFilter,
                         bbqIndexOptions.defaultNProbe,
-                    visitedRatio
+                        visitedRatio
                     )
-                    : new IVFKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter, bbqIndexOptions.defaultNProbe, visitedRatio);
+                    : new IVFKnnFloatVectorQuery(
+                        name(),
+                        queryVector,
+                        adjustedK,
+                        numCands,
+                        filter,
+                        bbqIndexOptions.defaultNProbe,
+                        visitedRatio
+                    );
             } else {
                 knnQuery = parentFilter != null
                     ? new ESDiversifyingChildrenFloatKnnVectorQuery(

@@ -9,13 +9,14 @@
 
 package org.elasticsearch.index.codec.tsdb.es819;
 
-import org.apache.lucene.index.SortedDocValues;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
 
-public abstract class BlockAwareSortedDocValues extends SortedDocValues {
+public interface SingletonLongDocValuesBlockLoader {
 
-    public abstract void loadBlock(BlockLoader.SingletonOrdinalsBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
+    void loadBlock(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException;
+
+    int docID();
 
 }

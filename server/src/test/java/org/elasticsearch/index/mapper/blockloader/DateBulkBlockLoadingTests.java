@@ -20,7 +20,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -31,23 +34,25 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DateBulkBlockLoadingTests extends MapperServiceTestCase {
 
     public void testManyValues() throws Exception {
         final String mappings = """
-                    {
-                        "_doc" : {
-                            "properties": {
-                                "@timestamp": {
-                                    "type": "date",
-                                    "ignore_malformed": false
-                                }
+                {
+                    "_doc" : {
+                        "properties": {
+                            "@timestamp": {
+                                "type": "date",
+                                "ignore_malformed": false
                             }
                         }
                     }
-                """;
-        var mapperService = createMapperService(Settings.builder().put("index.mode", "logsdb").build(), mappings);
+                }
+            """;
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).put("index.mode", "logsdb").build();
+        var mapperService = createMapperService(settings, mappings);
         try (Directory directory = newDirectory()) {
             int from = 0;
             int to = 10_000;
@@ -64,6 +69,9 @@ public class DateBulkBlockLoadingTests extends MapperServiceTestCase {
                 iw.forceMerge(1);
             }
             var mockBlockContext = mock(MappedFieldType.BlockLoaderContext.class);
+            IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
+            IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
+            when(mockBlockContext.indexSettings()).thenReturn(indexSettings);
             var blockLoader = mapperService.fieldType("@timestamp").blockLoader(mockBlockContext);
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 LeafReaderContext context = reader.leaves().get(0);

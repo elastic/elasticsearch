@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.queries;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -18,14 +19,19 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteInterceptor {
@@ -34,7 +40,12 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         "search.semantic_multi_match_query_rewrite_interception_supported"
     );
 
-    public SemanticMultiMatchQueryRewriteInterceptor() {}
+    private final Supplier<ModelRegistry> modelRegistrySupplier;
+
+
+    public SemanticMultiMatchQueryRewriteInterceptor(Supplier<ModelRegistry> modelRegistrySupplier) {
+        this.modelRegistrySupplier = modelRegistrySupplier;
+    }
 
     @Override
     public QueryBuilder interceptAndRewrite(QueryRewriteContext context, QueryBuilder queryBuilder) {
@@ -96,7 +107,17 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             }
         }
 
-        return new MultiFieldInferenceInfo(fieldNames, inferenceFieldsPerIndex, nonInferenceIndices, inferenceFieldsByIndex);
+        MultiFieldInferenceInfo inferenceInfo = new MultiFieldInferenceInfo(
+            fieldNames,
+            inferenceFieldsPerIndex,
+            nonInferenceIndices,
+            inferenceFieldsByIndex
+        );
+
+        // Perform early detection of score range mismatches and emit warning if needed
+        detectAndWarnScoreRangeMismatch(inferenceInfo);
+
+        return inferenceInfo;
     }
 
     private QueryBuilder buildInferenceQuery(MultiMatchQueryBuilder originalQuery, MultiFieldInferenceInfo inferenceInfo) {
@@ -137,7 +158,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
                 disMaxQuery.boost(originalQuery.boost());
                 disMaxQuery.queryName(originalQuery.queryName());
                 return disMaxQuery;
-                
+
             case MOST_FIELDS:
                 // For most_fields, we want to score across all fields and sum the scores
                 // This can be reasonably approximated with semantic queries
@@ -150,7 +171,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
                 boolQuery.boost(originalQuery.boost());
                 boolQuery.queryName(originalQuery.queryName());
                 return boolQuery;
-                
+
             case CROSS_FIELDS:
                 // Cross-fields requires term-level analysis across fields which doesn't translate
                 // meaningfully to semantic queries that work with dense vectors
@@ -158,28 +179,28 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
                     "multi_match query with type [cross_fields] is not supported for semantic_text fields. " +
                     "Use [best_fields] or [most_fields] instead."
                 );
-                
+
             case PHRASE:
                 // Phrase queries require positional information which semantic queries don't have
                 throw new IllegalArgumentException(
                     "multi_match query with type [phrase] is not supported for semantic_text fields. " +
                     "Use [best_fields] instead."
                 );
-                
+
             case PHRASE_PREFIX:
                 // Phrase prefix queries require positional and prefix information
                 throw new IllegalArgumentException(
                     "multi_match query with type [phrase_prefix] is not supported for semantic_text fields. " +
                     "Use [best_fields] instead."
                 );
-                
+
             case BOOL_PREFIX:
                 // Bool prefix requires term-level prefix analysis
                 throw new IllegalArgumentException(
                     "multi_match query with type [bool_prefix] is not supported for semantic_text fields. " +
                     "Use [best_fields] or [most_fields] instead."
                 );
-                
+
             default:
                 // Fallback to best_fields behavior for unknown types
                 DisMaxQueryBuilder defaultDisMaxQuery = new DisMaxQueryBuilder();
@@ -229,6 +250,71 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         combinedQuery.boost(originalQuery.boost());
         combinedQuery.queryName(originalQuery.queryName());
         return combinedQuery;
+    }
+
+    /**
+     * Detects and warns about score range mismatches when a multi_match query has at least one dense vector model (TEXT_EMBEDDING)
+     * mixed with sparse vector models (SPARSE_EMBEDDING) or non-inference fields.
+     * Dense vector models typically produce bounded scores (0-1) while sparse vector models and
+     * non-inference fields produce unbounded scores, causing score range mismatches.
+     */
+    private void detectAndWarnScoreRangeMismatch(MultiFieldInferenceInfo inferenceInfo) {
+        ModelRegistry modelRegistry = modelRegistrySupplier.get();
+        if (modelRegistry == null) {
+            // Fallback: warn for any mixed semantic_text + non-inference combination
+            // since we can't determine the exact task types
+            if (inferenceInfo.hasNonInferenceFields() && inferenceInfo.getInferenceFields().isEmpty() == false) {
+                HeaderWarning.addWarning(
+                    "Query spans both semantic_text and non-inference fields. " +
+                    "Dense vector models (TEXT_EMBEDDING) produce bounded scores (0-1) while sparse vector models " +
+                    "(SPARSE_EMBEDDING) and non-inference fields produce unbounded scores, which may cause score " +
+                    "range mismatches and affect result ranking. Consider using separate queries or score normalization."
+                );
+            }
+            return;
+        }
+
+        // Check if we have any dense vector models mixed with sparse vector models or non-inference fields
+        boolean hasDenseVectorModel = false;
+        boolean hasSparseVectorModel = false;
+        boolean hasNonInferenceFields = inferenceInfo.hasNonInferenceFields();
+
+        // Collect all inference IDs from all fields
+        Set<String> allInferenceIds = new HashSet<>();
+        for (Map<String, InferenceFieldMetadata> indexFields : inferenceInfo.getInferenceFieldsPerIndex().values()) {
+            for (InferenceFieldMetadata fieldMetadata : indexFields.values()) {
+                allInferenceIds.add(fieldMetadata.getSearchInferenceId());
+            }
+        }
+
+        // Check task types for each inference ID
+        for (String inferenceId : allInferenceIds) {
+            try {
+                MinimalServiceSettings settings = modelRegistry.getMinimalServiceSettings(inferenceId);
+                if (settings != null) {
+                    TaskType taskType = settings.taskType();
+                    if (taskType == TaskType.TEXT_EMBEDDING) {
+                        hasDenseVectorModel = true;
+                    } else if (taskType == TaskType.SPARSE_EMBEDDING) {
+                        hasSparseVectorModel = true;
+                    }
+                }
+            } catch (Exception e) {
+                // If we can't get model info, skip this inference ID
+                // Or maybe we can throw an error
+            }
+        }
+
+        // Emit warning only if we have dense vector model mixed with sparse vector or non-inference fields
+        if (hasDenseVectorModel && (hasSparseVectorModel || hasNonInferenceFields)) {
+            HeaderWarning.addWarning(
+                "Query contains dense vector model (TEXT_EMBEDDING) with bounded scores (0-1) mixed with " +
+                (hasSparseVectorModel ? "sparse vector model (SPARSE_EMBEDDING) and/or " : "") +
+                (hasNonInferenceFields ? "non-inference fields " : "") +
+                "that produce unbounded scores. This may cause score range mismatches and affect result ranking. " +
+                "Consider using separate queries or score normalization for optimal results."
+            );
+        }
     }
 
     private MultiMatchQueryBuilder copyMultiMatchQueryBuilder(MultiMatchQueryBuilder original) {

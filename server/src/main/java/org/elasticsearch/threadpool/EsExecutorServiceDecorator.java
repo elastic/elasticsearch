@@ -157,6 +157,7 @@ public class EsExecutorServiceDecorator implements ExecutorService {
                     return currentValue + 1;
                 }
             });
+            boolean executed = false;
             try {
                 delegate.execute(() -> {
                     try {
@@ -167,11 +168,19 @@ public class EsExecutorServiceDecorator implements ExecutorService {
                         tryShutdownDelegate();
                     }
                 });
+                executed = true;
             } catch (RejectedExecutionException e) {
+                tryShutdownDelegate();
                 if (command == WORKER_PROBE) {
                     return;
                 }
                 throw new EsRejectedExecutionException("delegate rejected execution", delegate.isShutdown());
+            } finally {
+                if (executed == false) {
+                    // Decrement outstanding
+                    runningTasks.decrementAndGet();
+                    tryShutdownDelegate();
+                }
             }
         } catch (Exception e) {
             if (wrappedRunnable instanceof AbstractRunnable abstractRunnable) {

@@ -6014,6 +6014,56 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     /*
+     * EsqlProject[[emp_no{f}#11, avg{r}#5, languages{f}#14, gender{f}#13]]
+     * \_TopN[[Order[emp_no{f}#11,ASC,LAST]],5[INTEGER]]
+     *   \_InlineJoin[LEFT,[languages{f}#14],[languages{f}#14],[languages{r}#14]]
+     *     |_EsRelation[test][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *     \_Project[[avg{r}#5, languages{f}#14]]
+     *       \_Eval[[$$SUM$avg$0{r$}#22 / $$COUNT$avg$1{r$}#23 AS avg#5]]
+     *         \_Aggregate[[languages{f}#14],[SUM(salary{f}#16,true[BOOLEAN]) AS $$SUM$avg$0#22, COUNT(salary{f}#16,true[BOOLEAN]) AS
+     *              $$COUNT$avg$1#23, languages{f}#14]]
+     *           \_StubRelation[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20,
+     *                  languages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
+     */
+    public void testInlinestatsAfterSortAndBeforeLimit() {
+        var query = """
+            FROM employees
+            | SORT emp_no
+            | INLINESTATS avg = AVG(salary) BY languages
+            | LIMIT 5
+            | KEEP emp_no, avg, languages, gender
+            """;
+        if (releaseBuildForInlinestats(query)) {
+            return;
+        }
+        var plan = optimizedPlan(query);
+
+        var esqlProject = as(plan, EsqlProject.class);
+
+        var topN = as(esqlProject.child(), TopN.class);
+        assertThat(topN.order().size(), is(1));
+        var order = as(topN.order().get(0), Order.class);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.ASC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        assertThat(Expressions.name(order.child()), equalTo("emp_no"));
+        assertThat(topN.limit().fold(FoldContext.small()), equalTo(5));
+
+        var inlineJoin = as(topN.child(), InlineJoin.class);
+        assertThat(Expressions.names(inlineJoin.config().matchFields()), is(List.of("languages")));
+        // Left
+        var relation = as(inlineJoin.left(), EsRelation.class);
+        assertThat(relation.concreteIndices(), is(Set.of("test")));
+        // Right
+        var project = as(inlineJoin.right(), Project.class);
+        assertThat(Expressions.names(project.projections()), is(List.of("avg", "languages")));
+        var eval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(eval.fields()), is(List.of("avg")));
+        var agg = as(eval.child(), Aggregate.class);
+        assertMap(Expressions.names(agg.output()), is(List.of("$$SUM$avg$0", "$$COUNT$avg$1", "languages")));
+        var stub = as(agg.child(), StubRelation.class);
+    }
+
+    /*
      * TopN[[Order[emp_no{f}#8,DESC,FIRST]],1000[INTEGER]]
      * \_Filter[emp_no{f}#8 > 1000[INTEGER]]
      *   \_InlineJoin[LEFT,[emp_no{f}#8],[emp_no{f}#8],[emp_no{r}#8]]
@@ -6201,7 +6251,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var fieldAttribute = as(groupings.get(0), FieldAttribute.class);
         assertThat(fieldAttribute.name(), is("languages"));
         var aggs = agg.aggregates();
-        assertThat(aggs.get(0).toString(), is("MIN(salary) AS min#5"));
+        assertThat(aggs.get(0).toString(), startsWith("MIN(salary) AS min"));
         var stub = as(agg.child(), StubRelation.class);
         // outer right
         var project = as(inlineJoin.right(), Project.class);

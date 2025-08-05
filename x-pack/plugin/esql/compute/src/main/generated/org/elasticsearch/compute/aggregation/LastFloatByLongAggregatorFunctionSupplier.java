@@ -11,11 +11,11 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link FirstOverTimeIntAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link LastFloatByLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class FirstOverTimeIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public FirstOverTimeIntAggregatorFunctionSupplier() {
+public final class LastFloatByLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public LastFloatByLongAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -25,7 +25,7 @@ public final class FirstOverTimeIntAggregatorFunctionSupplier implements Aggrega
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return FirstOverTimeIntGroupingAggregatorFunction.intermediateStateDesc();
+    return LastFloatByLongGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -34,13 +34,13 @@ public final class FirstOverTimeIntAggregatorFunctionSupplier implements Aggrega
   }
 
   @Override
-  public FirstOverTimeIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public LastFloatByLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return FirstOverTimeIntGroupingAggregatorFunction.create(channels, driverContext);
+    return LastFloatByLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "first_over_time of ints";
+    return "last_float_by of longs";
   }
 }

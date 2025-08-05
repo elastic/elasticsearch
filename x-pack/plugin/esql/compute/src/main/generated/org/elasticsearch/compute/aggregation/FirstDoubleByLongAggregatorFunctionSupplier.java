@@ -11,11 +11,11 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link FirstOverTimeLongAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link FirstDoubleByLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class FirstOverTimeLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public FirstOverTimeLongAggregatorFunctionSupplier() {
+public final class FirstDoubleByLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public FirstDoubleByLongAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -25,7 +25,7 @@ public final class FirstOverTimeLongAggregatorFunctionSupplier implements Aggreg
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return FirstOverTimeLongGroupingAggregatorFunction.intermediateStateDesc();
+    return FirstDoubleByLongGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -34,13 +34,13 @@ public final class FirstOverTimeLongAggregatorFunctionSupplier implements Aggreg
   }
 
   @Override
-  public FirstOverTimeLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+  public FirstDoubleByLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return FirstOverTimeLongGroupingAggregatorFunction.create(channels, driverContext);
+    return FirstDoubleByLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "first_over_time of longs";
+    return "first_double_by of longs";
   }
 }

@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstOverTimeDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstOverTimeFloatAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstOverTimeIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstOverTimeLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstDoubleByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstFloatByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstIntByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstLongByLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -128,12 +128,14 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        // TODO: When processing TSDB data_streams they are sorted by `_tsid` and timestamp in descending order,
+        // we can read the first encountered value for each group of `_tsid` and time bucket.
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new FirstOverTimeLongAggregatorFunctionSupplier();
-            case INTEGER -> new FirstOverTimeIntAggregatorFunctionSupplier();
-            case DOUBLE -> new FirstOverTimeDoubleAggregatorFunctionSupplier();
-            case FLOAT -> new FirstOverTimeFloatAggregatorFunctionSupplier();
+            case LONG -> new FirstLongByLongAggregatorFunctionSupplier();
+            case INTEGER -> new FirstIntByLongAggregatorFunctionSupplier();
+            case DOUBLE -> new FirstDoubleByLongAggregatorFunctionSupplier();
+            case FLOAT -> new FirstFloatByLongAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

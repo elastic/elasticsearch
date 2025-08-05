@@ -11,11 +11,11 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link LastOverTimeDoubleAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link FirstIntByLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class LastOverTimeDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public LastOverTimeDoubleAggregatorFunctionSupplier() {
+public final class FirstIntByLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public FirstIntByLongAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -25,7 +25,7 @@ public final class LastOverTimeDoubleAggregatorFunctionSupplier implements Aggre
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return LastOverTimeDoubleGroupingAggregatorFunction.intermediateStateDesc();
+    return FirstIntByLongGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -34,13 +34,13 @@ public final class LastOverTimeDoubleAggregatorFunctionSupplier implements Aggre
   }
 
   @Override
-  public LastOverTimeDoubleGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext, List<Integer> channels) {
-    return LastOverTimeDoubleGroupingAggregatorFunction.create(channels, driverContext);
+  public FirstIntByLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
+    return FirstIntByLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "last_over_time of doubles";
+    return "first_int_by of longs";
   }
 }

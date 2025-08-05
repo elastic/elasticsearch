@@ -9,14 +9,14 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FloatArray;
+import org.elasticsearch.common.util.$Type$Array;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -24,20 +24,18 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-ValueOverTimeAggregator.java.st` instead.
+ * A time-series aggregation function that collects the $Occurrence$ occurrence value of a time series in a specified interval.
+ * This class is generated. Edit `X-ValueByLongAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "FLOAT_BLOCK") }
+    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
 )
-public class FirstOverTimeFloatAggregator {
+public class $Occurrence$$Type$ByLongAggregator {
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
 
-    // TODO: Since data in data_streams is sorted by `_tsid` and timestamp in descending order,
-    // we can read the first encountered value for each group of `_tsid` and time bucket.
-    public static void combine(GroupingState current, int groupId, float value, long timestamp) {
+    public static void combine(GroupingState current, int groupId, $type$ value, long timestamp) {
         current.collectValue(groupId, timestamp, value);
     }
 
@@ -45,7 +43,7 @@ public class FirstOverTimeFloatAggregator {
         GroupingState current,
         int groupId,
         LongBlock timestamps, // stylecheck
-        FloatBlock values,
+        $Type$Block values,
         int otherPosition
     ) {
         // TODO seen should probably be part of the intermediate representation
@@ -54,7 +52,7 @@ public class FirstOverTimeFloatAggregator {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
             int firstIndex = values.getFirstValueIndex(otherPosition);
             for (int i = 0; i < valueCount; i++) {
-                current.collectValue(groupId, timestamp, values.getFloat(firstIndex + i));
+                current.collectValue(groupId, timestamp, values.get$Type$(firstIndex + i));
             }
         }
     }
@@ -66,7 +64,7 @@ public class FirstOverTimeFloatAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
         private LongArray timestamps;
-        private FloatArray values;
+        private $Type$Array values;
         private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
@@ -77,7 +75,7 @@ public class FirstOverTimeFloatAggregator {
             try {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
-                this.values = bigArrays.newFloatArray(1, false);
+                this.values = bigArrays.new$Type$Array(1, false);
                 success = true;
             } finally {
                 if (success == false) {
@@ -86,11 +84,11 @@ public class FirstOverTimeFloatAggregator {
             }
         }
 
-        void collectValue(int groupId, long timestamp, float value) {
+        void collectValue(int groupId, long timestamp, $type$ value) {
             boolean updated = false;
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
-                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) > timestamp) {
+                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) $if(Last)$<$else$>$endif$ timestamp) {
                     timestamps.set(groupId, timestamp);
                     updated = true;
                 }
@@ -116,13 +114,13 @@ public class FirstOverTimeFloatAggregator {
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                var valuesBuilder = driverContext.blockFactory().newFloatBlockBuilder(selected.getPositionCount())
+                var valuesBuilder = driverContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount())
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
                         timestampsBuilder.appendLong(timestamps.get(group));
-                        valuesBuilder.appendFloat(values.get(group));
+                        valuesBuilder.append$Type$(values.get(group));
                     } else {
                         timestampsBuilder.appendNull();
                         valuesBuilder.appendNull();
@@ -134,11 +132,11 @@ public class FirstOverTimeFloatAggregator {
         }
 
         Block evaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-            try (var builder = evalContext.blockFactory().newFloatBlockBuilder(selected.getPositionCount())) {
+            try (var builder = evalContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
-                        builder.appendFloat(values.get(group));
+                        builder.append$Type$(values.get(group));
                     } else {
                         builder.appendNull();
                     }

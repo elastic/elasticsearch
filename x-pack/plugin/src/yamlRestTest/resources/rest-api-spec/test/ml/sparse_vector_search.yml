@@ -970,7 +970,7 @@ teardown:
             sparse_vector:
               field: content_embedding
               query_vector:
-                is: 0.21
+                is: 0.21 # 0.2 is the weight threshold for the default pruning config
 
   - match: { hits.total.value: 11 }
 

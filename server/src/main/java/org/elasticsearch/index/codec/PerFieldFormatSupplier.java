@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -36,6 +37,7 @@ public class PerFieldFormatSupplier {
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private static final KnnVectorsFormat knnVectorsFormat = new Lucene99HnswVectorsFormat();
     private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
+    private static final DocValuesFormat stringDocValuesFormat = new ES819TSDBDocValuesFormat(BinaryDVCompressionMode.COMPRESSED_WITH_FSST);
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
@@ -105,6 +107,13 @@ public class PerFieldFormatSupplier {
     }
 
     public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (mapperService != null) {
+            Mapper mapper = mapperService.mappingLookup().getMapper(field);
+            if (mapper != null && mapper.typeName().equals("wildcard")) {
+                return stringDocValuesFormat;
+            }
+        }
+
         if (useTSDBDocValuesFormat(field)) {
             return tsdbDocValuesFormat;
         }

@@ -58,7 +58,7 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             Codec codec = new Elasticsearch900Lucene101Codec() {
 
                 final DocValuesFormat docValuesFormat = randomBoolean()
-                    ? new ES819TSDBDocValuesFormat()
+                    ? new ES819TSDBDocValuesFormat(randomFrom(BinaryDVCompressionMode.values()))
                     : new TestES87TSDBDocValuesFormat();
 
                 @Override

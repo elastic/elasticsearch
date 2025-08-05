@@ -205,6 +205,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -991,6 +992,15 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static boolean randomBoolean() {
         return random().nextBoolean();
+    }
+
+    public static Random random() {
+        // I don't think carrotsearch's random context work with virtual threads at the moment
+        if (Thread.currentThread().isVirtual()) {
+            return ThreadLocalRandom.current();
+        } else {
+            return LuceneTestCase.random();
+        }
     }
 
     public static Boolean randomOptionalBoolean() {

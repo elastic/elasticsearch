@@ -1397,7 +1397,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 || indexName.startsWith(".logs-endpoint.actions-")
                 || indexName.startsWith(".logs-endpoint.action.responses-")
                 || indexName.startsWith(".logs-endpoint.heartbeat-")
-                || indexName.startsWith(".logs-osquery_manager.actions-");
+                || indexName.startsWith(".logs-osquery_manager.actions-")
+                || indexName.startsWith("logs-")
+                || indexName.startsWith("metrics-")
+                || indexName.startsWith("traces-");
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction),
                 is(isAlsoReadIndex)

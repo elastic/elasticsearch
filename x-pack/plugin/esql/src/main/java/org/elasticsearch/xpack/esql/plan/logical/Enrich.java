@@ -303,7 +303,7 @@ public class Enrich extends UnaryPlan
      * In that case, users have to write it as `FROM test | ENRICH _remote: | ORDER @timestamp | LIMIT 10`,
      * which is equivalent to bringing all data to the coordinating cluster.
      * We might consider implementing the actual remote enrich on the coordinating cluster, however, this requires
-     * retaining the originating cluster and restructing pages for routing, which might be complicated.
+     * retaining the originating cluster and restructuring pages for routing, which might be complicated.
      */
     private void checkForPlansForbiddenBeforeRemoteEnrich(Failures failures) {
         if (this.mode != Mode.REMOTE) {

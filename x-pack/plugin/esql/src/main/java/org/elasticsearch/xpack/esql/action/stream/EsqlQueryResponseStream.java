@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.esql.action.stream;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.StreamingXContentResponse;
@@ -35,6 +38,7 @@ import java.util.List;
  * TODO: Took header wouldn't be available on streaming
  */
 public abstract class EsqlQueryResponseStream implements Releasable {
+    private static final Logger LOGGER = LogManager.getLogger(EsqlQueryResponseStream.class);
 
     public static EsqlQueryResponseStream forMediaType(RestChannel restChannel, RestRequest request) {
         MediaType mediaType = EsqlMediaTypeParser.getResponseMediaType(request, XContentType.JSON);
@@ -53,7 +57,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
     private final RestChannel restChannel;
     protected final ToXContent.Params params;
     /**
-     * Initialized on the first call to {@link #startResponse()} and used to write the response chunks.
+     * Initialized on the first call to {@link #startResponse} and used to write the response chunks.
      */
     @Nullable
     private StreamingXContentResponse streamingXContentResponse;
@@ -79,7 +83,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
      */
     public final void startResponse(List<ColumnInfoImpl> columns) throws IOException {
         assert streamingXContentResponse == null : "startResponse() called more than once";
-        assert finished == false : "sendPages() called after finishResponse()";
+        assert finished == false : "sendPages() called on a finished stream";
 
         streamingXContentResponse = new StreamingXContentResponse(restChannel, restChannel.request(), () -> {});
 
@@ -93,7 +97,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
 
     public final void sendPages(Iterable<Page> pages) {
         assert streamingXContentResponse != null : "sendPages() called before startResponse()";
-        assert finished == false : "sendPages() called after finishResponse()";
+        assert finished == false : "sendPages() called on a finished stream";
 
         if (initialStreamChunkSent) {
             doSendPages(pages);
@@ -111,6 +115,36 @@ public abstract class EsqlQueryResponseStream implements Releasable {
         finished = true;
     }
 
+    public final void handleException(Exception e) {
+        assert finished == false : "handleException() called on a finished stream";
+
+        // TODO: To be overridden by subclasses. This should append the error to the stream, if possible
+        LOGGER.error("Error while streaming response", e);
+
+        finished = true;
+    }
+
+    // TODO: For error handling, check RestActionListener error listener
+    // TODO: Also ensure that we check if the channel is closed at some points (Also see RestActionListener)
+
+    public final ActionListener<EsqlQueryResponse> completionListener() {
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(EsqlQueryResponse esqlResponse) {
+                assert finished == false : "completionListener() called on a finished stream";
+
+                finishResponse(esqlResponse);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert finished == false : "onFailure() called on a finished stream";
+
+                handleException(e);
+            }
+        };
+    }
+
     /**
      * Returns true if the response can be streamed, false otherwise.
      * <p>
@@ -125,6 +159,8 @@ public abstract class EsqlQueryResponseStream implements Releasable {
     protected abstract void doSendPages(Iterable<Page> pages);
 
     protected abstract void doFinishResponse(EsqlQueryResponse response);
+
+    protected abstract void doHandleException(Exception e);
 
     protected void doSendEverything(EsqlQueryResponse response) {
         // TODO: Is this safe? Should this be abstract to ensure proper implementation? Add tests for both cases

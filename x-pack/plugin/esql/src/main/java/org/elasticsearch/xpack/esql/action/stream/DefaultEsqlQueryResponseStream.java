@@ -73,6 +73,11 @@ public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
         doFinishResponse(response);
     }
 
+    @Override
+    protected void doHandleException(Exception e) {
+        // TODO: Implement this
+    }
+
     private void sendStartResponseDroppingNullColumns(List<ColumnInfoImpl> columns, List<Page> pages) {
         assert params.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false) : "this method should only be called when dropping null columns";
 

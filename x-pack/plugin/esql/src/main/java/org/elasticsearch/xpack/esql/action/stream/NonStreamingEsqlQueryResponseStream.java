@@ -31,7 +31,7 @@ public class NonStreamingEsqlQueryResponseStream extends EsqlQueryResponseStream
 
     private final ActionListener<EsqlQueryResponse> listener;
 
-    NonStreamingEsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
+    public NonStreamingEsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
         super(restChannel, restRequest);
 
         this.listener = new EsqlResponseListener(restChannel, restRequest, esqlRequest).wrapWithLogging();
@@ -55,6 +55,11 @@ public class NonStreamingEsqlQueryResponseStream extends EsqlQueryResponseStream
     @Override
     protected void doFinishResponse(EsqlQueryResponse response) {
         throw new UnsupportedOperationException("This class does not support streaming");
+    }
+
+    @Override
+    protected void doHandleException(Exception e) {
+        listener.onFailure(e);
     }
 
     @Override

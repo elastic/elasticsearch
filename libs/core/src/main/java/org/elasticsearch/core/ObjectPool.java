@@ -18,7 +18,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-// FIXME: Build thread local shim for this to toggle using FeatureFlag
 public interface ObjectPool<T> {
     static <T> ObjectPool<T> withInitial(Supplier<T> supplier, Duration timeout) {
         return new HybridPool<>(supplier, timeout.toNanos());
@@ -83,7 +82,7 @@ public interface ObjectPool<T> {
 
         static {
             try {
-                VAR_HANDLE = MethodHandles.lookup().findVarHandle(ObjectPool.class, "lastTimeoutCheckNanos", long.class);
+                VAR_HANDLE = MethodHandles.lookup().findVarHandle(UnboundedObjectPool.class, "lastTimeoutCheckNanos", long.class);
             } catch (ReflectiveOperationException e) {
                 throw new ExceptionInInitializerError(e);
             }

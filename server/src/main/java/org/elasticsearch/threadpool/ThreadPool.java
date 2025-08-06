@@ -616,12 +616,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             if (executor.executor() instanceof ThreadPoolExecutor) {
                 closeMetrics(executor);
                 executor.executor().shutdown();
-                logger.info("Shutting down pool [{}]", executor.info.getName());
             } else if (executor.executor() instanceof EsExecutorServiceDecorator decorator) {
-                logger.info("Shutting down virtual pool [{}]", executor.info.getName());
                 decorator.shutdown();
-            } else {
-                logger.warn("unknown executor type [{}]", executor.executor().getClass().getName());
             }
         }
     }

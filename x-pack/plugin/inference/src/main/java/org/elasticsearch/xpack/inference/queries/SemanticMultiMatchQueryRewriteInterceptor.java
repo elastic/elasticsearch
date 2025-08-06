@@ -42,6 +42,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
     );
 
     private final Supplier<ModelRegistry> modelRegistrySupplier;
+    private final float DEFAULT_BOOST_FIELD = 1.0f;
 
 
     public SemanticMultiMatchQueryRewriteInterceptor(Supplier<ModelRegistry> modelRegistrySupplier) {
@@ -128,18 +129,12 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             String fieldName = inferenceFields.iterator().next();
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
 
-            // Apply per-field boost if specified
-            Float fieldBoost = fieldsBoosts.get(fieldName);
-            if (fieldBoost != null && fieldBoost != 1.0f) {
-                semanticQuery.boost(fieldBoost);
-            }
+            // Apply per-field boost
+            float fieldBoost = fieldsBoosts.getOrDefault(fieldName, DEFAULT_BOOST_FIELD);
+            semanticQuery.boost(fieldBoost);
 
             // Apply top-level query boost and name
-            if (originalQuery.boost() != 1.0f) {
-                // If we already have field boost, combine with query boost
-                float finalBoost = semanticQuery.boost() * originalQuery.boost();
-                semanticQuery.boost(finalBoost);
-            }
+            semanticQuery.boost(semanticQuery.boost() * originalQuery.boost());
             semanticQuery.queryName(originalQuery.queryName());
             return semanticQuery;
         } else {
@@ -224,10 +219,8 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
 
             // Apply per-field boost if specified
-            Float fieldBoost = fieldsBoosts.get(fieldName);
-            if (fieldBoost != null && fieldBoost != 1.0f) {
-                semanticQuery.boost(fieldBoost);
-            }
+            float fieldBoost = fieldsBoosts.getOrDefault(fieldName, DEFAULT_BOOST_FIELD);
+            semanticQuery.boost(fieldBoost);
 
             disMaxQuery.add(semanticQuery);
         }
@@ -254,10 +247,8 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
 
             // Apply per-field boost if specified
-            Float fieldBoost = fieldsBoosts.get(fieldName);
-            if (fieldBoost != null && fieldBoost != 1.0f) {
-                semanticQuery.boost(fieldBoost);
-            }
+            float fieldBoost = fieldsBoosts.getOrDefault(fieldName, DEFAULT_BOOST_FIELD);
+            semanticQuery.boost(fieldBoost);
 
             boolQuery.should(semanticQuery);
         }
@@ -285,11 +276,9 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             for (String fieldName : indexInferenceFields.keySet()) {
                 SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, true);
 
-                // Apply per-field boost if specified
-                Float fieldBoost = fieldsBoosts.get(fieldName);
-                if (fieldBoost != null && fieldBoost != 1.0f) {
-                    semanticQuery.boost(fieldBoost);
-                }
+                // Apply per-field boost
+                float fieldBoost = fieldsBoosts.getOrDefault(fieldName, DEFAULT_BOOST_FIELD);
+                semanticQuery.boost(fieldBoost);
 
                 BoolQueryBuilder indexSpecificQuery = new BoolQueryBuilder();
                 indexSpecificQuery.must(semanticQuery);
@@ -335,11 +324,9 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             for (String fieldName : indexInferenceFields.keySet()) {
                 SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, true);
 
-                // Apply per-field boost if specified
-                Float fieldBoost = fieldsBoosts.get(fieldName);
-                if (fieldBoost != null && fieldBoost != 1.0f) {
-                    semanticQuery.boost(fieldBoost);
-                }
+                // Apply per-field boost
+                float fieldBoost = fieldsBoosts.getOrDefault(fieldName, DEFAULT_BOOST_FIELD);
+                semanticQuery.boost(fieldBoost);
 
                 BoolQueryBuilder indexSpecificQuery = new BoolQueryBuilder();
                 indexSpecificQuery.must(semanticQuery);

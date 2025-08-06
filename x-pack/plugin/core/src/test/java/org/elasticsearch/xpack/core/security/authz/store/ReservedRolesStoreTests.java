@@ -1902,7 +1902,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(true));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(true));
             // The "update" action is also implicitly part of "write"
-            assertThat(kibanaRole.indices().allowedIndicesMatcher(UpdateAction.NAME).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportUpdateAction.NAME).test(indexAbstraction), is(true));
 
             // Assert Index Management Actions (Allowed by "create_index", "delete_index", and "manage")
             // Allowed by the explicit "create_index" privilege
@@ -1916,12 +1916,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 is(true)
             );
 
-            // Assert ILM Actions (Allowed by "manage" and explicit transport actions)
-            // Allowed due to the "manage" privilege and explicit TransportUpdateSettingsAction
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
             // Allowed due to the "manage" privilege and explicit TransportAutoPutMappingAction
             assertThat(
                 kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction),

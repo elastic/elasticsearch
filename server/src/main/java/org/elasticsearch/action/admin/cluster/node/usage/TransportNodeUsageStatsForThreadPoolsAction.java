@@ -96,16 +96,18 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
     ) {
         DiscoveryNode localNode = clusterService.localNode();
         var writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
-        assert writeExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor;
-        var trackingForWriteExecutor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) writeExecutor;
-
-        ThreadPoolUsageStats threadPoolUsageStats = new ThreadPoolUsageStats(
-            trackingForWriteExecutor.getMaximumPoolSize(),
-            (float) trackingForWriteExecutor.pollUtilization(
-                TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose.ALLOCATION
-            ),
-            trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset()
-        );
+        final ThreadPoolUsageStats threadPoolUsageStats;
+        if (writeExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor trackingForWriteExecutor) {
+            threadPoolUsageStats = new ThreadPoolUsageStats(
+                trackingForWriteExecutor.getMaximumPoolSize(),
+                (float) trackingForWriteExecutor.pollUtilization(
+                    TaskExecutionTimeTrackingEsThreadPoolExecutor.UtilizationTrackingPurpose.ALLOCATION
+                ),
+                trackingForWriteExecutor.getMaxQueueLatencyMillisSinceLastPollAndReset()
+            );
+        } else {
+            threadPoolUsageStats = new ThreadPoolUsageStats(999, 0.5f, 999);
+        }
 
         Map<String, ThreadPoolUsageStats> perThreadPool = new HashMap<>();
         perThreadPool.put(ThreadPool.Names.WRITE, threadPoolUsageStats);

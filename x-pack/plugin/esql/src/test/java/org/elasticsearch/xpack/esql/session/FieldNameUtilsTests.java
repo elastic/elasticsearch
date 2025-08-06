@@ -74,10 +74,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testForkEval() {
-        assertFieldNames(
-            "FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3 | keep z)",
-            Set.of("*")
-        );
+        assertFieldNames("FROM employees | fork (eval x = 1 | keep x) (eval y = 2 | keep y) (eval z = 3 | keep z)", Set.of("*"));
     }
 
     public void testSort1() {

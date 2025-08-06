@@ -52,7 +52,7 @@ This happened because the ES|QL driver added a live operator list to the `Driver
 [%collapsible]
 ===============
 Calling the `to_lower` or `to_upper` functions with no parameters caused a null pointer exception (NPE), instead of returning a clear error.
-This behavior was a leftover from an older implementation of these functions.
+This behavior was a result of an older implementation of these functions.
 {es-pull}131917[#131917] resolves the issue and ensures that empty parameter calls now return the correct error message. (issue: {es-issue}131913[#131913])
 ===============
 +

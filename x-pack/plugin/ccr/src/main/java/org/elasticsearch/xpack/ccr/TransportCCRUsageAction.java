@@ -28,14 +28,14 @@ import org.elasticsearch.xpack.core.ccr.CcrConstants;
 
 import java.time.Instant;
 
-public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportCCRUsageAction extends XPackUsageFeatureTransportAction {
 
     private final Settings settings;
     private final XPackLicenseState licenseState;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public CCRUsageTransportAction(
+    public TransportCCRUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -80,7 +80,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
             lastFollowTimeInMillis = Math.max(0, Instant.now().toEpochMilli() - lastFollowerIndexCreationDate);
         }
 
-        CCRInfoTransportAction.Usage usage = new CCRInfoTransportAction.Usage(
+        TransportCCRInfoAction.Usage usage = new TransportCCRInfoAction.Usage(
             CcrConstants.CCR_FEATURE.checkWithoutTracking(licenseState),
             XPackSettings.CCR_ENABLED_SETTING.get(settings),
             numberOfFollowerIndices,

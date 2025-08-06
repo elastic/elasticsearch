@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CCRInfoTransportActionTests extends ESTestCase {
+public class TransportCCRInfoActionTests extends ESTestCase {
 
     private MockLicenseState licenseState;
     private ClusterService clusterService;
@@ -51,7 +51,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
+        TransportCCRInfoAction featureSet = new TransportCCRInfoAction(
             transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
@@ -68,7 +68,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ccr.enabled", false);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
+        TransportCCRInfoAction featureSet = new TransportCCRInfoAction(
             transportService,
             mock(ActionFilters.class),
             settings.build(),
@@ -77,13 +77,13 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ccr.enabled", true);
-        featureSet = new CCRInfoTransportAction(transportService, mock(ActionFilters.class), settings.build(), licenseState);
+        featureSet = new TransportCCRInfoAction(transportService, mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
+        TransportCCRInfoAction featureSet = new TransportCCRInfoAction(
             transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
@@ -145,7 +145,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        var usageAction = new CCRUsageTransportAction(
+        var usageAction = new TransportCCRUsageAction(
             transportService,
             null,
             threadPool,
@@ -156,7 +156,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, clusterState, future);
-        CCRInfoTransportAction.Usage ccrUsage = (CCRInfoTransportAction.Usage) future.get().getUsage();
+        TransportCCRInfoAction.Usage ccrUsage = (TransportCCRInfoAction.Usage) future.get().getUsage();
         assertThat(ccrUsage.enabled(), equalTo(true));
         assertThat(ccrUsage.available(), equalTo(false));
 

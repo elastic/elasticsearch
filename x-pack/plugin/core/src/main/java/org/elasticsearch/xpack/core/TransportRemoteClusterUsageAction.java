@@ -21,12 +21,12 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 
-public class RemoteClusterUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportRemoteClusterUsageAction extends XPackUsageFeatureTransportAction {
 
     private TransportService transportService;
 
     @Inject
-    public RemoteClusterUsageTransportAction(
+    public TransportRemoteClusterUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

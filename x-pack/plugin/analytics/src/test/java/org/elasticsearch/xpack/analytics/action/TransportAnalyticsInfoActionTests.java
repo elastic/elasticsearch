@@ -39,7 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AnalyticsInfoTransportActionTests extends ESTestCase {
+public class TransportAnalyticsInfoActionTests extends ESTestCase {
 
     private Task task;
     private ClusterService clusterService;
@@ -62,10 +62,10 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     public void testAvailable() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(transportService, mock(ActionFilters.class));
+        TransportAnalyticsInfoAction featureSet = new TransportAnalyticsInfoAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
         Client client = mockClient();
-        AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(
+        TransportAnalyticsUsageAction usageAction = new TransportAnalyticsUsageAction(
             transportService,
             clusterService,
             threadPool,
@@ -88,11 +88,11 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     public void testEnabled() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(transportService, mock(ActionFilters.class));
+        TransportAnalyticsInfoAction featureSet = new TransportAnalyticsInfoAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
         Client client = mockClient();
-        AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(
+        TransportAnalyticsUsageAction usageAction = new TransportAnalyticsUsageAction(
             transportService,
             clusterService,
             threadPool,

@@ -22,11 +22,11 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
-public class AnalyticsUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportAnalyticsUsageAction extends XPackUsageFeatureTransportAction {
     private final Client client;
 
     @Inject
-    public AnalyticsUsageTransportAction(
+    public TransportAnalyticsUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

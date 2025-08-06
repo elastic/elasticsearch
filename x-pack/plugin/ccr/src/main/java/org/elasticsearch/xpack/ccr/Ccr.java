@@ -210,8 +210,8 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     public List<ActionHandler> getActions() {
-        var usageAction = new ActionHandler(XPackUsageFeatureAction.CCR, CCRUsageTransportAction.class);
-        var infoAction = new ActionHandler(XPackInfoFeatureAction.CCR, CCRInfoTransportAction.class);
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.CCR, TransportCCRUsageAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.CCR, TransportCCRInfoAction.class);
         if (enabled == false) {
             return Arrays.asList(usageAction, infoAction);
         }
@@ -304,7 +304,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             ),
 
             // usage api
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.CCR, CCRInfoTransportAction.Usage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.CCR, TransportCCRInfoAction.Usage::new)
         );
     }
 

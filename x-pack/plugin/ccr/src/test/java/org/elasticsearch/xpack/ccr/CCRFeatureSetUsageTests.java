@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class CCRFeatureSetUsageTests extends AbstractWireSerializingTestCase<CCRInfoTransportAction.Usage> {
+public class CCRFeatureSetUsageTests extends AbstractWireSerializingTestCase<TransportCCRInfoAction.Usage> {
 
     @Override
-    protected CCRInfoTransportAction.Usage createTestInstance() {
-        return new CCRInfoTransportAction.Usage(
+    protected TransportCCRInfoAction.Usage createTestInstance() {
+        return new TransportCCRInfoAction.Usage(
             randomBoolean(),
             randomBoolean(),
             randomIntBetween(0, Integer.MAX_VALUE),
@@ -24,12 +24,12 @@ public class CCRFeatureSetUsageTests extends AbstractWireSerializingTestCase<CCR
     }
 
     @Override
-    protected CCRInfoTransportAction.Usage mutateInstance(CCRInfoTransportAction.Usage instance) {
+    protected TransportCCRInfoAction.Usage mutateInstance(TransportCCRInfoAction.Usage instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
-    protected Writeable.Reader<CCRInfoTransportAction.Usage> instanceReader() {
-        return CCRInfoTransportAction.Usage::new;
+    protected Writeable.Reader<TransportCCRInfoAction.Usage> instanceReader() {
+        return TransportCCRInfoAction.Usage::new;
     }
 }

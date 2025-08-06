@@ -14,8 +14,8 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.xpack.analytics.action.AnalyticsInfoTransportAction;
-import org.elasticsearch.xpack.analytics.action.AnalyticsUsageTransportAction;
+import org.elasticsearch.xpack.analytics.action.TransportAnalyticsInfoAction;
+import org.elasticsearch.xpack.analytics.action.TransportAnalyticsUsageAction;
 import org.elasticsearch.xpack.analytics.action.TransportAnalyticsStatsAction;
 import org.elasticsearch.xpack.analytics.aggregations.AnalyticsAggregatorFactory;
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
@@ -127,8 +127,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
     @Override
     public List<ActionPlugin.ActionHandler> getActions() {
         return List.of(
-            new ActionHandler(XPackUsageFeatureAction.ANALYTICS, AnalyticsUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.ANALYTICS, AnalyticsInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ANALYTICS, TransportAnalyticsUsageAction.class),
+            new ActionHandler(XPackInfoFeatureAction.ANALYTICS, TransportAnalyticsInfoAction.class),
             new ActionHandler(AnalyticsStatsAction.INSTANCE, TransportAnalyticsStatsAction.class)
         );
     }

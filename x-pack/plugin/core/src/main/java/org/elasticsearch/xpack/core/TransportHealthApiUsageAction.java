@@ -25,12 +25,12 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 /**
  * This action provides telemetry of the cluster's health api usage.
  */
-public class HealthApiUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportHealthApiUsageAction extends XPackUsageFeatureTransportAction {
 
     private final Client client;
 
     @Inject
-    public HealthApiUsageTransportAction(
+    public TransportHealthApiUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

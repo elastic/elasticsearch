@@ -26,13 +26,13 @@ import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import java.io.IOException;
 import java.util.Objects;
 
-public class CCRInfoTransportAction extends XPackInfoFeatureTransportAction {
+public class TransportCCRInfoAction extends XPackInfoFeatureTransportAction {
 
     private final boolean enabled;
     private final XPackLicenseState licenseState;
 
     @Inject
-    public CCRInfoTransportAction(
+    public TransportCCRInfoAction(
         TransportService transportService,
         ActionFilters actionFilters,
         Settings settings,

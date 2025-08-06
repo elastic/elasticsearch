@@ -28,6 +28,9 @@ import java.io.UncheckedIOException;
  * Additionally, this implementation can collect complete value blocks.
  */
 public class TSIDOrdinalsBuilder implements BlockLoader.TSIDOrdinalsBuilder, Releasable, Block.Builder {
+
+    private static final int TSID_SIZE_GUESS =  2 + 16 + 16 + 4 * 8;
+
     private final BlockFactory blockFactory;
     private final SortedDocValues docValues;
     private final long[] ords;
@@ -83,7 +86,7 @@ public class TSIDOrdinalsBuilder implements BlockLoader.TSIDOrdinalsBuilder, Rel
             for (int i = 0; i < count; i++) {
                 newOrds[i] = Math.toIntExact(ords[i]) - minOrd;
             }
-            try (BytesRefVector.Builder bytesBuilder = blockFactory.newBytesRefVectorBuilder(valueCount)) {
+            try (BytesRefVector.Builder bytesBuilder = blockFactory.newBytesRefVectorBuilder(valueCount * TSID_SIZE_GUESS)) {
                 for (int ord = minOrd; ord <= maxOrd; ord++) {
                     bytesBuilder.appendBytesRef(docValues.lookupOrd(ord));
                 }

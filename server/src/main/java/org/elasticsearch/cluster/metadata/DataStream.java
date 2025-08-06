@@ -100,7 +100,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
     public static final String TIMESTAMP_FIELD_NAME = "@timestamp";
     public static final Pattern DS_BACKING_PATTERN = Pattern.compile(
-        "^(.*?" + BACKING_INDEX_PREFIX + ")(.+)-(\\d{4}.\\d{2}.\\d{2})(-[\\d]+)?$"
+        "^(.*?" + BACKING_INDEX_PREFIX + ")(.+)-(\\d{4}.\\d{2}.\\d{2})(-[\\d]+)$"
     );
 
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations

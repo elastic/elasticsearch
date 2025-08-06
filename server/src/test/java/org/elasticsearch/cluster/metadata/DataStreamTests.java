@@ -2715,12 +2715,19 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         assertThat(dataStream.getEffectiveIndexTemplate(projectMetadataBuilder.build()), equalTo(expectedEffectiveTemplate));
     }
 
-    public void testGetDataStreamNameFromValidBackingIndex() {
+    public void testGetDataStreamNameFromValidBackingIndices() {
         // Test a valid backing index name with correct format: .ds-<data-stream>-<yyyy.MM.dd>-<generation>
         String indexName = ".ds-my-service-logs-2024.02.05-000001";
         String dataStreamName = DataStream.getDataStreamNameFromIndex(indexName);
 
         assertEquals("my-service-logs", dataStreamName);
+
+        // Test valid backing index with extra '-' dash in the name
+        indexName = ".ds-my-service-logs-two-2024.02.05-000001";
+        dataStreamName = DataStream.getDataStreamNameFromIndex(indexName);
+
+        assertEquals("my-service-logs-two", dataStreamName);
+
     }
 
     public void testGetDataStreamNameFromInvalidBackingIndex() {
@@ -2728,8 +2735,8 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         String[] invalidNames = {
             "not-a-backing-index", // No .ds- prefix
             ".ds-", // Missing data stream name
-            ".ds-logs", // Missing date and generation
-            ".ds-logs-2024.02.05", // Missing generation
+            ".ds-my-service-logs", // Missing date and generation
+            ".ds-my-service-logs-2024.02.05", // Missing generation
         };
 
         for (String invalidName : invalidNames) {

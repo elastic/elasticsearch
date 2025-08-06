@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;

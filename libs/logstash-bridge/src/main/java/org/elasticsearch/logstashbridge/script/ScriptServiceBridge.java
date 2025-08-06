@@ -70,9 +70,8 @@ public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptSer
             MustacheScriptEngine.NAME,
             new MustacheScriptEngine(settings)
         );
-        @FixForMultiProject // Should this be non-BridgeProjectIdResolver?
-        final ProjectResolver projectResolver = new BridgeProjectIdResolver();
-        return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider, projectResolver);
+
+        return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider, ProjectIdResolverBridge.INSTANCE);
     }
 
     private static List<Whitelist> getPainlessBaseWhiteList() {
@@ -115,7 +114,13 @@ public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptSer
         this.internalDelegate.close();
     }
 
-    static class BridgeProjectIdResolver implements ProjectResolver {
+    @FixForMultiProject
+    // Logstash resolves and runs ingest pipelines based on the datastream.
+    // How should ProjectIdResolverBridge behave in this case?
+    //  In other words, it looks we need to find a way to figure out which ingest pipeline belongs to which project.
+    static class ProjectIdResolverBridge implements ProjectResolver {
+
+        public static final ProjectIdResolverBridge INSTANCE = new ProjectIdResolverBridge();
 
         @Override
         public ProjectId getProjectId() {

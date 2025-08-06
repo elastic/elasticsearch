@@ -250,6 +250,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             configuration,
             foldCtx,
             executionInfo,
+            request.responseStream(),
             resultListener
         );
         planExecutor.esql(

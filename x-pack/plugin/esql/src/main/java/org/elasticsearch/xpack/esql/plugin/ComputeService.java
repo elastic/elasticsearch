@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -49,6 +50,7 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.stream.EsqlQueryResponseStream;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -189,6 +191,7 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
+        EsqlQueryResponseStream responseStream,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -204,12 +207,31 @@ public class ComputeService {
 
         // we have no sub plans, so we can just execute the given plan
         if (subplans == null || subplans.isEmpty()) {
-            executePlan(sessionId, rootTask, flags, physicalPlan, configuration, foldContext, execInfo, null, listener, null);
+            responseStream.startResponse(physicalPlan.output());
+
+            executePlan(
+                sessionId,
+                rootTask,
+                flags,
+                physicalPlan,
+                configuration,
+                foldContext,
+                execInfo,
+                null,
+                listener,
+                responseStream,
+                null
+            );
             return;
         }
 
         final List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
-        PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.v2(), collectedPages::add);
+        PhysicalPlan mainPlan = new OutputExec(subplansAndMainPlan.v2(), page -> {
+            collectedPages.add(page);
+            responseStream.sendPages(List.of(page));
+        });
+
+        responseStream.startResponse(mainPlan.output());
 
         listener = listener.delegateResponse((l, e) -> {
             collectedPages.forEach(p -> Releasables.closeExpectNoException(p::releaseBlocks));
@@ -279,6 +301,7 @@ public class ComputeService {
                             exchangeService.finishSinkHandler(childSessionId, e);
                             subPlanListener.onFailure(e);
                         }),
+                        null,
                         () -> exchangeSink.createExchangeSink(() -> {})
                     );
                 }
@@ -294,9 +317,10 @@ public class ComputeService {
         Configuration configuration,
         FoldContext foldContext,
         EsqlExecutionInfo execInfo,
-        String profileQualifier,
+        @Nullable String profileQualifier,
         ActionListener<Result> listener,
-        Supplier<ExchangeSink> exchangeSinkSupplier
+        @Nullable EsqlQueryResponseStream responseStream,
+        @Nullable Supplier<ExchangeSink> exchangeSinkSupplier
     ) {
         Tuple<PhysicalPlan, PhysicalPlan> coordinatorAndDataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
             physicalPlan,
@@ -310,7 +334,11 @@ public class ComputeService {
         PhysicalPlan coordinatorPlan = coordinatorAndDataNodePlan.v1();
 
         if (exchangeSinkSupplier == null) {
-            coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), collectedPages::add);
+            assert responseStream != null : "responseStream must not be null when exchangeSinkSupplier is null";
+            coordinatorPlan = new OutputExec(coordinatorAndDataNodePlan.v1(), page -> {
+                collectedPages.add(page);
+                responseStream.sendPages(List.of(page));
+            });
         }
 
         PhysicalPlan dataNodePlan = coordinatorAndDataNodePlan.v2();

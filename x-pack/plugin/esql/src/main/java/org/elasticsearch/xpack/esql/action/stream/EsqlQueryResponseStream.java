@@ -23,10 +23,14 @@ import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
 import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -54,7 +58,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
             return new NonStreamingEsqlQueryResponseStream(restChannel, restRequest, esqlRequest);
         }
 
-        MediaType mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, XContentType.JSON);
+        MediaType mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest);
 
         if (mediaType instanceof TextFormat) {
             // TODO: Add support
@@ -71,6 +75,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
     protected final RestRequest restRequest;
     protected final EsqlQueryRequest esqlRequest;
 
+    // TODO: Maybe create this on startResponse()? Does creating this do something with the response? Can we still safely set headers?
     private final StreamingXContentResponse streamingXContentResponse;
 
     /**
@@ -95,13 +100,26 @@ public abstract class EsqlQueryResponseStream implements Releasable {
     /**
      * Starts the response stream. This is the first method to be called
      */
-    public final void startResponse(List<ColumnInfoImpl> columns) {
+    public final void startResponse(List<Attribute> schema) {
         assert initialStreamChunkSent : "startResponse() called more than once";
         assert finished == false : "sendPages() called on a finished stream";
 
         if (canBeStreamed() == false) {
             return;
         }
+
+        // TODO: Copied from TransportEsqlQueryAction#toResponse. Deduplicate this code
+        List<ColumnInfoImpl> columns = schema.stream().map(c -> {
+            List<String> originalTypes;
+            if (c instanceof UnsupportedAttribute ua) {
+                // Sort the original types so they are easier to test against and prettier.
+                originalTypes = new ArrayList<>(ua.originalTypes());
+                Collections.sort(originalTypes);
+            } else {
+                originalTypes = null;
+            }
+            return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
+        }).toList();
 
         doStartResponse(columns);
         initialStreamChunkSent = true;

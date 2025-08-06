@@ -53,6 +53,8 @@ public class DefaultEsqlQueryResponseStream extends EsqlQueryResponseStream {
     protected void doStartResponse(List<ColumnInfoImpl> columns) {
         assert dropNullColumns == false : "this method doesn't support dropping null columns";
 
+        this.columns = columns;
+
         var content = new ArrayList<Iterator<? extends ToXContent>>(3);
 
         content.add(ChunkedToXContentHelper.startObject());

@@ -11,6 +11,7 @@ package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -973,7 +974,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            out.writeString(type.getType());
+            // A dirty hack to make some bwc tests pass
+            if (out.getTransportVersion().onOrAfter(TransportVersions.VIRTUAL_THREADS)) {
+                out.writeString(type.getType());
+            } else {
+                out.writeString((type == ThreadPoolType.VIRTUAL ? ThreadPoolType.FIXED : type).getType());
+            }
             out.writeInt(min);
             out.writeInt(max);
             out.writeOptionalTimeValue(keepAlive);

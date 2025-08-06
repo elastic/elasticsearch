@@ -18,7 +18,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.StreamingXContentResponse;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;

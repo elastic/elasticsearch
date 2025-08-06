@@ -102,7 +102,6 @@ public class EsExecutorServiceDecorator implements ExecutorService {
             Thread.sleep(1);
             tryShutdownDelegate();
         }
-        logger.info("Falling through");
         return delegate.awaitTermination(timeout, unit);
     }
 

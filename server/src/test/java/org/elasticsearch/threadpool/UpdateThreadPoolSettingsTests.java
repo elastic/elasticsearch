@@ -49,7 +49,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "Not right now")
+    @AwaitsFix(bugUrl = "Write thread pool is virtual now, hence doesn't support max size")
     public void testWriteThreadPoolsMaxSize() throws InterruptedException {
         final int maxSize = 1 + EsExecutors.allocatedProcessors(Settings.EMPTY);
         final int tooBig = randomIntBetween(1 + maxSize, Integer.MAX_VALUE);

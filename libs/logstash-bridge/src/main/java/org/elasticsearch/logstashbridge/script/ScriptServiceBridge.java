@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.logstashbridge.script;
 
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.FixForMultiProject;
@@ -68,8 +69,8 @@ public class ScriptServiceBridge extends StableBridgeAPI.ProxyInternal<ScriptSer
             MustacheScriptEngine.NAME,
             new MustacheScriptEngine(settings)
         );
-        @FixForMultiProject // Should this be non-null?
-        final ProjectResolver projectResolver = null;
+        @FixForMultiProject // Should this be non-DefaultProjectResolver?
+        final ProjectResolver projectResolver = DefaultProjectResolver.INSTANCE;
         return new ScriptService(settings, scriptEngines, ScriptModule.CORE_CONTEXTS, timeProvider, projectResolver);
     }
 

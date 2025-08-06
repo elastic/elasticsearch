@@ -371,7 +371,7 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
     }
 
-    @AwaitsFix(bugUrl = "test")
+    @AwaitsFix(bugUrl = "It does not")
     public void testWriteThreadPoolUsesTaskExecutionTimeTrackingEsThreadPoolExecutor() {
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         try {
@@ -490,7 +490,7 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "Not yet")
+    @AwaitsFix(bugUrl = "Write thread pool is one of the new virtual ones")
     public void testDetailedUtilizationMetric() throws Exception {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();
@@ -572,7 +572,7 @@ public class ThreadPoolTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "test")
+    @AwaitsFix(bugUrl = "Generic, write and write coordination have no metrics now")
     public void testThreadCountMetrics() throws Exception {
         final RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
         final BuiltInExecutorBuilders builtInExecutorBuilders = new DefaultBuiltInExecutorBuilders();

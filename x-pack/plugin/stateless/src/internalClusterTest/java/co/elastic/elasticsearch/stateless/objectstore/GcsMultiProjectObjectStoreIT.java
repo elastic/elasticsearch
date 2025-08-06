@@ -23,6 +23,7 @@ import fixture.gcs.TestUtils;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
@@ -45,6 +46,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.SuppressFileSystems("*")
 public class GcsMultiProjectObjectStoreIT extends GoogleObjectStoreTests {
 
     @Override

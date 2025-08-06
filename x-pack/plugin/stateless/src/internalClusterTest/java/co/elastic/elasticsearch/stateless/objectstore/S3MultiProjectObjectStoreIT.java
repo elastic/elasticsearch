@@ -22,6 +22,7 @@ import fixture.aws.AwsCredentialsUtils;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate a cloud-based storage service")
+@LuceneTestCase.SuppressFileSystems("*")
 public class S3MultiProjectObjectStoreIT extends S3ObjectStoreTests {
 
     @Override

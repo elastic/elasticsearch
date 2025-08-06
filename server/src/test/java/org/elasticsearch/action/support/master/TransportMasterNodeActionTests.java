@@ -730,7 +730,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         expectThrows(TaskCancelledException.class, listener);
     }
 
-    @AwaitsFix(bugUrl = "test")
+    @AwaitsFix(bugUrl = "Depends on there being a limited number of threads")
     public void testTaskCancellationOnceActionItIsDispatchedToMaster() throws Exception {
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 

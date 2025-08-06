@@ -47,6 +47,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     private final LinkedHashSet<ShardRouting> startedShards;
 
     private final Map<Index, Set<ShardRouting>> shardsByIndex;
+
     /**
      * @param nodeId    node id of this routing node
      * @param node      discovery node for this routing node

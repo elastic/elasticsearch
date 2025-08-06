@@ -115,7 +115,7 @@ public class FieldNameUtils {
                 var forkRefsResult = AttributeSet.builder();
                 forkRefsResult.addAll(referencesBuilder.get());
 
-                for (var fork_child : fork.children()) {
+                for (var forkBranch : fork.children()) {
                     referencesBuilder.set(AttributeSet.builder());
                     var isNestedFork = forkBranch.forEachDownMayReturnEarly(forEachDownProcessor.get());
                     // This assert is just for good measure. FORKs within FORKs is yet not supported.

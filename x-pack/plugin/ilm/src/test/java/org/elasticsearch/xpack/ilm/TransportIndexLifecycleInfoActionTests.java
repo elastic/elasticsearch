@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
+public class TransportIndexLifecycleInfoActionTests extends ESTestCase {
 
     private ClusterService clusterService;
 
@@ -55,13 +55,13 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
     public void testAvailable() {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(transportService, mock(ActionFilters.class));
+        TransportIndexLifecycleInfoAction featureSet = new TransportIndexLifecycleInfoAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), equalTo(true));
     }
 
     public void testName() {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(transportService, mock(ActionFilters.class));
+        TransportIndexLifecycleInfoAction featureSet = new TransportIndexLifecycleInfoAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 
@@ -95,7 +95,7 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
-        var usageAction = new IndexLifecycleUsageTransportAction(
+        var usageAction = new TransportIndexLifecycleUsageAction(
             transportService,
             null,
             threadPool,

@@ -13,10 +13,10 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
-public class IndexLifecycleInfoTransportAction extends XPackInfoFeatureTransportAction {
+public class TransportIndexLifecycleInfoAction extends XPackInfoFeatureTransportAction {
 
     @Inject
-    public IndexLifecycleInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportIndexLifecycleInfoAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.INDEX_LIFECYCLE.name(), transportService, actionFilters);
     }
 

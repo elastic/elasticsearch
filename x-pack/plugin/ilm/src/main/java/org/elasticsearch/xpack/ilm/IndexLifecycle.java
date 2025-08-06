@@ -276,8 +276,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     @Override
     public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler(XPackUsageFeatureAction.INDEX_LIFECYCLE, IndexLifecycleUsageTransportAction.class),
-            new ActionHandler(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.INDEX_LIFECYCLE, TransportIndexLifecycleUsageAction.class),
+            new ActionHandler(XPackInfoFeatureAction.INDEX_LIFECYCLE, TransportIndexLifecycleInfoAction.class),
             new ActionHandler(MigrateToDataTiersAction.INSTANCE, TransportMigrateToDataTiersAction.class),
             new ActionHandler(ILMActions.PUT, TransportPutLifecycleAction.class),
             new ActionHandler(GetLifecycleAction.INSTANCE, TransportGetLifecycleAction.class),

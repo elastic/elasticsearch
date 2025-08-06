@@ -42,13 +42,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportDataTiersUsageAction extends XPackUsageFeatureTransportAction {
 
     private final Client client;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public DataTiersUsageTransportAction(
+    public TransportDataTiersUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -71,8 +71,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         new ParentTaskAssigningClient(client, clusterService.localNode(), task).admin()
             .cluster()
             .execute(
-                NodesDataTiersUsageTransportAction.TYPE,
-                new NodesDataTiersUsageTransportAction.NodesRequest(),
+                TransportNodesDataTiersUsageAction.TYPE,
+                new TransportNodesDataTiersUsageAction.NodesRequest(),
                 listener.delegateFailureAndWrap((delegate, response) -> {
                     final var projectState = projectResolver.getProjectState(state);
                     // Generate tier specific stats for the nodes and indices
@@ -212,8 +212,8 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     /**
-     * In this method we use {@link NodesDataTiersUsageTransportAction#aggregateStats(RoutingNode, Metadata, NodeIndicesStats)}
-     * to precalculate the stats we need from {@link NodeStats} just like we do in NodesDataTiersUsageTransportAction.
+     * In this method we use {@link TransportNodesDataTiersUsageAction#aggregateStats(RoutingNode, Metadata, NodeIndicesStats)}
+     * to precalculate the stats we need from {@link NodeStats} just like we do in TransportNodesDataTiersUsageAction.
      * This way we can be backwards compatible without duplicating the calculation. This is only meant to be used to be
      * backwards compatible and it should be removed afterwords.
      */
@@ -223,6 +223,6 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             return Map.of();
         }
 
-        return NodesDataTiersUsageTransportAction.aggregateStats(routingNode, state.metadata(), nodeStats.getIndices());
+        return TransportNodesDataTiersUsageAction.aggregateStats(routingNode, state.metadata(), nodeStats.getIndices());
     }
 }

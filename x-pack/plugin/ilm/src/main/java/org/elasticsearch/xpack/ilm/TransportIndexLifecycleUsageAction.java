@@ -40,12 +40,12 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.shouldInjectMigrateStepForPhase;
 
-public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportIndexLifecycleUsageAction extends XPackUsageFeatureTransportAction {
 
     private final ProjectResolver projectResolver;
 
     @Inject
-    public IndexLifecycleUsageTransportAction(
+    public TransportIndexLifecycleUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

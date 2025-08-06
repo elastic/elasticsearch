@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
+public class TransportNodesDataTiersUsageActionTests extends ESTestCase {
 
     private long byteSize;
     private long docCount;
@@ -76,7 +76,7 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
         );
 
         // Calculate usage
-        Map<String, NodeDataTiersUsage.UsageStats> usageStats = NodesDataTiersUsageTransportAction.aggregateStats(
+        Map<String, NodeDataTiersUsage.UsageStats> usageStats = TransportNodesDataTiersUsageAction.aggregateStats(
             clusterState.getRoutingNodes().node(dataNode1.getId()),
             clusterState.metadata(),
             nodeIndicesStats
@@ -110,7 +110,7 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
         );
 
         // Calculate usage
-        Map<String, NodeDataTiersUsage.UsageStats> usageStats = NodesDataTiersUsageTransportAction.aggregateStats(
+        Map<String, NodeDataTiersUsage.UsageStats> usageStats = TransportNodesDataTiersUsageAction.aggregateStats(
             clusterState.getRoutingNodes().node(dataNode1.getId()),
             clusterState.metadata(),
             nodeIndicesStats
@@ -181,7 +181,7 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
         );
 
         // Calculate usage
-        Map<String, NodeDataTiersUsage.UsageStats> usageStats = NodesDataTiersUsageTransportAction.aggregateStats(
+        Map<String, NodeDataTiersUsage.UsageStats> usageStats = TransportNodesDataTiersUsageAction.aggregateStats(
             clusterState.getRoutingNodes().node(dataNode1.getId()),
             clusterState.metadata(),
             nodeIndicesStats

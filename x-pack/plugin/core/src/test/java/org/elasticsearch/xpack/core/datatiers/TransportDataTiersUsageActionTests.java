@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DataTiersUsageTransportActionTests extends ESTestCase {
+public class TransportDataTiersUsageActionTests extends ESTestCase {
 
     private long byteSize;
     private long docCount;
@@ -78,7 +78,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             .putProjectMetadata(projectBuilder)
             .putRoutingTable(projectBuilder.getId(), routingTableBuilder.build())
             .build();
-        Map<String, Set<String>> result = DataTiersUsageTransportAction.getIndicesGroupedByTier(
+        Map<String, Set<String>> result = TransportDataTiersUsageAction.getIndicesGroupedByTier(
             clusterState.projectState(projectBuilder.getId()),
             List.of(new NodeDataTiersUsage(dataNode, Map.of(DataTier.DATA_WARM, createStats(5, 5, 0, 10))))
         );
@@ -90,7 +90,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
     public void testCalculateMAD() {
         assertThat(
-            DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(TDigestState.createWithoutCircuitBreaking(10)),
+            TransportDataTiersUsageAction.computeMedianAbsoluteDeviation(TDigestState.createWithoutCircuitBreaking(10)),
             equalTo(0L)
         );
 
@@ -102,7 +102,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         sketch.add(4);
         sketch.add(6);
         sketch.add(9);
-        assertThat(DataTiersUsageTransportAction.computeMedianAbsoluteDeviation(sketch), equalTo(1L));
+        assertThat(TransportDataTiersUsageAction.computeMedianAbsoluteDeviation(sketch), equalTo(1L));
     }
 
     public void testCalculateStatsNoTiers() {
@@ -114,7 +114,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             new NodeDataTiersUsage(leader, Map.of()),
             new NodeDataTiersUsage(dataNode1, Map.of())
         );
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = TransportDataTiersUsageAction.aggregateStats(
             nodeDataTiersUsages,
             Map.of()
         );
@@ -141,7 +141,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             new NodeDataTiersUsage(frozenNode1, Map.of())
         );
 
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = TransportDataTiersUsageAction.aggregateStats(
             nodeDataTiersUsages,
             Map.of()
         );
@@ -254,7 +254,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
             )
         );
         // Calculate usage
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = TransportDataTiersUsageAction.aggregateStats(
             nodeDataTiersUsages,
             Map.of(
                 DataTier.DATA_HOT,
@@ -345,7 +345,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
 
         );
         // Calculate usage
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = TransportDataTiersUsageAction.aggregateStats(
             nodeDataTiersUsages,
             Map.of(
                 DataTier.DATA_HOT,
@@ -428,7 +428,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         );
 
         // Calculate usage
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = TransportDataTiersUsageAction.aggregateStats(
             nodeDataTiersUsages,
             Map.of(DataTier.DATA_HOT, Set.of(hotIndex1), DataTier.DATA_WARM, Set.of(warmIndex1, warmIndex2))
         );
@@ -487,7 +487,7 @@ public class DataTiersUsageTransportActionTests extends ESTestCase {
         );
 
         // Calculate usage
-        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = DataTiersUsageTransportAction.aggregateStats(
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = TransportDataTiersUsageAction.aggregateStats(
             nodeDataTiersUsages,
             Map.of(DataTier.DATA_HOT, Set.of(hotIndex1), DataTier.DATA_WARM, Set.of(warmIndex1))
         );

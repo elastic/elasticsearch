@@ -208,8 +208,8 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
 
     @Override
     public List<ActionHandler> getActions() {
-        var slmUsageAction = new ActionHandler(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE, SLMUsageTransportAction.class);
-        var slmInfoAction = new ActionHandler(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE, SLMInfoTransportAction.class);
+        var slmUsageAction = new ActionHandler(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE, TransportSLMUsageAction.class);
+        var slmInfoAction = new ActionHandler(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE, TransportSLMInfoAction.class);
         List<ActionHandler> actions = new ArrayList<>();
         actions.add(slmUsageAction);
         actions.add(slmInfoAction);

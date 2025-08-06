@@ -4,8 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-package org.elasticsearch.xpack.core.datatiers;
+package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.injection.guice.Inject;
@@ -14,16 +13,16 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
-public class DataTiersInfoTransportAction extends XPackInfoFeatureTransportAction {
+public class TransportEnrichInfoAction extends XPackInfoFeatureTransportAction {
 
     @Inject
-    public DataTiersInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
-        super(XPackInfoFeatureAction.DATA_TIERS.name(), transportService, actionFilters);
+    public TransportEnrichInfoAction(TransportService transportService, ActionFilters actionFilters) {
+        super(XPackInfoFeatureAction.ENRICH.name(), transportService, actionFilters);
     }
 
     @Override
     public String name() {
-        return XPackField.DATA_TIERS;
+        return XPackField.ENRICH;
     }
 
     @Override

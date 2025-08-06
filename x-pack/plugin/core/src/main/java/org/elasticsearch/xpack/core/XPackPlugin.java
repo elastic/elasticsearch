@@ -98,9 +98,9 @@ import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
-import org.elasticsearch.xpack.core.datatiers.DataTiersInfoTransportAction;
-import org.elasticsearch.xpack.core.datatiers.DataTiersUsageTransportAction;
-import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
+import org.elasticsearch.xpack.core.datatiers.TransportDataTiersInfoAction;
+import org.elasticsearch.xpack.core.datatiers.TransportDataTiersUsageAction;
+import org.elasticsearch.xpack.core.datatiers.TransportNodesDataTiersUsageAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
@@ -365,14 +365,14 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler(TransportGetFeatureUsageAction.TYPE, TransportGetFeatureUsageAction.class));
         actions.add(new ActionHandler(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
         actions.add(new ActionHandler(TransportDeleteAsyncResultAction.TYPE, TransportDeleteAsyncResultAction.class));
-        actions.add(new ActionHandler(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
-        actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
+        actions.add(new ActionHandler(XPackInfoFeatureAction.DATA_TIERS, TransportDataTiersInfoAction.class));
+        actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_TIERS, TransportDataTiersUsageAction.class));
         actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_STREAMS, TransportDataStreamUsageAction.class));
         actions.add(new ActionHandler(XPackInfoFeatureAction.DATA_STREAMS, TransportDataStreamInfoAction.class));
         actions.add(new ActionHandler(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE, TransportDataStreamLifecycleUsageAction.class));
         actions.add(new ActionHandler(XPackUsageFeatureAction.HEALTH, TransportHealthApiUsageAction.class));
         actions.add(new ActionHandler(XPackUsageFeatureAction.REMOTE_CLUSTERS, TransportRemoteClusterUsageAction.class));
-        actions.add(new ActionHandler(NodesDataTiersUsageTransportAction.TYPE, NodesDataTiersUsageTransportAction.class));
+        actions.add(new ActionHandler(TransportNodesDataTiersUsageAction.TYPE, TransportNodesDataTiersUsageAction.class));
         return actions;
     }
 

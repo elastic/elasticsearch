@@ -23,12 +23,12 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.slm.SLMFeatureSetUsage;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
-public class SLMUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportSLMUsageAction extends XPackUsageFeatureTransportAction {
 
     private final ProjectResolver projectResolver;
 
     @Inject
-    public SLMUsageTransportAction(
+    public TransportSLMUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

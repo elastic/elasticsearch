@@ -49,10 +49,10 @@ import java.util.stream.StreamSupport;
 /**
  * Sources locally data tier usage stats mainly indices and shard sizes grouped by preferred data tier.
  */
-public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
-    NodesDataTiersUsageTransportAction.NodesRequest,
-    NodesDataTiersUsageTransportAction.NodesResponse,
-    NodesDataTiersUsageTransportAction.NodeRequest,
+public class TransportNodesDataTiersUsageAction extends TransportNodesAction<
+    TransportNodesDataTiersUsageAction.NodesRequest,
+    TransportNodesDataTiersUsageAction.NodesResponse,
+    TransportNodesDataTiersUsageAction.NodeRequest,
     NodeDataTiersUsage,
     Void> {
 
@@ -65,7 +65,7 @@ public class NodesDataTiersUsageTransportAction extends TransportNodesAction<
     private final IndicesService indicesService;
 
     @Inject
-    public NodesDataTiersUsageTransportAction(
+    public TransportNodesDataTiersUsageAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,

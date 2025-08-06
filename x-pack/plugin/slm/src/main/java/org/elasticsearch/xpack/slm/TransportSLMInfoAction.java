@@ -14,10 +14,10 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
-public class SLMInfoTransportAction extends XPackInfoFeatureTransportAction {
+public class TransportSLMInfoAction extends XPackInfoFeatureTransportAction {
 
     @Inject
-    public SLMInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportSLMInfoAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE.name(), transportService, actionFilters);
     }
 

@@ -20,10 +20,10 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 
-public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportEnrichUsageAction extends XPackUsageFeatureTransportAction {
 
     @Inject
-    public EnrichUsageTransportAction(
+    public TransportEnrichUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

@@ -45,7 +45,7 @@ public class RateDoubleAggregator {
         return new DoubleRateGroupingState(driverContext.bigArrays(), driverContext.breaker());
     }
 
-    public static void combine(DoubleRateGroupingState current, int groupId, long timestamp, double value) {
+    public static void combine(DoubleRateGroupingState current, int groupId, double value, long timestamp) {
         current.append(groupId, timestamp, value);
     }
 

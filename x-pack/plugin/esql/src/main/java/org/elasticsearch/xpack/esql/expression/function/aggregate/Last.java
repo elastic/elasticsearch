@@ -10,19 +10,17 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastDoubleByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastIntByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.compute.aggregation.LastOverTimeDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeFloatAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.expression.function.Example;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
-import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -113,10 +111,10 @@ public class Last extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new LastOverTimeLongAggregatorFunctionSupplier();
-            case INTEGER -> new LastOverTimeIntAggregatorFunctionSupplier();
-            case DOUBLE -> new LastOverTimeDoubleAggregatorFunctionSupplier();
-            case FLOAT -> new LastOverTimeFloatAggregatorFunctionSupplier();
+            case LONG -> new LastLongByTimestampAggregatorFunctionSupplier();
+            case INTEGER -> new LastIntByTimestampAggregatorFunctionSupplier();
+            case DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();
+            case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

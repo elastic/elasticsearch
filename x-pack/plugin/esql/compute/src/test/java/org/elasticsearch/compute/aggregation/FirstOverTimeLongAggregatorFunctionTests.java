@@ -30,7 +30,7 @@ public class FirstOverTimeLongAggregatorFunctionTests extends AggregatorFunction
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new FirstOverTimeLongAggregatorFunctionSupplier();
+        return new FirstLongByTimestampAggregatorFunctionSupplier();
     }
 
     @Override

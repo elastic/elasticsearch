@@ -38,7 +38,7 @@ public class FirstOverTimeLongGroupingAggregatorFunctionTests extends GroupingAg
 
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction() {
-        return new FirstOverTimeLongAggregatorFunctionSupplier();
+        return new FirstLongByTimestampAggregatorFunctionSupplier();
     }
 
     @Override

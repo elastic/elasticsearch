@@ -486,6 +486,29 @@ PUT test-index
 }
 ```
 
+## Troubleshooting semantic_text fields [troubleshooting-semantic-text-fields]
+
+If you want to verify that your embeddings look correct, you can view the
+inference data that `semantic_text` typically hides using `fields`.
+
+```console
+POST test-index/_search
+{
+    "query": {
+        "match": {
+            "my_semantic_field": "Which country is Paris in?"
+        },
+        "fields": [
+            "_inference_fields"
+          ]
+    }
+}
+```
+
+This will return verbose chunked embeddings content that is used to perform
+semantic search for `semantic_text` fields.
+
+
 ## Limitations [limitations]
 
 `semantic_text` field types have the following limitations:

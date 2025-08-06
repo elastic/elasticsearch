@@ -7,15 +7,11 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
-import java.util.Stack;
 
 /**
  * This validates if the actual plan contains the expected plan anywhere within the tree

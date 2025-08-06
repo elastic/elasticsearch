@@ -64,6 +64,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
+        long fileOffset,
         int[] assignments,
         int[] overspillAssignments
     ) throws IOException {
@@ -76,9 +77,12 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
 
+        int maxPostingListSize = 0;
         int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
         for (int c = 0; c < centroidSupplier.size(); c++) {
-            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
+            int size = centroidVectorCount[c];
+            maxPostingListSize = Math.max(maxPostingListSize, size);
+            assignmentsByCluster[c] = new int[size];
         }
         Arrays.fill(centroidVectorCount, 0);
 
@@ -93,6 +97,8 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
                 }
             }
         }
+        // write the max posting list size
+        postingsOutput.writeVInt(maxPostingListSize);
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         DocIdsWriter docIdsWriter = new DocIdsWriter();
@@ -106,7 +112,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         for (int c = 0; c < centroidSupplier.size(); c++) {
             float[] centroid = centroidSupplier.centroid(c);
             int[] cluster = assignmentsByCluster[c];
-            offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+            offsets.add(postingsOutput.alignFilePointer(Float.BYTES) - fileOffset);
             buffer.asFloatBuffer().put(centroid);
             // write raw centroid for quantizing the query vectors
             postingsOutput.writeBytes(buffer.array(), buffer.array().length);
@@ -137,6 +143,7 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
         CentroidSupplier centroidSupplier,
         FloatVectorValues floatVectorValues,
         IndexOutput postingsOutput,
+        long fileOffset,
         MergeState mergeState,
         int[] assignments,
         int[] overspillAssignments
@@ -196,11 +203,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             }
         }
 
+        int maxPostingListSize = 0;
         int[][] assignmentsByCluster = new int[centroidSupplier.size()][];
         boolean[][] isOverspillByCluster = new boolean[centroidSupplier.size()][];
         for (int c = 0; c < centroidSupplier.size(); c++) {
-            assignmentsByCluster[c] = new int[centroidVectorCount[c]];
-            isOverspillByCluster[c] = new boolean[centroidVectorCount[c]];
+            int size = centroidVectorCount[c];
+            maxPostingListSize = Math.max(maxPostingListSize, size);
+            assignmentsByCluster[c] = new int[size];
+            isOverspillByCluster[c] = new boolean[size];
         }
         Arrays.fill(centroidVectorCount, 0);
 
@@ -226,11 +236,14 @@ public class DefaultIVFVectorsWriter extends IVFVectorsWriter {
             DocIdsWriter docIdsWriter = new DocIdsWriter();
             DiskBBQBulkWriter bulkWriter = new DiskBBQBulkWriter.OneBitDiskBBQBulkWriter(ES91OSQVectorsScorer.BULK_SIZE, postingsOutput);
             final ByteBuffer buffer = ByteBuffer.allocate(fieldInfo.getVectorDimension() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            // write the max posting list size
+            postingsOutput.writeVInt(maxPostingListSize);
+            // write the posting lists
             for (int c = 0; c < centroidSupplier.size(); c++) {
                 float[] centroid = centroidSupplier.centroid(c);
                 int[] cluster = assignmentsByCluster[c];
                 boolean[] isOverspill = isOverspillByCluster[c];
-                offsets.add(postingsOutput.alignFilePointer(Float.BYTES));
+                offsets.add(postingsOutput.alignFilePointer(Float.BYTES) - fileOffset);
                 // write raw centroid for quantizing the query vectors
                 buffer.asFloatBuffer().put(centroid);
                 postingsOutput.writeBytes(buffer.array(), buffer.array().length);

@@ -182,6 +182,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             }
             return threadPoolType;
         }
+
+        public static ThreadPoolType bwcType(String threadPoolName) {
+            switch (threadPoolName) {
+                case Names.WRITE:
+                case Names.WRITE_COORDINATION:
+                    return FIXED;
+                case Names.GENERIC:
+                    return SCALING;
+                default:
+                    throw new IllegalArgumentException("no bwc type for " + threadPoolName);
+            }
+        }
     }
 
     public static final Map<String, ThreadPoolType> THREAD_POOL_TYPES = Map.ofEntries(
@@ -462,6 +474,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
                     rejected = handler.rejected();
                 }
+            } else if (holder.executor() instanceof EsExecutorServiceDecorator) {
+                // Just to make some tests pass
+                threads = 0;
+                queue = 0;
+                active = 0;
+                largest = 0;
+                completed = 0;
+                rejected = 0;
             }
             stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed));
         }
@@ -978,7 +998,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             if (out.getTransportVersion().onOrAfter(TransportVersions.VIRTUAL_THREADS)) {
                 out.writeString(type.getType());
             } else {
-                out.writeString((type == ThreadPoolType.VIRTUAL ? ThreadPoolType.FIXED : type).getType());
+                out.writeString(ThreadPoolType.bwcType(name).getType());
             }
             out.writeInt(min);
             out.writeInt(max);

@@ -237,7 +237,12 @@ public class ExtractSnippets extends EsqlScalarFunction implements OptionalArgum
 
             shardConfigs[i++] = new LuceneQueryEvaluator.ShardConfig(shardContext.toQuery(queryBuilder), shardContext.searcher());
         }
-        return new HighlighterExpressionEvaluator.Factory(shardConfigs);
+        // Get field name and search context from the first shard context
+        String fieldNameStr = field.sourceText();
+        int numFragments = numSnippets == null ? DEFAULT_NUM_SNIPPETS : Integer.parseInt(numSnippets.sourceText());
+        int fragmentSize = snippetLength == null ? DEFAULT_SNIPPET_LENGTH : Integer.parseInt(snippetLength.sourceText());
+        SearchContext firstSearchContext = shardContexts.isEmpty() ? null : shardContexts.get(0).searchContext();
+        return new HighlighterExpressionEvaluator.Factory(shardConfigs, fieldNameStr, numFragments, fragmentSize, firstSearchContext);
     }
 
     @Override

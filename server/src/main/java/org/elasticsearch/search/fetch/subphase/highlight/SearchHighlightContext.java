@@ -209,17 +209,17 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder preTags(String[] preTags) {
+            public Builder preTags(String[] preTags) {
                 fieldOptions.preTags = preTags;
                 return this;
             }
 
-            Builder postTags(String[] postTags) {
+            public Builder postTags(String[] postTags) {
                 fieldOptions.postTags = postTags;
                 return this;
             }
 
-            Builder scoreOrdered(boolean scoreOrdered) {
+            public Builder scoreOrdered(boolean scoreOrdered) {
                 fieldOptions.scoreOrdered = scoreOrdered;
                 return this;
             }
@@ -229,7 +229,7 @@ public class SearchHighlightContext {
                 return this;
             }
 
-            Builder requireFieldMatch(boolean requireFieldMatch) {
+            public Builder requireFieldMatch(boolean requireFieldMatch) {
                 fieldOptions.requireFieldMatch = requireFieldMatch;
                 return this;
             }

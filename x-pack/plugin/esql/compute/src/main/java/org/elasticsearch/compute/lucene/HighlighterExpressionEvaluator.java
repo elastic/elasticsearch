@@ -28,15 +28,18 @@ import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FieldHighlightContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -45,20 +48,23 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         EvalOperator.ExpressionEvaluator {
 
     private final String fieldName;
+    private final Integer numFragments;
+    private final Integer fragmentLength;
     private final SearchContext searchContext;
-    private final SourceLoader sourceLoader;
 
     HighlighterExpressionEvaluator(
         BlockFactory blockFactory,
         ShardConfig[] shardConfigs,
         String fieldName,
-        SearchContext searchContext,
-        SourceLoader sourceLoader
+        Integer numFragments,
+        Integer fragmentLength,
+        SearchContext searchContext
     ) {
         super(blockFactory, shardConfigs);
         this.fieldName = fieldName;
+        this.numFragments = numFragments;
+        this.fragmentLength = fragmentLength;
         this.searchContext = searchContext;
-        this.sourceLoader = sourceLoader;
     }
 
     @Override
@@ -73,33 +79,30 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
 
     @Override
     protected BytesRefVector.Builder createVectorBuilder(BlockFactory blockFactory, int size) {
-        return blockFactory.newBytesRefVectorBuilder(size);
+        return blockFactory.newBytesRefVectorBuilder(size * numFragments);
     }
 
     @Override
     protected void appendMatch(BytesRefVector.Builder builder, Scorable scorer, int docId, LeafReaderContext leafReaderContext, Query query)
         throws IOException {
 
-        // I was trying to find the way to build the highligher from the context, but probably we should just build the
-        // CustomUnifiedHighligher directly so we don't need specific fetch phase classes for this
+        // TODO: Can we build a custom highlighter directly here, so we don't have to rely on fetch phase classes?
         SearchHighlightContext.FieldOptions.Builder optionsBuilder = new SearchHighlightContext.FieldOptions.Builder();
-        optionsBuilder.numberOfFragments(10);
-        optionsBuilder.fragmentCharSize(100);
+        optionsBuilder.numberOfFragments(numFragments != null ? numFragments : HighlightBuilder.DEFAULT_NUMBER_OF_FRAGMENTS);
+        optionsBuilder.fragmentCharSize(fragmentLength != null ? fragmentLength : HighlightBuilder.DEFAULT_FRAGMENT_CHAR_SIZE);
+        optionsBuilder.preTags(new String[] { "" });
+        optionsBuilder.postTags(new String[] { "" });
+        optionsBuilder.requireFieldMatch(false);
+        optionsBuilder.scoreOrdered(true);
         SearchHighlightContext.Field field = new SearchHighlightContext.Field(fieldName, optionsBuilder.build());
+        // Create a source loader for highlighter use
+        SourceLoader sourceLoader = searchContext.newSourceLoader(null);
         FetchContext fetchContext = new FetchContext(searchContext, sourceLoader);
         MappedFieldType fieldType = searchContext.getSearchExecutionContext().getFieldType(fieldName);
         SearchHit searchHit = new SearchHit(docId);
         Source source = Source.lazy(lazyStoredSourceLoader(leafReaderContext, docId));
 
-
-        FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
-            searchHit,
-            leafReaderContext,
-            docId,
-            Map.of(),
-            source,
-            null
-        );
+        FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(searchHit, leafReaderContext, docId, Map.of(), source, null);
         FieldHighlightContext highlightContext = new FieldHighlightContext(
             fieldName,
             field,
@@ -107,13 +110,16 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
             fetchContext,
             hitContext,
             query,
-            Map.of()
+            new HashMap<>()
         );
         Highlighter highlighter = new DefaultHighlighter();
         HighlightField highlight = highlighter.highlight(highlightContext);
 
-        // Iterate over fragments etc
-        builder.appendBytesRef(new BytesRef(highlight.fragments()[0].bytes().bytes()));
+        // TODO: Even when I have 2 fragments coming back, it's only ever returning the first bytes ref vector. Is this the appropriate data
+        // structure?
+        for (Text highlightText : highlight.fragments()) {
+            builder.appendBytesRef(new BytesRef(highlightText.bytes().bytes()));
+        }
     }
 
     private static Supplier<Source> lazyStoredSourceLoader(LeafReaderContext ctx, int doc) {
@@ -131,8 +137,7 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
 
     @Override
     protected void appendNoMatch(BytesRefVector.Builder builder) {
-
-
+        // builder.appendBytesRef(new BytesRef());
     }
 
     @Override
@@ -140,11 +145,23 @@ public class HighlighterExpressionEvaluator extends LuceneQueryEvaluator<BytesRe
         return executeQuery(page);
     }
 
-    public record Factory(ShardConfig[] shardConfigs) implements EvalOperator.ExpressionEvaluator.Factory {
+    public record Factory(
+        ShardConfig[] shardConfigs,
+        String fieldName,
+        Integer numFragments,
+        Integer fragmentSize,
+        SearchContext searchContext
+    ) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            // We need to get field name, search context, and source loader. We should be able to remove the source loader by getting the field value
-            return new HighlighterExpressionEvaluator(context.blockFactory(), shardConfigs, fieldName, searchContext, context.sourceLoader());
+            return new HighlighterExpressionEvaluator(
+                context.blockFactory(),
+                shardConfigs,
+                fieldName,
+                numFragments,
+                fragmentSize,
+                searchContext
+            );
         }
     }
 }

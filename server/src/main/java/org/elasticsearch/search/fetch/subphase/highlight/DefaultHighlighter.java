@@ -60,9 +60,13 @@ public class DefaultHighlighter implements Highlighter {
     @Override
     public HighlightField highlight(FieldHighlightContext fieldContext) throws IOException {
         @SuppressWarnings("unchecked")
-        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache.computeIfAbsent(
+        // Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache.computeIfAbsent(
+        // UnifiedHighlighter.class.getName(),
+        // k -> new HashMap<>()
+        // );
+        Map<String, CustomUnifiedHighlighter> cache = (Map<String, CustomUnifiedHighlighter>) fieldContext.cache.getOrDefault(
             UnifiedHighlighter.class.getName(),
-            k -> new HashMap<>()
+            new HashMap<>()
         );
         if (cache.containsKey(fieldContext.fieldName) == false) {
             cache.put(fieldContext.fieldName, buildHighlighter(fieldContext));
@@ -114,7 +118,7 @@ public class DefaultHighlighter implements Highlighter {
 
     CustomUnifiedHighlighter buildHighlighter(FieldHighlightContext fieldContext) {
         IndexSettings indexSettings = fieldContext.context.getSearchExecutionContext().getIndexSettings();
-        Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
+        Encoder encoder = "html".equals(fieldContext.field.fieldOptions().encoder())
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
 

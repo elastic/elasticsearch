@@ -191,7 +191,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 case Names.GENERIC:
                     return SCALING;
                 default:
-                    throw new IllegalArgumentException("no bwc type for " + threadPoolName);
+                    return THREAD_POOL_TYPES.get(threadPoolName);
             }
         }
     }

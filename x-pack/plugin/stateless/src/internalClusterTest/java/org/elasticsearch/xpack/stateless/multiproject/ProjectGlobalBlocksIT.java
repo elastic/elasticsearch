@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.multiproject;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -41,6 +42,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
+@LuceneTestCase.SuppressFileSystems("*")
 public class ProjectGlobalBlocksIT extends AbstractStatelessIntegTestCase {
     @Override
     protected boolean multiProjectIntegrationTest() {

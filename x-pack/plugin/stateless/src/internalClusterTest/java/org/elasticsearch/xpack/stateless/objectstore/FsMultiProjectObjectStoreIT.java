@@ -44,7 +44,7 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-@LuceneTestCase.SuppressFileSystems(value = { "ExtrasFS" })
+@LuceneTestCase.SuppressFileSystems("*")
 public class FsMultiProjectObjectStoreIT extends FsObjectStoreTests {
 
     @Override

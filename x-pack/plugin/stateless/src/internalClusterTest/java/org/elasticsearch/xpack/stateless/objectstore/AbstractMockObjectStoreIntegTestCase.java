@@ -60,8 +60,11 @@ public abstract class AbstractMockObjectStoreIntegTestCase extends AbstractObjec
     public void tearDownHttpServer() throws Exception {
         // explicitly clean up the cluster here
         // the cluster needs to be stopped BEFORE the http server is stopped
-        cleanUpCluster();
-        testObjectStoreServer.tearDown();
+        try {
+            cleanUpCluster();
+        } finally {
+            testObjectStoreServer.tearDown();
+        }
     }
 
     protected abstract Map<String, HttpHandler> createHttpHandlers();

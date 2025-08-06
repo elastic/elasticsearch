@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.multiproject;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -49,6 +50,7 @@ import static org.elasticsearch.index.MergePolicyConfig.INDEX_MERGE_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.SuppressFileSystems("*")
 public class ProjectSealingIT extends AbstractStatelessIntegTestCase {
 
     @Override

@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstDoubleByLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstFloatByLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstIntByLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.FirstLongByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstDoubleByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstFloatByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstIntByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -132,10 +132,10 @@ public class FirstOverTime extends TimeSeriesAggregateFunction implements Option
         // we can read the first encountered value for each group of `_tsid` and time bucket.
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new FirstLongByLongAggregatorFunctionSupplier();
-            case INTEGER -> new FirstIntByLongAggregatorFunctionSupplier();
-            case DOUBLE -> new FirstDoubleByLongAggregatorFunctionSupplier();
-            case FLOAT -> new FirstFloatByLongAggregatorFunctionSupplier();
+            case LONG -> new FirstLongByTimestampAggregatorFunctionSupplier();
+            case INTEGER -> new FirstIntByTimestampAggregatorFunctionSupplier();
+            case DOUBLE -> new FirstDoubleByTimestampAggregatorFunctionSupplier();
+            case FLOAT -> new FirstFloatByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

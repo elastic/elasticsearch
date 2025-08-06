@@ -24,13 +24,13 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-ValueByLongAggregator.java.st` instead.
+ * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
+ * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
 @GroupingAggregator(
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
 )
-public class LastLongByLongAggregator {
+public class FirstLongByTimestampAggregator {
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
@@ -88,7 +88,7 @@ public class LastLongByLongAggregator {
             boolean updated = false;
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
-                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
+                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) > timestamp) {
                     timestamps.set(groupId, timestamp);
                     updated = true;
                 }

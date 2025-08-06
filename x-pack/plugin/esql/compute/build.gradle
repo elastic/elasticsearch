@@ -900,28 +900,28 @@ tasks.named('stringTemplates').configure {
   }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs
-  File valueByLongAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByLongAggregator.java.st")
+  File valueByLongAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st")
   ["First", "Last"].forEach { Occurrence ->
     {
       template {
         it.properties = addOccurrence(intProperties, Occurrence)
         it.inputFile = valueByLongAggregatorInputFile
-        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}IntByLongAggregator.java"
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}IntByTimestampAggregator.java"
       }
       template {
         it.properties = addOccurrence(longProperties, Occurrence)
         it.inputFile = valueByLongAggregatorInputFile
-        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}LongByLongAggregator.java"
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}LongByTimestampAggregator.java"
       }
       template {
         it.properties = addOccurrence(floatProperties, Occurrence)
         it.inputFile = valueByLongAggregatorInputFile
-        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}FloatByLongAggregator.java"
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}FloatByTimestampAggregator.java"
       }
       template {
         it.properties = addOccurrence(doubleProperties, Occurrence)
         it.inputFile = valueByLongAggregatorInputFile
-        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}DoubleByLongAggregator.java"
+        it.outputFile = "org/elasticsearch/compute/aggregation/${Occurrence}DoubleByTimestampAggregator.java"
       }
     }
   }

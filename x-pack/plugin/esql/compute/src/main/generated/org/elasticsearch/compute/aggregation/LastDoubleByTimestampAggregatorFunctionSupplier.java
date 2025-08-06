@@ -11,11 +11,11 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link LastIntByLongAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link LastDoubleByTimestampAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class LastIntByLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public LastIntByLongAggregatorFunctionSupplier() {
+public final class LastDoubleByTimestampAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public LastDoubleByTimestampAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -25,7 +25,7 @@ public final class LastIntByLongAggregatorFunctionSupplier implements Aggregator
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return LastIntByLongGroupingAggregatorFunction.intermediateStateDesc();
+    return LastDoubleByTimestampGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -34,13 +34,13 @@ public final class LastIntByLongAggregatorFunctionSupplier implements Aggregator
   }
 
   @Override
-  public LastIntByLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return LastIntByLongGroupingAggregatorFunction.create(channels, driverContext);
+  public LastDoubleByTimestampGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext, List<Integer> channels) {
+    return LastDoubleByTimestampGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "last_int_by of longs";
+    return "last_double_by of timestamps";
   }
 }

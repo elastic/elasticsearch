@@ -25,12 +25,12 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-ValueByLongAggregator.java.st` instead.
+ * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
 @GroupingAggregator(
     { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "INT_BLOCK") }
 )
-public class LastIntByLongAggregator {
+public class LastIntByTimestampAggregator {
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }

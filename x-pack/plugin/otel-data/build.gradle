@@ -4,9 +4,12 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
-apply plugin: 'elasticsearch.internal-cluster-test'
+plugins {
+  id 'elasticsearch.internal-es-plugin'
+  id 'elasticsearch.internal-yaml-rest-test'
+  id 'elasticsearch.internal-cluster-test'
+  id('com.google.protobuf') version '0.9.5'
+}
 
 esplugin {
   name = 'x-pack-otel-data'
@@ -15,23 +18,128 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
+// manually update verification-metadata.xml via dev-tools/protoc_exe_sha256.sh when updating the protobuf version
+def protobufVersion = "4.32.0"
 dependencies {
+  api project(":libs:exponential-histogram")
   compileOnly project(path: xpackModule('core'))
   testImplementation project(path: ':x-pack:plugin:stack')
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(':modules:data-streams')
-  clusterModules project(':modules:data-streams')
-  clusterModules project(':modules:ingest-common')
-  clusterModules project(':modules:ingest-geoip')
-  clusterModules project(':modules:ingest-user-agent')
-  clusterModules project(':modules:lang-mustache')
-  clusterModules project(':modules:mapper-extras')
-  clusterModules project(xpackModule('analytics'))
-  clusterModules project(xpackModule('ilm'))
-  clusterModules project(xpackModule('mapper-aggregate-metric'))
-  clusterModules project(xpackModule('mapper-constant-keyword'))
-  clusterModules project(xpackModule('mapper-counted-keyword'))
-  clusterModules project(xpackModule('stack'))
-  clusterModules project(xpackModule('wildcard'))
-  clusterModules project(xpackModule('mapper-version'))
+  testImplementation project(':x-pack:plugin:esql')
+  testImplementation project(':x-pack:plugin:esql-core')
+  testImplementation project(':modules:data-streams')
+  testImplementation project(':modules:ingest-common')
+  testImplementation project(':modules:ingest-geoip')
+  testImplementation project(':modules:ingest-user-agent')
+  testImplementation project(':modules:lang-mustache')
+  testImplementation project(':modules:lang-painless')
+  testImplementation project(':modules:lang-painless:spi')
+  testImplementation project(':modules:mapper-extras')
+  testImplementation project(xpackModule('analytics'))
+  testImplementation project(xpackModule('ilm'))
+  testImplementation project(xpackModule('mapper-aggregate-metric'))
+  testImplementation project(xpackModule('mapper-constant-keyword'))
+  testImplementation project(xpackModule('mapper-counted-keyword'))
+  testImplementation project(xpackModule('stack'))
+  testImplementation project(xpackModule('wildcard'))
+  testImplementation project(xpackModule('mapper-version'))
+
+  def otelVersion = "1.53.0"
+  testImplementation "io.opentelemetry:opentelemetry-api:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-common:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-context:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-sdk:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-sdk-common:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-sdk-metrics:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-exporter-common:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-exporter-otlp:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-exporter-otlp-common:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-exporter-sender-jdk:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure:$otelVersion"
+  testImplementation "io.opentelemetry:opentelemetry-sdk-extension-autoconfigure-spi:$otelVersion"
+
+  implementation "com.google.protobuf:protobuf-java:${protobufVersion}"
+}
+
+protobuf {
+  protoc {
+    // The artifact spec for the Protobuf Compiler
+    artifact = "com.google.protobuf:protoc:${protobufVersion}"
+  }
+}
+
+def otlpProtoVersion = "1.7.0" // Version of the OpenTelemetry proto files to use
+
+// To generate the checksum, download the file and run "shasum -a 256 ~/path/to/vfoo.zip"
+def protoChecksum = "ddb80357ff146f5e3bda584907185b1f635412a4b31edf6f96b102a18b8e05dc"
+def protoArchivePath = layout.buildDirectory.file("archives/opentelemetry-proto-${otlpProtoVersion}.zip")
+
+def downloadProtoArchive = tasks.register("downloadProtoArchive") {
+  outputs.file(protoArchivePath)
+  onlyIf { !protoArchivePath.get().asFile.exists() }
+  doLast {
+    protoArchivePath.get().asFile.parentFile.mkdirs()
+    "https://github.com/open-telemetry/opentelemetry-proto/archive/v${otlpProtoVersion}.zip".toURL()
+      .withInputStream { is ->
+        protoArchivePath.get().asFile.withOutputStream {os -> os << is }
+      }
+  }
+}
+
+def verifyProtoArchive = tasks.register("verifyProtoArchive") {
+  dependsOn(downloadProtoArchive)
+  doLast {
+    protoArchivePath.get().asFile.withInputStream { inputStream ->
+      def sha256 = inputStream.readAllBytes().digest("SHA-256")
+      if (sha256 != protoChecksum) {
+        throw new GradleException("Checksum verification failed for $protoArchivePath: expected $protoChecksum, got $sha256")
+      }
+    }
+  }
+}
+
+def unzipProtoArchive = tasks.register("unzipProtoArchive", Copy) {
+  dependsOn(verifyProtoArchive)
+  from zipTree(protoArchivePath)
+  into layout.buildDirectory.dir("protos")
+}
+
+// Avoid unnecessary String allocations in the generated AnyValue class
+// We always need the ByteString (UTF-8) representation of string attributes
+def adjustAnyValueBuilder = tasks.register("adjustAnyValueBuilder") {
+  doLast {
+    ant.replace(
+      file: 'build/generated/sources/proto/main/java/io/opentelemetry/proto/common/v1/AnyValue.java',
+      token: 'java.lang.String s = input.readStringRequireUtf8();',
+      value: 'com.google.protobuf.ByteString s = input.readBytes();',
+      encoding: 'UTF-8'
+    )
+  }
+}
+
+sourceSets {
+  main {
+    proto {
+      srcDir layout.buildDirectory.dir("protos/opentelemetry-proto-${otlpProtoVersion}")
+    }
+  }
+}
+
+afterEvaluate {
+  tasks.named("generateProto") {
+    dependsOn(unzipProtoArchive)
+    finalizedBy(adjustAnyValueBuilder)
+  }
+}
+
+idea {
+  module {
+    sourceDirs += layout.buildDirectory.dir("generated/sources/proto/main/java").get().asFile
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /opentelemetry-.*/, to: 'opentelemetry'
+  mapping from: /protobuf.*/, to: 'protobuf'
 }

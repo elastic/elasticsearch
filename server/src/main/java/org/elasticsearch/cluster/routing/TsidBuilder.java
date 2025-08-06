@@ -41,7 +41,15 @@ public class TsidBuilder {
     private static final Hasher32 HASHER_32 = Hashing.murmur3_32();
     private final HashStream128 hashStream = HASHER_128.hashStream();
 
-    private final List<Dimension> dimensions = new ArrayList<>();
+    private final List<Dimension> dimensions;
+
+    public TsidBuilder() {
+        dimensions = new ArrayList<>();
+    }
+
+    public TsidBuilder(int expectedSize) {
+        dimensions = new ArrayList<>(expectedSize);
+    }
 
     /**
      * Adds an integer dimension to the TSID.
@@ -260,6 +268,10 @@ public class TsidBuilder {
         ByteUtils.writeLongLE(hash128.getMostSignificantBits(), buffer, index);
         index += 8;
         return index;
+    }
+
+    public int size() {
+        return dimensions.size();
     }
 
     /**

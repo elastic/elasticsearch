@@ -287,7 +287,7 @@ public class TestBlock implements BlockLoader.Block {
                     @Override
                     public BlockLoader.TSIDOrdinalsBuilder appendOrds(long[] values, int from, int length) {
                         try {
-                            System.arraycopy(values, from, ords, expectedCount, length);
+                            System.arraycopy(values, from, ords, count, length);
                         } catch (ArrayIndexOutOfBoundsException e) {
                             throw e;
                         }

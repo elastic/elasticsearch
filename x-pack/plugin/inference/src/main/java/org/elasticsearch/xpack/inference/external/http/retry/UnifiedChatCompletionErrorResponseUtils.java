@@ -66,7 +66,8 @@ public class UnifiedChatCompletionErrorResponseUtils {
      * Creates a {@link UnifiedChatCompletionErrorParserContract} that uses a generic parser function to parse the error response.
      * This is useful for cases where the error response can be parsed using custom logic, typically when parsing from a map.
      *
-     * @param genericParser The function that takes an {@link XContentParser} and returns an {@link Optional<UnifiedChatCompletionErrorResponse>}.
+     * @param genericParser The function that takes an {@link XContentParser} and returns an
+     * {@link Optional<UnifiedChatCompletionErrorResponse>}.
      * @param <E> The type of exception that the parser can throw.
      * @return A {@link UnifiedChatCompletionErrorParserContract} instance.
      */

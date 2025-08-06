@@ -1,0 +1,49 @@
+[[release-notes-8.19.1]]
+== {es} version 8.19.1
+
+coming[8.19.1]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.1]]
+[float]
+=== Bug fixes
+
+Data streams::
+* Prevent auto-sharding for data streams in LOOKUP index mode {es-pull}131429[#131429]
+
+EQL::
+* Deal with internally created IN in a different way for EQL {es-pull}132167[#132167] (issue: {es-issue}118621[#118621])
+
+ES|QL::
+* Change equals and hashcode for `ConstantNullBlock` {es-pull}131817[#131817]
+* FIx Driver creating status with a live list of operators {es-pull}132260[#132260] (issue: {es-issue}131564[#131564])
+* Fix NPE on empty to_lower/to_upper call {es-pull}131917[#131917] (issue: {es-issue}131913[#131913])
+* Fix `aggregate_metric_double` sorting and `mv_expand` issues {es-pull}131658[#131658]
+* Fix combine result for `ingest_took` {es-pull}132088[#132088]
+* Split large pages on load sometimes {es-pull}131053[#131053]
+
+Infra/Core::
+* Grant server module read/write entitlements for deprecated path setting "path.shared_data" {es-pull}131680[#131680]
+
+Ingest Node::
+* Simulate ingest API uses existing index mapping when `mapping_addition` is given {es-pull}132101[#132101]
+
+Machine Learning::
+* Prevent the trained model deployment memory estimation from double-counting allocations {es-pull}131990[#131990]
+
+Mapping::
+* Fix decoding of non-ascii field names in ignored source {es-pull}132018[#132018]
+
+Search::
+* Fix default missing index sort value of `data_nanos` pre 7.14 {es-pull}132162[#132162] (issue: {es-issue}132040[#132040])
+* Fix missing removal of query cancellation callback in QueryPhase {es-pull}130279[#130279] (issue: {es-issue}130071[#130071])
+
+[[enhancement-8.19.1]]
+[float]
+=== Enhancements
+
+Engine::
+* Track & log when there is insufficient disk space available to execute merges {es-pull}131711[#131711]
+
+

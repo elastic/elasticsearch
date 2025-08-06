@@ -19,6 +19,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.PlanBuilder;
+import org.elasticsearch.xpack.esql.PlanContainsMatcher;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -133,6 +135,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 
 import java.time.Duration;
@@ -167,6 +170,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.PartialPlanMatcher.matchesPartialPlan;
+import static org.elasticsearch.xpack.esql.PlanContainsMatcher.containsPlan;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.NULL;
@@ -190,7 +195,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
@@ -212,9 +216,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | drop salary
             """);
 
-        var relation = as(plan, LocalRelation.class);
-        assertThat(relation.output(), is(empty()));
-        assertThat(relation.supplier().get(), emptyArray());
+        assertThat(plan, matchesPartialPlan(PlanBuilder.localRelation(List.of(), EmptyLocalSupplier.EMPTY)));
     }
 
     public void testEmptyProjectionInStat() {
@@ -224,9 +226,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | drop c
             """);
 
-        var relation = as(plan, LocalRelation.class);
-        assertThat(relation.output(), is(empty()));
-        assertThat(relation.supplier().get(), emptyArray());
+        assertThat(plan, matchesPartialPlan(PlanBuilder.localRelation(List.of(), EmptyLocalSupplier.EMPTY)));
     }
 
     /**
@@ -247,7 +247,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
             | eval x = 1, c2 = c*2
             | drop c, c2
             """);
-
         var project = as(plan, Project.class);
         var eval = as(project.child(), Eval.class);
         var limit = as(eval.child(), Limit.class);

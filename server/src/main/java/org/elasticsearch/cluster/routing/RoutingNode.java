@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -26,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -49,9 +47,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
     private final LinkedHashSet<ShardRouting> startedShards;
 
     private final Map<Index, Set<ShardRouting>> shardsByIndex;
-
-    private final Set<String> indexUuids;
-
     /**
      * @param nodeId    node id of this routing node
      * @param node      discovery node for this routing node
@@ -66,7 +61,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this.initializingShards = new LinkedHashSet<>();
         this.startedShards = new LinkedHashSet<>();
         this.shardsByIndex = Maps.newHashMapWithExpectedSize(sizeGuess);
-        this.indexUuids = Sets.newHashSetWithExpectedSize(sizeGuess);
         assert invariant();
     }
 
@@ -78,7 +72,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this.initializingShards = new LinkedHashSet<>(original.initializingShards);
         this.startedShards = new LinkedHashSet<>(original.startedShards);
         this.shardsByIndex = Maps.copyOf(original.shardsByIndex, HashSet::new);
-        this.indexUuids = original.shardsByIndex.keySet().stream().map(Index::getUUID).collect(Collectors.toSet());
         assert invariant();
     }
 
@@ -108,10 +101,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     public boolean hasIndex(Index index) {
         return shardsByIndex.containsKey(index);
-    }
-
-    public boolean hasIndex(String indexUuid) {
-        return indexUuids.contains(indexUuid);
     }
 
     /**
@@ -167,7 +156,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
             startedShards.add(shard);
         }
         shardsByIndex.computeIfAbsent(shard.index(), k -> new HashSet<>()).add(shard);
-        indexUuids.add(shard.index().getUUID());
         assert validate == false || invariant();
     }
 
@@ -220,7 +208,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
         byIndex.remove(shard);
         if (byIndex.isEmpty()) {
             shardsByIndex.remove(shard.index());
-            indexUuids.remove(shard.index().getUUID());
         }
         assert invariant();
     }
@@ -355,7 +342,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         assert relocatingShards.size() == shardRoutingsRelocating.size() && relocatingShards.containsAll(shardRoutingsRelocating);
         assert startedShards.size() == shardRoutingsStarted.size() && startedShards.containsAll(shardRoutingsStarted);
         assert shardRoutingsByIndex.equals(shardsByIndex);
-        assert shardsByIndex.size() == indexUuids.size();
+        assert shardsByIndex.size() == shardsByIndex.keySet().stream().map(Index::getUUID).distinct().count();
 
         return true;
     }

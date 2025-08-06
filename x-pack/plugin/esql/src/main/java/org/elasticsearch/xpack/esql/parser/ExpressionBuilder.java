@@ -643,7 +643,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private String functionName(EsqlBaseParser.FunctionNameContext ctx) {
-        TerminalNode first = ctx.LAST();
+        /*
+         * FIRST and LAST are valid function names AND tokens used in `NULLS LAST`.
+         * So we have to have special handling for them here.
+         */
+        TerminalNode first = ctx.FIRST();
         if (first != null) {
             return first.getText();
         }

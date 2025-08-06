@@ -34,7 +34,7 @@ public class EsAbortPolicy extends EsRejectedExecutionHandler {
         throw newRejectedException(r, executor, executor.isShutdown());
     }
 
-    private static boolean isForceExecution(Runnable r) {
+    static boolean isForceExecution(Runnable r) {
         return r instanceof AbstractRunnable abstractRunnable && abstractRunnable.isForceExecution();
     }
 }

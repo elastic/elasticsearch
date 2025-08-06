@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A collection of static methods to help create different ES Executor types.
  */
 public class EsExecutors {
+    private static final boolean USE_VIRTUAL_THREADS = true;
 
     // although the available processors may technically change, for node sizing we use the number available at launch
     private static final int MAX_NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
@@ -109,7 +110,7 @@ public class EsExecutors {
      * a new worker if capacity remains, otherwise the task is rejected and then appended to the work queue via the {@link ForceQueuePolicy}
      * rejection handler.
      */
-    public static EsThreadPoolExecutor newScaling(
+    public static EsExecutorService newScaling(
         String name,
         int min,
         int max,
@@ -120,12 +121,16 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
+        if (USE_VIRTUAL_THREADS) {
+            return EsVirtualThreadExecutorService.create(name, max, -1, rejectAfterShutdown, contextHolder, config);
+        }
+
         LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
         // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
         // probing the worker pool prevents this.
         boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
         if (config.trackExecutionTime()) {
-            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            return new TaskTimeTrackingEsThreadPoolExecutor(
                 name,
                 min,
                 max,
@@ -168,7 +173,7 @@ public class EsExecutors {
      * a new worker if capacity remains, otherwise the task is rejected and then appended to the work queue via the {@link ForceQueuePolicy}
      * rejection handler.
      */
-    public static EsThreadPoolExecutor newScaling(
+    public static EsExecutorService newScaling(
         String name,
         int min,
         int max,
@@ -191,7 +196,7 @@ public class EsExecutors {
         );
     }
 
-    public static EsThreadPoolExecutor newFixed(
+    public static EsExecutorService newFixed(
         String name,
         int size,
         int queueCapacity,
@@ -199,6 +204,10 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
+        if (USE_VIRTUAL_THREADS) {
+            return EsVirtualThreadExecutorService.create(name, size, queueCapacity, true, contextHolder, config);
+        }
+
         final BlockingQueue<Runnable> queue;
         final EsRejectedExecutionHandler rejectedExecutionHandler;
         if (queueCapacity < 0) {
@@ -209,7 +218,7 @@ public class EsExecutors {
             rejectedExecutionHandler = new EsAbortPolicy();
         }
         if (config.trackExecutionTime()) {
-            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            return new TaskTimeTrackingEsThreadPoolExecutor(
                 name,
                 size,
                 size,
@@ -576,14 +585,21 @@ public class EsExecutors {
         }
     }
 
-    public static class TaskTrackingConfig {
+    /**
+     * @param trackExecutionTime Whether to track execution stats
+     * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
+     * @param trackMaxQueueLatency Whether to track max queue latency.
+     * @param executionTimeEwmaAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
+     */
+    public record TaskTrackingConfig(
+        boolean trackExecutionTime,
+        boolean trackOngoingTasks,
+        boolean trackMaxQueueLatency,
+        double executionTimeEwmaAlpha
+    ) {
+
         // This is a random starting point alpha.
         public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
-
-        private final boolean trackExecutionTime;
-        private final boolean trackOngoingTasks;
-        private final boolean trackMaxQueueLatency;
-        private final double executionTimeEwmaAlpha;
 
         public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
             false,
@@ -598,40 +614,6 @@ public class EsExecutors {
             DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
         );
 
-        /**
-         * @param trackExecutionTime Whether to track execution stats
-         * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
-         * @param trackMaxQueueLatency Whether to track max queue latency.
-         * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
-         */
-        private TaskTrackingConfig(
-            boolean trackExecutionTime,
-            boolean trackOngoingTasks,
-            boolean trackMaxQueueLatency,
-            double executionTimeEWMAAlpha
-        ) {
-            this.trackExecutionTime = trackExecutionTime;
-            this.trackOngoingTasks = trackOngoingTasks;
-            this.trackMaxQueueLatency = trackMaxQueueLatency;
-            this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
-        }
-
-        public boolean trackExecutionTime() {
-            return trackExecutionTime;
-        }
-
-        public boolean trackOngoingTasks() {
-            return trackOngoingTasks;
-        }
-
-        public boolean trackMaxQueueLatency() {
-            return trackMaxQueueLatency;
-        }
-
-        public double getExecutionTimeEwmaAlpha() {
-            return executionTimeEwmaAlpha;
-        }
-
         public static Builder builder() {
             return new Builder();
         }
@@ -642,7 +624,7 @@ public class EsExecutors {
             private boolean trackMaxQueueLatency = false;
             private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
 
-            public Builder() {}
+            private Builder() {}
 
             public Builder trackExecutionTime(double alpha) {
                 trackExecutionTime = true;

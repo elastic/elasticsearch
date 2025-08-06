@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
  */
 public class Streams {
 
-    private static final ThreadLocal<byte[]> LOCAL_BUFFER = ThreadLocal.withInitial(() -> new byte[8 * 1024]);
+    private static final ObjectPool<byte[]> LOCAL_BUFFER = ObjectPool.withInitial(() -> new byte[8 * 1024]);
 
     private Streams() {
 
@@ -63,7 +63,9 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out, boolean close) throws IOException {
-        return copy(in, out, LOCAL_BUFFER.get(), close);
+        try (var pooledBuffer = LOCAL_BUFFER.acquire()) {
+            return copy(in, out, pooledBuffer.get(), close);
+        }
     }
 
     /**
@@ -77,7 +79,9 @@ public class Streams {
      * @see #copy(InputStream, OutputStream, byte[], boolean)
      */
     public static long copy(final InputStream in, final OutputStream out) throws IOException {
-        return copy(in, out, LOCAL_BUFFER.get(), true);
+        try (var pooledBuffer = LOCAL_BUFFER.acquire()) {
+            return copy(in, out, pooledBuffer.get(), true);
+        }
     }
 
     /**
@@ -107,17 +111,19 @@ public class Streams {
 
     private static int readToDirectBuffer(InputStream input, ByteBuffer b, int count) throws IOException {
         int totalRead = 0;
-        final byte[] buffer = LOCAL_BUFFER.get();
-        while (totalRead < count) {
-            final int len = Math.min(count - totalRead, buffer.length);
-            final int read = input.read(buffer, 0, len);
-            if (read == -1) {
-                break;
+        try (var pooledBuffer = LOCAL_BUFFER.acquire()) {
+            final byte[] buffer = pooledBuffer.get();
+            while (totalRead < count) {
+                final int len = Math.min(count - totalRead, buffer.length);
+                final int read = input.read(buffer, 0, len);
+                if (read == -1) {
+                    break;
+                }
+                b.put(buffer, 0, read);
+                totalRead += read;
             }
-            b.put(buffer, 0, read);
-            totalRead += read;
+            return totalRead;
         }
-        return totalRead;
     }
 
     public static int readFully(InputStream reader, byte[] dest) throws IOException {

@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexService;
@@ -749,10 +749,10 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             listener.onResponse(NodeTermsEnumResponse.empty(request.nodeId()));
         } else {
             // Use the search threadpool if its queue is empty
-            assert transportService.getThreadPool().executor(ThreadPool.Names.SEARCH) instanceof EsThreadPoolExecutor
+            assert transportService.getThreadPool().executor(ThreadPool.Names.SEARCH) instanceof EsExecutorService
                 : "SEARCH threadpool must be an instance of ThreadPoolExecutor";
-            EsThreadPoolExecutor ex = (EsThreadPoolExecutor) transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
-            final Executor executor = ex.getQueue().size() == 0 ? ex : shardExecutor;
+            EsExecutorService ex = (EsExecutorService) transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+            final Executor executor = ex.getCurrentQueueSize() == 0 ? ex : shardExecutor;
             executor.execute(ActionRunnable.supply(listener, () -> dataNodeOperation(request)));
         }
     }

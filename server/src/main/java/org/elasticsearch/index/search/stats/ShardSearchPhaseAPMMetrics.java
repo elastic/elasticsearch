@@ -15,6 +15,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -56,9 +57,13 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
     }
 
     private static void recordPhaseLatency(LongHistogram histogramMetric, long tookInNanos) {
-        Map<String, Object> attrs = ShardSearchPhaseAPMMetrics.THREAD_LOCAL_ATTRS.get();
-        boolean isSystem = ((EsExecutors.EsThread) Thread.currentThread()).isSystem();
-        attrs.put(SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
-        histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attrs);
+        // FIXME solve usage of thread locals with virtual threads
+        if (Thread.currentThread() instanceof EsExecutors.EsThread esThread) {
+            Map<String, Object> attrs = ShardSearchPhaseAPMMetrics.THREAD_LOCAL_ATTRS.get();
+            attrs.put(SYSTEM_THREAD_ATTRIBUTE_NAME, esThread.isSystem());
+            histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), attrs);
+        } else {
+            histogramMetric.record(TimeUnit.NANOSECONDS.toMillis(tookInNanos), Collections.emptyMap());
+        }
     }
 }

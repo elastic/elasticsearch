@@ -49,6 +49,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
@@ -845,8 +846,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     // visible for testing
     static boolean isExecutorQueuedBeyondPrewarmingFactor(Executor searchOperationsExecutor, int prewarmingMaxPoolFactorThreshold) {
-        if (searchOperationsExecutor instanceof ThreadPoolExecutor tpe) {
-            return (tpe.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < tpe.getQueue().size();
+        if (searchOperationsExecutor instanceof EsExecutorService es) {
+            return (es.getMaximumPoolSize() * prewarmingMaxPoolFactorThreshold) < es.getCurrentQueueSize();
         } else {
             logger.trace(
                 "received executor [{}] that we can't inspect for queueing. allowing online prewarming for all searches",

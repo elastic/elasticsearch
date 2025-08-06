@@ -30,8 +30,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
@@ -215,7 +215,7 @@ public class MockTransportService extends TransportService {
     }
 
     private final Transport original;
-    private final EsThreadPoolExecutor testExecutor;
+    private final EsExecutorService testExecutor;
 
     /** Build the service. */
     public static MockTransportService createMockTransportService(Transport transport, ThreadPool threadPool) {

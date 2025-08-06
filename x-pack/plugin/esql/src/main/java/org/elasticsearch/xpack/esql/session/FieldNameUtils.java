@@ -117,11 +117,13 @@ public class FieldNameUtils {
 
                 for (var fork_child : fork.children()) {
                     referencesBuilder.set(AttributeSet.builder());
-                    var nested_early_return = fork_child.forEachDownMayReturnEarly(processingLambda.get());
+                    var isNestedFork = forkBranch.forEachDownMayReturnEarly(forEachDownProcessor.get());
                     // This assert is just for good measure. FORKs within FORKs is yet not supported.
-                    assert nested_early_return == false;
-
-                    // See below, no references, means we should return all fields (*).
+                    assert isNestedFork == false : "Nested FORKs are not yet supported";
+                    // This is a safety measure for fork where the list of fields returned is empty.
+                    // It can be empty for a branch that does need all the fields. For example "fork (where true) (where a is not null)"
+                    // but it can also be empty for queries where NO fields are needed from ES,
+                    // for example "fork (eval x = 1 | keep x) (eval y = 1 | keep y)" but we cannot establish this yet.
                     if (referencesBuilder.get().isEmpty()) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.

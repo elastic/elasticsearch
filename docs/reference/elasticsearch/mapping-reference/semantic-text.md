@@ -360,8 +360,6 @@ PUT test-index
 1. Ensures that highlighting is applied exclusively to semantic_text fields.
 
 ## Updates and partial updates for `semantic_text` fields [semantic-text-updates]
-{applies_to}
-stack: ga 9.0
 
 When updating documents that contain `semantic_text` fields, it’s important to understand how inference is triggered:
 
@@ -374,9 +372,7 @@ When updating documents that contain `semantic_text` fields, it’s important to
 * **Partial updates using the Update API**
   When using the [Update API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update) with a `doc` object that **omits `semantic_text` fields**, inference **will still run** on all `semantic_text` fields. This means that even if the field values are not changed, embeddings will be re-generated.
 
-### Best practices
-
-* If you want to avoid unnecessary inference and keep existing embeddings:
+If you want to avoid unnecessary inference and keep existing embeddings:
 
     * Use **partial updates through the Bulk API**.
     * Omit any `semantic_text` fields that did not change from the `doc` object in your request.

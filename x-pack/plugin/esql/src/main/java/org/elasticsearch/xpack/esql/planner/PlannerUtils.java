@@ -320,6 +320,8 @@ public class PlannerUtils {
             case LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG, COUNTER_LONG -> ElementType.LONG;
             case INTEGER, COUNTER_INTEGER -> ElementType.INT;
             case DOUBLE, COUNTER_DOUBLE -> ElementType.DOUBLE;
+            // TODO native floats
+            // case COUNTER_FLOAT -> ElementType.FLOAT;
             // unsupported fields are passed through as a BytesRef
             case KEYWORD, TEXT, IP, SOURCE, VERSION, UNSUPPORTED -> ElementType.BYTES_REF;
             case NULL -> ElementType.NULL;

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.apache.logging.log4j.core.util.Booleans;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -140,6 +141,7 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  * </ul>
  */
 public enum DataType {
+
     /**
      * Fields of this type are unsupported by any functions and are always
      * rendered as {@code null} in the response.
@@ -182,7 +184,15 @@ public enum DataType {
      * aggregation, and casting to their parent numeric type.
      */
     COUNTER_DOUBLE(builder().esType("counter_double").estimatedSize(Double.BYTES).docValues().counter()),
-
+    /**
+     * 32-bit floating point numbers labeled as metric counters in time-series indices.
+     * Although stored internally as numeric fields, they represent cumulative
+     * metrics and must not be treated as regular numeric fields. Therefore,
+     * we define them differently and separately from their parent numeric field.
+     * These fields are strictly for use in retrieval from indices, rate
+     * aggregation, and casting to their parent numeric type.
+     */
+    //COUNTER_FLOAT(builder().esType("counter_float").estimatedSize(Float.BYTES).docValues().counter()),
     /**
      * 64-bit signed numbers loaded as a java {@code long}.
      */
@@ -217,7 +227,7 @@ public enum DataType {
      * Values of this type never escape type resolution and functions,
      * operators, and results should never encounter one.
      */
-    FLOAT(builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues().widenSmallNumeric(DOUBLE)),
+    FLOAT(builder().esType("float").estimatedSize(Float.BYTES).rationalNumber().docValues()/*.counter(COUNTER_FLOAT)*/.widenSmallNumeric(DOUBLE)),
     /**
      * 16-bit floating point numbers widened on load to {@link #DOUBLE}.
      * Values of this type never escape type resolution and functions,
@@ -559,7 +569,7 @@ public enum DataType {
     }
 
     public static boolean isCounter(DataType t) {
-        return t == COUNTER_DOUBLE || t == COUNTER_INTEGER || t == COUNTER_LONG;
+        return Set.of(COUNTER_DOUBLE, COUNTER_INTEGER, COUNTER_LONG).contains(t);
     }
 
     public static boolean isSpatialPoint(DataType t) {
@@ -654,7 +664,10 @@ public enum DataType {
      * widen it into, otherwise this returns {@code this}.
      */
     public DataType widenSmallNumeric() {
-        return widenSmallNumeric == null ? this : widenSmallNumeric;
+        return switch (this) {
+            case FLOAT -> NATIVE_FLOATS_FEATURE_FLAG ? FLOAT : DOUBLE;
+            default -> widenSmallNumeric == null ? this : widenSmallNumeric;
+        };
     }
 
     /**
@@ -843,4 +856,5 @@ public enum DataType {
             return this;
         }
     }
+    public static final boolean NATIVE_FLOATS_FEATURE_FLAG = Booleans.parseBoolean(System.getProperty("esql_native_floats_enabled"), false);
 }

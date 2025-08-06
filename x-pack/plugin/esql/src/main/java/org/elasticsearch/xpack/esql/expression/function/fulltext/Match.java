@@ -96,6 +96,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         DATETIME,
         DATE_NANOS,
         DOUBLE,
+        // TODO NATIVE FLOATS
+        // FLOAT,
         INTEGER,
         IP,
         LONG,
@@ -108,6 +110,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
         DATETIME,
         DATE_NANOS,
         DOUBLE,
+        // TODO NATIVE FLOATS
+        // FLOAT,
         INTEGER,
         IP,
         LONG,

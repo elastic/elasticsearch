@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
@@ -54,6 +56,7 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
  * @see CreateIndexResponse
  */
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
+    protected final Logger logger = LogManager.getLogger(getClass());
 
     public static final ParseField MAPPINGS = new ParseField("mappings");
     public static final ParseField SETTINGS = new ParseField("settings");
@@ -310,11 +313,16 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @return true if the source map is empty or contains only an empty "properties" key, false otherwise
      */
     private boolean isSourceEffectivelyEmpty(Map<String, ?> source) {
+        if (source == null) {
+            return true;
+        }
         if (source.isEmpty()) {
             return true;
         }
         if (source.size() == 1 && source.containsKey("properties")) {
-            return ((Map<?, ?>) source.get("properties")).isEmpty();
+            if (source.get("properties") instanceof Map<?,?> properties) {
+                return properties.isEmpty();
+            }
         }
         return false;
     }

@@ -1890,8 +1890,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         Arrays.asList(
             "logs-extrahop.investigation-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-qualys_gav.asset-" + randomAlphaOfLength(randomIntBetween(1, 10))
-        ).forEach((index) -> {
-            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+        ).forEach((index_qualys_extra_hop) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index_qualys_extra_hop);
 
             // Assert Read Actions (Allowed by "read")
             assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
@@ -1906,29 +1906,16 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
             // Assert Index Management Actions (Allowed by "create_index", "delete_index", and "manage")
             // Allowed by the explicit "create_index" privilege
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction), is(true));
             // Allowed by the explicit TransportDeleteIndexAction
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
 
             // Allowed due to the "manage" privilege and explicit TransportAutoPutMappingAction
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction),
-                is(true)
-            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
             // Allowed due to the explicit TransportIndicesAliasesAction
-            assertThat(
-                kibanaRole.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(indexAbstraction),
-                is(true)
-            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndicesAliasesAction.NAME).test(indexAbstraction), is(true));
             // Rollover requires 'manage' on the alias and 'create_index', both of which are granted.
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
-
 
             // Assert Denied Actions
             // This role should not have cross-cluster permissions on these indices

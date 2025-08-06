@@ -10,16 +10,22 @@ package org.elasticsearch.xpack.core.slm.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.SLM_GET_STATS_CHANGE_REQUEST_TYPE;
 
 /**
  * This class represents the action of retriving the stats for snapshot lifecycle management.
@@ -35,9 +41,48 @@ public class GetSnapshotLifecycleStatsAction extends ActionType<GetSnapshotLifec
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
+        private static final Logger logger = LogManager.getLogger(GetSnapshotLifecycleStatsAction.Request.class);
 
-        public Request(StreamInput input) throws IOException {
+        // for backwards compatibility, store the ack timeout to maintain compatibility with AcknowledgedRequest used in previous versions
+        private final TimeValue ackTimeout;
+
+        // private to avoid non-backwards compatible instantiation
+        private Request(StreamInput input) throws IOException {
             super(input);
+            this.ackTimeout = null;
+        }
+
+        // private, should not be used directly
+        private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+            super(masterNodeTimeout);
+            this.ackTimeout = ackTimeout;
+        }
+
+        public Request(TimeValue masterNodeTimeout) throws IOException {
+            super(masterNodeTimeout);
+            this.ackTimeout = null;
+        }
+
+        public static Request read(StreamInput input) throws IOException {
+            logger.info("Reading GetSnapshotLifecycleStatsAction.Request from stream input");
+            if (input.getTransportVersion().onOrAfter(SLM_GET_STATS_CHANGE_REQUEST_TYPE)) {
+                logger.info("Reading old GetSnapshotLifecycleStatsAction.Request format");
+                return new Request(input);
+            } else {
+                logger.info("Reading new GetSnapshotLifecycleStatsAction.Request format");
+                var requestBwc = new AcknowledgedRequest.Plain(input);
+                return new GetSnapshotLifecycleStatsAction.Request(requestBwc.masterNodeTimeout(), requestBwc.ackTimeout());
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getTransportVersion().onOrAfter(SLM_GET_STATS_CHANGE_REQUEST_TYPE)) {
+                super.writeTo(out);
+            } else {
+                // For backwards compatibility, write the request as an AcknowledgedRequest
+                new AcknowledgedRequest.Plain(this.masterNodeTimeout(), this.ackTimeout).writeTo(out);
+            }
         }
 
         @Override

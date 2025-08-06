@@ -13,7 +13,13 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -117,6 +123,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
 
     private QueryBuilder buildInferenceQuery(MultiMatchQueryBuilder originalQuery, MultiFieldInferenceInfo inferenceInfo) {
         String queryValue = (String) originalQuery.value();
+        Map<String, Float> fieldsBoosts = originalQuery.fields();
         Set<String> inferenceFields = inferenceInfo.getInferenceFields();
 
         if (inferenceFields.size() == 1) {
@@ -124,26 +131,39 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             // No validation needed since single field queries don't require type-specific combination logic
             String fieldName = inferenceFields.iterator().next();
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
-            semanticQuery.boost(originalQuery.boost());
+
+            // Apply per-field boost if specified
+            Float fieldBoost = fieldsBoosts.get(fieldName);
+            if (fieldBoost != null && fieldBoost != 1.0f) {
+                semanticQuery.boost(fieldBoost);
+            }
+
+            // Apply top-level query boost and name
+            if (originalQuery.boost() != 1.0f) {
+                // If we already have field boost, combine with query boost
+                float finalBoost = semanticQuery.boost() * originalQuery.boost();
+                semanticQuery.boost(finalBoost);
+            }
             semanticQuery.queryName(originalQuery.queryName());
             return semanticQuery;
         } else {
             // Multiple inference fields - handle based on multi-match query type (validation happens here)
-            return buildMultiFieldSemanticQuery(originalQuery, inferenceFields, queryValue);
+            return buildMultiFieldSemanticQuery(originalQuery, fieldsBoosts, inferenceFields, queryValue);
         }
     }
 
     private QueryBuilder buildMultiFieldSemanticQuery(
         MultiMatchQueryBuilder originalQuery,
+        Map<String, Float> fieldsBoosts,
         Set<String> inferenceFields,
         String queryValue
     ) {
         return switch (originalQuery.type()) {
-            case BEST_FIELDS -> buildBestFieldsSemanticQuery(originalQuery, inferenceFields, queryValue);
-            case MOST_FIELDS -> buildMostFieldsSemanticQuery(originalQuery, inferenceFields, queryValue);
+            case BEST_FIELDS -> buildBestFieldsSemanticQuery(originalQuery, fieldsBoosts, inferenceFields, queryValue);
+            case MOST_FIELDS -> buildMostFieldsSemanticQuery(originalQuery, fieldsBoosts, inferenceFields, queryValue);
             default ->
                 // Fallback to best_fields behavior for unknown types
-                    buildBestFieldsSemanticQuery(originalQuery, inferenceFields, queryValue);
+                    buildBestFieldsSemanticQuery(originalQuery, fieldsBoosts, inferenceFields, queryValue);
         };
     }
 
@@ -154,13 +174,14 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         validateQueryTypeSupported(originalQuery.type());
 
         String queryValue = (String) originalQuery.value();
+        Map<String, Float> fieldsBoosts = originalQuery.fields();
 
         return switch (originalQuery.type()) {
-            case BEST_FIELDS -> buildBestFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
-            case MOST_FIELDS -> buildMostFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
+            case BEST_FIELDS -> buildBestFieldsCombinedQuery(originalQuery, fieldsBoosts, inferenceInfo, queryValue);
+            case MOST_FIELDS -> buildMostFieldsCombinedQuery(originalQuery, fieldsBoosts, inferenceInfo, queryValue);
             default ->
                 // Fallback to best_fields behavior
-                    buildBestFieldsCombinedQuery(originalQuery, inferenceInfo, queryValue);
+                    buildBestFieldsCombinedQuery(originalQuery, fieldsBoosts, inferenceInfo, queryValue);
         };
     }
 
@@ -198,12 +219,20 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
      */
     private QueryBuilder buildBestFieldsSemanticQuery(
         MultiMatchQueryBuilder originalQuery,
+        Map<String, Float> fieldsBoosts,
         Set<String> inferenceFields,
         String queryValue
     ) {
         DisMaxQueryBuilder disMaxQuery = QueryBuilders.disMaxQuery();
         for (String fieldName : inferenceFields) {
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
+
+            // Apply per-field boost if specified
+            Float fieldBoost = fieldsBoosts.get(fieldName);
+            if (fieldBoost != null && fieldBoost != 1.0f) {
+                semanticQuery.boost(fieldBoost);
+            }
+
             disMaxQuery.add(semanticQuery);
         }
         // Apply tie_breaker if specified
@@ -220,12 +249,20 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
      */
     private QueryBuilder buildMostFieldsSemanticQuery(
         MultiMatchQueryBuilder originalQuery,
+        Map<String, Float> fieldsBoosts,
         Set<String> inferenceFields,
         String queryValue
     ) {
         BoolQueryBuilder boolQuery = new BoolQueryBuilder();
         for (String fieldName : inferenceFields) {
             SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, false);
+
+            // Apply per-field boost if specified
+            Float fieldBoost = fieldsBoosts.get(fieldName);
+            if (fieldBoost != null && fieldBoost != 1.0f) {
+                semanticQuery.boost(fieldBoost);
+            }
+
             boolQuery.should(semanticQuery);
         }
         boolQuery.minimumShouldMatch("1");
@@ -236,6 +273,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
 
     private QueryBuilder buildBestFieldsCombinedQuery(
         MultiMatchQueryBuilder originalQuery,
+        Map<String, Float> fieldsBoosts,
         MultiFieldInferenceInfo inferenceInfo,
         String queryValue
     ) {
@@ -249,14 +287,23 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             Map<String, InferenceFieldMetadata> indexInferenceFields = entry.getValue();
 
             for (String fieldName : indexInferenceFields.keySet()) {
+                SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, true);
+
+                // Apply per-field boost if specified
+                Float fieldBoost = fieldsBoosts.get(fieldName);
+                if (fieldBoost != null && fieldBoost != 1.0f) {
+                    semanticQuery.boost(fieldBoost);
+                }
+
                 BoolQueryBuilder indexSpecificQuery = new BoolQueryBuilder();
-                indexSpecificQuery.must(new SemanticQueryBuilder(fieldName, queryValue, true));
+                indexSpecificQuery.must(semanticQuery);
                 indexSpecificQuery.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, List.of(indexName)));
                 disMaxQuery.add(indexSpecificQuery);
             }
         }
 
         // Add non-inference query for indices without semantic_text fields
+        // Note: Field boosts are preserved in the copied MultiMatchQueryBuilder
         if (inferenceInfo.getNonInferenceIndices().isEmpty() == false) {
             MultiMatchQueryBuilder nonInferenceQuery = copyMultiMatchQueryBuilder(originalQuery);
             BoolQueryBuilder indexFilteredQuery = new BoolQueryBuilder();
@@ -276,6 +323,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
 
     private QueryBuilder buildMostFieldsCombinedQuery(
         MultiMatchQueryBuilder originalQuery,
+        Map<String, Float> fieldsBoosts,
         MultiFieldInferenceInfo inferenceInfo,
         String queryValue
     ) {
@@ -289,14 +337,23 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             Map<String, InferenceFieldMetadata> indexInferenceFields = entry.getValue();
 
             for (String fieldName : indexInferenceFields.keySet()) {
+                SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, true);
+
+                // Apply per-field boost if specified
+                Float fieldBoost = fieldsBoosts.get(fieldName);
+                if (fieldBoost != null && fieldBoost != 1.0f) {
+                    semanticQuery.boost(fieldBoost);
+                }
+
                 BoolQueryBuilder indexSpecificQuery = new BoolQueryBuilder();
-                indexSpecificQuery.must(new SemanticQueryBuilder(fieldName, queryValue, true));
+                indexSpecificQuery.must(semanticQuery);
                 indexSpecificQuery.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, List.of(indexName)));
                 boolQuery.should(indexSpecificQuery);
             }
         }
 
         // Add non-inference query for indices without semantic_text fields
+        // Note: Field boosts are preserved in the copied MultiMatchQueryBuilder
         if (inferenceInfo.getNonInferenceIndices().isEmpty() == false) {
             MultiMatchQueryBuilder nonInferenceQuery = copyMultiMatchQueryBuilder(originalQuery);
             BoolQueryBuilder indexFilteredQuery = new BoolQueryBuilder();

@@ -111,74 +111,109 @@ public class ESUTF8StreamJsonParser extends UTF8StreamJsonParser {
             return null;
         }
 
-        // Instead of tracking backslash positions, directly build the result
-        byte[] resultBuffer = new byte[max - startPtr]; // Pessimistic size
-        int writePos = ptr - startPtr;
+        int[] escapePositions = new int[16]; // Small initial size
 
-        // Copy everything before the first backslash
-        System.arraycopy(inputBuffer, startPtr, resultBuffer, 0, writePos);
+        int escapeCount = 0;
+        int scanPtr = ptr;
 
-        stringLength = writePos;
-
-        while (ptr < max) {
-            byte b = inputBuffer[ptr];
+        // Scan to find escapes and end quote
+        while (scanPtr < max) {
+            byte b = inputBuffer[scanPtr];
             if (b == INT_QUOTE) {
-                // End of string
-                stringEnd = ptr + 1;
-                // Create result with exact size
-                if (writePos == resultBuffer.length) {
-                    return new Text(new XContentString.UTF8Bytes(resultBuffer), stringLength);
-                } else {
-                    byte[] exact = new byte[writePos];
-                    System.arraycopy(resultBuffer, 0, exact, 0, writePos);
-                    return new Text(new XContentString.UTF8Bytes(exact), stringLength);
-                }
+                break; // Found end
             }
 
             if (b == INT_BACKSLASH) {
-                ptr++;
-                if (ptr >= max) {
+                // Grow array if needed
+                if (escapeCount >= escapePositions.length) {
+                    int[] newArray = new int[escapePositions.length * 2];
+                    System.arraycopy(escapePositions, 0, newArray, 0, escapeCount);
+                    escapePositions = newArray;
+                }
+                escapePositions[escapeCount++] = scanPtr;
+
+                scanPtr++;
+                if (scanPtr >= max) {
                     return null;
                 }
-                b = inputBuffer[ptr];
-                // Only handle simple escapes
+                b = inputBuffer[scanPtr];
                 if (b == '"' || b == '/' || b == '\\') {
-                    resultBuffer[writePos++] = b;
-                    ptr++;
-                    stringLength++;
+                    scanPtr++;
                 } else {
-                    // Unsupported escape
-                    return null;
+                    return null; // Unsupported escape
                 }
             } else if (b >= 0) {
-                // ASCII
-                resultBuffer[writePos++] = b;
-                ptr++;
-                stringLength++;
+                scanPtr++;
             } else {
                 // Non-ASCII
                 int c = b & 0xFF;
                 int codeType = INPUT_CODES_UTF8[c];
                 if (codeType == 0) {
-                    resultBuffer[writePos++] = b;
-                    ptr++;
-                    stringLength++;
+                    scanPtr++;
                 } else if (codeType >= 2 && codeType <= 4) {
-                    if (ptr + codeType > max) {
+                    if (scanPtr + codeType > max) {
                         return null;
                     }
-                    // Copy multi-byte sequence
-                    System.arraycopy(inputBuffer, ptr, resultBuffer, writePos, codeType);
-                    writePos += codeType;
-                    ptr += codeType;
-                    stringLength++;
+                    scanPtr += codeType;
                 } else {
                     return null;
                 }
             }
         }
 
-        return null; // Didn't find closing quote
+        if (scanPtr >= max) {
+            return null; // Didn't find closing quote
+        }
+
+        stringEnd = scanPtr + 1;
+
+        // Calculate exact byte size: total bytes minus number of backslashes
+        int exactByteSize = (scanPtr - startPtr) - escapeCount;
+
+        // Allocate exact size buffer
+        byte[] resultBuffer = new byte[exactByteSize];
+        int writePos = 0;
+
+        // Copy everything before the first backslash
+        int beforeEscapeLength = ptr - startPtr;
+        int resultCharCount = beforeEscapeLength;
+        System.arraycopy(inputBuffer, startPtr, resultBuffer, 0, beforeEscapeLength);
+        writePos = beforeEscapeLength;
+
+        // Second pass: process escapes
+        while (ptr < scanPtr) {
+            byte b = inputBuffer[ptr];
+
+            if (b == INT_BACKSLASH) {
+                ptr++; // Skip backslash
+                b = inputBuffer[ptr]; // Get escaped character
+                resultBuffer[writePos++] = b;
+                resultCharCount++;
+                ptr++;
+            } else if (b >= 0) {
+                // ASCII
+                resultBuffer[writePos++] = b;
+                resultCharCount++;
+                ptr++;
+            } else {
+                // Non-ASCII - copy multi-byte sequence
+                int c = b & 0xFF;
+                int codeType = INPUT_CODES_UTF8[c];
+                if (codeType == 0) {
+                    resultBuffer[writePos++] = b;
+                    resultCharCount++;
+                    ptr++;
+                } else if (codeType >= 2 && codeType <= 4) {
+                    System.arraycopy(inputBuffer, ptr, resultBuffer, writePos, codeType);
+                    writePos += codeType;
+                    resultCharCount++;
+                    ptr += codeType;
+                }
+            }
+        }
+
+        stringLength = resultCharCount;
+        return new Text(new XContentString.UTF8Bytes(resultBuffer), stringLength);
     }
 
     public boolean writeUTF8TextToStream(OutputStream out) throws IOException {

@@ -20,30 +20,30 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link LastOverTimeLongAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link LastLongByTimestampAggregator}.
  * This class is generated. Edit {@code GroupingAggregatorImplementer} instead.
  */
-public final class LastOverTimeLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class LastLongByTimestampGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("timestamps", ElementType.LONG),
       new IntermediateStateDesc("values", ElementType.LONG)  );
 
-  private final LastOverTimeLongAggregator.GroupingState state;
+  private final LastLongByTimestampAggregator.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
-  public LastOverTimeLongGroupingAggregatorFunction(List<Integer> channels,
-      LastOverTimeLongAggregator.GroupingState state, DriverContext driverContext) {
+  public LastLongByTimestampGroupingAggregatorFunction(List<Integer> channels,
+      LastLongByTimestampAggregator.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static LastOverTimeLongGroupingAggregatorFunction create(List<Integer> channels,
+  public static LastLongByTimestampGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new LastOverTimeLongGroupingAggregatorFunction(channels, LastOverTimeLongAggregator.initGrouping(driverContext), driverContext);
+    return new LastLongByTimestampGroupingAggregatorFunction(channels, LastLongByTimestampAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -159,7 +159,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            LastOverTimeLongAggregator.combine(state, groupId, valueValue, timestampValue);
+            LastLongByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
           }
         }
       }
@@ -179,7 +179,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
         int groupId = groups.getInt(g);
         long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        LastOverTimeLongAggregator.combine(state, groupId, valueValue, timestampValue);
+        LastLongByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }
   }
@@ -208,7 +208,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        LastOverTimeLongAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+        LastLongByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
       }
     }
   }
@@ -238,7 +238,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
           int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
           for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
             long timestampValue = timestampBlock.getLong(timestampOffset);
-            LastOverTimeLongAggregator.combine(state, groupId, valueValue, timestampValue);
+            LastLongByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
           }
         }
       }
@@ -258,7 +258,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
         int groupId = groups.getInt(g);
         long valueValue = valueVector.getLong(valuesPosition);
         long timestampValue = timestampVector.getLong(valuesPosition);
-        LastOverTimeLongAggregator.combine(state, groupId, valueValue, timestampValue);
+        LastLongByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }
   }
@@ -287,7 +287,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
         int valuesPosition = groupPosition + positionOffset;
-        LastOverTimeLongAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+        LastLongByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
       }
     }
   }
@@ -311,7 +311,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
         int timestampEnd = timestampStart + timestampBlock.getValueCount(valuesPosition);
         for (int timestampOffset = timestampStart; timestampOffset < timestampEnd; timestampOffset++) {
           long timestampValue = timestampBlock.getLong(timestampOffset);
-          LastOverTimeLongAggregator.combine(state, groupId, valueValue, timestampValue);
+          LastLongByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
         }
       }
     }
@@ -324,7 +324,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
       int groupId = groups.getInt(groupPosition);
       long valueValue = valueVector.getLong(valuesPosition);
       long timestampValue = timestampVector.getLong(valuesPosition);
-      LastOverTimeLongAggregator.combine(state, groupId, valueValue, timestampValue);
+      LastLongByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
     }
   }
 
@@ -346,7 +346,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;
-      LastOverTimeLongAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
+      LastLongByTimestampAggregator.combineIntermediate(state, groupId, timestamps, values, valuesPosition);
     }
   }
 
@@ -363,7 +363,7 @@ public final class LastOverTimeLongGroupingAggregatorFunction implements Groupin
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       GroupingAggregatorEvaluationContext ctx) {
-    blocks[offset] = LastOverTimeLongAggregator.evaluateFinal(state, selected, ctx);
+    blocks[offset] = LastLongByTimestampAggregator.evaluateFinal(state, selected, ctx);
   }
 
   @Override

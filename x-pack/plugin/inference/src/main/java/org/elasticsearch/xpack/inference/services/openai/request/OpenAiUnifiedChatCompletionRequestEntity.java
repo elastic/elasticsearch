@@ -20,7 +20,7 @@ import java.util.Objects;
 
 public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
 
-    public static final String USER_FIELD = "user";
+    private static final String USER_FIELD = "user";
     private final OpenAiChatCompletionModel model;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
 

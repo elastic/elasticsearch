@@ -1425,6 +1425,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             return new DelegatingRangeMissingHandler(writer) {
                 @Override
                 public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+                    logger.info("recording write");
                     blobCacheMetrics.recordWrite();
                     return super.sharedInputStreamFactory(gaps);
                 }

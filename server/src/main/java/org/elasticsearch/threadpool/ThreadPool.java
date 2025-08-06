@@ -183,7 +183,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             return threadPoolType;
         }
 
-        public static ThreadPoolType bwcType(String threadPoolName) {
+        public static ThreadPoolType bwcType(String threadPoolName, ThreadPoolType defaultType) {
             switch (threadPoolName) {
                 case Names.WRITE:
                 case Names.WRITE_COORDINATION:
@@ -191,7 +191,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
                 case Names.GENERIC:
                     return SCALING;
                 default:
-                    return THREAD_POOL_TYPES.get(threadPoolName);
+                    return defaultType;
             }
         }
     }
@@ -998,7 +998,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             if (out.getTransportVersion().onOrAfter(TransportVersions.VIRTUAL_THREADS)) {
                 out.writeString(type.getType());
             } else {
-                out.writeString(ThreadPoolType.bwcType(name).getType());
+                out.writeString(ThreadPoolType.bwcType(name, type).getType());
             }
             out.writeInt(min);
             out.writeInt(max);

@@ -43,7 +43,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
     private final Supplier<ModelRegistry> modelRegistrySupplier;
     private final float DEFAULT_BOOST_FIELD = 1.0f;
 
-
     public SemanticMultiMatchQueryRewriteInterceptor(Supplier<ModelRegistry> modelRegistrySupplier) {
         this.modelRegistrySupplier = modelRegistrySupplier;
     }
@@ -114,10 +113,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             }
         }
 
-        MultiFieldInferenceInfo inferenceInfo = new MultiFieldInferenceInfo(
-            inferenceFieldsPerIndex,
-            nonInferenceFieldsPerIndex
-        );
+        MultiFieldInferenceInfo inferenceInfo = new MultiFieldInferenceInfo(inferenceFieldsPerIndex, nonInferenceFieldsPerIndex);
 
         // Perform early detection of score range mismatches and emit warning if needed
         detectAndWarnScoreRangeMismatch(inferenceInfo);
@@ -125,7 +121,11 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         return inferenceInfo;
     }
 
-    private QueryBuilder buildInferenceQuery(MultiMatchQueryBuilder originalQuery, MultiFieldInferenceInfo inferenceInfo, Map<String, Float> fieldsBoosts) {
+    private QueryBuilder buildInferenceQuery(
+        MultiMatchQueryBuilder originalQuery,
+        MultiFieldInferenceInfo inferenceInfo,
+        Map<String, Float> fieldsBoosts
+    ) {
         String queryValue = (String) originalQuery.value();
         Set<String> inferenceFields = inferenceInfo.getInferenceFields();
 
@@ -159,7 +159,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             case MOST_FIELDS -> buildMostFieldsSemanticQuery(originalQuery, fieldsBoosts, inferenceFields, queryValue);
             default ->
                 // Fallback to best_fields behavior for unknown types
-                    buildBestFieldsSemanticQuery(originalQuery, fieldsBoosts, inferenceFields, queryValue);
+                buildBestFieldsSemanticQuery(originalQuery, fieldsBoosts, inferenceFields, queryValue);
         };
     }
 
@@ -177,7 +177,7 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             case MOST_FIELDS -> buildMostFieldsCombinedQuery(originalQuery, fieldsBoosts, inferenceInfo, queryValue);
             default ->
                 // Fallback to best_fields behavior
-                    buildBestFieldsCombinedQuery(originalQuery, fieldsBoosts, inferenceInfo, queryValue);
+                buildBestFieldsCombinedQuery(originalQuery, fieldsBoosts, inferenceInfo, queryValue);
         };
     }
 
@@ -189,23 +189,21 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         switch (queryType) {
             case CROSS_FIELDS:
                 throw new IllegalArgumentException(
-                    "multi_match query with type [cross_fields] is not supported for semantic_text fields. " +
-                    "Use [best_fields] or [most_fields] instead."
+                    "multi_match query with type [cross_fields] is not supported for semantic_text fields. "
+                        + "Use [best_fields] or [most_fields] instead."
                 );
             case PHRASE:
                 throw new IllegalArgumentException(
-                    "multi_match query with type [phrase] is not supported for semantic_text fields. " +
-                    "Use [best_fields] instead."
+                    "multi_match query with type [phrase] is not supported for semantic_text fields. " + "Use [best_fields] instead."
                 );
             case PHRASE_PREFIX:
                 throw new IllegalArgumentException(
-                    "multi_match query with type [phrase_prefix] is not supported for semantic_text fields. " +
-                    "Use [best_fields] instead."
+                    "multi_match query with type [phrase_prefix] is not supported for semantic_text fields. " + "Use [best_fields] instead."
                 );
             case BOOL_PREFIX:
                 throw new IllegalArgumentException(
-                    "multi_match query with type [bool_prefix] is not supported for semantic_text fields. " +
-                    "Use [best_fields] or [most_fields] instead."
+                    "multi_match query with type [bool_prefix] is not supported for semantic_text fields. "
+                        + "Use [best_fields] or [most_fields] instead."
                 );
         }
     }
@@ -213,7 +211,12 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
     /**
      * Creates a semantic query with field boost applied.
      */
-    private SemanticQueryBuilder createSemanticQuery(String fieldName, String queryValue, Map<String, Float> fieldsBoosts, boolean lenient) {
+    private SemanticQueryBuilder createSemanticQuery(
+        String fieldName,
+        String queryValue,
+        Map<String, Float> fieldsBoosts,
+        boolean lenient
+    ) {
         SemanticQueryBuilder semanticQuery = new SemanticQueryBuilder(fieldName, queryValue, lenient);
         float fieldBoost = fieldsBoosts.getOrDefault(fieldName, DEFAULT_BOOST_FIELD);
         semanticQuery.boost(fieldBoost);
@@ -367,10 +370,10 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             // since we can't determine the exact task types
             if (inferenceInfo.hasNonInferenceFields() && inferenceInfo.getInferenceFields().isEmpty() == false) {
                 HeaderWarning.addWarning(
-                    "Query spans both semantic_text and non-inference fields. " +
-                    "Dense vector models (TEXT_EMBEDDING) produce bounded scores (0-1) while sparse vector models " +
-                    "(SPARSE_EMBEDDING) and non-inference fields produce unbounded scores, which may cause score " +
-                    "range mismatches and affect result ranking. Consider using Linear or RRF retrievers."
+                    "Query spans both semantic_text and non-inference fields. "
+                        + "Dense vector models (TEXT_EMBEDDING) produce bounded scores (0-1) while sparse vector models "
+                        + "(SPARSE_EMBEDDING) and non-inference fields produce unbounded scores, which may cause score "
+                        + "range mismatches and affect result ranking. Consider using Linear or RRF retrievers."
                 );
             }
             return;
@@ -409,11 +412,11 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         // Emit warning only if we have dense vector model mixed with sparse vector or non-inference fields
         if (hasDenseVectorModel && (hasSparseVectorModel || hasNonInferenceFields)) {
             HeaderWarning.addWarning(
-                "Query contains dense vector model (TEXT_EMBEDDING) with bounded scores (0-1) mixed with " +
-                (hasSparseVectorModel ? "sparse vector model (SPARSE_EMBEDDING) and/or " : "") +
-                (hasNonInferenceFields ? "non-inference fields " : "") +
-                "that produce unbounded scores. This may cause score range mismatches and affect result ranking. " +
-                "Consider using Linear or RRF retrievers."
+                "Query contains dense vector model (TEXT_EMBEDDING) with bounded scores (0-1) mixed with "
+                    + (hasSparseVectorModel ? "sparse vector model (SPARSE_EMBEDDING) and/or " : "")
+                    + (hasNonInferenceFields ? "non-inference fields " : "")
+                    + "that produce unbounded scores. This may cause score range mismatches and affect result ranking. "
+                    + "Consider using Linear or RRF retrievers."
             );
         }
     }
@@ -467,18 +470,18 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
     /**
          * Represents the inference information for multiple fields across indices.
          */
-        public record MultiFieldInferenceInfo(Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex,
-                                              Map<String, Set<String>> nonInferenceFieldsPerIndex) {
+    public record MultiFieldInferenceInfo(
+        Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex,
+        Map<String, Set<String>> nonInferenceFieldsPerIndex
+    ) {
 
         public Set<String> getInferenceFields() {
-                return inferenceFieldsPerIndex.values().stream()
-                    .flatMap(fields -> fields.keySet().stream())
-                    .collect(Collectors.toSet());
-            }
-
-            public boolean hasNonInferenceFields() {
-                return nonInferenceFieldsPerIndex.isEmpty() == false;
-            }
-
+            return inferenceFieldsPerIndex.values().stream().flatMap(fields -> fields.keySet().stream()).collect(Collectors.toSet());
         }
+
+        public boolean hasNonInferenceFields() {
+            return nonInferenceFieldsPerIndex.isEmpty() == false;
+        }
+
+    }
 }

@@ -6,3 +6,8 @@ other Elasticsearch internals.
 
 If a change is introduced in a separate Elasticsearch project that causes this project to fail,
 please consult with members of @elastic/logstash to chart a path forward.
+
+## How to build the module?
+```shell
+./gradlew :lib:logstash-bridge:build
+```

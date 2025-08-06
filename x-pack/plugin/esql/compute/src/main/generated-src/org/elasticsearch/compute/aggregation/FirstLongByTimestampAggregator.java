@@ -9,12 +9,14 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -22,21 +24,18 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-ValueOverTimeAggregator.java.st` instead.
+ * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
+ * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
 @GroupingAggregator(
-    value = { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "FLOAT_BLOCK") }
+    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "LONG_BLOCK") }
 )
-public class LastOverTimeFloatAggregator {
-
+public class FirstLongByTimestampAggregator {
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
 
-    // TODO: Since data in data_streams is sorted by `_tsid` and timestamp in descending order,
-    // we can read the first encountered value for each group of `_tsid` and time bucket.
-    public static void combine(GroupingState current, int groupId, long timestamp, float value) {
+    public static void combine(GroupingState current, int groupId, long value, long timestamp) {
         current.collectValue(groupId, timestamp, value);
     }
 
@@ -44,15 +43,16 @@ public class LastOverTimeFloatAggregator {
         GroupingState current,
         int groupId,
         LongBlock timestamps, // stylecheck
-        FloatBlock values,
+        LongBlock values,
         int otherPosition
     ) {
+        // TODO seen should probably be part of the intermediate representation
         int valueCount = values.getValueCount(otherPosition);
         if (valueCount > 0) {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
             int firstIndex = values.getFirstValueIndex(otherPosition);
             for (int i = 0; i < valueCount; i++) {
-                current.collectValue(groupId, timestamp, values.getFloat(firstIndex + i));
+                current.collectValue(groupId, timestamp, values.getLong(firstIndex + i));
             }
         }
     }
@@ -64,7 +64,7 @@ public class LastOverTimeFloatAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
         private LongArray timestamps;
-        private FloatArray values;
+        private LongArray values;
         private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
@@ -75,7 +75,7 @@ public class LastOverTimeFloatAggregator {
             try {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
-                this.values = bigArrays.newFloatArray(1, false);
+                this.values = bigArrays.newLongArray(1, false);
                 success = true;
             } finally {
                 if (success == false) {
@@ -84,11 +84,11 @@ public class LastOverTimeFloatAggregator {
             }
         }
 
-        void collectValue(int groupId, long timestamp, float value) {
+        void collectValue(int groupId, long timestamp, long value) {
             boolean updated = false;
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
-                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
+                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) > timestamp) {
                     timestamps.set(groupId, timestamp);
                     updated = true;
                 }
@@ -114,13 +114,13 @@ public class LastOverTimeFloatAggregator {
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                var valuesBuilder = driverContext.blockFactory().newFloatBlockBuilder(selected.getPositionCount())
+                var valuesBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
                         timestampsBuilder.appendLong(timestamps.get(group));
-                        valuesBuilder.appendFloat(values.get(group));
+                        valuesBuilder.appendLong(values.get(group));
                     } else {
                         timestampsBuilder.appendNull();
                         valuesBuilder.appendNull();
@@ -132,11 +132,11 @@ public class LastOverTimeFloatAggregator {
         }
 
         Block evaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-            try (var builder = evalContext.blockFactory().newFloatBlockBuilder(selected.getPositionCount())) {
+            try (var builder = evalContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
-                        builder.appendFloat(values.get(group));
+                        builder.appendLong(values.get(group));
                     } else {
                         builder.appendNull();
                     }

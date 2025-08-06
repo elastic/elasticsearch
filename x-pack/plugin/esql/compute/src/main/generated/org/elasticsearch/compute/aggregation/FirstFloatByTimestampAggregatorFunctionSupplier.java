@@ -11,11 +11,11 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link LastOverTimeFloatAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link FirstFloatByTimestampAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class LastOverTimeFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public LastOverTimeFloatAggregatorFunctionSupplier() {
+public final class FirstFloatByTimestampAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public FirstFloatByTimestampAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -25,7 +25,7 @@ public final class LastOverTimeFloatAggregatorFunctionSupplier implements Aggreg
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return LastOverTimeFloatGroupingAggregatorFunction.intermediateStateDesc();
+    return FirstFloatByTimestampGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
@@ -34,13 +34,13 @@ public final class LastOverTimeFloatAggregatorFunctionSupplier implements Aggreg
   }
 
   @Override
-  public LastOverTimeFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
-      List<Integer> channels) {
-    return LastOverTimeFloatGroupingAggregatorFunction.create(channels, driverContext);
+  public FirstFloatByTimestampGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext, List<Integer> channels) {
+    return FirstFloatByTimestampGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "last_over_time of floats";
+    return "first_float_by of timestamps";
   }
 }

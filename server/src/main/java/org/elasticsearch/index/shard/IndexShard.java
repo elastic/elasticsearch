@@ -1891,7 +1891,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         postRecoveryComplete = subscribableListener;
         final ActionListener<Void> finalListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
         try {
-            getEngine().refresh("post_recovery");
+            engineResetLock.writeLock().lock();
+            try {
+                getEngine().refresh("post_recovery");
+            } finally {
+                engineResetLock.writeLock().unlock();
+            }
             // we need to refresh again to expose all operations that were index until now. Otherwise
             // we may not expose operations that were indexed with a refresh listener that was immediately
             // responded to in addRefreshListener. The refresh must happen under the same mutex used in addRefreshListener

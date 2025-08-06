@@ -452,7 +452,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             if (similarityFunction == EUCLIDEAN) {
                 res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
                 res = FloatVector.broadcast(FLOAT_SPECIES_128, 1).div(res).max(0);
-                maxScore = res.reduceLanes(VectorOperators.MAX);
+                maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                 res.intoArray(scores, i);
             } else {
                 // For cosine and max inner product, we need to apply the additional correction, which is
@@ -468,7 +468,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 } else {
                     res = res.add(1f).mul(0.5f).max(0);
                     res.intoArray(scores, i);
-                    maxScore = res.reduceLanes(VectorOperators.MAX);
+                    maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                 }
             }
         }
@@ -527,7 +527,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             if (similarityFunction == EUCLIDEAN) {
                 res = res.mul(-2).add(additionalCorrections).add(queryAdditionalCorrection).add(1f);
                 res = FloatVector.broadcast(FLOAT_SPECIES_256, 1).div(res).max(0);
-                maxScore = res.reduceLanes(VectorOperators.MAX);
+                maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                 res.intoArray(scores, i);
             } else {
                 // For cosine and max inner product, we need to apply the additional correction, which is
@@ -542,7 +542,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                     }
                 } else {
                     res = res.add(1f).mul(0.5f).max(0);
-                    maxScore = res.reduceLanes(VectorOperators.MAX);
+                    maxScore = Math.max(maxScore, res.reduceLanes(VectorOperators.MAX));
                     res.intoArray(scores, i);
                 }
             }

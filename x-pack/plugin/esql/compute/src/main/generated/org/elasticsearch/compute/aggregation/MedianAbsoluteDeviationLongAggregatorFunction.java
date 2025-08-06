@@ -87,18 +87,18 @@ public final class MedianAbsoluteDeviationLongAggregatorFunction implements Aggr
   }
 
   private void addRawVector(LongVector vVector) {
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      long vValue = vVector.getLong(i);
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      long vValue = vVector.getLong(valuesPosition);
       MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
     }
   }
 
   private void addRawVector(LongVector vVector, BooleanVector mask) {
-    for (int i = 0; i < vVector.getPositionCount(); i++) {
-      if (mask.getBoolean(i) == false) {
+    for (int valuesPosition = 0; valuesPosition < vVector.getPositionCount(); valuesPosition++) {
+      if (mask.getBoolean(valuesPosition) == false) {
         continue;
       }
-      long vValue = vVector.getLong(i);
+      long vValue = vVector.getLong(valuesPosition);
       MedianAbsoluteDeviationLongAggregator.combine(state, vValue);
     }
   }

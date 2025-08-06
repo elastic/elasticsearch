@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsActi
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
+import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodesUsageAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteClusterNodesAction;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
@@ -629,6 +630,7 @@ public class ActionModule extends AbstractModule {
         ActionRegistry actions = new ActionRegistry();
 
         actions.register(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class);
+        actions.register(TransportNodeUsageStatsForThreadPoolsAction.TYPE, TransportNodeUsageStatsForThreadPoolsAction.class);
         actions.register(TransportRemoteInfoAction.TYPE, TransportRemoteInfoAction.class);
         actions.register(TransportNodesCapabilitiesAction.TYPE, TransportNodesCapabilitiesAction.class);
         actions.register(TransportNodesFeaturesAction.TYPE, TransportNodesFeaturesAction.class);

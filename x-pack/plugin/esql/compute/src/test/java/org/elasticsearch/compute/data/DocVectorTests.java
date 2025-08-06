@@ -27,7 +27,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DocVectorTests extends ComputeTestCase {
-    public void testNonDecreasingSetTrue() {
+    /**
+     * Assert that {@link DocVector#singleSegmentNonDecreasing()} is true
+     * when the vector is constructed with it set to {@code true}, regardless
+     * of if the segment is actually a single segment. Or non-decreasing.
+     * <p>
+     *     Note: Setting this incorrectly is rude and will break ESQL.
+     * </p>
+     */
+    public void testSingleSegmentNonDecreasingSetTrue() {
         int length = between(1, 100);
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
@@ -39,7 +47,7 @@ public class DocVectorTests extends ComputeTestCase {
         assertTrue(docs.singleSegmentNonDecreasing());
     }
 
-    public void testNonDecreasingSetFalse() {
+    public void testSingleSegmentNonDecreasingSetFalse() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
@@ -52,7 +60,7 @@ public class DocVectorTests extends ComputeTestCase {
         docs.close();
     }
 
-    public void testNonDecreasingNonConstantShard() {
+    public void testSingleSegmentNonDecreasingNonConstantShard() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
@@ -65,7 +73,7 @@ public class DocVectorTests extends ComputeTestCase {
         docs.close();
     }
 
-    public void testNonDecreasingNonConstantSegment() {
+    public void testSingleSegmentNonDecreasingNonConstantSegment() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,
@@ -78,7 +86,33 @@ public class DocVectorTests extends ComputeTestCase {
         docs.close();
     }
 
-    public void testNonDecreasingDescendingDocs() {
+    public void testSingleSegmentNonDecreasingAscending() {
+        BlockFactory blockFactory = blockFactory();
+        DocVector docs = new DocVector(
+            ShardRefCounted.ALWAYS_REFERENCED,
+            blockFactory.newConstantIntVector(0, 2),
+            blockFactory.newConstantIntVector(0, 2),
+            blockFactory.newIntArrayVector(new int[] { 0, 1 }, 2),
+            null
+        );
+        assertTrue(docs.singleSegmentNonDecreasing());
+        docs.close();
+    }
+
+    public void testSingleSegmentNonDecreasingSame() {
+        BlockFactory blockFactory = blockFactory();
+        DocVector docs = new DocVector(
+            ShardRefCounted.ALWAYS_REFERENCED,
+            blockFactory.newConstantIntVector(0, 2),
+            blockFactory.newConstantIntVector(0, 2),
+            blockFactory.newIntArrayVector(new int[] { 2, 2 }, 2),
+            null
+        );
+        assertTrue(docs.singleSegmentNonDecreasing());
+        docs.close();
+    }
+
+    public void testSingleSegmentNonDecreasingDescendingDocs() {
         BlockFactory blockFactory = blockFactory();
         DocVector docs = new DocVector(
             ShardRefCounted.ALWAYS_REFERENCED,

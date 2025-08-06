@@ -72,10 +72,10 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             return queryBuilder;
         } else if (inferenceInfo.hasNonInferenceFields()) {
             // Combined case where some fields are semantic_text and others are not
-            return buildCombinedInferenceAndNonInferenceQuery(multiMatchQueryBuilder, inferenceInfo);
+            return buildCombinedInferenceAndNonInferenceQuery(multiMatchQueryBuilder, inferenceInfo, fields);
         } else {
             // All specified fields are inference fields (semantic_text)
-            return buildInferenceQuery(multiMatchQueryBuilder, inferenceInfo);
+            return buildInferenceQuery(multiMatchQueryBuilder, inferenceInfo, fields);
         }
     }
 
@@ -88,7 +88,6 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
         Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex = new HashMap<>();
         List<String> nonInferenceIndices = new ArrayList<>();
-        Map<String, Set<String>> inferenceFieldsByIndex = new HashMap<>();
 
         for (IndexMetadata indexMetadata : indexMetadataCollection) {
             String indexName = indexMetadata.getIndex().getName();
@@ -104,15 +103,13 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
                     indexInferenceFields.put(fieldName, indexMetadata.getInferenceFields().get(fieldName));
                 }
                 inferenceFieldsPerIndex.put(indexName, indexInferenceFields);
-                inferenceFieldsByIndex.put(indexName, indexInferenceFieldNames);
             }
         }
 
         MultiFieldInferenceInfo inferenceInfo = new MultiFieldInferenceInfo(
             fieldNames,
             inferenceFieldsPerIndex,
-            nonInferenceIndices,
-            inferenceFieldsByIndex
+            nonInferenceIndices
         );
 
         // Perform early detection of score range mismatches and emit warning if needed
@@ -121,9 +118,8 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         return inferenceInfo;
     }
 
-    private QueryBuilder buildInferenceQuery(MultiMatchQueryBuilder originalQuery, MultiFieldInferenceInfo inferenceInfo) {
+    private QueryBuilder buildInferenceQuery(MultiMatchQueryBuilder originalQuery, MultiFieldInferenceInfo inferenceInfo, Map<String, Float> fieldsBoosts) {
         String queryValue = (String) originalQuery.value();
-        Map<String, Float> fieldsBoosts = originalQuery.fields();
         Set<String> inferenceFields = inferenceInfo.getInferenceFields();
 
         if (inferenceFields.size() == 1) {
@@ -169,12 +165,12 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
 
     private QueryBuilder buildCombinedInferenceAndNonInferenceQuery(
         MultiMatchQueryBuilder originalQuery,
-        MultiFieldInferenceInfo inferenceInfo
+        MultiFieldInferenceInfo inferenceInfo,
+        Map<String, Float> fieldsBoosts
     ) {
         validateQueryTypeSupported(originalQuery.type());
 
         String queryValue = (String) originalQuery.value();
-        Map<String, Float> fieldsBoosts = originalQuery.fields();
 
         return switch (originalQuery.type()) {
             case BEST_FIELDS -> buildBestFieldsCombinedQuery(originalQuery, fieldsBoosts, inferenceInfo, queryValue);
@@ -465,18 +461,15 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
         private final Set<String> originalFields;
         private final Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex;
         private final List<String> nonInferenceIndices;
-        private final Map<String, Set<String>> inferenceFieldsByIndex;
 
         public MultiFieldInferenceInfo(
             Set<String> originalFields,
             Map<String, Map<String, InferenceFieldMetadata>> inferenceFieldsPerIndex,
-            List<String> nonInferenceIndices,
-            Map<String, Set<String>> inferenceFieldsByIndex
+            List<String> nonInferenceIndices
         ) {
             this.originalFields = originalFields;
             this.inferenceFieldsPerIndex = inferenceFieldsPerIndex;
             this.nonInferenceIndices = nonInferenceIndices;
-            this.inferenceFieldsByIndex = inferenceFieldsByIndex;
         }
 
         public Set<String> getInferenceFields() {
@@ -497,8 +490,5 @@ public class SemanticMultiMatchQueryRewriteInterceptor implements QueryRewriteIn
             return nonInferenceIndices.isEmpty() == false;
         }
 
-        public Map<String, Set<String>> getInferenceFieldsByIndex() {
-            return inferenceFieldsByIndex;
-        }
     }
 }

@@ -108,7 +108,7 @@ public class FieldNameUtils {
 
         var canRemoveAliases = new Holder<>(true);
 
-        var processingLambda = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
+        var forEachDownProcessor = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
         processingLambda.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
             if (p instanceof Fork fork) {
                 // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.

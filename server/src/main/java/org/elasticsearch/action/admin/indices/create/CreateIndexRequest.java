@@ -314,7 +314,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             return true;
         }
         if (source.size() == 1 && source.containsKey("properties")) {
-            if (source.get("properties") instanceof Map<?,?> properties) {
+            if (source.get("properties") instanceof Map<?, ?> properties) {
                 return properties.isEmpty();
             }
         }

@@ -60,7 +60,7 @@ This behavior was a leftover from an older implementation of these functions.
 [%collapsible]
 ===============
 Sorting across multiple indices failed when one index contained an `aggregate_metric_double` field and another did not.
-In this case, the missing field was encoded as a NullBlock but later incorrectly decoded as an AggregateMetricDoubleBlock, which expects four values. This mismatch caused decoding errors.
+In this case, the missing field was encoded as `NullBlock` but later incorrectly decoded as `AggregateMetricDoubleBlock`, which expects four values. This mismatch caused decoding errors.
 {es-pull}131658[#131658] resolves the issue and also improves mv_expand by returning the input block unchanged for unsupported AggregateMetricDoubleBlock values, avoiding unnecessary errors.
 ===============
 +

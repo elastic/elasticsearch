@@ -15,6 +15,8 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
 
 import java.util.List;
@@ -24,21 +26,37 @@ import java.util.concurrent.Executors;
 
 public class VirtualThreadsExecutorBuilder extends ExecutorBuilder<VirtualThreadsExecutorSettings> {
 
+    private static final Logger logger = LogManager.getLogger(VirtualThreadsExecutorBuilder.class);
+
     private final boolean rejectAfterShutdown;
+    private final List<Setting<?>> registeredSettings;
 
     public VirtualThreadsExecutorBuilder(String name, boolean rejectAfterShutdown) {
         super(name, false);
         this.rejectAfterShutdown = rejectAfterShutdown;
+        final String settingsPrefix = "thread_pool." + name + ".";
+        // Don't apply any of these settings, just define them to make test failures go away
+        registeredSettings = List.of(
+            Setting.intSetting(settingsPrefix + "size", 999, 1, Setting.Property.NodeScope),
+            Setting.intSetting(settingsPrefix + "max", 999, 1, Setting.Property.NodeScope),
+            Setting.intSetting(settingsPrefix + "core", 999, 0, Setting.Property.NodeScope),
+            Setting.intSetting(settingsPrefix + "queue_size", 999, Setting.Property.NodeScope)
+        );
     }
 
     @Override
     public List<Setting<?>> getRegisteredSettings() {
-        return List.of();
+        return registeredSettings;
     }
 
     @Override
     VirtualThreadsExecutorSettings getSettings(Settings settings) {
         final String nodeName = Node.NODE_NAME_SETTING.get(settings);
+        for (Setting<?> setting : registeredSettings) {
+            if (setting.exists(settings)) {
+                logger.warn("Ignoring setting [{}] for virtual thread pool [{}]", setting, name());
+            }
+        }
         return new VirtualThreadsExecutorSettings(nodeName);
     }
 

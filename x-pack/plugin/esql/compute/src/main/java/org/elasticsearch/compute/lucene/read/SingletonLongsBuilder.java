@@ -21,6 +21,7 @@ public class SingletonLongsBuilder implements BlockLoader.SingletonLongBuilder, 
 
     public SingletonLongsBuilder(int initialSize, BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
+        blockFactory.adjustBreaker(valuesSize(initialSize));
         this.values = new long[initialSize];
     }
 
@@ -78,6 +79,10 @@ public class SingletonLongsBuilder implements BlockLoader.SingletonLongBuilder, 
 
     @Override
     public void close() {
+        blockFactory.adjustBreaker(-valuesSize(values.length));
+    }
 
+    static long valuesSize(int count) {
+        return (long) count * Long.BYTES;
     }
 }

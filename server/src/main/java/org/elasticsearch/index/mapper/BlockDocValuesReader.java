@@ -20,10 +20,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.codec.tsdb.es819.BlockAwareNumericDocValues;
-import org.elasticsearch.index.codec.tsdb.es819.SingletonLongDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.BlockLoader.BlockFactory;
 import org.elasticsearch.index.mapper.BlockLoader.BooleanBuilder;
 import org.elasticsearch.index.mapper.BlockLoader.Builder;
@@ -91,16 +88,9 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
     public static class LongsBlockLoader extends DocValuesBlockLoader {
         private final String fieldName;
-        private final IndexMode indexMode;
 
         public LongsBlockLoader(String fieldName) {
             this.fieldName = fieldName;
-            this.indexMode = null;
-        }
-
-        public LongsBlockLoader(String fieldName, IndexMode indexMode) {
-            this.fieldName = fieldName;
-            this.indexMode = indexMode;
         }
 
         @Override
@@ -110,15 +100,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
 
         @Override
         public AllReader reader(LeafReaderContext context) throws IOException {
-            if (fieldName.equals("@timestamp") && (indexMode == IndexMode.TIME_SERIES || indexMode == IndexMode.LOGSDB)) {
-                var singleton = context.reader().getNumericDocValues(fieldName);
-                if (singleton == null) {
-                    var docValues = context.reader().getSortedNumericDocValues(fieldName);
-                    singleton = DocValues.unwrapSingleton(docValues);
-                }
-                return new BlockAwareSingletonLongs((BlockAwareNumericDocValues) singleton);
-            }
-
             SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
             if (docValues != null) {
                 NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
@@ -135,7 +116,7 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         }
     }
 
-    private static class SingletonLongs extends BlockDocValuesReader {
+    static class SingletonLongs extends BlockDocValuesReader {
         private final NumericDocValues numericDocValues;
 
         SingletonLongs(NumericDocValues numericDocValues) {
@@ -180,37 +161,6 @@ public abstract class BlockDocValuesReader implements BlockLoader.AllReader {
         @Override
         public String toString() {
             return "BlockDocValuesReader.SingletonLongs";
-        }
-    }
-
-    private static class BlockAwareSingletonLongs extends BlockDocValuesReader {
-        private final SingletonLongDocValuesBlockLoader blockLoader;
-
-        BlockAwareSingletonLongs(BlockAwareNumericDocValues blockAware) {
-            this.blockLoader = blockAware.getSingletonBlockLoader();
-        }
-
-        @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset) throws IOException {
-            try (BlockLoader.SingletonLongBuilder builder = factory.singletonLongs(docs.count() - offset)) {
-                blockLoader.loadBlock(builder, docs, offset);
-                return builder.build();
-            }
-        }
-
-        @Override
-        public void read(int docId, BlockLoader.StoredFields storedFields, Builder builder) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int docId() {
-            return blockLoader.docID();
-        }
-
-        @Override
-        public String toString() {
-            return "BlockDocValuesReader.BlockAwareSingletonLongs";
         }
     }
 

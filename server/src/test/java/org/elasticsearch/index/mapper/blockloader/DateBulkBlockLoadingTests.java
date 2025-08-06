@@ -29,10 +29,12 @@ import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.TimestampBlockLoader;
 
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -78,7 +80,7 @@ public class DateBulkBlockLoadingTests extends MapperServiceTestCase {
                 {
                     // One big doc block
                     var columnReader = blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.getClass().getSimpleName(), equalTo("BlockAwareSingletonLongs"));
+                    assertThat(columnReader, instanceOf(TimestampBlockLoader.Timestamps.class));
                     var docBlock = TestBlock.docs(IntStream.range(from, to).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
                     assertThat(block.size(), equalTo(to - from));
@@ -90,7 +92,7 @@ public class DateBulkBlockLoadingTests extends MapperServiceTestCase {
                     // Smaller doc blocks
                     int docBlockSize = 1000;
                     var columnReader = blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.getClass().getSimpleName(), equalTo("BlockAwareSingletonLongs"));
+                    assertThat(columnReader, instanceOf(TimestampBlockLoader.Timestamps.class));
                     for (int i = from; i < to; i += docBlockSize) {
                         var docBlock = TestBlock.docs(IntStream.range(i, i + docBlockSize).toArray());
                         var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
@@ -104,7 +106,7 @@ public class DateBulkBlockLoadingTests extends MapperServiceTestCase {
                 {
                     // One smaller doc block:
                     var columnReader = blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.getClass().getSimpleName(), equalTo("BlockAwareSingletonLongs"));
+                    assertThat(columnReader, instanceOf(TimestampBlockLoader.Timestamps.class));
                     var docBlock = TestBlock.docs(IntStream.range(1010, 2020).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
                     assertThat(block.size(), equalTo(1010));
@@ -116,7 +118,7 @@ public class DateBulkBlockLoadingTests extends MapperServiceTestCase {
                 {
                     // Read two tiny blocks:
                     var columnReader = blockLoader.columnAtATimeReader(context);
-                    assertThat(columnReader.getClass().getSimpleName(), equalTo("BlockAwareSingletonLongs"));
+                    assertThat(columnReader, instanceOf(TimestampBlockLoader.Timestamps.class));
                     var docBlock = TestBlock.docs(IntStream.range(32, 64).toArray());
                     var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0);
                     assertThat(block.size(), equalTo(32));

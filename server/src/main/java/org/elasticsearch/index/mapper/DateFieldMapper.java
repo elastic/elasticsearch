@@ -996,8 +996,13 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            var indexMode = blContext.indexSettings().getMode();
             if (hasDocValues()) {
-                return new BlockDocValuesReader.LongsBlockLoader(name(), blContext.indexSettings().getMode());
+                if (name().equals("@timestamp") && (indexMode == IndexMode.TIME_SERIES || indexMode == IndexMode.LOGSDB)) {
+                    return new TimestampBlockLoader();
+                } else {
+                    return new BlockDocValuesReader.LongsBlockLoader(name());
+                }
             }
 
             // Multi fields don't have fallback synthetic source.

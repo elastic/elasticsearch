@@ -11,9 +11,9 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportDeletePipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.ElasticsearchClient;
@@ -64,18 +64,18 @@ public class IngestPipelineTestUtils {
     /**
      * Create an ingest pipeline with the given ID and body, using the given {@link ElasticsearchClient}.
      *
-     * @param client     The client to use to execute the {@link PutPipelineTransportAction}.
+     * @param client     The client to use to execute the {@link TransportPutPipelineAction}.
      * @param id         The pipeline id.
      * @param source     The body of the {@link PutPipelineRequest} as a JSON-formatted {@link BytesReference}.
      */
     public static void putJsonPipeline(ElasticsearchClient client, String id, BytesReference source) {
-        assertAcked(safeGet(client.execute(PutPipelineTransportAction.TYPE, putJsonPipelineRequest(id, source))));
+        assertAcked(safeGet(client.execute(TransportPutPipelineAction.TYPE, putJsonPipelineRequest(id, source))));
     }
 
     /**
      * Create an ingest pipeline with the given ID and body, using the given {@link ElasticsearchClient}.
      *
-     * @param client     The client to use to execute the {@link PutPipelineTransportAction}.
+     * @param client     The client to use to execute the {@link TransportPutPipelineAction}.
      * @param id         The pipeline id.
      * @param jsonString The body of the {@link PutPipelineRequest} as a JSON-formatted {@link String}.
      */
@@ -86,7 +86,7 @@ public class IngestPipelineTestUtils {
     /**
      * Create an ingest pipeline with the given ID and body, using the given {@link ElasticsearchClient}.
      *
-     * @param client     The client to use to execute the {@link PutPipelineTransportAction}.
+     * @param client     The client to use to execute the {@link TransportPutPipelineAction}.
      * @param id         The pipeline id.
      * @param toXContent The body of the {@link PutPipelineRequest} as a {@link ToXContentFragment}.
      */
@@ -107,7 +107,7 @@ public class IngestPipelineTestUtils {
         for (final var id : ids) {
             ESTestCase.safeAwait(
                 l -> client.execute(
-                    DeletePipelineTransportAction.TYPE,
+                    TransportDeletePipelineAction.TYPE,
                     new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id),
                     new ActionListener<>() {
                         @Override

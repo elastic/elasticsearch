@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateA
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -770,7 +770,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutPipelineFailure(pipelineConfig.getId(), e);
                     }
                 },
-                (req, listener) -> client.projectClient(projectId).execute(PutPipelineTransportAction.TYPE, req, listener)
+                (req, listener) -> client.projectClient(projectId).execute(TransportPutPipelineAction.TYPE, req, listener)
             );
         });
     }

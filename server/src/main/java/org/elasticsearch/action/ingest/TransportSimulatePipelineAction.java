@@ -37,8 +37,8 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Random;
 
-public class SimulatePipelineTransportAction extends HandledTransportAction<SimulatePipelineRequest, SimulatePipelineResponse> {
-    private static final Logger logger = LogManager.getLogger(SimulatePipelineTransportAction.class);
+public class TransportSimulatePipelineAction extends HandledTransportAction<SimulatePipelineRequest, SimulatePipelineResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportSimulatePipelineAction.class);
     /**
      * This is the amount of time given as the timeout for transport requests to the ingest node.
      */
@@ -60,7 +60,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     private final ThreadLocal<Random> random = ThreadLocal.withInitial(Randomness::get);
 
     @Inject
-    public SimulatePipelineTransportAction(
+    public TransportSimulatePipelineAction(
         ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,

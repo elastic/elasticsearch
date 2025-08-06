@@ -28,14 +28,14 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Optional;
 import java.util.Set;
 
-public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNodeAction<DeletePipelineRequest> {
+public class TransportDeletePipelineAction extends AcknowledgedTransportMasterNodeAction<DeletePipelineRequest> {
 
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/delete");
     private final IngestService ingestService;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public DeletePipelineTransportAction(
+    public TransportDeletePipelineAction(
         ThreadPool threadPool,
         IngestService ingestService,
         TransportService transportService,

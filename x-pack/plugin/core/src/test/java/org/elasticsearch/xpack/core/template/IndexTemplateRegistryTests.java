@@ -16,7 +16,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -113,7 +113,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
         client.setVerifier((projectId, action, request, listener) -> {
-            if (action == PutPipelineTransportAction.TYPE) {
+            if (action == TransportPutPipelineAction.TYPE) {
                 final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-final_pipeline");
                 return AcknowledgedResponse.TRUE;
@@ -139,7 +139,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
         client.setVerifier((projectId, action, request, listener) -> {
-            if (action == PutPipelineTransportAction.TYPE) {
+            if (action == TransportPutPipelineAction.TYPE) {
                 final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
                 return AcknowledgedResponse.TRUE;
@@ -200,7 +200,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
 
         Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
         client.setVerifier((projectId, action, request, listener) -> {
-            if (action == PutPipelineTransportAction.TYPE) {
+            if (action == TransportPutPipelineAction.TYPE) {
                 final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
                 assertPutPipelineAction(calledTimes, action, request, listener, "custom-plugin-default_pipeline");
                 return AcknowledgedResponse.TRUE;
@@ -237,7 +237,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
-            } else if (action == PutPipelineTransportAction.TYPE) {
+            } else if (action == TransportPutPipelineAction.TYPE) {
                 // ignore pipelines in this case
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -268,7 +268,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             } else if (action == ILMActions.PUT) {
                 // ignore lifecycle policies in this case
                 return AcknowledgedResponse.TRUE;
-            } else if (action == PutPipelineTransportAction.TYPE) {
+            } else if (action == TransportPutPipelineAction.TYPE) {
                 // ignore pipelines in this case
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -303,7 +303,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         Map<ProjectId, AtomicInteger> calledTimesMap = new ConcurrentHashMap<>();
         client.setVerifier((projectId, action, request, listener) -> {
             final var calledTimes = calledTimesMap.computeIfAbsent(projectId, k -> new AtomicInteger(0));
-            if (action == PutPipelineTransportAction.TYPE) {
+            if (action == TransportPutPipelineAction.TYPE) {
                 assertPutPipelineAction(
                     calledTimes,
                     action,
@@ -751,7 +751,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         ActionListener<?> listener,
         String... pipelineIds
     ) {
-        assertSame(PutPipelineTransportAction.TYPE, action);
+        assertSame(TransportPutPipelineAction.TYPE, action);
         assertThat(request, instanceOf(PutPipelineRequest.class));
         final PutPipelineRequest putRequest = (PutPipelineRequest) request;
         assertThat(putRequest.getId(), oneOf(pipelineIds));

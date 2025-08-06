@@ -22,7 +22,7 @@ import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteCom
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportDeletePipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -530,7 +530,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertAcked(
             safeGet(
                 client().execute(
-                    DeletePipelineTransportAction.TYPE,
+                    TransportDeletePipelineAction.TYPE,
                     new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id)
                 )
             )

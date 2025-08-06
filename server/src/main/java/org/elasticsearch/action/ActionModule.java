@@ -170,12 +170,12 @@ import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.action.get.TransportShardMultiGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
-import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportDeletePipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
-import org.elasticsearch.action.ingest.GetPipelineTransportAction;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportGetPipelineAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
-import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportSimulatePipelineAction;
 import org.elasticsearch.action.search.RestClosePointInTimeAction;
 import org.elasticsearch.action.search.RestOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportClearScrollAction;
@@ -757,10 +757,10 @@ public class ActionModule extends AbstractModule {
 
         actions.register(TransportFieldCapabilitiesAction.TYPE, TransportFieldCapabilitiesAction.class);
 
-        actions.register(PutPipelineTransportAction.TYPE, PutPipelineTransportAction.class);
-        actions.register(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
-        actions.register(DeletePipelineTransportAction.TYPE, DeletePipelineTransportAction.class);
-        actions.register(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
+        actions.register(TransportPutPipelineAction.TYPE, TransportPutPipelineAction.class);
+        actions.register(GetPipelineAction.INSTANCE, TransportGetPipelineAction.class);
+        actions.register(TransportDeletePipelineAction.TYPE, TransportDeletePipelineAction.class);
+        actions.register(SimulatePipelineAction.INSTANCE, TransportSimulatePipelineAction.class);
 
         actionPlugins.stream().flatMap(p -> p.getActions().stream()).forEach(actions::register);
 

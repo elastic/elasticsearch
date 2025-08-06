@@ -41,7 +41,7 @@ import org.elasticsearch.ingest.geoip.direct.TransportGetDatabaseConfigurationAc
 import org.elasticsearch.ingest.geoip.direct.TransportPutDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
-import org.elasticsearch.ingest.geoip.stats.GeoIpStatsTransportAction;
+import org.elasticsearch.ingest.geoip.stats.TransportGeoIpStatsAction;
 import org.elasticsearch.ingest.geoip.stats.RestGeoIpStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -184,7 +184,7 @@ public class IngestGeoIpPlugin extends Plugin
     @Override
     public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler(GeoIpStatsAction.INSTANCE, GeoIpStatsTransportAction.class),
+            new ActionHandler(GeoIpStatsAction.INSTANCE, TransportGeoIpStatsAction.class),
             new ActionHandler(GetDatabaseConfigurationAction.INSTANCE, TransportGetDatabaseConfigurationAction.class),
             new ActionHandler(DeleteDatabaseConfigurationAction.INSTANCE, TransportDeleteDatabaseConfigurationAction.class),
             new ActionHandler(PutDatabaseConfigurationAction.INSTANCE, TransportPutDatabaseConfigurationAction.class)

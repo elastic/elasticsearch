@@ -34,14 +34,14 @@ import java.util.Set;
 
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 
-public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeAction<PutPipelineRequest> {
+public class TransportPutPipelineAction extends AcknowledgedTransportMasterNodeAction<PutPipelineRequest> {
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/put");
     private final IngestService ingestService;
     private final OriginSettingClient client;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public PutPipelineTransportAction(
+    public TransportPutPipelineAction(
         ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,

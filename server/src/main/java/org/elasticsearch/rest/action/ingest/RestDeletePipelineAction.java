@@ -10,7 +10,7 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportDeletePipelineAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -44,6 +44,6 @@ public class RestDeletePipelineAction extends BaseRestHandler {
             getAckTimeout(restRequest),
             restRequest.param("id")
         );
-        return channel -> client.execute(DeletePipelineTransportAction.TYPE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(TransportDeletePipelineAction.TYPE, request, new RestToXContentListener<>(channel));
     }
 }

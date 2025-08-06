@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.enrich;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -71,7 +71,7 @@ public class EnrichPolicyReindexPipeline {
     public static void create(Client client, ActionListener<AcknowledgedResponse> listener) {
         final BytesReference pipeline = BytesReference.bytes(currentEnrichPipelineDefinition(XContentType.JSON));
         client.execute(
-            PutPipelineTransportAction.TYPE,
+            TransportPutPipelineAction.TYPE,
             new PutPipelineRequest(
                 ENRICH_MASTER_REQUEST_TIMEOUT,
                 ENRICH_MASTER_REQUEST_TIMEOUT,

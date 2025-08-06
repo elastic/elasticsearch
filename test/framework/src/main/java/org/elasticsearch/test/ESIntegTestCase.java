@@ -52,7 +52,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportDeletePipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
@@ -2909,7 +2909,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertAcked(
             safeGet(
                 client().execute(
-                    DeletePipelineTransportAction.TYPE,
+                    TransportDeletePipelineAction.TYPE,
                     new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id)
                 )
             )

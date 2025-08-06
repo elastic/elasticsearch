@@ -10,7 +10,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -65,7 +65,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
                 ElasticsearchParseException.class,
                 AcknowledgedResponse.class,
                 l -> client().execute(
-                    PutPipelineTransportAction.TYPE,
+                    TransportPutPipelineAction.TYPE,
                     IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
                     l
                 )
@@ -84,7 +84,7 @@ public class IngestProcessorNotInstalledOnAllNodesIT extends ESIntegTestCase {
                 ElasticsearchParseException.class,
                 AcknowledgedResponse.class,
                 l -> client().execute(
-                    PutPipelineTransportAction.TYPE,
+                    TransportPutPipelineAction.TYPE,
                     IngestPipelineTestUtils.putJsonPipelineRequest("id", pipelineSource),
                     l
                 )

@@ -19,7 +19,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
@@ -252,7 +252,7 @@ public class IngestClientIT extends ESIntegTestCase {
         PutPipelineRequest putPipelineRequest = putJsonPipelineRequest("_id2", source);
         Exception e = expectThrows(
             ElasticsearchParseException.class,
-            client().execute(PutPipelineTransportAction.TYPE, putPipelineRequest)
+            client().execute(TransportPutPipelineAction.TYPE, putPipelineRequest)
         );
         assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
 

@@ -11,7 +11,7 @@ package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Tuple;
@@ -69,7 +69,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
             ifVersion
         );
         return channel -> client.execute(
-            PutPipelineTransportAction.TYPE,
+            TransportPutPipelineAction.TYPE,
             request,
             ActionListener.withRef(new RestToXContentListener<>(channel), content)
         );

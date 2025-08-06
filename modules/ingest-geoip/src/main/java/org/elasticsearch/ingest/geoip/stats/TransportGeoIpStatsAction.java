@@ -32,14 +32,14 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class GeoIpStatsTransportAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
+public class TransportGeoIpStatsAction extends TransportNodesAction<Request, Response, NodeRequest, NodeResponse, Void> {
 
     private final DatabaseNodeService registry;
     private final GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public GeoIpStatsTransportAction(
+    public TransportGeoIpStatsAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

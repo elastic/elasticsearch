@@ -50,9 +50,9 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.TransportIndexAction;
-import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportDeletePipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -311,9 +311,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(snapshotUserRole.cluster().check(TransportPutRepositoryAction.TYPE.name(), request, authentication), is(false));
         assertThat(snapshotUserRole.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(false));
         assertThat(snapshotUserRole.cluster().check(TransportDeleteIndexTemplateAction.TYPE.name(), request, authentication), is(false));
-        assertThat(snapshotUserRole.cluster().check(PutPipelineTransportAction.TYPE.name(), request, authentication), is(false));
+        assertThat(snapshotUserRole.cluster().check(TransportPutPipelineAction.TYPE.name(), request, authentication), is(false));
         assertThat(snapshotUserRole.cluster().check(GetPipelineAction.NAME, request, authentication), is(false));
-        assertThat(snapshotUserRole.cluster().check(DeletePipelineTransportAction.TYPE.name(), request, authentication), is(false));
+        assertThat(snapshotUserRole.cluster().check(TransportDeletePipelineAction.TYPE.name(), request, authentication), is(false));
         assertThat(snapshotUserRole.cluster().check(TransportClusterRerouteAction.TYPE.name(), request, authentication), is(false));
         assertThat(snapshotUserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(snapshotUserRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
@@ -384,9 +384,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ingestAdminRole.cluster().check(TransportPutIndexTemplateAction.TYPE.name(), request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(TransportDeleteIndexTemplateAction.TYPE.name(), request, authentication), is(true));
-        assertThat(ingestAdminRole.cluster().check(PutPipelineTransportAction.TYPE.name(), request, authentication), is(true));
+        assertThat(ingestAdminRole.cluster().check(TransportPutPipelineAction.TYPE.name(), request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(GetPipelineAction.NAME, request, authentication), is(true));
-        assertThat(ingestAdminRole.cluster().check(DeletePipelineTransportAction.TYPE.name(), request, authentication), is(true));
+        assertThat(ingestAdminRole.cluster().check(TransportDeletePipelineAction.TYPE.name(), request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(TransportClusterRerouteAction.TYPE.name(), request, authentication), is(false));
         assertThat(ingestAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(false));
         assertThat(ingestAdminRole.cluster().check(MonitoringBulkAction.NAME, request, authentication), is(false));
@@ -1315,8 +1315,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // 1. Pipeline
         Arrays.asList(
             GetPipelineAction.NAME,
-            PutPipelineTransportAction.TYPE.name(),
-            DeletePipelineTransportAction.TYPE.name(),
+            TransportPutPipelineAction.TYPE.name(),
+            TransportDeletePipelineAction.TYPE.name(),
             SimulatePipelineAction.NAME,
             "cluster:admin/ingest/pipeline/" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(action -> assertThat(kibanaRole.cluster().check(action, request, authentication), is(true)));

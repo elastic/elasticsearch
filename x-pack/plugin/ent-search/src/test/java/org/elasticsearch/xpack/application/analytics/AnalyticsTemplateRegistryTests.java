@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -195,7 +195,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         versions.put(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_SETTINGS_COMPONENT_NAME, AnalyticsTemplateRegistry.REGISTRY_VERSION);
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(Collections.emptyMap(), versions, nodes);
         client.setVerifier((action, request, listener) -> {
-            if (action == PutPipelineTransportAction.TYPE) {
+            if (action == TransportPutPipelineAction.TYPE) {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             }
@@ -251,7 +251,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
 
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> {
-            if (action == PutPipelineTransportAction.TYPE) {
+            if (action == TransportPutPipelineAction.TYPE) {
                 calledTimes.incrementAndGet();
                 return AcknowledgedResponse.TRUE;
             }
@@ -316,7 +316,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action == PutPipelineTransportAction.TYPE) {
+        if (action == TransportPutPipelineAction.TYPE) {
             // Ignore this, it's verified in another test
             return AcknowledgedResponse.TRUE;
         }
@@ -350,7 +350,7 @@ public class AnalyticsTemplateRegistryTests extends ESTestCase {
         ActionRequest request,
         ActionListener<?> listener
     ) {
-        if (action == PutPipelineTransportAction.TYPE) {
+        if (action == TransportPutPipelineAction.TYPE) {
             return AcknowledgedResponse.TRUE;
         }
         if (action instanceof PutComponentTemplateAction) {

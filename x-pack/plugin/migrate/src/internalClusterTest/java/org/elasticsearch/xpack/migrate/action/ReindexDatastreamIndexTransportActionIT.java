@@ -25,7 +25,7 @@ import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineTransportAction;
+import org.elasticsearch.action.ingest.TransportPutPipelineAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -208,7 +208,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             XContentType.JSON
         );
 
-        safeGet(clusterAdmin().execute(PutPipelineTransportAction.TYPE, putRequest));
+        safeGet(clusterAdmin().execute(TransportPutPipelineAction.TYPE, putRequest));
 
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));

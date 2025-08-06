@@ -33,7 +33,6 @@ import javax.lang.model.util.Elements;
 import static org.elasticsearch.compute.gen.Methods.optionalStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireArgs;
 import static org.elasticsearch.compute.gen.Methods.requireName;
-import static org.elasticsearch.compute.gen.Methods.requireStaticMethod;
 import static org.elasticsearch.compute.gen.Methods.requireType;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
@@ -225,7 +224,9 @@ public class AggregatorFunctionSupplierImplementer {
                 throw new IllegalArgumentException("Can't generate description for " + declarationType.getSimpleName());
             }
 
-            String operation = Arrays.stream(parts, 0, parts.length - 2).map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.joining("_"));
+            String operation = Arrays.stream(parts, 0, parts.length - 2)
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .collect(Collectors.joining("_"));
             String type = parts[parts.length - 2];
 
             builder.addStatement("return $S", operation + " of " + type.toLowerCase(Locale.ROOT) + "s");

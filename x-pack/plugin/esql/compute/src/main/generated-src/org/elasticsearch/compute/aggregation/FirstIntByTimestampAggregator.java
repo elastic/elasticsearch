@@ -69,7 +69,7 @@ public class FirstIntByTimestampAggregator {
 
     public static void combineIntermediate(
         GroupingState current,
-        int groupId,
+        int groupId, // Formatter
         LongBlock timestamps,
         IntBlock values,
         int otherPosition

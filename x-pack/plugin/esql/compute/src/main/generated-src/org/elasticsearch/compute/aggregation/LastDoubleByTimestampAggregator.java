@@ -69,7 +69,7 @@ public class LastDoubleByTimestampAggregator {
 
     public static void combineIntermediate(
         GroupingState current,
-        int groupId,
+        int groupId, // Formatter
         LongBlock timestamps,
         DoubleBlock values,
         int otherPosition

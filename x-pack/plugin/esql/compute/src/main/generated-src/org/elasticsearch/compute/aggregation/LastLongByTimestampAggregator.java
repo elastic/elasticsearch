@@ -69,7 +69,7 @@ public class LastLongByTimestampAggregator {
 
     public static void combineIntermediate(
         GroupingState current,
-        int groupId,
+        int groupId, // Formatter
         LongBlock timestamps,
         LongBlock values,
         int otherPosition

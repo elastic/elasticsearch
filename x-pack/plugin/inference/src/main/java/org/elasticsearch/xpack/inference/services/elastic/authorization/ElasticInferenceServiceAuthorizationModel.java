@@ -161,4 +161,13 @@ public class ElasticInferenceServiceAuthorizationModel {
     public int hashCode() {
         return Objects.hash(taskTypeToModels, authorizedTaskTypes, authorizedModelIds);
     }
+
+    @Override
+    public String toString() {
+        return "{" +
+            "taskTypeToModels=" + taskTypeToModels +
+            ", authorizedTaskTypes=" + authorizedTaskTypes +
+            ", authorizedModelIds=" + authorizedModelIds +
+            '}';
+    }
 }

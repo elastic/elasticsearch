@@ -50,7 +50,7 @@ public final class ZeroBucket {
     private long index;
 
     /**
-     * Might be computed lazily from {@link #realThreshold}, uses {@link Long#MAX_VALUE} as placeholder in this case.
+     * Might be computed lazily from {@link #realThreshold}, uses {@link Double#NaN} as placeholder in this case.
      */
     private double realThreshold;
 

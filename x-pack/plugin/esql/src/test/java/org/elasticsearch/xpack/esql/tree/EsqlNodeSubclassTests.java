@@ -96,6 +96,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomEsIndex;
 import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomIndexNameWithModes;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
+import static org.elasticsearch.xpack.esql.plan.physical.EsQueryExecSerializationTests.randomQuery;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -516,6 +517,10 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute())
             );
+        }
+
+        if (argClass == EsQueryExec.QueryBuilderAndTags.class) {
+            return new EsQueryExec.QueryBuilderAndTags(randomQuery(), List.of(randomLong()));
         }
 
         try {

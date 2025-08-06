@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSou
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SubstituteRoundToWithQueryAndTags;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -60,7 +61,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     }
 
     protected static List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
-        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(6);
+        List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(7);
         esSourceRules.add(new ReplaceSourceAttributes());
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
@@ -74,6 +75,20 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         // execute the rules multiple times to improve the chances of things being pushed down
         @SuppressWarnings("unchecked")
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
+        List<Rule<?, PhysicalPlan>> substitutionRules = new ArrayList<>(1);
+        if (optimizeForEsSource) {
+            substitutionRules.add(new SubstituteRoundToWithQueryAndTags());
+        }
+        // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
+        // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
+        // done.
+        @SuppressWarnings("unchecked")
+        var substituteRoundToWithQueryAndTags = new Batch<PhysicalPlan>(
+            "Substitute RoundTo with QueryAndTags",
+            Limiter.ONCE,
+            substitutionRules.toArray(Rule[]::new)
+        );
+
         // add the field extraction in just one pass
         // add it at the end after all the other rules have ran
         var fieldExtraction = new Batch<>(
@@ -84,6 +99,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new SpatialShapeBoundsExtraction(),
             new ParallelizeTimeSeriesSource()
         );
-        return List.of(pushdown, fieldExtraction);
+        return List.of(pushdown, substituteRoundToWithQueryAndTags, fieldExtraction);
     }
 }

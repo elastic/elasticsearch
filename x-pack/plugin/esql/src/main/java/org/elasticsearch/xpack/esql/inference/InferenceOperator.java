@@ -15,18 +15,16 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutionConfig;
-import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceExecutor;
 import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRequestIterator;
+import org.elasticsearch.xpack.esql.inference.bulk.BulkInferenceRunner;
 
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
- * An abstract asynchronous operator that performs throttled bulk inference execution using an {@link InferenceRunner}.
+ * An abstract asynchronous operator that performs throttled bulk inference execution using an {@link InferenceResolver}.
  * <p>
  * The {@code InferenceOperator} integrates with the compute framework  supports throttled bulk execution of inference requests. It
  * transforms input {@link Page} into inference requests, asynchronously executes them, and converts the responses into a new {@link Page}.
@@ -35,27 +33,25 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.OngoingInferenceResult> {
     private final String inferenceId;
     private final BlockFactory blockFactory;
-    private final BulkInferenceExecutor bulkInferenceExecutor;
+    private final BulkInferenceRunner bulkInferenceRunner;
 
     /**
      * Constructs a new {@code InferenceOperator}.
      *
      * @param driverContext        The driver context.
-     * @param inferenceRunner      The runner used to execute inference requests.
-     * @param bulkExecutionConfig  Configuration for inference execution.
-     * @param threadPool           The thread pool used for executing async inference.
+     * @param bulkInferenceRunner  Inference runner used to execute inference requests.
      * @param inferenceId          The ID of the inference model to use.
+     * @param maxOutstandingPages  The number of concurrent pages to process in parallel.
      */
     public InferenceOperator(
         DriverContext driverContext,
-        InferenceRunner inferenceRunner,
-        BulkInferenceExecutionConfig bulkExecutionConfig,
-        ThreadPool threadPool,
-        String inferenceId
+        BulkInferenceRunner bulkInferenceRunner,
+        String inferenceId,
+        int maxOutstandingPages
     ) {
-        super(driverContext, inferenceRunner.threadPool().getThreadContext(), bulkExecutionConfig.workers());
+        super(driverContext, bulkInferenceRunner.threadPool().getThreadContext(), maxOutstandingPages);
         this.blockFactory = driverContext.blockFactory();
-        this.bulkInferenceExecutor = new BulkInferenceExecutor(inferenceRunner, threadPool, bulkExecutionConfig);
+        this.bulkInferenceRunner = bulkInferenceRunner;
         this.inferenceId = inferenceId;
     }
 
@@ -81,7 +77,8 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
         try {
             BulkInferenceRequestIterator requests = requests(input);
             listener = ActionListener.releaseBefore(requests, listener);
-            bulkInferenceExecutor.execute(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
+
+            bulkInferenceRunner.executeBulk(requests, listener.map(responses -> new OngoingInferenceResult(input, responses)));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -110,9 +107,9 @@ public abstract class InferenceOperator extends AsyncOperator<InferenceOperator.
                 outputBuilder.addInferenceResponse(response);
             }
             return outputBuilder.buildOutput();
-
-        } finally {
+        } catch (Exception e) {
             releaseFetchedOnAnyThread(ongoingInferenceResult);
+            throw e;
         }
     }
 

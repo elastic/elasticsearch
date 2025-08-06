@@ -78,7 +78,7 @@ This occurred because the combination logic failed to preserve the sentinel `NO_
 Loading large rows from a single segment occasionally created oversized pages when decoding values row-by-row, particularly for text and geo fields.
 This could cause memory pressure or degraded performance.
 {es-pull}131053[#131053] resolves the issue by estimating the size of each page as rows are loaded.
-If the estimated size exceeds a configurable “jumbo” threshold (defaulting to one megabyte), row loading stops early, the page is returned, and remaining rows are processed in subsequent iterations.
+If the estimated size exceeds a configurable `jumbo` threshold (defaulting to one megabyte), row loading stops early, the page is returned, and remaining rows are processed in subsequent iterations.
 This prevents loading incomplete or oversized pages during data aggregation.
 ===============
 

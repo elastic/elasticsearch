@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action.stream;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -21,6 +20,7 @@ import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
@@ -40,27 +40,39 @@ import java.util.List;
 public abstract class EsqlQueryResponseStream implements Releasable {
     private static final Logger LOGGER = LogManager.getLogger(EsqlQueryResponseStream.class);
 
-    public static EsqlQueryResponseStream forMediaType(RestChannel restChannel, RestRequest request) {
-        MediaType mediaType = EsqlMediaTypeParser.getResponseMediaType(request, XContentType.JSON);
+    /**
+     * @param shouldStream false if streaming should be disabled
+     */
+    public static EsqlQueryResponseStream forMediaType(
+        RestChannel restChannel,
+        RestRequest restRequest,
+        EsqlQueryRequest esqlRequest,
+        boolean shouldStream
+    ) throws IOException {
+        if (shouldStream == false) {
+            // TODO: Make this override the canBeStreamed() instead? To avoid duplicating code and keeping the old classes
+            return new NonStreamingEsqlQueryResponseStream(restChannel, restRequest, esqlRequest);
+        }
+
+        MediaType mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, XContentType.JSON);
 
         if (mediaType instanceof TextFormat) {
             // TODO: Add support
-            throw new UnsupportedOperationException("Text formats is not yet supported for streaming");
+            throw new UnsupportedOperationException("Text formats are not yet supported for streaming");
         } else if (mediaType == ArrowFormat.INSTANCE) {
             // TODO: Add support
             throw new UnsupportedOperationException("Arrow format is not yet supported for streaming");
         }
 
-        return new DefaultEsqlQueryResponseStream(restChannel, request);
+        return new DefaultEsqlQueryResponseStream(restChannel, restRequest, esqlRequest);
     }
 
     private final RestChannel restChannel;
-    protected final ToXContent.Params params;
-    /**
-     * Initialized on the first call to {@link #startResponse} and used to write the response chunks.
-     */
-    @Nullable
-    private StreamingXContentResponse streamingXContentResponse;
+    protected final RestRequest restRequest;
+    protected final EsqlQueryRequest esqlRequest;
+
+    private final StreamingXContentResponse streamingXContentResponse;
+
     /**
      * Flag to check if we sent the starting chunk of the response.
      * <p>
@@ -73,19 +85,19 @@ public abstract class EsqlQueryResponseStream implements Releasable {
      */
     private boolean finished = false;
 
-    protected EsqlQueryResponseStream(RestChannel restChannel, ToXContent.Params params) {
+    protected EsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) throws IOException {
         this.restChannel = restChannel;
-        this.params = params;
+        this.restRequest = restRequest;
+        this.esqlRequest = esqlRequest;
+        this.streamingXContentResponse = new StreamingXContentResponse(restChannel, restChannel.request(), () -> {});
     }
 
     /**
      * Starts the response stream. This is the first method to be called
      */
-    public final void startResponse(List<ColumnInfoImpl> columns) throws IOException {
-        assert streamingXContentResponse == null : "startResponse() called more than once";
+    public final void startResponse(List<ColumnInfoImpl> columns) {
+        assert initialStreamChunkSent : "startResponse() called more than once";
         assert finished == false : "sendPages() called on a finished stream";
-
-        streamingXContentResponse = new StreamingXContentResponse(restChannel, restChannel.request(), () -> {});
 
         if (canBeStreamed() == false) {
             return;
@@ -96,7 +108,6 @@ public abstract class EsqlQueryResponseStream implements Releasable {
     }
 
     public final void sendPages(Iterable<Page> pages) {
-        assert streamingXContentResponse != null : "sendPages() called before startResponse()";
         assert finished == false : "sendPages() called on a finished stream";
 
         if (initialStreamChunkSent) {
@@ -128,7 +139,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
     // TODO: Also ensure that we check if the channel is closed at some points (Also see RestActionListener)
 
     public final ActionListener<EsqlQueryResponse> completionListener() {
-        return new ActionListener<>() {
+        return ActionListener.releaseAfter(new ActionListener<>() {
             @Override
             public void onResponse(EsqlQueryResponse esqlResponse) {
                 assert finished == false : "completionListener() called on a finished stream";
@@ -142,7 +153,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
 
                 handleException(e);
             }
-        };
+        }, this);
     }
 
     /**
@@ -171,8 +182,6 @@ public abstract class EsqlQueryResponseStream implements Releasable {
 
     @SuppressWarnings("unchecked")
     protected final void sendChunks(List<Iterator<? extends ToXContent>> chunkedContent) {
-        assert streamingXContentResponse != null : "startResponse() not called yet";
-
         // TODO: Maybe accept a single chunk here, and do a flush() inside of each method?
         streamingXContentResponse.writeFragment(p0 -> Iterators.concat(chunkedContent.toArray(Iterator[]::new)), () -> {});
     }
@@ -180,10 +189,7 @@ public abstract class EsqlQueryResponseStream implements Releasable {
     @Override
     public void close() {
         // TODO: Implement and check closing everywhere
-        if (streamingXContentResponse != null) {
-            streamingXContentResponse.close();
-            streamingXContentResponse = null;
-        }
+        streamingXContentResponse.close();
         finished = true;
     }
 }

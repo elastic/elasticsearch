@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResponseListener;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -31,8 +32,8 @@ public class NonStreamingEsqlQueryResponseStream extends EsqlQueryResponseStream
 
     private final ActionListener<EsqlQueryResponse> listener;
 
-    public NonStreamingEsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
-        super(restChannel, restRequest);
+    NonStreamingEsqlQueryResponseStream(RestChannel restChannel, RestRequest restRequest, EsqlQueryRequest esqlRequest) throws IOException {
+        super(restChannel, restRequest, esqlRequest);
 
         this.listener = new EsqlResponseListener(restChannel, restRequest, esqlRequest).wrapWithLogging();
     }
@@ -69,5 +70,10 @@ public class NonStreamingEsqlQueryResponseStream extends EsqlQueryResponseStream
         // TODO: Check this
         response.incRef();
         listener.onResponse(response);
+    }
+
+    @Override
+    public void close() {
+        // TODO: Temporary to avoid closing the stream and sending an empty response. Remove this class later
     }
 }

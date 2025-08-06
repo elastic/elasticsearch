@@ -97,7 +97,7 @@ public final class ResponseXContentUtils {
     }
 
     /** Returns a row based representation of the values in the given pages (described by the column infos). */
-    public static Iterator<? extends ToXContent> rowValues(List<ColumnInfoImpl> columns, List<Page> pages, boolean[] nullColumns) {
+    public static Iterator<? extends ToXContent> rowValues(List<ColumnInfoImpl> columns, Iterable<Page> pages, boolean[] nullColumns) {
         final BytesRef scratch = new BytesRef();
         return Iterators.flatMap(pages.iterator(), page -> {
             final int columnCount = columns.size();

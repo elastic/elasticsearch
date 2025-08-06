@@ -17,7 +17,6 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.action.stream.EsqlQueryResponseStream;
-import org.elasticsearch.xpack.esql.action.stream.NonStreamingEsqlQueryResponseStream;
 
 import java.io.IOException;
 import java.util.List;
@@ -54,16 +53,14 @@ public class RestEsqlQueryAction extends BaseRestHandler {
 
     protected static RestChannelConsumer restChannelConsumer(EsqlQueryRequest esqlRequest, RestRequest request, NodeClient client) {
         final Boolean partialResults = request.paramAsBoolean("allow_partial_results", null);
-        final boolean stream = request.paramAsBoolean("stream", false);
+        final boolean shouldStream = request.paramAsBoolean("stream", false);
         if (partialResults != null) {
             esqlRequest.allowPartialResults(partialResults);
         }
         LOGGER.debug("Beginning execution of ESQL query.\nQuery string: [{}]", esqlRequest.query());
         // TODO: Create responseStream here, and add to the request object (?). See RestRepositoryVerifyIntegrityAction
         return channel -> {
-            final var responseStream = stream
-                ? EsqlQueryResponseStream.forMediaType(channel, request)
-                : new NonStreamingEsqlQueryResponseStream(channel, request, esqlRequest);
+            final var responseStream = EsqlQueryResponseStream.forMediaType(channel, request, esqlRequest, shouldStream);
             esqlRequest.responseStream(responseStream);
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(EsqlQueryAction.INSTANCE, esqlRequest, responseStream.completionListener());

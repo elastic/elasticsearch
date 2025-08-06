@@ -50,9 +50,9 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.DATA_STREAMS;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
+public class TransportDataStreamUsageActionIT extends ESIntegTestCase {
     /*
-     * The DataStreamUsageTransportAction is not exposed in the xpack core plugin, so we have a special test plugin to do this
+     * The TransportDataStreamUsageAction is not exposed in the xpack core plugin, so we have a special test plugin to do this
      */
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -315,13 +315,13 @@ public class DataStreamUsageTransportActionIT extends ESIntegTestCase {
     }
 
     /*
-     * This plugin exposes the DataStreamUsageTransportAction.
+     * This plugin exposes the TransportDataStreamUsageAction.
      */
     public static final class TestDataStreamUsagePlugin extends XPackClientPlugin {
         @Override
         public List<ActionHandler> getActions() {
             List<ActionHandler> actions = new ArrayList<>();
-            actions.add(new ActionPlugin.ActionHandler(DATA_STREAMS, DataStreamUsageTransportAction.class));
+            actions.add(new ActionPlugin.ActionHandler(DATA_STREAMS, TransportDataStreamUsageAction.class));
             return actions;
         }
     }

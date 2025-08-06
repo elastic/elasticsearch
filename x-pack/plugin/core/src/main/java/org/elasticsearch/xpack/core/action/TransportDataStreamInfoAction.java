@@ -12,10 +12,10 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 
-public class DataStreamInfoTransportAction extends XPackInfoFeatureTransportAction {
+public class TransportDataStreamInfoAction extends XPackInfoFeatureTransportAction {
 
     @Inject
-    public DataStreamInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
+    public TransportDataStreamInfoAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.DATA_STREAMS.name(), transportService, actionFilters);
     }
 

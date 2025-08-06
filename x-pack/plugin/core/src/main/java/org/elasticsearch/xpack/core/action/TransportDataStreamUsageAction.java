@@ -30,14 +30,14 @@ import org.elasticsearch.xpack.core.datastreams.DataStreamLifecycleFeatureSetUsa
 import java.util.LongSummaryStatistics;
 import java.util.Map;
 
-public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportDataStreamUsageAction extends XPackUsageFeatureTransportAction {
 
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public DataStreamUsageTransportAction(
+    public TransportDataStreamUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

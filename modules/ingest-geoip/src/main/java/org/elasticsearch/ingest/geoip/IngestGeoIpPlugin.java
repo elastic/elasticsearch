@@ -41,8 +41,8 @@ import org.elasticsearch.ingest.geoip.direct.TransportGetDatabaseConfigurationAc
 import org.elasticsearch.ingest.geoip.direct.TransportPutDatabaseConfigurationAction;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
-import org.elasticsearch.ingest.geoip.stats.TransportGeoIpStatsAction;
 import org.elasticsearch.ingest.geoip.stats.RestGeoIpStatsAction;
+import org.elasticsearch.ingest.geoip.stats.TransportGeoIpStatsAction;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;

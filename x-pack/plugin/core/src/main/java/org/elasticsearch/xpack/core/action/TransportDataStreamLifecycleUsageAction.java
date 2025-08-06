@@ -30,13 +30,13 @@ import java.util.Collection;
 import java.util.LongSummaryStatistics;
 import java.util.Map;
 
-public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
+public class TransportDataStreamLifecycleUsageAction extends XPackUsageFeatureTransportAction {
 
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private final ProjectResolver projectResolver;
 
     @Inject
-    public DataStreamLifecycleUsageTransportAction(
+    public TransportDataStreamLifecycleUsageAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,

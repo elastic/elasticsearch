@@ -48,7 +48,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.action.XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
+public class TransportDataStreamLifecycleUsageActionIT extends ESIntegTestCase {
     /*
      * The DataLifecycleUsageTransportAction is not exposed in the xpack core plugin, so we have a special test plugin to do this
      */
@@ -289,7 +289,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
         @Override
         public List<ActionHandler> getActions() {
             List<ActionHandler> actions = new ArrayList<>();
-            actions.add(new ActionPlugin.ActionHandler(DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
+            actions.add(new ActionPlugin.ActionHandler(DATA_STREAM_LIFECYCLE, TransportDataStreamLifecycleUsageAction.class));
             return actions;
         }
     }
